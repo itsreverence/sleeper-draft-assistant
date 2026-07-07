@@ -150,4 +150,27 @@ describe("Sleeper draft normalization", () => {
     expect(state.teams.map((team) => team.id)).toEqual(["roster-11", "roster-12", "roster-13", "roster-14"]);
     expect(state.picks[1]?.teamId).toBe("roster-12");
   });
+  it("resolves pick ownership from picked_by when roster_id and draft_slot are absent", () => {
+    const state = normalizeSleeperDraftState({
+      ...fixture,
+      picks: [
+        { pick_no: 1, picked_by: "user-2", player_id: "p2" },
+        { pick_no: 2, picked_by: "user-3", player_id: "p3" },
+      ],
+    });
+
+    expect(state.picks[0]).toMatchObject({ pickNo: 1, teamId: "roster-12", draftSlot: 1 });
+    expect(state.picks[1]).toMatchObject({ pickNo: 2, teamId: "roster-13", draftSlot: 2 });
+    expect(state.teams.find((team) => team.id === "roster-12")?.roster).toEqual(["p2"]);
+    expect(state.teams.find((team) => team.id === "roster-13")?.roster).toEqual(["p3"]);
+  });
+
+  it("accepts roster-prefixed user roster ids", () => {
+    const state = normalizeSleeperDraftState({
+      ...fixture,
+      userRosterId: "roster-12",
+    });
+
+    expect(state.userTeamId).toBe("roster-12");
+  });
 });

@@ -217,7 +217,7 @@ export function normalizeSleeperDraftState(input: SleeperDraftStateInput): Draft
   const teamsCount = getTeamsCount(input);
   const rounds = getRounds(input, teamsCount);
   const teams = buildTeams(input, teamsCount);
-  const picks = buildPicks(input.picks, teams, teamsCount);
+  const picks = buildPicks(input.picks, teams, teamsCount, input.rosters ?? []);
   const playerPool = buildPlayerPool(input.players, input.picks);
   const userTeamId = getUserTeamId(teams, input.userRosterId);
   const totalPicks = teamsCount * rounds;
@@ -402,14 +402,20 @@ function getRosterIdForSlot(input: SleeperDraftStateInput, slot: number): string
   return null;
 }
 
-function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number): Pick[] {
+function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number, rosters: SleeperRoster[]): Pick[] {
   const teamByRosterId = new Map<string, Team>();
   const teamBySlot = new Map<number, Team>();
+  const teamByOwnerId = new Map<string, Team>();
 
   for (const team of teams) {
     teamBySlot.set(team.draftSlot, team);
     if (team.id.startsWith("roster-")) {
-      teamByRosterId.set(team.id.replace("roster-", ""), team);
+      const rosterId = team.id.replace("roster-", "");
+      teamByRosterId.set(rosterId, team);
+      const roster = rosters.find((candidate) => String(candidate.roster_id) === rosterId);
+      if (roster?.owner_id) {
+        teamByOwnerId.set(roster.owner_id, team);
+      }
     }
   }
 
@@ -420,7 +426,11 @@ function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number):
       const round = numberFrom(pick.round) ?? Math.ceil(pickNo / teamsCount);
       const draftSlot = numberFrom(pick.draft_slot) ?? getDraftSlotFromPickNo(pickNo, teamsCount);
       const rosterId = pick.roster_id === undefined || pick.roster_id === null ? null : String(pick.roster_id);
-      const team = (rosterId ? teamByRosterId.get(rosterId) : undefined) ?? teamBySlot.get(draftSlot);
+      const pickedBy = pick.picked_by === undefined || pick.picked_by === null ? null : String(pick.picked_by);
+      const team =
+        (rosterId ? teamByRosterId.get(rosterId) : undefined) ??
+        (pickedBy ? teamByOwnerId.get(pickedBy) : undefined) ??
+        teamBySlot.get(draftSlot);
 
       return {
         pickNo,
@@ -636,3 +646,4 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
