@@ -1,5 +1,6 @@
-﻿<script lang="ts">
-  import type { AiConversationMessage, AiProviderStatus, DraftRecommendation, DraftState, Position } from "../types";
+<script lang="ts">
+  import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
+  import type { AiConversationMessage, AiProviderStatus, DraftRecommendation, DraftState } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
@@ -29,6 +30,7 @@
   const providerLabel = $derived(providerStatus?.label ?? "AI manager");
   const providerReady = $derived(Boolean(providerStatus?.configured));
   const suggestedQuestions = $derived(buildSuggestedQuestions(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
+  const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
 
   function createMessage(role: AiMessage["role"], content: string, status: AiMessage["status"] = "complete"): AiMessage {
     return {
@@ -98,98 +100,6 @@
       .slice(-8);
   }
 
-  function buildSuggestedQuestions(
-    state: DraftState | null,
-    currentRecommendation: DraftRecommendation | null,
-    rankingsImported: boolean,
-    usingPlaceholderRanks: boolean,
-  ): string[] {
-    const fallback = [
-      "Who should I draft if I pick right now?",
-      "Compare my top 3 options.",
-      "Should I prioritize QB here?",
-      "What roster need matters most?",
-    ];
-
-    if (!state || !currentRecommendation?.candidates.length) {
-      return fallback;
-    }
-
-    const candidates = currentRecommendation.candidates;
-    const top = candidates[0];
-    const second = candidates[1];
-    const third = candidates[2];
-    const rosterNeeds = getRosterNeeds(state);
-    const questions: string[] = [];
-
-    if (top) {
-      questions.push(`Why is ${top.player.name} the recommendation?`);
-    }
-
-    if (top && second) {
-      questions.push(`Compare ${top.player.name} vs ${second.player.name}.`);
-    }
-
-    if (top?.player.position === "QB" && hasSingleQbFormat(state)) {
-      questions.push(`Should I take ${top.player.name} this early in a 1QB format?`);
-    } else if (rosterNeeds.length > 0) {
-      questions.push(`Should I prioritize ${formatPositionList(rosterNeeds)} over ${top?.player.position ?? "the top player"}?`);
-    }
-
-    const highReturn = candidates.find((candidate) => candidate.returnProbability >= 0.45 && candidate.player.name !== top?.player.name);
-    if (highReturn) {
-      questions.push(`Can I wait on ${highReturn.player.name}?`);
-    } else if (third) {
-      questions.push(`What changes if I pass on ${top?.player.name} for ${third.player.name}?`);
-    }
-
-    if (usingPlaceholderRanks) {
-      questions.push("How much should I trust these placeholder Sleeper ranks?");
-    } else if (rankingsImported) {
-      questions.push("Where are imported rankings weakest for this decision?");
-    }
-
-    if (rosterNeeds.length > 0) {
-      questions.push("What roster need matters most after this pick?");
-    } else {
-      questions.push("What position should I target next round?");
-    }
-
-    return uniqueQuestions(questions).slice(0, 6);
-  }
-
-  function getRosterNeeds(state: DraftState): Position[] {
-    const userTeam = state.teams.find((team) => team.id === state.userTeamId);
-    const counts: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };
-    const playersById = new Map(state.players.map((player) => [player.id, player]));
-
-    for (const playerId of userTeam?.roster ?? []) {
-      const player = playersById.get(playerId);
-      if (player) {
-        counts[player.position] += 1;
-      }
-    }
-
-    return (["QB", "RB", "WR", "TE"] as Position[]).filter((position) => counts[position] < (state.settings.rosterSlots[position] ?? 0));
-  }
-
-  function hasSingleQbFormat(state: DraftState): boolean {
-    return (state.settings.rosterSlots.QB ?? 0) <= 1 && (state.settings.rosterSlots.SUPER_FLEX ?? 0) === 0;
-  }
-
-  function formatPositionList(positions: Position[]): string {
-    if (positions.length === 0) {
-      return "roster need";
-    }
-    if (positions.length === 1) {
-      return positions[0];
-    }
-    return `${positions.slice(0, -1).join("/")}/${positions[positions.length - 1]}`;
-  }
-
-  function uniqueQuestions(source: string[]): string[] {
-    return Array.from(new Set(source.filter(Boolean)));
-  }
 </script>
 
 <article class="panel ask-panel">
@@ -201,12 +111,21 @@
     <span class:offline={!providerReady} class="pill pill-info">{providerLabel}</span>
   </div>
 
+  <div class="context-strip" aria-label="AI grounding context">
+    <span class="context-label">Grounded in</span>
+    <div class="context-chips">
+      {#each contextSummary.chips as chip}
+        <span>{chip}</span>
+      {/each}
+    </div>
+  </div>
+
   {#if showPlaceholderWarning}
     <p class="callout callout-warning compact-callout">
       Player values are using Sleeper search ranks until rankings are imported.
     </p>
-  {:else if hasImportedRankings}
-    <p class="context-note">Using Sleeper draft context and imported rankings. Imported rankings are not live projections.</p>
+  {:else if contextSummary.note}
+    <p class="context-note">{contextSummary.note}</p>
   {/if}
 
   {#if messages.length === 0}
@@ -251,6 +170,38 @@
     font-size: var(--text-xs);
   }
 
+  .context-strip {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: 9px 10px;
+  }
+
+  .context-label {
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .context-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .context-chips span {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    padding: 4px 7px;
+  }
+
   .context-note,
   .copy-note {
     color: var(--text-muted);
@@ -272,3 +223,4 @@
     color: var(--danger);
   }
 </style>
+

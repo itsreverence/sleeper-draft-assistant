@@ -719,6 +719,8 @@
             providerStatus={aiProviderStatus}
             {hasImportedRankings}
             showPlaceholderWarning={recommendationsUsePlaceholder}
+            {draftState}
+            {recommendation}
           />
         </div>
       </section>
