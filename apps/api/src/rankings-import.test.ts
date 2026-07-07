@@ -33,7 +33,10 @@ describe("FantasyPros ranking import", () => {
 
   it("uses imported rank language in recommendations", () => {
     const state = createMockDraftState(0);
-    const storedImport = importFantasyProsCsv(state, csv);
+    const recommendationCsv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
+"1",1,"Justin Jefferson",MIN,"WR1","6","Coach Upside rating","Coach Bust rating","5 out of 5 stars","0"
+"2",1,"Jahmyr Gibbs",DET,"RB1","6","Coach Upside rating","Coach Bust rating","5 out of 5 stars","0"`;
+    const storedImport = importFantasyProsCsv(state, recommendationCsv);
     const recommendation = buildDraftRecommendation(applyImportedRankings(state, storedImport));
 
     expect(recommendation.assumptions[0]).toContain("Imported");
@@ -127,3 +130,4 @@ function player(id: string, name: string, team: string, position: Player["positi
     riskTags: [],
   };
 }
+

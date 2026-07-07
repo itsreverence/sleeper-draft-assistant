@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   CandidateSignal,
   DraftRecommendation,
   DraftState,
@@ -197,6 +197,7 @@ function toCandidateSignal(
   const projectedEdge = Number((player.projectedPoints - baseline).toFixed(1));
   const rosterFit = getRosterFit(player.position, rosterCounts);
   const scarcityBoost = getScarcityBoost(player.position, state);
+  const constructionBoost = getRosterConstructionBoost(player.position, state, rosterCounts);
   const adpValue = player.adp === null ? 0 : player.adp - state.currentPick;
   const returnProbability = estimateReturnProbability(player, state);
   const fitBoost = rosterFit === "need" ? 13 : rosterFit === "depth" ? 5 : -4;
@@ -205,7 +206,7 @@ function toCandidateSignal(
   const riskPenalty = player.riskTags.length * 3;
   const preferenceBoost = getPreferenceBoost(player.id, preferences);
   const score = clamp(
-    55 + projectedEdge / 8 + fitBoost + scarcityBoost + adpValue / 6 + tierBoost + importedRankBoost + preferenceBoost - riskPenalty,
+    55 + projectedEdge / getProjectedEdgeDivisor(player.position) + fitBoost + scarcityBoost + constructionBoost + adpValue / 6 + tierBoost + importedRankBoost + preferenceBoost - riskPenalty,
     0,
     100,
   );
@@ -218,7 +219,7 @@ function toCandidateSignal(
     valueLabel: getValueLabel(player, adpValue),
     scarcityLabel: getScarcityLabel(scarcityBoost),
     returnProbability,
-    reasons: getReasons(player, projectedEdge, rosterFit, adpValue, returnProbability, preferences),
+    reasons: getReasons(player, projectedEdge, rosterFit, adpValue, returnProbability, preferences, constructionBoost),
   };
 }
 
@@ -234,6 +235,43 @@ function getRosterFit(position: Position, rosterCounts: Record<Position, number>
   return "luxury";
 }
 
+function getProjectedEdgeDivisor(position: Position): number {
+  return position === "QB" ? 12 : position === "TE" ? 9 : 8;
+}
+
+function getRosterConstructionBoost(
+  position: Position,
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): number {
+  const slots = state.settings.rosterSlots;
+  const flexSlots = (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
+  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
+  const rbWrDemand = (slots.RB ?? 0) + (slots.WR ?? 0) + flexSlots;
+  const rbWrRostered = rosterCounts.RB + rosterCounts.WR;
+
+  if (position === "RB" || position === "WR") {
+    const flexPressure = Math.min(10, flexSlots * 4);
+    const starterPressure = rosterCounts[position] < (slots[position] ?? 0) ? 4 : 0;
+    const depthPressure = rbWrRostered < rbWrDemand ? 4 : 0;
+    const pprPressure = state.settings.scoring.toLowerCase().includes("ppr") ? 2 : 0;
+    return flexPressure + starterPressure + depthPressure + pprPressure;
+  }
+
+  if (position === "QB") {
+    if (superFlexSlots > 0) {
+      return 10;
+    }
+
+    return state.settings.teams <= 10 ? -8 : -4;
+  }
+
+  if (position === "TE") {
+    return state.settings.teams <= 10 ? -4 : 0;
+  }
+
+  return -10;
+}
 function getScarcityBoost(position: Position, state: DraftState): number {
   const availableAtPosition = getAvailablePlayers(state).filter((player) => player.position === position);
   const aboveBaseline = availableAtPosition.filter(
@@ -364,12 +402,21 @@ function getReasons(
   adpValue: number,
   returnProbability: number,
   preferences: NormalizedRecommendationPreferences,
+  constructionBoost: number,
 ): string[] {
   const reasons = [
     getPrimarySignalReason(player, projectedEdge),
     rosterFit === "need" ? `fills a ${player.position} roster need` : `adds ${player.position} depth`,
     getValueLabel(player, adpValue),
   ];
+
+  if (constructionBoost >= 10 && (player.position === "RB" || player.position === "WR")) {
+    reasons.push("matches RB/WR flex demand");
+  }
+
+  if (constructionBoost < 0 && (player.position === "QB" || player.position === "TE")) {
+    reasons.push("shallow league reduces replacement pressure");
+  }
 
   if (preferences.pinned.has(player.id)) {
     reasons.push("user pinned this player");
@@ -600,14 +647,4 @@ function player(
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
-
-
-
-
-
-
-
-
-
-
 
