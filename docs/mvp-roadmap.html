@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MVP Roadmap — Sleeper AI Team Manager</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAFAF8; --bg-alt:#F1EFE8; --ink:#1A1F1C; --ink-soft:#5B5E54;
+    --green:#2F5233; --green-light:#6B8F71; --gold:#C08A2E; --line:#DDD8CC;
+    --chip-bg:#EFEBDD; --max:820px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans',sans-serif; font-size:16px; line-height:1.65; }
+  a{color:var(--green); text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .suite-nav{ display:flex; gap:6px; flex-wrap:wrap; padding:14px 24px; background:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px; }
+  .suite-nav a{ color:#D9D4C4; padding:4px 10px; border:1px solid #3A3F36; border-radius:3px; letter-spacing:.04em; }
+  .suite-nav a.current{ background:var(--green); color:#fff; border-color:var(--green); }
+  .suite-nav a:hover{ text-decoration:none; border-color:var(--green-light); }
+  .layout{ display:flex; max-width:1180px; margin:0 auto; }
+  nav.toc{ width:220px; flex-shrink:0; position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto; padding:40px 20px 40px 32px; border-right:1px solid var(--line); }
+  nav.toc .doc-tag{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold); letter-spacing:.12em; margin-bottom:6px; }
+  nav.toc .doc-title{ font-family:'Fraunces',serif; font-weight:600; font-size:20px; margin:0 0 24px; }
+  nav.toc ul{ list-style:none; padding:0; margin:0; }
+  nav.toc li{ margin-bottom:2px; }
+  nav.toc a{ display:flex; gap:10px; align-items:baseline; padding:6px 8px; border-radius:4px; color:var(--ink-soft); font-size:13.5px; }
+  nav.toc a:hover{ background:var(--chip-bg); text-decoration:none; color:var(--ink); }
+  nav.toc .badge{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--green); background:var(--chip-bg); border:1px solid var(--line); border-radius:3px; padding:1px 5px; min-width:38px; text-align:center; flex-shrink:0; }
+  main{ flex:1; min-width:0; padding:56px 48px 100px; max-width:var(--max); }
+  header.hero{ margin-bottom:48px; }
+  header.hero .kicker{ font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.14em; color:var(--gold); text-transform:uppercase; margin-bottom:12px; }
+  header.hero h1{ font-family:'Fraunces',serif; font-weight:700; font-size:46px; line-height:1.05; margin:0 0 14px; color:var(--ink); }
+  header.hero p.lede{ font-size:17px; color:var(--ink-soft); max-width:560px; margin:0; }
+  h2{ font-family:'Fraunces',serif; font-weight:600; font-size:27px; margin:56px 0 18px; display:flex; align-items:center; gap:12px; scroll-margin-top:24px; }
+  h2 .tag{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:#fff; background:var(--green); padding:3px 8px; border-radius:3px; letter-spacing:.08em; flex-shrink:0; }
+  h3{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; margin:32px 0 10px; color:var(--ink); }
+  p{ margin:0 0 14px; }
+  ul,ol{ margin:0 0 16px; padding-left:22px; }
+  li{ margin-bottom:6px; }
+  code, .mono{ font-family:'IBM Plex Mono',monospace; font-size:0.92em; }
+  code{ background:var(--chip-bg); padding:1px 6px; border-radius:3px; color:var(--green); }
+  .callout{ background:var(--bg-alt); border-left:3px solid var(--gold); padding:14px 18px; border-radius:0 6px 6px 0; margin:0 0 20px; font-size:15px; }
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
+  .grid-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:20px; }
+  .card{ border:1px solid var(--line); border-radius:8px; padding:16px 18px; background:#fff; }
+  .card h4{ margin:0 0 8px; font-size:14px; font-family:'IBM Plex Mono',monospace; color:var(--green); letter-spacing:.04em; }
+  .phase{ border:1px solid var(--line); border-radius:10px; padding:24px 26px; margin-bottom:22px; background:#fff; position:relative; }
+  .phase .n{ position:absolute; top:-14px; left:22px; background:var(--gold); color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:3px 10px; border-radius:12px; }
+  .phase h3{ margin-top:6px; }
+  .phase .goal{ color:var(--ink-soft); font-style:italic; margin-bottom:14px; }
+  .exit{ background:var(--bg-alt); border-radius:6px; padding:12px 16px; margin-top:14px; }
+  .exit p.label{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.06em; color:var(--green); text-transform:uppercase; margin-bottom:8px; }
+  .exit ul{ margin-bottom:0; }
+  .risk-card{ border:1px solid #D9C2B0; background:#FBF3ED; border-radius:8px; padding:16px 18px; margin-bottom:14px; }
+  .risk-card h4{ margin:0 0 6px; font-family:'Fraunces',serif; font-size:16px; color:#8A4522; }
+  .risk-card p{ margin-bottom:0; font-size:14.5px; }
+  .divider{ border:none; border-top:1px solid var(--line); margin:48px 0; }
+  footer{ margin-top:60px; padding-top:24px; border-top:1px solid var(--line); font-size:13px; color:var(--ink-soft); }
+  @media (max-width:860px){ nav.toc{ display:none; } main{ padding:36px 22px 80px; } header.hero h1{ font-size:32px; } .grid-2,.grid-3{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<div class="suite-nav">
+  <a href="product-plan.html">PRODUCT PLAN</a>
+  <a href="architecture.html">ARCHITECTURE</a>
+  <a href="implementation-plan.html">IMPLEMENTATION PLAN</a>
+  <a href="mvp-roadmap.html" class="current">MVP ROADMAP</a>
+</div>
+
+<div class="layout">
+  <nav class="toc">
+    <div class="doc-tag">04 / 04 — DELIVERY PHASES</div>
+    <div class="doc-title">MVP Roadmap</div>
+    <ul>
+      <li><a href="#p0"><span class="badge">PH·0</span>Planning &amp; Spikes</a></li>
+      <li><a href="#p1"><span class="badge">PH·1</span>Project Skeleton</a></li>
+      <li><a href="#p2"><span class="badge">PH·2</span>Sleeper Foundation</a></li>
+      <li><a href="#p3"><span class="badge">PH·3</span>Draft Room UI</a></li>
+      <li><a href="#p4"><span class="badge">PH·4</span>Rankings &amp; Signals</a></li>
+      <li><a href="#p5"><span class="badge">PH·5</span>AI Draft Manager</a></li>
+      <li><a href="#p6"><span class="badge">PH·6</span>Codex Spike</a></li>
+      <li><a href="#p7"><span class="badge">PH·7</span>Weekly Manager MVP</a></li>
+      <li><a href="#risks"><span class="badge">RISK</span>Key Risks</a></li>
+      <li><a href="#validation"><span class="badge">VAL</span>Validation Strategy</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="kicker">Delivery Phases · Sleeper AI Team Manager</div>
+      <h1>MVP Roadmap</h1>
+      <p class="lede">Eight phases with concrete exit criteria, moving from spikes to a live Sleeper draft assistant and on to weekly team management.</p>
+    </header>
+
+    <section id="p0">
+      <div class="phase">
+        <span class="n">PHASE 0</span>
+        <h3>Planning And Spikes</h3>
+        <p class="goal">Goal: remove the riskiest unknowns before building too much surface area.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>Confirm Sleeper endpoints needed for draft state</li>
+          <li>Spike Hono SSE endpoint</li>
+          <li>Spike SQLite + Drizzle migrations</li>
+          <li>Spike Svelte consuming API and SSE updates</li>
+          <li>Spike <code>AiProvider</code> with <code>NoopAiProvider</code></li>
+          <li>Spike Codex SDK/app-server provider separately</li>
+          <li>Define import format for rankings/projections</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>Local app shell can receive streamed mock draft events</li>
+            <li>Engine can rank a small fake player pool</li>
+            <li>AI provider interface is stable enough for MVP</li>
+            <li>Codex subscription route is classified as usable, workaround-needed, or deferred</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p1">
+      <div class="phase">
+        <span class="n">PHASE 1</span>
+        <h3>Project Skeleton</h3>
+        <p class="goal">Goal: create the repo structure and baseline developer workflow.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>npm workspace setup</li>
+          <li>Svelte/Vite app</li>
+          <li>Hono API app</li>
+          <li>Shared Zod package</li>
+          <li>Engine package</li>
+          <li>SQLite/Drizzle setup</li>
+          <li>Vitest setup</li>
+          <li>Lint/typecheck/build scripts</li>
+          <li>Basic app layout</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li><code>npm run dev</code> starts frontend and backend</li>
+            <li><code>npm run check</code>, <code>npm run build</code>, and <code>npm test</code> pass</li>
+            <li>Frontend can call backend health endpoint</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p2">
+      <div class="phase">
+        <span class="n">PHASE 2</span>
+        <h3>Sleeper Data Foundation</h3>
+        <p class="goal">Goal: ingest and normalize Sleeper league/draft data.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>Sleeper API client</li>
+          <li>Local rate limiting and retries</li>
+          <li>Player map cache</li>
+          <li>League sync</li>
+          <li>Roster sync</li>
+          <li>Draft sync</li>
+          <li>Picks sync</li>
+          <li>Traded pick handling</li>
+          <li>Normalized draft state DTO</li>
+          <li>Mock fixtures from real-looking Sleeper payloads</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>User can enter Sleeper username, league ID, or draft ID</li>
+            <li>Backend creates a local league/draft record</li>
+            <li>Frontend shows league settings, teams, draft status, and picks</li>
+            <li>Tests cover normalization edge cases</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p3">
+      <div class="phase">
+        <span class="n">PHASE 3</span>
+        <h3>Draft Room UI</h3>
+        <p class="goal">Goal: make the live draft usable without AI.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>Draft board</li>
+          <li>Pick feed</li>
+          <li>Team/roster panel</li>
+          <li>Available player table</li>
+          <li>Position filters</li>
+          <li>Search</li>
+          <li>Current pick and user's upcoming picks</li>
+          <li>SSE polling/update loop</li>
+          <li>Connection and stale-data states</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>App follows a live or mocked Sleeper draft</li>
+            <li>Available player pool updates after each pick</li>
+            <li>Stale or failed Sleeper polling is visible</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p4">
+      <div class="phase">
+        <span class="n">PHASE 4</span>
+        <h3>Rankings And Signals</h3>
+        <p class="goal">Goal: provide enough deterministic structure for useful AI recommendations.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>CSV import for rankings/projections</li>
+          <li>Player matching flow for unmatched names</li>
+          <li>Value over baseline</li>
+          <li>Tiers</li>
+          <li>Roster need</li>
+          <li>ADP value</li>
+          <li>Pick return probability approximation</li>
+          <li>Positional scarcity</li>
+          <li>Risk flags from available metadata/imports</li>
+          <li>Candidate set builder for AI prompts</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>App shows top candidate players with signals</li>
+            <li>Engine tests cover scoring, tiers, roster fit, and availability</li>
+            <li>Deterministic view is useful if AI is disabled</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p5">
+      <div class="phase">
+        <span class="n">PHASE 5</span>
+        <h3>AI Draft Manager</h3>
+        <p class="goal">Goal: AI-first recommendation flow for live draft decisions.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li><code>AiProvider</code> interface</li>
+          <li><code>NoopAiProvider</code></li>
+          <li>Prompt/context builder</li>
+          <li>Structured response schema</li>
+          <li>Recommendation endpoint</li>
+          <li>Draft Q&amp;A endpoint</li>
+          <li>Response renderer</li>
+          <li>Decision log</li>
+          <li>Provider status UI</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>User can ask "Who should I draft?" and get a structured answer</li>
+            <li>Answer includes recommendation, alternatives, confidence, risks, and evidence</li>
+            <li>AI failure leaves deterministic signals intact</li>
+            <li>Context snapshots are persisted for debugging</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p6">
+      <div class="phase">
+        <span class="n">PHASE 6</span>
+        <h3>Codex Subscription Provider Spike</h3>
+        <p class="goal">Goal: determine whether subscription-backed AI can be reliable enough for daily use.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>Try official Codex SDK/app-server route first</li>
+          <li>Test auth requirements and local session behavior</li>
+          <li>Test structured recommendation prompt</li>
+          <li>Test latency during pick-clock conditions</li>
+          <li>Test streaming or progress updates</li>
+          <li>Document limitations</li>
+          <li>Decide whether to implement or defer experimental ChatGPT/Codex backend provider</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>Provider can answer draft-context questions locally, or</li>
+            <li>Provider is deferred with a clear reason and <code>OpenAiApiProvider</code> becomes the next practical option</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="p7">
+      <div class="phase">
+        <span class="n">PHASE 7</span>
+        <h3>Weekly Manager MVP</h3>
+        <p class="goal">Goal: extend from draft assistant to team manager.</p>
+        <p><strong>Tasks:</strong></p>
+        <ul>
+          <li>Weekly roster state</li>
+          <li>Starter/bench comparison</li>
+          <li>Lineup recommendation context</li>
+          <li>Waiver candidate import/manual entry</li>
+          <li>Drop candidate signals</li>
+          <li>Weekly AI Q&amp;A</li>
+          <li>Decision log outcomes</li>
+        </ul>
+        <div class="exit">
+          <p class="label">Exit criteria</p>
+          <ul>
+            <li>User can ask start/sit and waiver questions against their Sleeper roster</li>
+            <li>AI receives projections/rankings and roster constraints</li>
+            <li>Recommendations show assumptions and missing data</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <section id="risks">
+      <h2><span class="tag">RISK</span>Key Risks</h2>
+
+      <div class="risk-card">
+        <h4>AI Provider Reliability</h4>
+        <p>Subscription-backed Codex integration may not behave like a stable general app API. Keep it isolated and preserve an API-key path.</p>
+      </div>
+      <div class="risk-card">
+        <h4>Data Quality</h4>
+        <p>Sleeper does not provide every projection, injury, news, or usage signal needed for strong weekly management. Start with imports and add providers later.</p>
+      </div>
+      <div class="risk-card">
+        <h4>Player Matching</h4>
+        <p>Imported rankings may not map cleanly to Sleeper IDs. Build reviewable matching rather than silently guessing.</p>
+      </div>
+      <div class="risk-card">
+        <h4>Draft Timing</h4>
+        <p>AI calls must be fast enough for live picks. The system should precompute candidate context and support quick deterministic fallback.</p>
+      </div>
+      <div class="risk-card">
+        <h4>Over-Automation</h4>
+        <p>Do not automate Sleeper actions early. Keep the product advisory until recommendations prove trustworthy.</p>
+      </div>
+    </section>
+
+    <section id="validation">
+      <h2><span class="tag">VAL</span>Validation Strategy</h2>
+      <p>Use three kinds of tests:</p>
+      <ul>
+        <li>Unit tests for engine calculations</li>
+        <li>Fixture tests for Sleeper normalization</li>
+        <li>Scenario tests for draft decisions</li>
+      </ul>
+
+      <h3>Mocked Draft Scenarios</h3>
+      <div class="grid-3">
+        <div class="card"><ul style="margin-bottom:0;">
+          <li>Early round balanced board</li>
+          <li>Positional run</li>
+          <li>Zero-RB start</li>
+        </ul></div>
+        <div class="card"><ul style="margin-bottom:0;">
+          <li>Late QB value</li>
+          <li>Thin TE tier</li>
+        </ul></div>
+        <div class="card"><ul style="margin-bottom:0;">
+          <li>Injury-risk player available at discount</li>
+          <li>User pick approaching after long gap</li>
+        </ul></div>
+      </div>
+
+      <h3>AI Evaluation</h3>
+      <p>For AI evaluation, store context snapshots and compare:</p>
+      <ul>
+        <li>Whether the recommendation respects roster/scoring constraints</li>
+        <li>Whether it identifies missing data</li>
+        <li>Whether it gives useful alternatives</li>
+        <li>Whether it avoids hallucinating unavailable players</li>
+      </ul>
+    </section>
+
+    <footer>Sleeper AI Team Manager — MVP Roadmap · 3 of 4 planning documents</footer>
+  </main>
+</div>
+</body>
+</html>

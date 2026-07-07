@@ -1,0 +1,28 @@
+{
+  "name": "sleeper-draft-assistant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "desktop": "npm run start -w @sleeper-ai/desktop",
+    "desktop:package": "npm run package -w @sleeper-ai/desktop",
+    "desktop:make": "npm run make -w @sleeper-ai/desktop",
+    "desktop:dist": "npm run dist -w @sleeper-ai/desktop"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "description": "Local Sleeper-first AI fantasy football team manager and draft assistant.",
+  "author": "Sleeper AI Team Manager Contributors"
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sleeper AI Team Manager icon">
+  <rect width="256" height="256" rx="56" fill="#12231f"/>
+  <path d="M58 165c16 24 40 36 70 36s54-12 70-36" fill="none" stroke="#f5f1e7" stroke-width="16" stroke-linecap="round"/>
+  <path d="M72 91c20-21 45-32 74-32 21 0 38 5 52 16" fill="none" stroke="#39d98a" stroke-width="16" stroke-linecap="round"/>
+  <path d="M73 103h108c12 0 21 9 21 21v4c0 12-9 21-21 21H73c-12 0-21-9-21-21v-4c0-12 9-21 21-21Z" fill="#f5f1e7"/>
+  <circle cx="96" cy="126" r="10" fill="#12231f"/>
+  <circle cx="160" cy="126" r="10" fill="#12231f"/>
+  <path d="M120 151h16" stroke="#12231f" stroke-width="10" stroke-linecap="round"/>
+</svg>

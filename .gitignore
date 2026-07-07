@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+.vite/
+coverage/
+.tmp/
+*.log
+.env
+.env.*
+!.env.example
+data/*.db
+data/*.db-*
+data/*.json
+apps/desktop/out/
+apps/desktop/out-builder/

@@ -1,0 +1,51 @@
+{
+  "name": "@sleeper-ai/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/main.cjs",
+  "description": "Local Sleeper-first AI fantasy football team manager and draft assistant.",
+  "author": "Sleeper AI Team Manager Contributors",
+  "scripts": {
+    "start": "electron .",
+    "build:assets": "node ../../scripts/build-desktop-assets.mjs",
+    "package": "npm run build:assets && electron-builder --dir",
+    "make": "npm run build:assets && electron-builder",
+    "dist": "npm run make"
+  },
+  "build": {
+    "appId": "com.sleeperai.teammanager",
+    "productName": "Sleeper AI Team Manager",
+    "asar": true,
+    "asarUnpack": [
+      "dist/api-server.mjs"
+    ],
+    "directories": {
+      "output": "out-builder"
+    },
+    "files": [
+      "assets/icon.ico",
+      "src/main.cjs",
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "43.0.0",
+    "electron-builder": "26.15.3"
+  }
+}
