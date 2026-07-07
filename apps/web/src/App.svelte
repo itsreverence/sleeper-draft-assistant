@@ -435,6 +435,15 @@
     }
   }
 
+  function formatPollTime(value: string | undefined): string {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
   function connectEvents(draftId: string, userRosterId: string | null) {
     eventSource?.close();
     eventSource = createDraftEventSource(draftId, userRosterId);
@@ -451,6 +460,14 @@
       applyDraftPayload(payload);
       lastEvent = `Pick ${payload.state.currentPick - 1} recorded`;
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+    });
+
+    eventSource.addEventListener("heartbeat", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as { at?: string };
+      status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      lastEvent = isMockDraft(draftId)
+        ? `Demo stream checked ${formatPollTime(payload.at)}`
+        : `Sleeper checked ${formatPollTime(payload.at)}; no new picks`;
     });
 
     eventSource.addEventListener("stream-error", (event) => {
@@ -742,23 +759,4 @@
     }
   }
 </style>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

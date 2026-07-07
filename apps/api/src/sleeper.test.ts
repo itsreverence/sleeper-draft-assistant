@@ -173,4 +173,24 @@ describe("Sleeper draft normalization", () => {
 
     expect(state.userTeamId).toBe("roster-12");
   });
+
+  it("advances current pick and rosters across consecutive poll snapshots", () => {
+    const before = normalizeSleeperDraftState(fixture);
+    const after = normalizeSleeperDraftState({
+      ...fixture,
+      picks: [
+        ...fixture.picks,
+        { pick_no: 4, round: 1, draft_slot: 4, roster_id: 14, player_id: "p4" },
+      ],
+    });
+
+    expect(before.currentPick).toBe(4);
+    expect(before.picks).toHaveLength(3);
+    expect(before.teams.find((team) => team.id === "roster-14")?.roster).toEqual([]);
+    expect(after.currentPick).toBe(5);
+    expect(after.picks).toHaveLength(4);
+    expect(after.picks[3]).toMatchObject({ pickNo: 4, round: 1, draftSlot: 4, teamId: "roster-14" });
+    expect(after.teams.find((team) => team.id === "roster-14")?.roster).toEqual(["p4"]);
+  });
 });
+
