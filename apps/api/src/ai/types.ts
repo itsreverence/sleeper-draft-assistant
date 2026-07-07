@@ -32,6 +32,17 @@ export type DraftAiContext = {
     usesSleeperPlaceholderRanks: boolean;
     limitations: string[];
   };
+  draftBrief: {
+    leagueFormat: string;
+    currentPick: string;
+    userRoster: string;
+    engineLean: string;
+    primaryDecisionGuidance: string[];
+    rosterPressure: string[];
+    candidateTradeoffs: string[];
+    dataWarnings: string[];
+    responseRules: string[];
+  };
   draft: {
     id: string;
     name: string;
@@ -104,4 +115,5 @@ export interface AiProvider {
   status(): AiProviderStatus;
   answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer>;
 }
+
 

@@ -17,6 +17,9 @@ describe("AI provider context", () => {
     expect(context.userTeam?.id).toBe(state.userTeamId);
     expect(context.recentPicks).toHaveLength(3);
     expect(context.recommendation.candidates[0]?.name).toBe(recommendation.candidates[0]?.player.name);
+    expect(context.draftBrief.engineLean).toContain(recommendation.candidates[0]?.player.name);
+    expect(context.draftBrief.candidateTradeoffs[0]).toContain("Engine lean");
+    expect(context.draftBrief.responseRules).toContain("Answer the user's exact question first, then explain the tradeoff.");
   });
 
   it("answers through the deterministic fallback provider", async () => {
@@ -48,6 +51,10 @@ describe("AI provider context", () => {
     );
     expect(context.recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
     expect(qb?.reasons).toContain("shallow league reduces replacement pressure");
+    expect(context.draftBrief.leagueFormat).toContain("8-team PPR");
+    expect(context.draftBrief.primaryDecisionGuidance).toContain("RB/WR depth has extra importance because FLEX slots increase weekly starter demand.");
+    expect(context.draftBrief.primaryDecisionGuidance).toContain("QB replacement pressure is lower because this is not a superflex format.");
+    expect(context.draftBrief.rosterPressure).toContain("This format has 2 RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.");
   });
 });
 function createEightTeamTwoFlexState(): DraftState {
@@ -113,4 +120,5 @@ function contextPlayer(
     riskTags: [],
   };
 }
+
 

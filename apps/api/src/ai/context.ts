@@ -15,18 +15,62 @@ export function buildDraftAiContext(
   const teamsById = new Map(state.teams.map((team) => [team.id, team]));
   const userTeam = state.teams.find((team) => team.id === state.userTeamId) ?? null;
   const candidateSources = new Set(recommendation.candidates.map((candidate) => candidate.player.projectionSource));
+  const dataQuality: DraftAiContext["dataQuality"] = {
+    playerValueSource: describePlayerValueSource(candidateSources),
+    hasImportedRankings: candidateSources.has("imported"),
+    usesSleeperPlaceholderRanks: candidateSources.has("sleeper_search_rank"),
+    limitations: getDataLimitations(candidateSources),
+  };
+  const rosterConstruction = buildRosterConstruction(state, userTeam, playersById);
+  const userTeamSummary: DraftAiContext["userTeam"] = userTeam
+    ? {
+        id: userTeam.id,
+        name: userTeam.name,
+        draftSlot: userTeam.draftSlot,
+        roster: userTeam.roster.map((playerId) => playerSummary(playersById.get(playerId), playerId)),
+      }
+    : null;
+  const recentPicks: DraftAiContext["recentPicks"] = [...state.picks]
+    .reverse()
+    .slice(0, 12)
+    .map((pick) => ({
+      pickNo: pick.pickNo,
+      round: pick.round,
+      team: teamsById.get(pick.teamId)?.name ?? pick.teamId,
+      player: playersById.get(pick.playerId)?.name ?? pick.playerId,
+    }));
+  const recommendationSummary: DraftAiContext["recommendation"] = {
+    headline: recommendation.headline,
+    confidence: recommendation.confidence,
+    summary: recommendation.summary,
+    candidates: recommendation.candidates.map((candidate) => ({
+      playerId: candidate.player.id,
+      name: candidate.player.name,
+      team: candidate.player.team,
+      position: candidate.player.position,
+      score: candidate.score,
+      rosterFit: candidate.rosterFit,
+      value: candidate.valueLabel,
+      scarcity: candidate.scarcityLabel,
+      returnProbability: candidate.returnProbability,
+      reasons: candidate.reasons,
+      source: candidate.player.projectionSource,
+      importedRank: candidate.player.importedRank ?? null,
+      tier: candidate.player.tier,
+      byeWeek: candidate.player.byeWeek ?? null,
+      riskTags: candidate.player.riskTags,
+    })),
+    risks: recommendation.risks,
+    assumptions: recommendation.assumptions,
+  };
 
   return {
     task: "draft_question",
     question,
     conversationHistory: conversationHistory.slice(-8),
     userPreferences,
-    dataQuality: {
-      playerValueSource: describePlayerValueSource(candidateSources),
-      hasImportedRankings: candidateSources.has("imported"),
-      usesSleeperPlaceholderRanks: candidateSources.has("sleeper_search_rank"),
-      limitations: getDataLimitations(candidateSources),
-    },
+    dataQuality,
+    draftBrief: buildDraftBrief(state, userTeamSummary, rosterConstruction, recommendationSummary, dataQuality),
     draft: {
       id: state.id,
       name: state.name,
@@ -35,51 +79,95 @@ export function buildDraftAiContext(
       updatedAt: state.updatedAt,
     },
     settings: state.settings,
-    rosterConstruction: buildRosterConstruction(state, userTeam, playersById),
-    userTeam: userTeam
-      ? {
-          id: userTeam.id,
-          name: userTeam.name,
-          draftSlot: userTeam.draftSlot,
-          roster: userTeam.roster.map((playerId) => playerSummary(playersById.get(playerId), playerId)),
-        }
-      : null,
-    recentPicks: [...state.picks]
-      .reverse()
-      .slice(0, 12)
-      .map((pick) => ({
-        pickNo: pick.pickNo,
-        round: pick.round,
-        team: teamsById.get(pick.teamId)?.name ?? pick.teamId,
-        player: playersById.get(pick.playerId)?.name ?? pick.playerId,
-      })),
-    recommendation: {
-      headline: recommendation.headline,
-      confidence: recommendation.confidence,
-      summary: recommendation.summary,
-      candidates: recommendation.candidates.map((candidate) => ({
-        playerId: candidate.player.id,
-        name: candidate.player.name,
-        team: candidate.player.team,
-        position: candidate.player.position,
-        score: candidate.score,
-        rosterFit: candidate.rosterFit,
-        value: candidate.valueLabel,
-        scarcity: candidate.scarcityLabel,
-        returnProbability: candidate.returnProbability,
-        reasons: candidate.reasons,
-        source: candidate.player.projectionSource,
-        importedRank: candidate.player.importedRank ?? null,
-        tier: candidate.player.tier,
-        byeWeek: candidate.player.byeWeek ?? null,
-        riskTags: candidate.player.riskTags,
-      })),
-      risks: recommendation.risks,
-      assumptions: recommendation.assumptions,
-    },
+    rosterConstruction,
+    userTeam: userTeamSummary,
+    recentPicks,
+    recommendation: recommendationSummary,
   };
 }
 
+function buildDraftBrief(
+  state: DraftState,
+  userTeam: DraftAiContext["userTeam"],
+  rosterConstruction: DraftAiContext["rosterConstruction"],
+  recommendation: DraftAiContext["recommendation"],
+  dataQuality: DraftAiContext["dataQuality"],
+): DraftAiContext["draftBrief"] {
+  const top = recommendation.candidates[0] ?? null;
+  const alternatives = recommendation.candidates.slice(1, 4);
+  const rosterNames = userTeam?.roster.map((player) => `${player.name} (${player.position})`) ?? [];
+  const scoring = state.settings.scoring || "Unknown scoring";
+  const leagueFormat = `${state.settings.teams}-team ${scoring}, ${state.settings.rounds} rounds, slots ${formatRosterSlots(state.settings.rosterSlots)}`;
+  const primaryDecisionGuidance = buildPrimaryDecisionGuidance(rosterConstruction, recommendation, dataQuality);
+  const candidateTradeoffs = [top, ...alternatives]
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    .map((candidate, index) => {
+      const label = index === 0 ? "Engine lean" : "Alternative";
+      return `${label}: ${candidate.name} (${candidate.position}) - score ${candidate.score}, ${candidate.value}, ${candidate.scarcity}, ${Math.round(candidate.returnProbability * 100)}% return chance; reasons: ${candidate.reasons.join("; ") || "none"}.`;
+    });
+
+  return {
+    leagueFormat,
+    currentPick: `Pick ${state.currentPick}, draft status ${state.status}.`,
+    userRoster: rosterNames.length > 0 ? rosterNames.join(", ") : "No players drafted for the user roster yet.",
+    engineLean: top
+      ? `${top.name} (${top.position}) with ${recommendation.confidence} confidence: ${recommendation.summary}`
+      : "No deterministic engine candidate is currently available.",
+    primaryDecisionGuidance,
+    rosterPressure: rosterConstruction.pressureSignals,
+    candidateTradeoffs,
+    dataWarnings: dataQuality.limitations,
+    responseRules: [
+      "Answer the user's exact question first, then explain the tradeoff.",
+      "If roster need conflicts with the engine lean, call out the conflict instead of pretending they agree.",
+      "Use imported rankings as ranks/tiers only; do not call them projections unless true projections are present.",
+      "Mention user-pinned, faded, or excluded players when those preferences affect the answer.",
+      "Keep the answer short enough for a live draft clock.",
+    ],
+  };
+}
+
+function buildPrimaryDecisionGuidance(
+  rosterConstruction: DraftAiContext["rosterConstruction"],
+  recommendation: DraftAiContext["recommendation"],
+  dataQuality: DraftAiContext["dataQuality"],
+): string[] {
+  const guidance: string[] = [];
+  const top = recommendation.candidates[0];
+
+  if (top) {
+    guidance.push(`Start from the deterministic engine lean, ${top.name}, but test it against roster construction and data quality.`);
+  }
+
+  if (rosterConstruction.primaryNeeds.length > 0) {
+    guidance.push(`Open starter needs: ${rosterConstruction.primaryNeeds.join(", ")}.`);
+  }
+
+  if (rosterConstruction.flexSlots > 0) {
+    guidance.push("RB/WR depth has extra importance because FLEX slots increase weekly starter demand.");
+  }
+
+  if (rosterConstruction.superFlexSlots > 0) {
+    guidance.push("QB demand is elevated because this is a superflex format.");
+  } else if ((rosterConstruction.startingSlots.QB ?? 0) <= 1) {
+    guidance.push("QB replacement pressure is lower because this is not a superflex format.");
+  }
+
+  if (dataQuality.hasImportedRankings) {
+    guidance.push("Imported rankings can support board value and tier decisions, but they are not a full projection model.");
+  } else if (dataQuality.usesSleeperPlaceholderRanks) {
+    guidance.push("Sleeper placeholder ranks are scaffolding only, so avoid overconfident advice.");
+  }
+
+  return guidance;
+}
+
+function formatRosterSlots(slots: Record<string, number>): string {
+  return Object.entries(slots)
+    .filter(([, count]) => count > 0)
+    .map(([slot, count]) => `${slot}:${count}`)
+    .join("/");
+}
 function buildRosterConstruction(
   state: DraftState,
   userTeam: DraftState["teams"][number] | null,
@@ -213,4 +301,5 @@ function playerSummary(player: Player | undefined, fallbackId: string) {
     position: player?.position ?? "?",
   };
 }
+
 
