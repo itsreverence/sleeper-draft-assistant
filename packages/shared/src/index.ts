@@ -112,6 +112,44 @@ export const DraftStateSchema = z.object({
 });
 export type DraftState = z.infer<typeof DraftStateSchema>;
 
+
+export const TeamRosterSlotSchema = z.object({
+  slot: z.string(),
+  eligiblePositions: z.array(z.string()),
+  player: PlayerSchema.nullable(),
+});
+export type TeamRosterSlot = z.infer<typeof TeamRosterSlotSchema>;
+
+export const TeamManagerStateSchema = z.object({
+  league: z.object({
+    id: z.string(),
+    name: z.string(),
+    season: z.string().nullable(),
+    status: z.string(),
+    teams: z.number(),
+    scoring: z.string(),
+    rosterSlots: z.record(z.string(), z.number()),
+  }),
+  userTeam: z.object({
+    rosterId: z.string(),
+    ownerId: z.string().nullable(),
+    name: z.string(),
+  }),
+  roster: z.object({
+    starters: z.array(TeamRosterSlotSchema),
+    bench: z.array(PlayerSchema),
+    injuredReserve: z.array(PlayerSchema),
+    taxi: z.array(PlayerSchema),
+    positionCounts: z.record(PositionSchema, z.number()),
+  }),
+  week: z.number().nullable(),
+  updatedAt: z.string(),
+  dataQuality: z.object({
+    playerValueSource: z.string(),
+    limitations: z.array(z.string()),
+  }),
+});
+export type TeamManagerState = z.infer<typeof TeamManagerStateSchema>;
 export const CandidateSignalSchema = z.object({
   player: PlayerSchema,
   score: z.number(),
@@ -153,3 +191,4 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
+

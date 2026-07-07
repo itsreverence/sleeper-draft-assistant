@@ -1,4 +1,4 @@
-﻿import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest } from "./types";
+import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamManagerState } from "./types";
 
 export const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8787" : "/api";
 
@@ -111,6 +111,19 @@ export async function fetchSleeperConnect(params: {
   return (await response.json()) as ConnectPayload;
 }
 
+export async function fetchTeamManagerState(leagueId: string, userRosterId: string | null): Promise<TeamManagerState> {
+  const query = new URLSearchParams();
+  if (userRosterId) {
+    query.set("userRosterId", userRosterId);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team${suffix}`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not load team roster."));
+  }
+
+  return (await response.json()) as TeamManagerState;
+}
 export async function fetchDraftState(draftId: string, userRosterId: string | null): Promise<DraftPayload> {
   const response = await fetch(buildDraftUrl(draftId, "state", userRosterId));
   if (!response.ok) {
@@ -191,6 +204,7 @@ export async function askManagerRequest(
 export function createDraftEventSource(draftId: string, userRosterId: string | null): EventSource {
   return new EventSource(buildDraftUrl(draftId, "events", userRosterId));
 }
+
 
 
 

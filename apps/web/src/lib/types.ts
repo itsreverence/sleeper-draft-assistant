@@ -1,4 +1,4 @@
-﻿import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary } from "@sleeper-ai/shared";
+import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamManagerState } from "@sleeper-ai/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -97,7 +97,8 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary };
+export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamManagerState };
+
 
 
 

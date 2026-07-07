@@ -9,6 +9,7 @@
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
+  import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
@@ -22,6 +23,7 @@
     fetchExperimentalCodexStatus,
     fetchSettings,
     fetchSleeperConnect,
+    fetchTeamManagerState,
     importRankingsRequest,
     logoutExperimentalCodex,
     pollExperimentalCodexLogin,
@@ -40,6 +42,7 @@
     DraftRecommendation,
     DraftState,
     RankingImportSummary,
+    TeamManagerState,
     ReadinessItem,
     AiConversationMessage,
     PlayerPreferenceLevel,
@@ -63,6 +66,9 @@
   let activeUserRosterId: string | null = $state(null);
   let loadError = $state("");
   let rankingImportSummary: RankingImportSummary | null = $state(null);
+  let teamManagerState: TeamManagerState | null = $state(null);
+  let teamManagerError = $state("");
+  let isLoadingTeamManager = $state(false);
   let playerPreferences: PlayerPreferences = $state({});
   let rankingImportError = $state("");
   let isImportingRankings = $state(false);
@@ -207,11 +213,13 @@
     leagueInput = window.localStorage.getItem("sleeperLeagueInput") ?? "";
     const lastDraftId = window.localStorage.getItem("lastDraftId") ?? "";
     const lastUserRosterId = window.localStorage.getItem("lastUserRosterId");
+    const lastLeagueId = window.localStorage.getItem("lastLeagueId") ?? "";
     if (lastDraftId && !isMockDraft(lastDraftId)) {
-      await loadDraft(lastDraftId, lastUserRosterId);
+      await loadDraft(lastDraftId, lastUserRosterId, lastLeagueId);
     } else if (lastDraftId && isMockDraft(lastDraftId)) {
       window.localStorage.removeItem("lastDraftId");
       window.localStorage.removeItem("lastUserRosterId");
+      window.localStorage.removeItem("lastLeagueId");
     }
   });
 
@@ -346,7 +354,7 @@
     }
 
     const userRosterId = selectedLeague.userRosterId ?? draftSlotToRosterFallback(selectedDraft);
-    await loadDraft(selectedDraft.draftId, userRosterId);
+    await loadDraft(selectedDraft.draftId, userRosterId, selectedLeague.leagueId);
   }
 
   async function connectSleeperDraft() {
@@ -356,13 +364,13 @@
       return;
     }
 
-    await loadDraft(draftId, userRosterIdInput.trim() || null);
+    await loadDraft(draftId, userRosterIdInput.trim() || null, "");
   }
 
   async function loadMockDraft() {
     draftInput = "";
     userRosterIdInput = "";
-    await loadDraft("mock-draft", null);
+    await loadDraft("mock-draft", null, "");
   }
 
   function clearActiveDraft() {
@@ -372,13 +380,16 @@
     rankingImportSummary = null;
     activeDraftId = "";
     activeUserRosterId = null;
+    teamManagerState = null;
+    teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
     window.localStorage.removeItem("lastDraftId");
     window.localStorage.removeItem("lastUserRosterId");
+    window.localStorage.removeItem("lastLeagueId");
   }
 
-  async function loadDraft(draftId: string, userRosterId: string | null) {
+  async function loadDraft(draftId: string, userRosterId: string | null, leagueId = "") {
     eventSource?.close();
     isLoading = true;
     loadError = "";
@@ -390,6 +401,7 @@
       applyDraftPayload(payload);
       activeDraftId = draftId;
       activeUserRosterId = userRosterId;
+      void loadTeamManager(leagueId, userRosterId);
       loadPlayerPreferences(draftId);
       if (hasPlayerPreferences()) {
         void refreshRecommendationWithPreferences();
@@ -399,12 +411,18 @@
       if (isMockDraft(draftId)) {
         window.localStorage.removeItem("lastDraftId");
         window.localStorage.removeItem("lastUserRosterId");
+        window.localStorage.removeItem("lastLeagueId");
       } else {
         window.localStorage.setItem("lastDraftId", draftId);
         if (userRosterId) {
           window.localStorage.setItem("lastUserRosterId", userRosterId);
         } else {
           window.localStorage.removeItem("lastUserRosterId");
+        }
+        if (leagueId) {
+          window.localStorage.setItem("lastLeagueId", leagueId);
+        } else {
+          window.localStorage.removeItem("lastLeagueId");
         }
       }
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
@@ -417,15 +435,37 @@
       rankingImportSummary = null;
       activeDraftId = "";
       activeUserRosterId = null;
+        teamManagerState = null;
+      teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
       window.localStorage.removeItem("lastDraftId");
       window.localStorage.removeItem("lastUserRosterId");
+      window.localStorage.removeItem("lastLeagueId");
     } finally {
       isLoading = false;
     }
   }
 
+  async function loadTeamManager(leagueId: string, userRosterId: string | null) {
+    if (!leagueId || isMockDraft(activeDraftId)) {
+      teamManagerState = null;
+      teamManagerError = "";
+      isLoadingTeamManager = false;
+      return;
+    }
+
+    isLoadingTeamManager = true;
+    teamManagerError = "";
+    try {
+      teamManagerState = await fetchTeamManagerState(leagueId, userRosterId);
+    } catch (error) {
+      teamManagerState = null;
+      teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
+    } finally {
+      isLoadingTeamManager = false;
+    }
+  }
   function applyDraftPayload(payload: DraftPayload) {
     draftState = payload.state;
     recommendation = payload.recommendation;
@@ -712,6 +752,7 @@
             onOpenFantasyPros={openFantasyProsRankings}
             bind:expanded={rankingsExpanded}
           />
+          <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
           <RosterPanel state={draftState} />
           <PickFeedPanel state={draftState} />
           <AskManagerPanel
@@ -761,4 +802,7 @@
     }
   }
 </style>
+
+
+
 

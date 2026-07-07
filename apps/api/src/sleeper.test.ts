@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeSleeperDraftState, type SleeperDraftStateInput } from "./sleeper";
+import { normalizeSleeperDraftState, normalizeSleeperTeamManagerState, type SleeperDraftStateInput } from "./sleeper";
 
 const fixture: SleeperDraftStateInput = {
   draft: {
@@ -194,3 +194,48 @@ describe("Sleeper draft normalization", () => {
   });
 });
 
+
+describe("Sleeper team manager normalization", () => {
+  it("maps Sleeper league roster data into a team manager state", () => {
+    const state = normalizeSleeperTeamManagerState({
+      league: fixture.league!,
+      rosters: [
+        {
+          roster_id: 12,
+          owner_id: "user-2",
+          players: ["p2", "p3", "p4", "p1"],
+          starters: ["p3", "p2", "p1", "p4"],
+          reserve: ["p4"],
+          taxi: ["p1"],
+        },
+      ],
+      users: fixture.users!,
+      players: fixture.players,
+      userRosterId: "12",
+      week: 1,
+    });
+
+    expect(state.league).toMatchObject({ id: "league-1", name: "Fixture League", scoring: "PPR", teams: 4 });
+    expect(state.userTeam).toMatchObject({ rosterId: "12", ownerId: "user-2", name: "Bravo Squad" });
+    expect(state.roster.starters.map((slot) => slot.slot)).toEqual(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX"]);
+    expect(state.roster.starters[0]?.player?.name).toBe("Player Three");
+    expect(state.roster.bench).toEqual([]);
+    expect(state.roster.injuredReserve.map((player) => player.id)).toEqual(["p4"]);
+    expect(state.roster.taxi.map((player) => player.id)).toEqual(["p1"]);
+    expect(state.roster.positionCounts).toMatchObject({ QB: 1, RB: 1, WR: 1, TE: 1 });
+    expect(state.week).toBe(1);
+    expect(state.dataQuality.limitations[0]).toContain("Sleeper roster data");
+  });
+
+  it("falls back to the first roster when no user roster id is supplied", () => {
+    const state = normalizeSleeperTeamManagerState({
+      league: fixture.league!,
+      rosters: fixture.rosters!,
+      users: fixture.users!,
+      players: fixture.players,
+    });
+
+    expect(state.userTeam.rosterId).toBe("11");
+    expect(state.userTeam.name).toBe("Alpha");
+  });
+});

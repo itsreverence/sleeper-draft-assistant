@@ -1,4 +1,4 @@
-import type { DraftSettings, DraftState, Pick, Player, Position, Team } from "@sleeper-ai/shared";
+import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamManagerState } from "@sleeper-ai/shared";
 
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
 const playerCacheTtlMs = 24 * 60 * 60 * 1000;
@@ -54,6 +54,9 @@ export type SleeperRoster = {
   roster_id: number;
   owner_id?: string | null;
   players?: string[] | null;
+  starters?: string[] | null;
+  reserve?: string[] | null;
+  taxi?: string[] | null;
 };
 
 export type SleeperUser = {
@@ -87,6 +90,14 @@ export type SleeperPlayer = {
 
 export type SleeperPlayerMap = Record<string, SleeperPlayer>;
 
+export type SleeperTeamManagerStateInput = {
+  league: SleeperLeague;
+  rosters: SleeperRoster[];
+  users: SleeperUser[];
+  players: SleeperPlayerMap;
+  userRosterId?: string | null;
+  week?: number | null;
+};
 export type SleeperDraftStateInput = {
   draft: SleeperDraft;
   picks: SleeperPick[];
@@ -131,6 +142,23 @@ export class SleeperClient {
 
   async getLeagueDrafts(leagueId: string): Promise<SleeperDraft[]> {
     return this.fetchJson<SleeperDraft[]>(`/league/${encodeURIComponent(leagueId)}/drafts`);
+  }
+
+  async getTeamManagerState(leagueId: string, userRosterId?: string | null): Promise<TeamManagerState> {
+    const [leagueBundle, players, nflState] = await Promise.all([
+      this.getLeagueBundle(leagueId),
+      this.getPlayers(),
+      this.getNflState().catch(() => null),
+    ]);
+
+    return normalizeSleeperTeamManagerState({
+      league: leagueBundle.league,
+      rosters: leagueBundle.rosters,
+      users: leagueBundle.users,
+      players,
+      userRosterId,
+      week: nflState?.display_week ?? nflState?.week ?? null,
+    });
   }
 
   async getDraftState(draftId: string, userRosterId?: string | null): Promise<DraftState> {
@@ -213,6 +241,134 @@ export class SleeperClient {
   }
 }
 
+export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateInput): TeamManagerState {
+  const userRoster = getTeamManagerRoster(input.rosters, input.userRosterId);
+  const userById = new Map(input.users.map((user) => [user.user_id, user]));
+  const owner = userRoster.owner_id ? userById.get(userRoster.owner_id) : undefined;
+  const rosterPlayerIds = uniqueStrings(userRoster.players ?? []);
+  const starterIds = uniqueStrings(userRoster.starters ?? []).filter((playerId) => playerId !== "0");
+  const reserveIds = new Set(uniqueStrings(userRoster.reserve ?? []));
+  const taxiIds = new Set(uniqueStrings(userRoster.taxi ?? []));
+  const playerById = new Map(
+    rosterPlayerIds
+      .map((playerId) => input.players[playerId] ? toPlayer(input.players[playerId]) : null)
+      .filter(isPresent)
+      .map((player) => [player.id, player]),
+  );
+  const rosterPlayers = rosterPlayerIds.map((playerId) => playerById.get(playerId)).filter(isPresent);
+  const starterSlots = getStarterSlots(input.league.roster_positions ?? []);
+  const starters = starterSlots.map((slot, index) => {
+    const playerId = starterIds[index];
+    return {
+      slot,
+      eligiblePositions: getEligiblePositions(slot),
+      player: playerId ? playerById.get(playerId) ?? null : null,
+    };
+  });
+  const assignedStarterIds = new Set(starterIds);
+  const injuredReserve = rosterPlayerIds.map((playerId) => playerById.get(playerId)).filter(isPresent).filter((player) => reserveIds.has(player.id));
+  const taxi = rosterPlayerIds.map((playerId) => playerById.get(playerId)).filter(isPresent).filter((player) => taxiIds.has(player.id));
+  const bench = rosterPlayerIds
+    .map((playerId) => playerById.get(playerId))
+    .filter(isPresent)
+    .filter((player) => !assignedStarterIds.has(player.id) && !reserveIds.has(player.id) && !taxiIds.has(player.id));
+
+  return {
+    league: {
+      id: input.league.league_id,
+      name: input.league.name ?? `League ${input.league.league_id}`,
+      season: input.league.season ?? null,
+      status: input.league.status ?? "unknown",
+      teams: input.league.total_rosters ?? input.rosters.length,
+      scoring: getLeagueScoringLabel(input.league),
+      rosterSlots: getLeagueRosterSlots(input.league),
+    },
+    userTeam: {
+      rosterId: String(userRoster.roster_id),
+      ownerId: userRoster.owner_id ?? null,
+      name: getTeamName(owner, `Roster ${userRoster.roster_id}`),
+    },
+    roster: {
+      starters,
+      bench,
+      injuredReserve,
+      taxi,
+      positionCounts: countPlayersByPosition(rosterPlayers),
+    },
+    week: input.week ?? null,
+    updatedAt: new Date().toISOString(),
+    dataQuality: {
+      playerValueSource: "Sleeper roster and player metadata. This is roster visibility, not projections.",
+      limitations: [
+        "Sleeper roster data does not include full fantasy projections.",
+        "Starter slots reflect Sleeper starter IDs when available and roster settings otherwise.",
+      ],
+    },
+  };
+}
+
+function getTeamManagerRoster(rosters: SleeperRoster[], userRosterId: string | null | undefined): SleeperRoster {
+  if (rosters.length === 0) {
+    throw new Error("Sleeper league has no rosters to load.");
+  }
+
+  const normalizedRosterId = normalizeNullableString(userRosterId)?.replace(/^roster-/, "");
+  if (!normalizedRosterId) {
+    return rosters[0]!;
+  }
+
+  return rosters.find((roster) => String(roster.roster_id) === normalizedRosterId) ?? rosters[0]!;
+}
+
+function getStarterSlots(rosterPositions: string[]): string[] {
+  return rosterPositions.map(normalizeRosterSlot).filter((slot) => !["BN", "IR", "TAXI"].includes(slot));
+}
+
+function getEligiblePositions(slot: string): string[] {
+  if (slot === "FLEX" || slot === "WR_RB_FLEX" || slot === "REC_FLEX") {
+    return ["RB", "WR", "TE"];
+  }
+
+  if (slot === "SUPER_FLEX" || slot === "SF") {
+    return ["QB", "RB", "WR", "TE"];
+  }
+
+  return [slot];
+}
+
+function countPlayersByPosition(players: Player[]): Record<Position, number> {
+  const counts: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };
+  for (const player of players) {
+    counts[player.position] += 1;
+  }
+  return counts;
+}
+
+function getLeagueScoringLabel(league: SleeperLeague): string {
+  const receptions = numberFrom(league.scoring_settings?.rec);
+  if (receptions === 1) {
+    return "PPR";
+  }
+
+  if (receptions === 0.5) {
+    return "Half PPR";
+  }
+
+  if (receptions === 0) {
+    return "Standard";
+  }
+
+  return "Custom";
+}
+
+function getLeagueRosterSlots(league: SleeperLeague): Record<string, number> {
+  const rosterPositions = league.roster_positions ?? [];
+  return rosterPositions.length > 0 ? countRosterPositions(rosterPositions) : { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, BN: 6 };
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map(String).filter(Boolean)));
+}
 export function normalizeSleeperDraftState(input: SleeperDraftStateInput): DraftState {
   const teamsCount = getTeamsCount(input);
   const rounds = getRounds(input, teamsCount);
@@ -646,4 +802,9 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
+
+
+
+
 

@@ -135,6 +135,13 @@ app.get("/sleeper/connect", async (c) => {
   }
 });
 
+app.get("/leagues/:leagueId/team", async (c) => {
+  try {
+    return c.json(await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c)));
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
 app.get("/drafts/:draftId/state", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
@@ -435,6 +442,7 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
+
 
 
 
