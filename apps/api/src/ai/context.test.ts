@@ -1,4 +1,5 @@
-﻿import { buildDraftRecommendation, createMockDraftState } from "@sleeper-ai/engine";
+import { buildDraftRecommendation, createMockDraftState } from "@sleeper-ai/engine";
+import type { DraftState, Player, Position } from "@sleeper-ai/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildDraftAiContext } from "./context";
@@ -30,4 +31,86 @@ describe("AI provider context", () => {
     expect(answer.answer).toContain("AI provider is not connected yet");
     expect(answer.answer).toContain(recommendation.candidates[0]?.player.name);
   });
+  it("includes roster pressure and candidate engine reasons for grounded answers", () => {
+    const state = createEightTeamTwoFlexState();
+    const recommendation = buildDraftRecommendation(state);
+    const context = buildDraftAiContext(state, recommendation, "Should I pass on QB in this format?");
+    const qb = context.recommendation.candidates.find((candidate) => candidate.playerId === "context-qb-allen");
+
+    expect(context.rosterConstruction.flexSlots).toBe(2);
+    expect(context.rosterConstruction.superFlexSlots).toBe(0);
+    expect(context.rosterConstruction.rbWrDemand).toBe(6);
+    expect(context.rosterConstruction.pressureSignals).toContain(
+      "This format has 2 RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.",
+    );
+    expect(context.rosterConstruction.pressureSignals).toContain(
+      "This is a shallow one-QB league, so QB replacement pressure is lower than in deeper or superflex formats.",
+    );
+    expect(context.recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
+    expect(qb?.reasons).toContain("shallow league reduces replacement pressure");
+  });
 });
+function createEightTeamTwoFlexState(): DraftState {
+  const teams = Array.from({ length: 8 }, (_, index) => ({
+    id: `context-team-${index + 1}`,
+    name: index === 0 ? "Your Team" : `Team ${index + 1}`,
+    draftSlot: index + 1,
+    roster: [],
+  }));
+
+  return {
+    id: "context-format-test-draft",
+    name: "8-Team PPR Two Flex",
+    status: "pre_draft",
+    currentPick: 1,
+    userTeamId: "context-team-1",
+    settings: {
+      teams: 8,
+      rounds: 15,
+      scoring: "PPR",
+      rosterSlots: {
+        QB: 1,
+        RB: 2,
+        WR: 2,
+        TE: 1,
+        FLEX: 2,
+        BN: 7,
+      },
+    },
+    teams,
+    players: [
+      contextPlayer("context-qb-allen", "Josh Allen", "BUF", "QB", 385, 5, 1),
+      contextPlayer("context-rb-gibbs", "Jahmyr Gibbs", "DET", "RB", 286, 2, 1),
+      contextPlayer("context-wr-chase", "Ja'Marr Chase", "CIN", "WR", 298, 3, 1),
+      contextPlayer("context-rb-bijan", "Bijan Robinson", "ATL", "RB", 282, 4, 1),
+      contextPlayer("context-te-bowers", "Brock Bowers", "LV", "TE", 205, 18, 1),
+      contextPlayer("context-qb-hurts", "Jalen Hurts", "PHI", "QB", 348, 20, 2),
+    ],
+    picks: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function contextPlayer(
+  id: string,
+  name: string,
+  team: string,
+  position: Position,
+  projectedPoints: number,
+  adp: number,
+  tier: number,
+): Player {
+  return {
+    id,
+    sleeperId: id,
+    name,
+    team,
+    position,
+    projectedPoints,
+    projectionSource: "mock",
+    adp,
+    tier,
+    riskTags: [],
+  };
+}
+

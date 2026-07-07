@@ -1,4 +1,4 @@
-﻿import type { DraftRecommendation, DraftState, Position } from "@sleeper-ai/shared";
+import type { DraftRecommendation, DraftState, Position } from "@sleeper-ai/shared";
 
 export type AiProviderId = "noop" | "codex-app-server" | "experimental-codex-backend";
 
@@ -44,8 +44,12 @@ export type DraftAiContext = {
     rosterCounts: Record<Position, number>;
     startingSlots: Record<string, number>;
     flexSlots: number;
+    superFlexSlots: number;
     draftedFlexEligible: number;
+    rbWrDemand: number;
+    rbWrRostered: number;
     primaryNeeds: Position[];
+    pressureSignals: string[];
     note: string;
   };
   userTeam: {
@@ -100,6 +104,4 @@ export interface AiProvider {
   status(): AiProviderStatus;
   answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer>;
 }
-
-
 

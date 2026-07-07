@@ -1,4 +1,4 @@
-﻿import type { DraftRecommendation, DraftState, Player, Position } from "@sleeper-ai/shared";
+import type { DraftRecommendation, DraftState, Player, Position } from "@sleeper-ai/shared";
 
 import type { AiConversationMessage, DraftAiContext, PlayerPreferenceSummary } from "./types";
 
@@ -94,22 +94,64 @@ function buildRosterConstruction(
       starterSlots: state.settings.rosterSlots[position] ?? 0,
       stillNeedsStarter: counts[position] < (state.settings.rosterSlots[position] ?? 0),
     }));
-  const flexSlots = (state.settings.rosterSlots.FLEX ?? 0) + (state.settings.rosterSlots.SUPER_FLEX ?? 0);
+  const flexSlots = (state.settings.rosterSlots.FLEX ?? 0) + (state.settings.rosterSlots.WR_RB_FLEX ?? 0) + (state.settings.rosterSlots.REC_FLEX ?? 0);
+  const superFlexSlots = (state.settings.rosterSlots.SUPER_FLEX ?? 0) + (state.settings.rosterSlots.SF ?? 0);
   const draftedFlexEligible = counts.RB + counts.WR + counts.TE;
+  const rbWrDemand = (state.settings.rosterSlots.RB ?? 0) + (state.settings.rosterSlots.WR ?? 0) + flexSlots;
+  const rbWrRostered = counts.RB + counts.WR;
+  const pressureSignals = buildRosterPressureSignals(state, counts, flexSlots, superFlexSlots, rbWrDemand, rbWrRostered);
 
   return {
     rosterCounts: counts,
     startingSlots: state.settings.rosterSlots,
     flexSlots,
+    superFlexSlots,
     draftedFlexEligible,
+    rbWrDemand,
+    rbWrRostered,
     primaryNeeds: needs.filter((need) => need.stillNeedsStarter).map((need) => need.position),
+    pressureSignals,
     note:
-      flexSlots > 0
-        ? `This format has ${flexSlots} FLEX/SUPER_FLEX slot(s), so RB/WR/TE depth matters beyond listed starter minimums.`
-        : "No FLEX/SUPER_FLEX slots were detected in the roster settings.",
+      pressureSignals.length > 0
+        ? pressureSignals.join(" ")
+        : "No unusual roster-construction pressure was detected from the current settings.",
   };
 }
 
+function buildRosterPressureSignals(
+  state: DraftState,
+  counts: Record<Position, number>,
+  flexSlots: number,
+  superFlexSlots: number,
+  rbWrDemand: number,
+  rbWrRostered: number,
+): string[] {
+  const signals: string[] = [];
+
+  if (flexSlots > 0) {
+    signals.push(`This format has ${flexSlots} RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.`);
+  }
+
+  if (superFlexSlots > 0) {
+    signals.push(`This format has ${superFlexSlots} SUPER_FLEX slot(s), increasing QB demand.`);
+  } else if ((state.settings.rosterSlots.QB ?? 0) <= 1 && state.settings.teams <= 10) {
+    signals.push("This is a shallow one-QB league, so QB replacement pressure is lower than in deeper or superflex formats.");
+  }
+
+  if (rbWrRostered < rbWrDemand) {
+    signals.push(`Current RB/WR count is ${rbWrRostered} against ${rbWrDemand} starter-plus-flex demand.`);
+  }
+
+  if (state.settings.scoring.toLowerCase().includes("ppr")) {
+    signals.push("PPR scoring increases the importance of pass-catching RB/WR volume.");
+  }
+
+  if (counts.TE >= (state.settings.rosterSlots.TE ?? 0) && (state.settings.rosterSlots.TE ?? 0) > 0) {
+    signals.push("TE starter need is already covered on the current roster.");
+  }
+
+  return signals;
+}
 function countRosterPositions(
   userTeam: DraftState["teams"][number] | null,
   playersById: Map<string, Player>,
@@ -171,8 +213,4 @@ function playerSummary(player: Player | undefined, fallbackId: string) {
     position: player?.position ?? "?",
   };
 }
-
-
-
-
 
