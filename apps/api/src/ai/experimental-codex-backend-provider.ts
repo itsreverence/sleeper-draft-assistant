@@ -1,5 +1,5 @@
-﻿import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext } from "./types";
-import { buildDraftManagerInstructions, buildDraftManagerPrompt } from "./prompt";
+import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
+import { buildDraftManagerInstructions, buildDraftManagerPrompt, buildTeamManagerInstructions, buildTeamManagerPrompt } from "./prompt";
 import { ExperimentalCodexAuthClient, ExperimentalCodexTokenStore, type ExperimentalCodexTokenSet } from "./experimental-codex-auth";
 
 export type ExperimentalCodexBackendProviderOptions = {
@@ -34,21 +34,33 @@ export class ExperimentalCodexBackendProvider implements AiProvider {
   }
 
   async answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer> {
-    const tokens = this.options.tokenStore.get();
-    if (!tokens) {
-      throw new Error("Experimental Codex backend is not authenticated. Open Settings and start Codex login.");
-    }
-
-    const answer = await this.generateWithRefresh(tokens, context);
+    const answer = await this.generateContextResponse(buildDraftManagerInstructions(), buildDraftManagerPrompt(context));
     return {
       provider: this.status(),
       answer,
     };
   }
 
-  private async generateWithRefresh(tokens: ExperimentalCodexTokenSet, context: DraftAiContext): Promise<string> {
+  async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
+    const answer = await this.generateContextResponse(buildTeamManagerInstructions(), buildTeamManagerPrompt(context));
+    return {
+      provider: this.status(),
+      answer,
+    };
+  }
+
+  private async generateContextResponse(instructions: string, prompt: string): Promise<string> {
+    const tokens = this.options.tokenStore.get();
+    if (!tokens) {
+      throw new Error("Experimental Codex backend is not authenticated. Open Settings and start Codex login.");
+    }
+
+    return await this.generateWithRefresh(tokens, instructions, prompt);
+  }
+
+  private async generateWithRefresh(tokens: ExperimentalCodexTokenSet, instructions: string, prompt: string): Promise<string> {
     try {
-      return await this.generate(tokens.accessToken, context);
+      return await this.generate(tokens.accessToken, instructions, prompt);
     } catch (error) {
       if (!isAuthError(error)) {
         throw error;
@@ -56,21 +68,21 @@ export class ExperimentalCodexBackendProvider implements AiProvider {
 
       const refreshed = await this.authClient.refresh(tokens);
       this.options.tokenStore.set(refreshed);
-      return await this.generate(refreshed.accessToken, context);
+      return await this.generate(refreshed.accessToken, instructions, prompt);
     }
   }
 
-  private async generate(accessToken: string, context: DraftAiContext): Promise<string> {
+  private async generate(accessToken: string, instructions: string, prompt: string): Promise<string> {
     const response = await fetch("https://chatgpt.com/backend-api/codex/responses", {
       method: "POST",
       headers: codexHeaders(accessToken),
       body: JSON.stringify({
         model: this.model,
-        instructions: buildDraftManagerInstructions(),
+        instructions,
         input: [
           {
             role: "user",
-            content: buildDraftManagerPrompt(context),
+            content: prompt,
           },
         ],
         store: false,
@@ -240,5 +252,7 @@ function eventErrorDetail(event: Record<string, unknown>): string {
 function isAuthError(error: unknown): boolean {
   return error instanceof ExperimentalCodexAuthenticationError;
 }
+
+
 
 

@@ -65,6 +65,10 @@ export type AiConversationMessage = {
   role: "user" | "assistant";
   content: string;
 };
+export type TeamAskAnswerPayload = {
+  answer: string;
+  state: TeamManagerState;
+};
 export type AskAnswerPayload = {
   answer: string;
   recommendation: DraftRecommendation;
@@ -98,6 +102,7 @@ export type AiProviderStatus = {
 };
 
 export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamManagerState };
+
 
 
 

@@ -10,11 +10,13 @@
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
+  import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
   import {
     askManagerRequest,
+    askTeamManagerRequest,
     clearRankingsRequest,
     createDraftEventSource,
     fetchAiStatus,
@@ -575,6 +577,20 @@
     window.open("https://www.fantasypros.com/nfl/rankings/consensus-cheatsheets.php", "_blank", "noopener,noreferrer");
   }
 
+  async function askTeamManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
+    if (!teamManagerState) {
+      throw new Error("Open a Sleeper league before asking team questions.");
+    }
+
+    const payload = await askTeamManagerRequest(
+      teamManagerState.league.id,
+      activeUserRosterId,
+      question,
+      conversationHistory,
+    );
+    teamManagerState = payload.state;
+    return payload.answer;
+  }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
     const payload = await askManagerRequest(
       activeDraftId,
@@ -753,6 +769,7 @@
             bind:expanded={rankingsExpanded}
           />
           <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
+          <TeamAskPanel teamState={teamManagerState} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
           <RosterPanel state={draftState} />
           <PickFeedPanel state={draftState} />
           <AskManagerPanel
@@ -802,6 +819,8 @@
     }
   }
 </style>
+
+
 
 
 

@@ -1,4 +1,4 @@
-import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext } from "./types";
+import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
 
 export class NoopAiProvider implements AiProvider {
   status(): AiProviderStatus {
@@ -23,6 +23,21 @@ export class NoopAiProvider implements AiProvider {
         `Question: ${context.question}`,
         candidateText,
         context.recommendation.summary,
+      ].join("\n\n"),
+    };
+  }
+
+  async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
+    const topSignal = context.teamBrief.depthSignals[0] ?? "No obvious roster-structure weakness is visible from Sleeper roster data alone.";
+
+    return {
+      provider: this.status(),
+      answer: [
+        "AI provider is not connected yet, so this answer is using the deterministic Sleeper team context.",
+        `Question: ${context.question}`,
+        `Team: ${context.teamBrief.teamName} (${context.teamBrief.leagueFormat})`,
+        topSignal,
+        context.teamBrief.lineupStatus,
       ].join("\n\n"),
     };
   }

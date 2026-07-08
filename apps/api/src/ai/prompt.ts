@@ -1,4 +1,4 @@
-import type { DraftAiContext } from "./types";
+import type { DraftAiContext, TeamAiContext } from "./types";
 
 export function buildDraftManagerInstructions(): string {
   return [
@@ -38,3 +38,37 @@ export function buildDraftManagerPrompt(context: DraftAiContext): string {
 }
 
 
+
+export function buildTeamManagerInstructions(): string {
+  return [
+    "You are an AI fantasy football team manager for a Sleeper league.",
+    "Use only the provided structured team context and conversation history. Do not invent projections, injuries, matchup data, player news, waiver availability, or provider/auth status.",
+    "Use teamBrief first, then teamState as supporting detail.",
+    "If roster structure is the only available signal, say that plainly and avoid overconfident lineup claims.",
+    "Keep answers concise and actionable for managing a fantasy roster.",
+  ].join(" ");
+}
+
+export function buildTeamManagerPrompt(context: TeamAiContext): string {
+  return [
+    `User question: ${context.question}`,
+    "",
+    "Answer format:",
+    "- Direct answer: one clear answer to the user's team-management question.",
+    "- Why: 2-4 bullets grounded in teamBrief.depthSignals, open starter slots, starters, bench, and data warnings.",
+    "- Next move: one practical action or watch item.",
+    "- Constraint: one short caveat when projections, news, matchups, or waiver data would be needed.",
+    "",
+    "Decision guidance:",
+    "- For weakest-position questions, prioritize open starter slots and below-requirement position counts.",
+    "- For lineup questions, use teamBrief.starterCandidates and say when no projection/matchup signal exists.",
+    "- For bench-depth questions, use position counts, flex demand, and benchPlayers.",
+    "- Use conversationHistory only to resolve follow-ups; current team context is the source of truth.",
+    "",
+    "Team brief contract JSON:",
+    JSON.stringify(context.teamBrief, null, 2),
+    "",
+    "Full team context JSON:",
+    JSON.stringify(context, null, 2),
+  ].join("\n");
+}

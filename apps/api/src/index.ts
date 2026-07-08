@@ -12,6 +12,7 @@ import { cors } from "hono/cors";
 import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
+import { buildTeamAiContext } from "./ai/team-context";
 import { ExperimentalCodexAuthClient, ExperimentalCodexTokenStore } from "./ai/experimental-codex-auth";
 import { createAiProvider } from "./ai/provider-factory";
 import { importFantasyProsCsv, RankingImportStore } from "./rankings-import";
@@ -138,6 +139,33 @@ app.get("/sleeper/connect", async (c) => {
 app.get("/leagues/:leagueId/team", async (c) => {
   try {
     return c.json(await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c)));
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/leagues/:leagueId/team/ask", async (c) => {
+  try {
+    const body = await c.req
+      .json<{ question?: string; conversationHistory?: Array<{ role?: string; content?: string }> }>()
+      .catch(() => ({ question: "", conversationHistory: [] }));
+    const question = body.question?.trim() ?? "";
+    if (!question) {
+      return c.json({ error: "Ask a team question before requesting AI advice." }, 400);
+    }
+
+    const state = await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c));
+    const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
+    const aiAnswer = await aiProvider.answerTeamQuestion(
+      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory)),
+    );
+
+    return c.json({
+      provider: aiAnswer.provider,
+      question,
+      answer: aiAnswer.answer,
+      state,
+    });
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -442,6 +470,7 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
+
 
 
 

@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamManagerState } from "./types";
+import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamManagerState } from "./types";
 
 export const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8787" : "/api";
 
@@ -211,3 +211,27 @@ export function createDraftEventSource(draftId: string, userRosterId: string | n
 
 
 
+
+export async function askTeamManagerRequest(
+  leagueId: string,
+  userRosterId: string | null,
+  question: string,
+  conversationHistory: AiConversationMessage[] = [],
+): Promise<TeamAskAnswerPayload> {
+  const query = new URLSearchParams();
+  if (userRosterId) {
+    query.set("userRosterId", userRosterId);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, conversationHistory }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "The manager could not answer because team context is unavailable."));
+  }
+
+  return (await response.json()) as TeamAskAnswerPayload;
+}

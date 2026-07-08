@@ -1,8 +1,8 @@
-﻿import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 
-import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext } from "./types";
-import { buildDraftManagerPrompt } from "./prompt";
+import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
+import { buildDraftManagerPrompt, buildTeamManagerPrompt } from "./prompt";
 
 type JsonRpcMessage = {
   id?: number;
@@ -65,7 +65,28 @@ export class CodexAppServerProvider implements AiProvider {
       client.close();
     }
   }
-}
+
+  async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
+    const client = await CodexJsonRpcClient.start(this.codexBin, this.timeoutMs);
+    try {
+      await client.initialize();
+      const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
+        model: this.model,
+      });
+      const threadId = thread.thread?.id;
+      if (!threadId) {
+        throw new Error("Codex app-server did not return a thread id.");
+      }
+
+      const result = await client.runTurn(threadId, buildTeamManagerPrompt(context));
+      return {
+        provider: this.status(),
+        answer: result || "Codex completed without returning visible text.",
+      };
+    } finally {
+      client.close();
+    }
+  }}
 
 class CodexJsonRpcClient {
   private nextId = 1;
@@ -249,5 +270,6 @@ function getNestedString(value: unknown, path: string[]): string | null {
   }
   return typeof current === "string" ? current : null;
 }
+
 
 
