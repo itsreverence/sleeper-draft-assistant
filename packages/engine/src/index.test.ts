@@ -5,6 +5,7 @@ import {
   advanceMockDraftState,
   buildCandidateSignals,
   buildDraftRecommendation,
+  buildTeamLineupSummary,
   buildTeamNeedsSummary,
   buildTeamWaiverSummary,
   createMockDraftState,
@@ -217,6 +218,24 @@ describe("team needs engine", () => {
   });
 
 
+
+  it("recommends lineup swaps and open slot fills", () => {
+    const betterWr = teamPlayer("bench-wr-elite", "Elite Bench WR", "WR", 250, 3);
+    const state = createTeamManagerState({ bench: [betterWr] });
+    const summary = buildTeamLineupSummary(state);
+
+    expect(summary.openSlots).toEqual(expect.arrayContaining(["RB", "FLEX", "FLEX"]));
+    expect(summary.swapRecommendations.some((decision) => decision.currentPlayer?.id === "wr-1" && decision.recommendedPlayer?.id === "bench-wr-elite")).toBe(true);
+    expect(summary.facts.some((fact) => fact.includes("Elite Bench WR over Starter WR"))).toBe(true);
+  });
+
+  it("flags risky recommended starters", () => {
+    const riskyRb = { ...teamPlayer("bench-rb-risk", "Risky Bench RB", "RB", 260, 3), riskTags: ["injury: Questionable"] };
+    const summary = buildTeamLineupSummary(createTeamManagerState({ bench: [riskyRb] }));
+
+    expect(summary.riskyStarters.map((player) => player.id)).toContain("bench-rb-risk");
+    expect(summary.facts.some((fact) => fact.includes("Risky Bench RB"))).toBe(true);
+  });
   it("summarizes available add and drop candidates", () => {
     const state = createTeamManagerState({
       bench: [teamPlayer("bench-k", "Bench K", "K", 100, 260)],
@@ -310,5 +329,7 @@ function teamPlayer(id: string, name: string, position: Position, projectedPoint
     riskTags: [],
   };
 }
+
+
 
 

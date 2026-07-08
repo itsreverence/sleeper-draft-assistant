@@ -12,6 +12,7 @@
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import TeamNeedsPanel from "./lib/components/TeamNeedsPanel.svelte";
+  import TeamLineupPanel from "./lib/components/TeamLineupPanel.svelte";
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
@@ -47,6 +48,7 @@
     DraftRecommendation,
     DraftState,
     RankingImportSummary,
+    TeamLineupSummary,
     TeamManagerState,
     TeamNeedsSummary,
     TeamWaiverSummary,
@@ -76,6 +78,7 @@
   let rankingImportSummary: RankingImportSummary | null = $state(null);
   let teamManagerState: TeamManagerState | null = $state(null);
   let teamNeeds: TeamNeedsSummary | null = $state(null);
+  let teamLineupSummary: TeamLineupSummary | null = $state(null);
   let teamWeekContext: TeamWeekContext | null = $state(null);
   let teamWaiverSummary: TeamWaiverSummary | null = $state(null);
   let teamManagerError = $state("");
@@ -393,6 +396,7 @@
     activeUserRosterId = null;
     teamManagerState = null;
     teamNeeds = null;
+    teamLineupSummary = null;
     teamWeekContext = null;
     teamWaiverSummary = null;
     teamManagerError = "";
@@ -451,6 +455,7 @@
       activeUserRosterId = null;
       teamManagerState = null;
       teamNeeds = null;
+      teamLineupSummary = null;
       teamWeekContext = null;
       teamWaiverSummary = null;
       teamManagerError = "";
@@ -468,6 +473,7 @@
     if (!leagueId || isMockDraft(activeDraftId)) {
       teamManagerState = null;
       teamNeeds = null;
+      teamLineupSummary = null;
       teamWeekContext = null;
       teamWaiverSummary = null;
       teamManagerError = "";
@@ -481,11 +487,13 @@
       const payload = await fetchTeamManagerState(leagueId, userRosterId, activeDraftId);
       teamManagerState = payload.state;
       teamNeeds = payload.needs;
+      teamLineupSummary = payload.lineupSummary;
       teamWeekContext = payload.weekContext;
       teamWaiverSummary = payload.waiverSummary;
     } catch (error) {
       teamManagerState = null;
       teamNeeds = null;
+      teamLineupSummary = null;
       teamWeekContext = null;
       teamWaiverSummary = null;
       teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
@@ -622,6 +630,7 @@
     );
     teamManagerState = payload.state;
     teamNeeds = payload.needs;
+    teamLineupSummary = payload.lineupSummary;
     teamWeekContext = payload.weekContext;
     teamWaiverSummary = payload.waiverSummary;
     return payload.answer;
@@ -805,9 +814,10 @@
           />
           <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
           <TeamNeedsPanel needs={teamNeeds} />
+          <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
           <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
           <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
           <RosterPanel state={draftState} />
           <PickFeedPanel state={draftState} />
           <AskManagerPanel
@@ -857,6 +867,8 @@
     }
   }
 </style>
+
+
 
 
 

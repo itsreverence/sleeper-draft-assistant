@@ -1,5 +1,5 @@
-import { buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-ai/engine";
-import type { TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import { buildTeamLineupSummary, buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-ai/engine";
+import type { TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
 
 import type { AiConversationMessage, TeamAiContext } from "./types";
 
@@ -9,22 +9,25 @@ export function buildTeamAiContext(
   conversationHistory: AiConversationMessage[] = [],
   weekContext: TeamWeekContext | null = null,
   waiverSummary: TeamWaiverSummary | null = null,
+  lineupSummary: TeamLineupSummary | null = null,
 ): TeamAiContext {
   const teamNeeds = buildTeamNeedsSummary(state);
   const resolvedWaiverSummary = waiverSummary ?? buildTeamWaiverSummary(state, []);
+  const resolvedLineupSummary = lineupSummary ?? buildTeamLineupSummary(state);
   return {
     task: "team_question",
     question,
     conversationHistory: conversationHistory.slice(-8),
     teamNeeds,
-    teamBrief: buildTeamBrief(state, teamNeeds, weekContext, resolvedWaiverSummary),
+    lineupSummary: resolvedLineupSummary,
+    teamBrief: buildTeamBrief(state, teamNeeds, weekContext, resolvedWaiverSummary, resolvedLineupSummary),
     teamState: state,
     weekContext,
     waiverSummary: resolvedWaiverSummary,
   };
 }
 
-function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null, waiverSummary: TeamWaiverSummary): TeamAiContext["teamBrief"] {
+function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null, waiverSummary: TeamWaiverSummary, lineupSummary: TeamLineupSummary): TeamAiContext["teamBrief"] {
   const openStarterSlots = state.roster.starters
     .filter((slot) => !slot.player)
     .map((slot) => `${slot.slot} (${slot.eligiblePositions.join("/")})`);
@@ -41,6 +44,8 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
     week: state.week ? `Week ${state.week}` : "Week unavailable",
     rosterSummary: formatRosterCounts(state),
     lineupStatus: `${state.roster.starters.filter((slot) => slot.player).length}/${state.roster.starters.length} starter slots filled, ${state.roster.bench.length} bench players, ${state.roster.injuredReserve.length} IR, ${state.roster.taxi.length} taxi.`,
+    lineupFacts: lineupSummary.facts,
+    lineupDecisions: lineupSummary.decisions.slice(0, 8).map((decision) => `${decision.slot}: ${decision.status}; current ${decision.currentPlayer?.name ?? "open"}; recommended ${decision.recommendedPlayer?.name ?? "none"}; ${decision.reasons.join(" ")}`),
     openStarterSlots,
     depthSignals: teamNeeds.facts,
     deterministicFacts: teamNeeds.facts,
@@ -52,12 +57,12 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
     weakestPositions: teamNeeds.weakestPositions,
     starterCandidates,
     benchPlayers,
-    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations],
+    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...lineupSummary.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations],
     responseRules: [
       "Answer only from the provided Sleeper team context.",
       "Do not invent projections, injuries, waiver-wire availability, or player news.",
       "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
-      "If the user asks for lineup optimization, explain that current advice is based on roster structure and Sleeper metadata only.",
+      "For start/sit and lineup optimization questions, use lineupSummary and lineupDecisions before general roster-shape advice.",
       "For add/drop questions, use waiverSummary and topWaiverCandidates before general roster-shape advice.",
       "If a starter slot is open, prioritize filling that slot before bench-upgrade advice.",
       "Keep the answer concise and action-oriented.",
@@ -77,6 +82,7 @@ function formatRosterSlots(slots: Record<string, number>): string {
     .map(([slot, count]) => `${slot}:${count}`)
     .join("/");
 }
+
 
 
 

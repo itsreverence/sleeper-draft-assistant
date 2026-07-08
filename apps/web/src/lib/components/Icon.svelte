@@ -8,6 +8,7 @@
     | "activity"
     | "calendar"
     | "plus"
+    | "clipboard"
     | "message"
     | "alert"
     | "check-circle"
@@ -46,6 +47,10 @@
       <path d="M15.8 14.5c2.2.4 3.7 2 4.2 4.5" />
     {:else if name === "activity"}
       <path d="M3 12h3.5l2-6 4 12 2-9 1.5 3H21" />
+    {:else if name === "clipboard"}
+      <path d="M9 4.5h6l1 2h2v13H6v-13h2Z" />
+      <path d="M9 4.5h6v3H9Z" />
+      <path d="M9 12h6M9 16h4" />
     {:else if name === "plus"}
       <path d="M12 5v14" />
       <path d="M5 12h14" />
@@ -86,5 +91,6 @@
     height: 100%;
   }
 </style>
+
 
 

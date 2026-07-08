@@ -7,6 +7,7 @@ import type {
   Position,
   Team,
   TeamLineupAssignment,
+  TeamLineupSummary,
   TeamManagerState,
   TeamNeedsSummary,
   TeamPositionNeed,
@@ -44,6 +45,40 @@ export type DraftRecommendationOptions = {
 const teamNeedPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
 
+
+export function buildTeamLineupSummary(state: TeamManagerState): TeamLineupSummary {
+  const rosterPlayers = getUniqueRosterPlayers(state);
+  const lockedStarters: Player[] = [];
+  const riskyStarters: Player[] = [];
+  const decisions = buildLineupDecisions(state, rosterPlayers);
+  const openSlots = decisions.filter((decision) => decision.status === "open" || decision.status === "thin").map((decision) => decision.slot);
+  const swapRecommendations = decisions.filter((decision) => decision.status === "swap_recommended");
+
+  for (const decision of decisions) {
+    if (decision.status === "locked" && decision.currentPlayer) {
+      lockedStarters.push(decision.currentPlayer);
+    }
+    const starter = decision.recommendedPlayer ?? decision.currentPlayer;
+    if (starter?.riskTags.length) {
+      riskyStarters.push(starter);
+    }
+  }
+
+  return {
+    headline: buildLineupHeadline(openSlots, swapRecommendations),
+    decisions,
+    lockedStarters,
+    openSlots,
+    swapRecommendations,
+    riskyStarters: Array.from(new Map(riskyStarters.map((player) => [player.id, player])).values()),
+    facts: buildLineupFacts(decisions, openSlots, swapRecommendations),
+    limitations: [
+      "Lineup decisions use roster metadata and imported ranks when present, not weekly projections or player news.",
+      "Sleeper current starter slots are treated as the current lineup baseline.",
+      "Flex choices are ranked deterministically by imported rank, estimated value, and risk tags.",
+    ],
+  };
+}
 export function buildTeamWaiverSummary(state: TeamManagerState, availablePlayers: Player[]): TeamWaiverSummary {
   const teamNeeds = buildTeamNeedsSummary(state);
   const rosterPlayers = getUniqueRosterPlayers(state);
@@ -105,6 +140,110 @@ export function buildTeamNeedsSummary(state: TeamManagerState): TeamNeedsSummary
 }
 
 
+
+function buildLineupDecisions(state: TeamManagerState, rosterPlayers: Player[]): TeamLineupSummary["decisions"] {
+  const remaining = new Map(rosterPlayers.map((player) => [player.id, player]));
+  const orderedSlots = [
+    ...state.roster.starters.filter((slot) => !isFlexSlot(slot.slot)),
+    ...state.roster.starters.filter((slot) => isFlexSlot(slot.slot)),
+  ];
+  const decisions: TeamLineupSummary["decisions"] = [];
+
+  for (const slot of orderedSlots) {
+    const decision = buildLineupDecision(slot, Array.from(remaining.values()));
+    decisions.push(decision);
+    if (decision.recommendedPlayer) {
+      remaining.delete(decision.recommendedPlayer.id);
+    }
+    if (decision.status === "locked" && decision.currentPlayer) {
+      remaining.delete(decision.currentPlayer.id);
+    }
+  }
+
+  return decisions;
+}
+
+function buildLineupDecision(slot: TeamManagerState["roster"]["starters"][number], rosterPlayers: Player[]): TeamLineupSummary["decisions"][number] {
+  const eligible = rosterPlayers.filter((player) => slot.eligiblePositions.includes(player.position)).sort(comparePlayersForLineup);
+  const currentPlayer = slot.player;
+  const recommendedPlayer = eligible[0] ?? null;
+  const alternatives = eligible.filter((player) => player.id !== recommendedPlayer?.id).slice(0, 3);
+  const reasons: string[] = [];
+  let status: TeamLineupSummary["decisions"][number]["status"] = "locked";
+  let confidence: TeamLineupSummary["decisions"][number]["confidence"] = "medium";
+
+  if (!recommendedPlayer) {
+    status = "thin";
+    confidence = "low";
+    reasons.push(`No rostered player is eligible for ${slot.slot}.`);
+  } else if (!currentPlayer) {
+    status = "open";
+    confidence = "high";
+    reasons.push(`${slot.slot} is open; ${recommendedPlayer.name} is the top eligible option.`);
+  } else if (recommendedPlayer.id !== currentPlayer.id && comparePlayersForLineup(recommendedPlayer, currentPlayer) < 0) {
+    status = "swap_recommended";
+    confidence = getLineupGap(recommendedPlayer, currentPlayer) >= 25 ? "high" : "medium";
+    reasons.push(`${recommendedPlayer.name} has a stronger deterministic value signal than current starter ${currentPlayer.name}.`);
+  } else {
+    reasons.push(`${currentPlayer.name} remains the top eligible ${slot.slot} option by current metadata.`);
+  }
+
+  if (recommendedPlayer?.importedRank) {
+    reasons.push(`Recommended option has imported rank ${recommendedPlayer.importedRank}${recommendedPlayer.tier ? `, tier ${recommendedPlayer.tier}` : ""}.`);
+  }
+  if (recommendedPlayer?.riskTags.length) {
+    confidence = confidence === "high" ? "medium" : "low";
+    reasons.push(`Risk tags: ${recommendedPlayer.riskTags.join(", ")}.`);
+  }
+
+  return {
+    slot: slot.slot,
+    currentPlayer,
+    recommendedPlayer,
+    alternativePlayers: alternatives,
+    status,
+    confidence,
+    reasons,
+  };
+}
+
+function buildLineupHeadline(openSlots: string[], swaps: TeamLineupSummary["swapRecommendations"]): string {
+  if (swaps.length > 0) {
+    return `${swaps.length} lineup swap${swaps.length === 1 ? "" : "s"} recommended.`;
+  }
+  if (openSlots.length > 0) {
+    return `${openSlots.length} starter slot${openSlots.length === 1 ? " is" : "s are"} open.`;
+  }
+  return "No immediate lineup change is recommended from current metadata.";
+}
+
+function buildLineupFacts(
+  decisions: TeamLineupSummary["decisions"],
+  openSlots: string[],
+  swaps: TeamLineupSummary["swapRecommendations"],
+): string[] {
+  const facts: string[] = [];
+  if (openSlots.length) {
+    facts.push(`Open lineup slots: ${openSlots.join(", ")}.`);
+  }
+  for (const swap of swaps.slice(0, 3)) {
+    if (swap.currentPlayer && swap.recommendedPlayer) {
+      facts.push(`Consider ${swap.recommendedPlayer.name} over ${swap.currentPlayer.name} at ${swap.slot}.`);
+    }
+  }
+  const risky = decisions.flatMap((decision) => [decision.recommendedPlayer ?? decision.currentPlayer]).filter(isPlayer).filter((player) => player.riskTags.length > 0);
+  if (risky.length) {
+    facts.push(`Risk flags in lineup: ${Array.from(new Set(risky.map((player) => player.name))).join(", ")}.`);
+  }
+  if (!facts.length) {
+    facts.push("Current starters align with deterministic roster metadata.");
+  }
+  return facts;
+}
+
+function getLineupGap(a: Player, b: Player): number {
+  return Math.abs(getPlayerRank(b) - getPlayerRank(a));
+}
 function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, rosterPlayers: Player[], suggestedDrop: Player | null): TeamWaiverSummary["candidates"][number] {
   const need = teamNeeds.positionNeeds.find((item) => item.position === player.position);
   const rank = getPlayerRank(player);
@@ -980,6 +1119,8 @@ function player(
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+
+
 
 
 

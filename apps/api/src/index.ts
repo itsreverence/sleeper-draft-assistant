@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import {
   advanceMockDraftState,
   buildDraftRecommendation,
+  buildTeamLineupSummary,
   buildTeamNeedsSummary,
   buildTeamWaiverSummary,
   createMockDraftState,
@@ -11,7 +12,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -41,6 +42,7 @@ type DraftPayload = {
 type TeamPayload = {
   state: TeamManagerState;
   needs: TeamNeedsSummary;
+  lineupSummary: TeamLineupSummary;
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
 };
@@ -180,7 +182,7 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
     const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
     const aiAnswer = await aiProvider.answerTeamQuestion(
-      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(state, rankedAvailablePlayers)),
+      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(state, rankedAvailablePlayers), buildTeamLineupSummary(state)),
     );
 
     return c.json({
@@ -304,6 +306,7 @@ function toTeamPayload(state: TeamManagerState, weekContext: TeamWeekContext | n
   return {
     state,
     needs: buildTeamNeedsSummary(state),
+    lineupSummary: buildTeamLineupSummary(state),
     weekContext,
     waiverSummary: buildTeamWaiverSummary(state, availablePlayers),
   };
@@ -517,6 +520,7 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
+
 
 
 

@@ -1,4 +1,4 @@
-import type { Player, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import type { Player, TeamLineupSummary, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildTeamAiContext } from "./team-context";
@@ -31,6 +31,14 @@ describe("team AI context", () => {
     expect(context.teamBrief.dataWarnings).toContain("Sleeper matchup data is current lineup and points state, not a projection model.");
   });
 
+
+  it("includes lineup decisions for start/sit questions", () => {
+    const context = buildTeamAiContext(createTeamState(), "Who should I start?", [], null, null, createLineupSummary());
+
+    expect(context.lineupSummary.swapRecommendations[0]?.recommendedPlayer?.name).toBe("Bench WR");
+    expect(context.teamBrief.lineupFacts).toContain("Consider Bench WR over Ja'Marr Chase at WR.");
+    expect(context.teamBrief.lineupDecisions[0]).toContain("Bench WR");
+  });
   it("includes waiver candidates for add/drop questions", () => {
     const context = buildTeamAiContext(createTeamState(), "Who should I add?", [], null, createWaiverSummary());
 
@@ -46,7 +54,7 @@ describe("team AI context", () => {
     expect(prompt).toContain("Team brief contract JSON:");
     expect(prompt).toContain("Full team context JSON:");
     expect(prompt.indexOf("Team brief contract JSON:")).toBeLessThan(prompt.indexOf("Full team context JSON:"));
-    expect(prompt).toContain("teamBrief.depthSignals");
+    expect(prompt).toContain("teamBrief.lineupDecisions");
     expect(buildTeamManagerInstructions()).toContain("Use teamBrief first");
   });
 
@@ -62,6 +70,29 @@ describe("team AI context", () => {
   });
 });
 
+function createLineupSummary(): TeamLineupSummary {
+  const current = player("wr-1", "Ja'Marr Chase", "CIN", "WR");
+  const recommended = player("bench-wr", "Bench WR", "SEA", "WR");
+  const decision = {
+    slot: "WR",
+    currentPlayer: current,
+    recommendedPlayer: recommended,
+    alternativePlayers: [],
+    status: "swap_recommended" as const,
+    confidence: "medium" as const,
+    reasons: ["Bench WR has a stronger deterministic value signal than current starter Ja'Marr Chase."],
+  };
+  return {
+    headline: "1 lineup swap recommended.",
+    decisions: [decision],
+    lockedStarters: [],
+    openSlots: [],
+    swapRecommendations: [decision],
+    riskyStarters: [],
+    facts: ["Consider Bench WR over Ja'Marr Chase at WR."],
+    limitations: ["Lineup decisions use roster metadata and imported ranks when present, not weekly projections or player news."],
+  };
+}
 function createWaiverSummary(): TeamWaiverSummary {
   return {
     headline: "Top available signal: Free RB.",
@@ -160,6 +191,8 @@ function player(id: string, name: string, team: string, position: Player["positi
     riskTags: [],
   };
 }
+
+
 
 
 

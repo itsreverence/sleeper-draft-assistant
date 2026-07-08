@@ -183,6 +183,28 @@ export const TeamNeedsSummarySchema = z.object({
   limitations: z.array(z.string()),
 });
 export type TeamNeedsSummary = z.infer<typeof TeamNeedsSummarySchema>;
+export const TeamLineupDecisionSchema = z.object({
+  slot: z.string(),
+  currentPlayer: PlayerSchema.nullable(),
+  recommendedPlayer: PlayerSchema.nullable(),
+  alternativePlayers: z.array(PlayerSchema),
+  status: z.enum(["locked", "open", "swap_recommended", "thin"]),
+  confidence: z.enum(["low", "medium", "high"]),
+  reasons: z.array(z.string()),
+});
+export type TeamLineupDecision = z.infer<typeof TeamLineupDecisionSchema>;
+
+export const TeamLineupSummarySchema = z.object({
+  headline: z.string(),
+  decisions: z.array(TeamLineupDecisionSchema),
+  lockedStarters: z.array(PlayerSchema),
+  openSlots: z.array(z.string()),
+  swapRecommendations: z.array(TeamLineupDecisionSchema),
+  riskyStarters: z.array(PlayerSchema),
+  facts: z.array(z.string()),
+  limitations: z.array(z.string()),
+});
+export type TeamLineupSummary = z.infer<typeof TeamLineupSummarySchema>;
 export const TeamWeekPlayerSchema = z.object({
   playerId: z.string(),
   name: z.string(),
@@ -276,6 +298,7 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
+
 
 
 
