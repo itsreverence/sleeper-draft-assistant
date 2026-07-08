@@ -111,10 +111,13 @@ export async function fetchSleeperConnect(params: {
   return (await response.json()) as ConnectPayload;
 }
 
-export async function fetchTeamManagerState(leagueId: string, userRosterId: string | null): Promise<TeamPayload> {
+export async function fetchTeamManagerState(leagueId: string, userRosterId: string | null, draftId: string | null = null): Promise<TeamPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
     query.set("userRosterId", userRosterId);
+  }
+  if (draftId) {
+    query.set("draftId", draftId);
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await fetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team${suffix}`);
@@ -215,12 +218,16 @@ export function createDraftEventSource(draftId: string, userRosterId: string | n
 export async function askTeamManagerRequest(
   leagueId: string,
   userRosterId: string | null,
+  draftId: string | null,
   question: string,
   conversationHistory: AiConversationMessage[] = [],
 ): Promise<TeamAskAnswerPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
     query.set("userRosterId", userRosterId);
+  }
+  if (draftId) {
+    query.set("draftId", draftId);
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await fetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
@@ -235,4 +242,5 @@ export async function askTeamManagerRequest(
 
   return (await response.json()) as TeamAskAnswerPayload;
 }
+
 

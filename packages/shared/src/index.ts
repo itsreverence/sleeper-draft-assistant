@@ -210,6 +210,31 @@ export const TeamWeekContextSchema = z.object({
   updatedAt: z.string(),
 });
 export type TeamWeekContext = z.infer<typeof TeamWeekContextSchema>;
+export const TeamWaiverCandidateSchema = z.object({
+  player: PlayerSchema,
+  score: z.number(),
+  rosterFit: z.enum(["starter_need", "depth_need", "upgrade", "stash"]),
+  valueLabel: z.string(),
+  suggestedDrop: PlayerSchema.nullable(),
+  reasons: z.array(z.string()),
+});
+export type TeamWaiverCandidate = z.infer<typeof TeamWaiverCandidateSchema>;
+
+export const TeamDropCandidateSchema = z.object({
+  player: PlayerSchema,
+  score: z.number(),
+  reasons: z.array(z.string()),
+});
+export type TeamDropCandidate = z.infer<typeof TeamDropCandidateSchema>;
+
+export const TeamWaiverSummarySchema = z.object({
+  headline: z.string(),
+  candidates: z.array(TeamWaiverCandidateSchema),
+  dropCandidates: z.array(TeamDropCandidateSchema),
+  facts: z.array(z.string()),
+  limitations: z.array(z.string()),
+});
+export type TeamWaiverSummary = z.infer<typeof TeamWaiverSummarySchema>;
 export const CandidateSignalSchema = z.object({
   player: PlayerSchema,
   score: z.number(),
@@ -251,6 +276,7 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
+
 
 
 

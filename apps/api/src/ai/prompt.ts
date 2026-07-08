@@ -44,6 +44,7 @@ export function buildTeamManagerInstructions(): string {
     "You are an AI fantasy football team manager for a Sleeper league.",
     "Use only the provided structured team context and conversation history. Do not invent projections, injuries, player news, waiver availability, or provider/auth status.",
     "When weekContext is present, it is Sleeper lineup and score state only, not a projection model.",
+    "When waiverSummary is present, it is deterministic add/drop context inferred from Sleeper availability and imported rankings when available.",
     "Use teamBrief first, then teamState as supporting detail.",
     "If roster structure is the only available signal, say that plainly and avoid overconfident lineup claims.",
     "Keep answers concise and actionable for managing a fantasy roster.",
@@ -56,7 +57,7 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     "",
     "Answer format:",
     "- Direct answer: one clear answer to the user's team-management question.",
-    "- Why: 2-4 bullets grounded in teamBrief.depthSignals, matchupFacts when relevant, open starter slots, starters, bench, and data warnings.",
+    "- Why: 2-4 bullets grounded in teamBrief.depthSignals, waiverFacts/topWaiverCandidates when relevant, matchupFacts when relevant, open starter slots, starters, bench, and data warnings.",
     "- Next move: one practical action or watch item.",
     "- Constraint: one short caveat when projections, news, matchups, or waiver data would be needed.",
     "",
@@ -64,6 +65,7 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     "- For weakest-position questions, prioritize open starter slots and below-requirement position counts.",
     "- For lineup questions, use teamBrief.starterCandidates and weekContext when present; say when no projection signal exists.",
     "- For current matchup or score questions, use teamBrief.matchupFacts and weekContext before roster-structure facts.",
+    "- For pickup, waiver, free-agent, or drop questions, use teamBrief.topWaiverCandidates, topDropCandidates, waiverFacts, and waiverSummary.candidates[].reasons.",
     "- For bench-depth questions, use position counts, flex demand, and benchPlayers.",
     "- Use conversationHistory only to resolve follow-ups; current team context is the source of truth.",
     "",
@@ -74,4 +76,5 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     JSON.stringify(context, null, 2),
   ].join("\n");
 }
+
 

@@ -1,5 +1,5 @@
-import { buildTeamNeedsSummary } from "@sleeper-ai/engine";
-import type { TeamManagerState, TeamNeedsSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import { buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-ai/engine";
+import type { TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
 
 import type { AiConversationMessage, TeamAiContext } from "./types";
 
@@ -8,20 +8,23 @@ export function buildTeamAiContext(
   question: string,
   conversationHistory: AiConversationMessage[] = [],
   weekContext: TeamWeekContext | null = null,
+  waiverSummary: TeamWaiverSummary | null = null,
 ): TeamAiContext {
   const teamNeeds = buildTeamNeedsSummary(state);
+  const resolvedWaiverSummary = waiverSummary ?? buildTeamWaiverSummary(state, []);
   return {
     task: "team_question",
     question,
     conversationHistory: conversationHistory.slice(-8),
     teamNeeds,
-    teamBrief: buildTeamBrief(state, teamNeeds, weekContext),
+    teamBrief: buildTeamBrief(state, teamNeeds, weekContext, resolvedWaiverSummary),
     teamState: state,
     weekContext,
+    waiverSummary: resolvedWaiverSummary,
   };
 }
 
-function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null): TeamAiContext["teamBrief"] {
+function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null, waiverSummary: TeamWaiverSummary): TeamAiContext["teamBrief"] {
   const openStarterSlots = state.roster.starters
     .filter((slot) => !slot.player)
     .map((slot) => `${slot.slot} (${slot.eligiblePositions.join("/")})`);
@@ -42,16 +45,20 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
     depthSignals: teamNeeds.facts,
     deterministicFacts: teamNeeds.facts,
     matchupFacts: weekContext?.facts ?? ["No Sleeper weekly matchup context is loaded."],
+    waiverFacts: waiverSummary.facts,
+    topWaiverCandidates: waiverSummary.candidates.slice(0, 5).map((candidate) => `${candidate.player.name} (${candidate.player.team} ${candidate.player.position}) - ${candidate.valueLabel}; ${candidate.reasons.join(" ")}`),
+    topDropCandidates: waiverSummary.dropCandidates.slice(0, 4).map((candidate) => `${candidate.player.name} (${candidate.player.team} ${candidate.player.position}) - ${candidate.reasons.join(" ")}`),
     opponent: weekContext?.opponentTeamName ?? null,
     weakestPositions: teamNeeds.weakestPositions,
     starterCandidates,
     benchPlayers,
-    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...(weekContext?.limitations ?? [])],
+    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations],
     responseRules: [
       "Answer only from the provided Sleeper team context.",
       "Do not invent projections, injuries, waiver-wire availability, or player news.",
       "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
       "If the user asks for lineup optimization, explain that current advice is based on roster structure and Sleeper metadata only.",
+      "For add/drop questions, use waiverSummary and topWaiverCandidates before general roster-shape advice.",
       "If a starter slot is open, prioritize filling that slot before bench-upgrade advice.",
       "Keep the answer concise and action-oriented.",
     ],
@@ -70,5 +77,6 @@ function formatRosterSlots(slots: Record<string, number>): string {
     .map(([slot, count]) => `${slot}:${count}`)
     .join("/");
 }
+
 
 

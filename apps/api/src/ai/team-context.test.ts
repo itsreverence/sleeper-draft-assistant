@@ -1,4 +1,4 @@
-import type { Player, TeamManagerState, TeamWeekContext } from "@sleeper-ai/shared";
+import type { Player, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildTeamAiContext } from "./team-context";
@@ -30,6 +30,15 @@ describe("team AI context", () => {
     expect(context.teamBrief.opponent).toBe("Opponent Team");
     expect(context.teamBrief.dataWarnings).toContain("Sleeper matchup data is current lineup and points state, not a projection model.");
   });
+
+  it("includes waiver candidates for add/drop questions", () => {
+    const context = buildTeamAiContext(createTeamState(), "Who should I add?", [], null, createWaiverSummary());
+
+    expect(context.waiverSummary.candidates[0]?.player.name).toBe("Free RB");
+    expect(context.teamBrief.waiverFacts).toContain("Top add candidate: Free RB (RB).");
+    expect(context.teamBrief.topWaiverCandidates[0]).toContain("Free RB");
+    expect(context.teamBrief.topDropCandidates[0]).toContain("Bench WR");
+  });
   it("puts the team brief contract before full context in the prompt", () => {
     const context = buildTeamAiContext(createTeamState(), "Who are my likely starters?");
     const prompt = buildTeamManagerPrompt(context);
@@ -53,6 +62,26 @@ describe("team AI context", () => {
   });
 });
 
+function createWaiverSummary(): TeamWaiverSummary {
+  return {
+    headline: "Top available signal: Free RB.",
+    candidates: [
+      {
+        player: player("fa-rb", "Free RB", "ATL", "RB"),
+        score: 150,
+        rosterFit: "starter_need",
+        valueLabel: "Rank 25",
+        suggestedDrop: player("bench-wr", "Bench WR", "SEA", "WR"),
+        reasons: ["RB is an open starter need.", "FantasyPros import rank 25."],
+      },
+    ],
+    dropCandidates: [
+      { player: player("bench-wr", "Bench WR", "SEA", "WR"), score: 80, reasons: ["Bench player with the weakest deterministic value signal."] },
+    ],
+    facts: ["Top add candidate: Free RB (RB)."],
+    limitations: ["Waiver candidates use available Sleeper player metadata and imported rankings when present, not real-time projections or news."],
+  };
+}
 function createWeekContext(): TeamWeekContext {
   return {
     week: 1,
@@ -131,6 +160,7 @@ function player(id: string, name: string, team: string, position: Player["positi
     riskTags: [],
   };
 }
+
 
 
 

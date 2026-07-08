@@ -6,6 +6,7 @@ import {
   buildCandidateSignals,
   buildDraftRecommendation,
   buildTeamNeedsSummary,
+  buildTeamWaiverSummary,
   createMockDraftState,
   getAvailablePlayers,
 } from "./index";
@@ -215,6 +216,21 @@ describe("team needs engine", () => {
     expect(summary.facts).toContain("Open starter slots: RB, WR, FLEX, FLEX.");
   });
 
+
+  it("summarizes available add and drop candidates", () => {
+    const state = createTeamManagerState({
+      bench: [teamPlayer("bench-k", "Bench K", "K", 100, 260)],
+    });
+    const summary = buildTeamWaiverSummary(state, [
+      { ...teamPlayer("fa-rb", "Free RB", "RB", 220, 24), importedRank: 24, importedSource: "FantasyPros" },
+      teamPlayer("fa-qb", "Free QB", "QB", 260, 80),
+    ]);
+
+    expect(summary.candidates[0]?.player.id).toBe("fa-rb");
+    expect(summary.candidates[0]?.rosterFit).toBe("starter_need");
+    expect(summary.dropCandidates[0]?.player.id).toBe("bench-k");
+    expect(summary.facts).toContain("Top add candidate: Free RB (RB).");
+  });
   it("assigns fixed slots before flex slots deterministically", () => {
     const state = createTeamManagerState({
       bench: [
@@ -294,4 +310,5 @@ function teamPlayer(id: string, name: string, position: Position, projectedPoint
     riskTags: [],
   };
 }
+
 

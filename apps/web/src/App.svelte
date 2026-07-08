@@ -13,6 +13,7 @@
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import TeamNeedsPanel from "./lib/components/TeamNeedsPanel.svelte";
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
+  import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
@@ -48,6 +49,7 @@
     RankingImportSummary,
     TeamManagerState,
     TeamNeedsSummary,
+    TeamWaiverSummary,
     TeamWeekContext,
     ReadinessItem,
     AiConversationMessage,
@@ -75,6 +77,7 @@
   let teamManagerState: TeamManagerState | null = $state(null);
   let teamNeeds: TeamNeedsSummary | null = $state(null);
   let teamWeekContext: TeamWeekContext | null = $state(null);
+  let teamWaiverSummary: TeamWaiverSummary | null = $state(null);
   let teamManagerError = $state("");
   let isLoadingTeamManager = $state(false);
   let playerPreferences: PlayerPreferences = $state({});
@@ -391,6 +394,7 @@
     teamManagerState = null;
     teamNeeds = null;
     teamWeekContext = null;
+    teamWaiverSummary = null;
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
@@ -448,6 +452,7 @@
       teamManagerState = null;
       teamNeeds = null;
       teamWeekContext = null;
+      teamWaiverSummary = null;
       teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
@@ -464,6 +469,7 @@
       teamManagerState = null;
       teamNeeds = null;
       teamWeekContext = null;
+      teamWaiverSummary = null;
       teamManagerError = "";
       isLoadingTeamManager = false;
       return;
@@ -472,14 +478,16 @@
     isLoadingTeamManager = true;
     teamManagerError = "";
     try {
-      const payload = await fetchTeamManagerState(leagueId, userRosterId);
+      const payload = await fetchTeamManagerState(leagueId, userRosterId, activeDraftId);
       teamManagerState = payload.state;
       teamNeeds = payload.needs;
       teamWeekContext = payload.weekContext;
+      teamWaiverSummary = payload.waiverSummary;
     } catch (error) {
       teamManagerState = null;
       teamNeeds = null;
       teamWeekContext = null;
+      teamWaiverSummary = null;
       teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
     } finally {
       isLoadingTeamManager = false;
@@ -559,6 +567,9 @@
       draftState = payload.state;
       recommendation = payload.recommendation;
       rankingsExpanded = false;
+      if (teamManagerState) {
+        void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
+      }
       status = "FantasyPros rankings imported";
       lastEvent = `${payload.summary.matched} matched from ${payload.summary.rowsParsed} rows`;
     } catch (error) {
@@ -581,6 +592,9 @@
       const payload = await clearRankingsRequest(activeDraftId, activeUserRosterId);
       applyDraftPayload(payload);
       rankingsExpanded = true;
+      if (teamManagerState) {
+        void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
+      }
       status = "FantasyPros rankings cleared";
       lastEvent = "Recommendations returned to Sleeper placeholder values";
     } catch (error) {
@@ -602,12 +616,14 @@
     const payload = await askTeamManagerRequest(
       teamManagerState.league.id,
       activeUserRosterId,
+      activeDraftId,
       question,
       conversationHistory,
     );
     teamManagerState = payload.state;
     teamNeeds = payload.needs;
     teamWeekContext = payload.weekContext;
+    teamWaiverSummary = payload.waiverSummary;
     return payload.answer;
   }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
@@ -790,7 +806,8 @@
           <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
           <TeamNeedsPanel needs={teamNeeds} />
           <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
-          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} weekContext={teamWeekContext} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+          <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
           <RosterPanel state={draftState} />
           <PickFeedPanel state={draftState} />
           <AskManagerPanel
@@ -840,6 +857,10 @@
     }
   }
 </style>
+
+
+
+
 
 
 

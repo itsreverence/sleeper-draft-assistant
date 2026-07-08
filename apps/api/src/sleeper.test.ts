@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
+import { normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
 
 const fixture: SleeperDraftStateInput = {
   draft: {
@@ -227,6 +227,16 @@ describe("Sleeper team manager normalization", () => {
     expect(state.dataQuality.limitations[0]).toContain("Sleeper roster data");
   });
 
+
+  it("infers available players by excluding league rostered players", () => {
+    const players = normalizeSleeperAvailablePlayers({
+      rosters: [{ roster_id: 12, players: ["p2"], starters: ["p3"] }],
+      players: fixture.players,
+      limit: 10,
+    });
+
+    expect(players.map((player) => player.id)).toEqual(["p1", "p4"]);
+  });
   it("falls back to the first roster when no user roster id is supplied", () => {
     const state = normalizeSleeperTeamManagerState({
       league: fixture.league!,
@@ -307,4 +317,5 @@ describe("Sleeper weekly matchup normalization", () => {
     expect(context).toBeNull();
   });
 });
+
 

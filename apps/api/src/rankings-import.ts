@@ -9,7 +9,7 @@ export type StoredRankingImport = {
   playersById: Map<string, ImportedPlayerValues>;
 };
 
-type ImportedPlayerValues = {
+export type ImportedPlayerValues = {
   rank: number;
   tier: number | null;
   positionRank: number | null;
@@ -164,27 +164,29 @@ export function importFantasyProsCsv(state: DraftState, csvText: string): Stored
 export function applyImportedRankings(state: DraftState, storedImport: StoredRankingImport): DraftState {
   return {
     ...state,
-    players: state.players.map((player) => {
-      const imported = storedImport.playersById.get(player.id);
-      if (!imported) {
-        return player;
-      }
-
-      return {
-        ...player,
-        projectedPoints: estimateProjectedPointsFromRank(player.position, imported.rank),
-        projectionSource: "imported",
-        adp: player.adp,
-        tier: imported.tier,
-        importedRank: imported.rank,
-        importedPositionRank: imported.positionRank,
-        importedSource: "FantasyPros",
-        byeWeek: imported.byeWeek,
-        ecrVsAdp: imported.ecrVsAdp,
-        riskTags: mergeRiskTags(player.riskTags, imported),
-      } satisfies Player;
-    }),
+    players: state.players.map((player) => applyImportedPlayerValues(player, storedImport)),
   };
+}
+
+export function applyImportedPlayerValues(player: Player, storedImport: StoredRankingImport | null): Player {
+  const imported = storedImport?.playersById.get(player.id);
+  if (!imported) {
+    return player;
+  }
+
+  return {
+    ...player,
+    projectedPoints: estimateProjectedPointsFromRank(player.position, imported.rank),
+    projectionSource: "imported",
+    adp: player.adp,
+    tier: imported.tier,
+    importedRank: imported.rank,
+    importedPositionRank: imported.positionRank,
+    importedSource: "FantasyPros",
+    byeWeek: imported.byeWeek,
+    ecrVsAdp: imported.ecrVsAdp,
+    riskTags: mergeRiskTags(player.riskTags, imported),
+  } satisfies Player;
 }
 
 function parseFantasyProsRows(csvText: string): FantasyProsRow[] {
@@ -369,3 +371,4 @@ function nullableString(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 && trimmed !== "-" ? trimmed : null;
 }
+

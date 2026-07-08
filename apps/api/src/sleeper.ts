@@ -180,6 +180,19 @@ export class SleeperClient {
     });
   }
 
+  async getAvailablePlayers(leagueId: string, limit = 160): Promise<Player[]> {
+    const [leagueBundle, players] = await Promise.all([
+      this.getLeagueBundle(leagueId),
+      this.getPlayers(),
+    ]);
+
+    return normalizeSleeperAvailablePlayers({
+      rosters: leagueBundle.rosters,
+      players,
+      limit,
+    });
+  }
+
   async getTeamWeekContext(leagueId: string, week?: number | null, userRosterId?: string | null): Promise<TeamWeekContext | null> {
     const [leagueBundle, players, nflState] = await Promise.all([
       this.getLeagueBundle(leagueId),
@@ -287,6 +300,24 @@ export class SleeperClient {
   }
 }
 
+
+export function normalizeSleeperAvailablePlayers(input: { rosters: SleeperRoster[]; players: SleeperPlayerMap; limit?: number }): Player[] {
+  const rosteredIds = new Set(
+    input.rosters.flatMap((roster) => [
+      ...(roster.players ?? []),
+      ...(roster.starters ?? []),
+      ...(roster.reserve ?? []),
+      ...(roster.taxi ?? []),
+    ]).map(String).filter((playerId) => playerId && playerId !== "0"),
+  );
+
+  return Object.values(input.players)
+    .filter((player) => player.sport === "nfl" && player.active !== false && player.player_id && !rosteredIds.has(player.player_id))
+    .map(toPlayer)
+    .filter(isPresent)
+    .sort(compareSleeperPlayers)
+    .slice(0, input.limit ?? 160);
+}
 export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateInput): TeamManagerState {
   const userRoster = getTeamManagerRoster(input.rosters, input.userRosterId);
   const userById = new Map(input.users.map((user) => [user.user_id, user]));
@@ -402,6 +433,18 @@ export function normalizeSleeperTeamWeekContext(input: SleeperTeamWeekContextInp
     ],
     updatedAt: new Date().toISOString(),
   };
+}
+
+function compareSleeperPlayers(a: Player, b: Player): number {
+  const aRank = a.adp ?? Number.MAX_SAFE_INTEGER;
+  const bRank = b.adp ?? Number.MAX_SAFE_INTEGER;
+  if (aRank !== bRank) {
+    return aRank - bRank;
+  }
+  if (a.projectedPoints !== b.projectedPoints) {
+    return b.projectedPoints - a.projectedPoints;
+  }
+  return a.name.localeCompare(b.name);
 }
 function getTeamManagerRoster(rosters: SleeperRoster[], userRosterId: string | null | undefined): SleeperRoster {
   if (rosters.length === 0) {
@@ -932,6 +975,7 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
 
 
 

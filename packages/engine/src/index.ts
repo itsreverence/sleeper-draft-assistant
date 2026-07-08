@@ -10,6 +10,7 @@ import type {
   TeamManagerState,
   TeamNeedsSummary,
   TeamPositionNeed,
+  TeamWaiverSummary,
 } from "@sleeper-ai/shared";
 
 const positionBaselines: Record<Position, number> = {
@@ -42,6 +43,33 @@ export type DraftRecommendationOptions = {
 
 const teamNeedPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
+
+export function buildTeamWaiverSummary(state: TeamManagerState, availablePlayers: Player[]): TeamWaiverSummary {
+  const teamNeeds = buildTeamNeedsSummary(state);
+  const rosterPlayers = getUniqueRosterPlayers(state);
+  const dropCandidates = buildDropCandidates(state, rosterPlayers);
+  const topDrop = dropCandidates[0]?.player ?? null;
+  const candidates = availablePlayers
+    .filter((player) => isFantasyStarterPosition(player.position))
+    .map((player) => buildWaiverCandidate(player, teamNeeds, rosterPlayers, topDrop))
+    .sort((a, b) => b.score - a.score || comparePlayersForLineup(a.player, b.player))
+    .slice(0, 12);
+  const topCandidate = candidates[0] ?? null;
+
+  return {
+    headline: topCandidate
+      ? `Top available signal: ${topCandidate.player.name} (${topCandidate.player.team} ${topCandidate.player.position}).`
+      : "No clear waiver candidates are available from the loaded Sleeper player pool.",
+    candidates,
+    dropCandidates,
+    facts: buildWaiverFacts(availablePlayers, candidates, dropCandidates, teamNeeds),
+    limitations: [
+      "Waiver candidates use available Sleeper player metadata and imported rankings when present, not real-time projections or news.",
+      "Availability is inferred from players not currently present on Sleeper league rosters.",
+      "Drop suggestions are deterministic roster-shape signals and should be reviewed before making real moves.",
+    ],
+  };
+}
 export function buildTeamNeedsSummary(state: TeamManagerState): TeamNeedsSummary {
   const rosterPlayers = getUniqueRosterPlayers(state);
   const lineup = buildDeterministicLineup(state, rosterPlayers);
@@ -76,6 +104,119 @@ export function buildTeamNeedsSummary(state: TeamManagerState): TeamNeedsSummary
   };
 }
 
+
+function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, rosterPlayers: Player[], suggestedDrop: Player | null): TeamWaiverSummary["candidates"][number] {
+  const need = teamNeeds.positionNeeds.find((item) => item.position === player.position);
+  const rank = getPlayerRank(player);
+  const rosterBestAtPosition = rosterPlayers.filter((item) => item.position === player.position).sort(comparePlayersForLineup)[0] ?? null;
+  const beatsRosterBest = rosterBestAtPosition ? comparePlayersForLineup(player, rosterBestAtPosition) < 0 : true;
+  const reasons: string[] = [];
+  let rosterFit: TeamWaiverSummary["candidates"][number]["rosterFit"] = "stash";
+  let score = Math.max(0, 260 - rank);
+
+  if (need?.status === "open_starter") {
+    rosterFit = "starter_need";
+    score += 120;
+    reasons.push(`${player.position} is an open starter need.`);
+  } else if (need?.status === "thin_depth") {
+    rosterFit = "depth_need";
+    score += 70;
+    reasons.push(`${player.position} depth is thin.`);
+  } else if (beatsRosterBest) {
+    rosterFit = "upgrade";
+    score += 45;
+    reasons.push(`Profiles as an upgrade candidate at ${player.position}.`);
+  } else {
+    reasons.push(`Profiles as a bench stash at ${player.position}.`);
+  }
+
+  if (player.importedRank) {
+    reasons.push(`FantasyPros import rank ${player.importedRank}${player.tier ? `, tier ${player.tier}` : ""}.`);
+  } else {
+    reasons.push("No imported rank matched; using Sleeper metadata fallback.");
+  }
+
+  if (player.riskTags.length > 0) {
+    reasons.push(`Risk tags: ${player.riskTags.join(", ")}.`);
+    score -= 15;
+  }
+
+  if (suggestedDrop) {
+    const dropRank = getPlayerRank(suggestedDrop);
+    if (rank < dropRank) {
+      reasons.push(`Ranks ahead of suggested drop ${suggestedDrop.name}.`);
+      score += Math.min(35, dropRank - rank);
+    }
+  }
+
+  return {
+    player,
+    score: Math.round(score * 10) / 10,
+    rosterFit,
+    valueLabel: player.importedRank ? `Rank ${player.importedRank}` : "Sleeper fallback",
+    suggestedDrop,
+    reasons,
+  };
+}
+
+function buildDropCandidates(state: TeamManagerState, rosterPlayers: Player[]): TeamWaiverSummary["dropCandidates"] {
+  const starterIds = new Set(state.roster.starters.map((slot) => slot.player?.id).filter((id): id is string => Boolean(id)));
+  return rosterPlayers
+    .filter((player) => !starterIds.has(player.id))
+    .map((player) => {
+      const reasons: string[] = [];
+      let score = getPlayerRank(player);
+      const positionCount = state.roster.positionCounts[player.position] ?? 0;
+      const requiredStarters = state.league.rosterSlots[player.position] ?? 0;
+
+      if ((player.position === "K" || player.position === "DEF") && positionCount > requiredStarters) {
+        score += 60;
+        reasons.push(`Extra ${player.position} beyond required starter count.`);
+      }
+      if (positionCount > requiredStarters + 2 && requiredStarters > 0) {
+        score += 30;
+        reasons.push(`${player.position} is a surplus position on this roster.`);
+      }
+      if (player.riskTags.length > 0) {
+        score += 15;
+        reasons.push(`Risk tags: ${player.riskTags.join(", ")}.`);
+      }
+      if (reasons.length === 0) {
+        reasons.push("Bench player with the weakest deterministic value signal.");
+      }
+
+      return { player, score: Math.round(score * 10) / 10, reasons };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+}
+
+function buildWaiverFacts(
+  availablePlayers: Player[],
+  candidates: TeamWaiverSummary["candidates"],
+  dropCandidates: TeamWaiverSummary["dropCandidates"],
+  teamNeeds: TeamNeedsSummary,
+): string[] {
+  const facts: string[] = [`${availablePlayers.length} available players were considered.`];
+  if (teamNeeds.weakestPositions.length > 0) {
+    facts.push(`Current roster needs: ${teamNeeds.weakestPositions.join("/")}.`);
+  }
+  if (candidates[0]) {
+    facts.push(`Top add candidate: ${candidates[0].player.name} (${candidates[0].player.position}).`);
+  }
+  if (dropCandidates[0]) {
+    facts.push(`Most droppable candidate: ${dropCandidates[0].player.name} (${dropCandidates[0].player.position}).`);
+  }
+  return facts;
+}
+
+function getPlayerRank(player: Player): number {
+  return player.importedRank ?? player.adp ?? Math.max(1, Math.round(400 - player.projectedPoints));
+}
+
+function isFantasyStarterPosition(position: Position): boolean {
+  return position === "QB" || position === "RB" || position === "WR" || position === "TE" || position === "K" || position === "DEF";
+}
 function buildDeterministicLineup(state: TeamManagerState, rosterPlayers: Player[]): TeamLineupAssignment[] {
   const remaining = new Map(rosterPlayers.map((player) => [player.id, player]));
   const fixedSlots = state.roster.starters.filter((slot) => !isFlexSlot(slot.slot));
@@ -839,5 +980,7 @@ function player(
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+
+
 
 
