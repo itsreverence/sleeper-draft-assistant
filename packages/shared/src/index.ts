@@ -150,6 +150,39 @@ export const TeamManagerStateSchema = z.object({
   }),
 });
 export type TeamManagerState = z.infer<typeof TeamManagerStateSchema>;
+
+export const TeamPositionNeedSchema = z.object({
+  position: PositionSchema,
+  rostered: z.number(),
+  requiredStarters: z.number(),
+  benchDepth: z.number(),
+  status: z.enum(["open_starter", "thin_depth", "covered", "surplus"]),
+  priority: z.number(),
+  reasons: z.array(z.string()),
+});
+export type TeamPositionNeed = z.infer<typeof TeamPositionNeedSchema>;
+
+export const TeamLineupAssignmentSchema = z.object({
+  slot: z.string(),
+  eligiblePositions: z.array(z.string()),
+  player: PlayerSchema.nullable(),
+  reason: z.string(),
+});
+export type TeamLineupAssignment = z.infer<typeof TeamLineupAssignmentSchema>;
+
+export const TeamNeedsSummarySchema = z.object({
+  headline: z.string(),
+  weakestPositions: z.array(PositionSchema),
+  openStarterSlots: z.array(z.string()),
+  thinPositions: z.array(PositionSchema),
+  surplusPositions: z.array(PositionSchema),
+  flexPressure: z.string(),
+  lineup: z.array(TeamLineupAssignmentSchema),
+  positionNeeds: z.array(TeamPositionNeedSchema),
+  facts: z.array(z.string()),
+  limitations: z.array(z.string()),
+});
+export type TeamNeedsSummary = z.infer<typeof TeamNeedsSummarySchema>;
 export const CandidateSignalSchema = z.object({
   player: PlayerSchema,
   score: z.number(),
@@ -191,4 +224,5 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
+
 

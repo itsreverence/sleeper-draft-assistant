@@ -6,6 +6,10 @@ import type {
   Player,
   Position,
   Team,
+  TeamLineupAssignment,
+  TeamManagerState,
+  TeamNeedsSummary,
+  TeamPositionNeed,
 } from "@sleeper-ai/shared";
 
 const positionBaselines: Record<Position, number> = {
@@ -35,6 +39,194 @@ export type DraftRecommendationOptions = {
   preferences?: DraftRecommendationPreferences;
 };
 
+
+const teamNeedPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
+
+export function buildTeamNeedsSummary(state: TeamManagerState): TeamNeedsSummary {
+  const rosterPlayers = getUniqueRosterPlayers(state);
+  const lineup = buildDeterministicLineup(state, rosterPlayers);
+  const openStarterSlots = lineup.filter((assignment) => !assignment.player).map((assignment) => assignment.slot);
+  const positionNeeds = buildPositionNeeds(state, rosterPlayers);
+  const weakestPositions = positionNeeds
+    .filter((need) => need.priority > 0)
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 3)
+    .map((need) => need.position);
+  const thinPositions = positionNeeds.filter((need) => need.status === "open_starter" || need.status === "thin_depth").map((need) => need.position);
+  const surplusPositions = positionNeeds.filter((need) => need.status === "surplus").map((need) => need.position);
+  const flexPressure = describeFlexPressure(state);
+  const facts = buildTeamFacts(state, openStarterSlots, positionNeeds, flexPressure);
+
+  return {
+    headline: weakestPositions.length > 0
+      ? `Prioritize ${weakestPositions.join("/")} based on current roster structure.`
+      : "No urgent roster-structure weakness is visible from Sleeper data alone.",
+    weakestPositions,
+    openStarterSlots,
+    thinPositions,
+    surplusPositions,
+    flexPressure,
+    lineup,
+    positionNeeds,
+    facts,
+    limitations: [
+      "This team-needs summary uses Sleeper roster structure and player metadata, not weekly projections.",
+      "Lineup assignment is deterministic scaffolding and does not account for matchups, injuries beyond Sleeper status tags, or news.",
+    ],
+  };
+}
+
+function buildDeterministicLineup(state: TeamManagerState, rosterPlayers: Player[]): TeamLineupAssignment[] {
+  const remaining = new Map(rosterPlayers.map((player) => [player.id, player]));
+  const fixedSlots = state.roster.starters.filter((slot) => !isFlexSlot(slot.slot));
+  const flexSlots = state.roster.starters.filter((slot) => isFlexSlot(slot.slot));
+  const assignments: TeamLineupAssignment[] = [];
+
+  for (const slot of fixedSlots) {
+    const player = takeBestEligiblePlayer(remaining, [slot.slot]);
+    assignments.push({
+      slot: slot.slot,
+      eligiblePositions: slot.eligiblePositions,
+      player,
+      reason: player ? `Best available ${slot.slot} by current player metadata.` : `No ${slot.slot} eligible player is rostered.`,
+    });
+  }
+
+  for (const slot of flexSlots) {
+    const player = takeBestEligiblePlayer(remaining, slot.eligiblePositions);
+    assignments.push({
+      slot: slot.slot,
+      eligiblePositions: slot.eligiblePositions,
+      player,
+      reason: player ? `Best remaining ${slot.eligiblePositions.join("/")} option by current player metadata.` : `No ${slot.eligiblePositions.join("/")} eligible player remains.`,
+    });
+  }
+
+  return assignments;
+}
+
+function takeBestEligiblePlayer(remaining: Map<string, Player>, eligiblePositions: string[]): Player | null {
+  const eligible = Array.from(remaining.values())
+    .filter((player) => eligiblePositions.includes(player.position))
+    .sort(comparePlayersForLineup);
+  const selected = eligible[0] ?? null;
+  if (selected) {
+    remaining.delete(selected.id);
+  }
+  return selected;
+}
+
+function comparePlayersForLineup(a: Player, b: Player): number {
+  const aRank = a.importedRank ?? a.adp ?? Number.MAX_SAFE_INTEGER;
+  const bRank = b.importedRank ?? b.adp ?? Number.MAX_SAFE_INTEGER;
+  if (a.projectedPoints !== b.projectedPoints) {
+    return b.projectedPoints - a.projectedPoints;
+  }
+  if (aRank !== bRank) {
+    return aRank - bRank;
+  }
+  return a.name.localeCompare(b.name);
+}
+
+function buildPositionNeeds(state: TeamManagerState, rosterPlayers: Player[]): TeamPositionNeed[] {
+  return teamNeedPositions.map((position) => {
+    const requiredStarters = state.league.rosterSlots[position] ?? 0;
+    const rostered = rosterPlayers.filter((player) => player.position === position).length;
+    const benchDepth = Math.max(0, rostered - requiredStarters);
+    const reasons: string[] = [];
+    let status: TeamPositionNeed["status"] = "covered";
+    let priority = 0;
+
+    if (requiredStarters > 0 && rostered < requiredStarters) {
+      status = "open_starter";
+      priority = 100 + (requiredStarters - rostered) * 20;
+      reasons.push(`${position} has ${rostered}/${requiredStarters} required starter slots covered.`);
+    } else if (requiredStarters > 0 && benchDepth === 0) {
+      status = "thin_depth";
+      priority = 55;
+      reasons.push(`${position} starters are covered, but there is no direct bench depth.`);
+    } else if (requiredStarters > 0 && benchDepth >= 3) {
+      status = "surplus";
+      priority = 0;
+      reasons.push(`${position} has ${benchDepth} bench-depth player(s) beyond required starters.`);
+    } else if (requiredStarters > 0) {
+      reasons.push(`${position} has ${benchDepth} bench-depth player(s) beyond required starters.`);
+    } else if (rostered > 1 && (position === "K" || position === "DEF")) {
+      status = "surplus";
+      reasons.push(`${position} has multiple rostered options despite no required starter slot.`);
+    } else {
+      reasons.push(`${position} has no required starter slot in this format.`);
+    }
+
+    return { position, rostered, requiredStarters, benchDepth, status, priority, reasons };
+  });
+}
+
+function describeFlexPressure(state: TeamManagerState): string {
+  const flexSlots = getFlexSlots(state.league.rosterSlots);
+  const flexEligible = (state.roster.positionCounts.RB ?? 0) + (state.roster.positionCounts.WR ?? 0) + (state.roster.positionCounts.TE ?? 0);
+  const flexDemand = (state.league.rosterSlots.RB ?? 0) + (state.league.rosterSlots.WR ?? 0) + (state.league.rosterSlots.TE ?? 0) + flexSlots;
+
+  if (flexSlots <= 0) {
+    return "This format has no standard RB/WR/TE flex pressure.";
+  }
+
+  if (flexEligible < flexDemand) {
+    return `RB/WR/TE flex depth is short: ${flexEligible}/${flexDemand} starter-plus-flex demand.`;
+  }
+
+  if (flexEligible === flexDemand) {
+    return `RB/WR/TE flex depth exactly covers starter-plus-flex demand (${flexEligible}/${flexDemand}) with little cushion.`;
+  }
+
+  return `RB/WR/TE flex depth has ${flexEligible - flexDemand} bench-depth player(s) beyond starter-plus-flex demand.`;
+}
+
+function buildTeamFacts(
+  state: TeamManagerState,
+  openStarterSlots: string[],
+  positionNeeds: TeamPositionNeed[],
+  flexPressure: string,
+): string[] {
+  const facts: string[] = [];
+  if (openStarterSlots.length > 0) {
+    facts.push(`Open starter slots: ${openStarterSlots.join(", ")}.`);
+  }
+
+  for (const need of positionNeeds.filter((item) => item.priority > 0).sort((a, b) => b.priority - a.priority).slice(0, 4)) {
+    facts.push(...need.reasons);
+  }
+
+  facts.push(flexPressure);
+
+  if (state.roster.bench.length === 0) {
+    facts.push("No bench players are currently visible in Sleeper roster data.");
+  }
+
+  return Array.from(new Set(facts));
+}
+
+function getUniqueRosterPlayers(state: TeamManagerState): Player[] {
+  const players = [
+    ...state.roster.starters.map((slot) => slot.player).filter(isPlayer),
+    ...state.roster.bench,
+    ...state.roster.injuredReserve,
+    ...state.roster.taxi,
+  ];
+  return Array.from(new Map(players.map((player) => [player.id, player])).values());
+}
+
+function isFlexSlot(slot: string): boolean {
+  return ["FLEX", "WR_RB_FLEX", "REC_FLEX", "SUPER_FLEX", "SF"].includes(slot);
+}
+
+function getFlexSlots(slots: Record<string, number>): number {
+  return (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
+}
+
+function isPlayer(player: Player | null): player is Player {
+  return Boolean(player);
+}
 export function createMockDraftState(picksToApply = 5): DraftState {
   const players = createMockPlayers();
   const teams = createMockTeams();
@@ -647,4 +839,5 @@ function player(
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+
 

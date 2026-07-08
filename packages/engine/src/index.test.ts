@@ -1,10 +1,11 @@
-import type { DraftState, Player, Position } from "@sleeper-ai/shared";
+import type { DraftState, Player, Position, TeamManagerState } from "@sleeper-ai/shared";
 import { describe, expect, it } from "vitest";
 
 import {
   advanceMockDraftState,
   buildCandidateSignals,
   buildDraftRecommendation,
+  buildTeamNeedsSummary,
   createMockDraftState,
   getAvailablePlayers,
 } from "./index";
@@ -197,6 +198,99 @@ function formatPlayer(
     projectionSource: "mock",
     adp,
     tier,
+    riskTags: [],
+  };
+}
+
+
+describe("team needs engine", () => {
+  it("summarizes open starters, thin depth, and flex pressure", () => {
+    const state = createTeamManagerState();
+    const summary = buildTeamNeedsSummary(state);
+
+    expect(summary.weakestPositions).toContain("RB");
+    expect(summary.openStarterSlots).toEqual(["RB", "WR", "FLEX", "FLEX"]);
+    expect(summary.thinPositions).toEqual(expect.arrayContaining(["RB", "WR"]));
+    expect(summary.flexPressure).toContain("short");
+    expect(summary.facts).toContain("Open starter slots: RB, WR, FLEX, FLEX.");
+  });
+
+  it("assigns fixed slots before flex slots deterministically", () => {
+    const state = createTeamManagerState({
+      bench: [
+        teamPlayer("bench-rb", "Bench RB", "RB", 205, 22),
+        teamPlayer("bench-wr", "Bench WR", "WR", 195, 18),
+      ],
+    });
+    const summary = buildTeamNeedsSummary(state);
+
+    expect(summary.lineup.find((slot) => slot.slot === "QB")?.player?.id).toBe("qb-1");
+    expect(summary.lineup.filter((slot) => slot.slot === "RB").map((slot) => slot.player?.id)).toEqual(["rb-1", "bench-rb"]);
+    expect(summary.lineup.find((slot) => slot.slot === "TE")?.player?.id).toBe("te-1");
+    expect(summary.lineup.filter((slot) => slot.slot === "FLEX").map((slot) => slot.player?.id)).toEqual([undefined, undefined]);
+  });
+});
+
+function createTeamManagerState(overrides: { bench?: Player[] } = {}): TeamManagerState {
+  const qb = teamPlayer("qb-1", "Starter QB", "QB", 300, 20);
+  const rb = teamPlayer("rb-1", "Starter RB", "RB", 240, 5);
+  const wr = teamPlayer("wr-1", "Starter WR", "WR", 235, 6);
+  const te = teamPlayer("te-1", "Starter TE", "TE", 180, 40);
+
+  return {
+    league: {
+      id: "league-1",
+      name: "Team League",
+      season: "2026",
+      status: "in_season",
+      teams: 8,
+      scoring: "PPR",
+      rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, BN: 6 },
+    },
+    userTeam: { rosterId: "1", ownerId: "user-1", name: "My Team" },
+    roster: {
+      starters: [
+        { slot: "QB", eligiblePositions: ["QB"], player: qb },
+        { slot: "RB", eligiblePositions: ["RB"], player: rb },
+        { slot: "RB", eligiblePositions: ["RB"], player: null },
+        { slot: "WR", eligiblePositions: ["WR"], player: wr },
+        { slot: "WR", eligiblePositions: ["WR"], player: null },
+        { slot: "TE", eligiblePositions: ["TE"], player: te },
+        { slot: "FLEX", eligiblePositions: ["RB", "WR", "TE"], player: null },
+        { slot: "FLEX", eligiblePositions: ["RB", "WR", "TE"], player: null },
+      ],
+      bench: overrides.bench ?? [],
+      injuredReserve: [],
+      taxi: [],
+      positionCounts: {
+        QB: 1,
+        RB: 1 + (overrides.bench ?? []).filter((player) => player.position === "RB").length,
+        WR: 1 + (overrides.bench ?? []).filter((player) => player.position === "WR").length,
+        TE: 1 + (overrides.bench ?? []).filter((player) => player.position === "TE").length,
+        K: 0,
+        DEF: 0,
+      },
+    },
+    week: 1,
+    updatedAt: "2026-07-08T00:00:00.000Z",
+    dataQuality: {
+      playerValueSource: "Sleeper roster and player metadata.",
+      limitations: [],
+    },
+  };
+}
+
+function teamPlayer(id: string, name: string, position: Position, projectedPoints: number, adp: number): Player {
+  return {
+    id,
+    sleeperId: id,
+    name,
+    team: "TST",
+    position,
+    projectedPoints,
+    projectionSource: "sleeper_search_rank",
+    adp,
+    tier: 1,
     riskTags: [],
   };
 }

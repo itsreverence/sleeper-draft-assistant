@@ -15,8 +15,9 @@ describe("team AI context", () => {
     expect(context.task).toBe("team_question");
     expect(context.teamBrief.leagueFormat).toContain("8-team PPR");
     expect(context.teamBrief.openStarterSlots).toContain("WR (WR)");
-    expect(context.teamBrief.depthSignals).toContain("WR is below starter requirement (1/2).");
-    expect(context.teamBrief.depthSignals.some((signal) => signal.includes("RB/WR/TE flex depth"))).toBe(true);
+    expect(context.teamNeeds.weakestPositions).toContain("RB");
+    expect(context.teamBrief.deterministicFacts).toContain("WR has 1/2 required starter slots covered.");
+    expect(context.teamNeeds.flexPressure).toContain("RB/WR/TE flex depth is short");
     expect(context.teamBrief.responseRules).toContain("Do not invent projections, injuries, matchup data, waiver-wire availability, or player news.");
   });
 
@@ -103,5 +104,6 @@ function player(id: string, name: string, team: string, position: Player["positi
     riskTags: [],
   };
 }
+
 
 
