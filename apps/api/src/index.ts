@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import {
   advanceMockDraftState,
   buildDraftRecommendation,
+  buildTeamNeedsSummary,
   createMockDraftState,
   type DraftRecommendationOptions,
 } from "@sleeper-ai/engine";
@@ -9,7 +10,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type TeamManagerState, type TeamNeedsSummary } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -34,6 +35,11 @@ type DraftPayload = {
   state: DraftState;
   recommendation: DraftRecommendation;
   rankingImportSummary: RankingImportSummary | null;
+};
+
+type TeamPayload = {
+  state: TeamManagerState;
+  needs: TeamNeedsSummary;
 };
 
 app.use(
@@ -138,7 +144,8 @@ app.get("/sleeper/connect", async (c) => {
 
 app.get("/leagues/:leagueId/team", async (c) => {
   try {
-    return c.json(await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c)));
+    const state = await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c));
+    return c.json(toTeamPayload(state));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -164,7 +171,7 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
       provider: aiAnswer.provider,
       question,
       answer: aiAnswer.answer,
-      state,
+      ...toTeamPayload(state),
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -277,6 +284,12 @@ async function loadDraftState(draftId: string, userRosterId?: string | null): Pr
   return rankingImportStore.apply(draftId, state);
 }
 
+function toTeamPayload(state: TeamManagerState): TeamPayload {
+  return {
+    state,
+    needs: buildTeamNeedsSummary(state),
+  };
+}
 function toDraftPayload(state: DraftState, draftId: string): DraftPayload {
   return {
     state,
@@ -470,6 +483,7 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
+
 
 
 

@@ -1,15 +1,17 @@
 <script lang="ts">
-  import type { AiConversationMessage, AiProviderStatus, TeamManagerState } from "../types";
+  import type { AiConversationMessage, AiProviderStatus, TeamManagerState, TeamNeedsSummary } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
 
   let {
     teamState,
+    teamNeeds,
     onAsk,
     providerStatus = null,
   }: {
     teamState: TeamManagerState | null;
+    teamNeeds?: TeamNeedsSummary | null;
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
   } = $props();
@@ -22,8 +24,17 @@
 
   const providerLabel = $derived(providerStatus?.label ?? "AI manager");
   const providerReady = $derived(Boolean(providerStatus?.configured));
-  const suggestions = $derived(buildTeamQuestions(teamState));
-  const contextChips = $derived(teamState ? [teamState.league.scoring, `${teamState.roster.starters.length} starters`, `${teamState.roster.bench.length} bench`, teamState.week ? `Week ${teamState.week}` : "Week unknown"] : ["No team loaded"]);
+  const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds));
+  const contextChips = $derived(
+    teamState
+      ? [
+          teamState.league.scoring,
+          teamNeeds?.weakestPositions.length ? `Weak: ${teamNeeds.weakestPositions.join("/")}` : `${teamState.roster.starters.length} starters`,
+          teamNeeds?.openStarterSlots.length ? `${teamNeeds.openStarterSlots.length} open slots` : `${teamState.roster.bench.length} bench`,
+          teamState.week ? `Week ${teamState.week}` : "Week unknown",
+        ]
+      : ["No team loaded"],
+  );
 
   function createMessage(role: AiMessage["role"], content: string, status: AiMessage["status"] = "complete"): AiMessage {
     return {
@@ -89,12 +100,12 @@
       .slice(-8);
   }
 
-  function buildTeamQuestions(currentState: TeamManagerState | null): string[] {
+  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined): string[] {
     if (!currentState) {
       return ["What should I check after loading my roster?"];
     }
 
-    const openSlot = currentState.roster.starters.find((slot) => !slot.player);
+    const openSlot = currentNeeds?.openStarterSlots[0] ?? currentState.roster.starters.find((slot) => !slot.player)?.slot;
     const questions = [
       "What is my weakest position?",
       "Who are my likely starters?",
@@ -103,7 +114,11 @@
     ];
 
     if (openSlot) {
-      questions.unshift(`How should I fill my open ${openSlot.slot} slot?`);
+      questions.unshift(`How should I fill my open ${openSlot} slot?`);
+    }
+
+    if (currentNeeds?.weakestPositions.length) {
+      questions.unshift(`How should I fix ${currentNeeds.weakestPositions.join("/")} first?`);
     }
 
     return Array.from(new Set(questions)).slice(0, 5);
@@ -221,4 +236,5 @@
     color: var(--danger);
   }
 </style>
+
 
