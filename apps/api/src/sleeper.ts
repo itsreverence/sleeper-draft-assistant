@@ -1,4 +1,4 @@
-import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamManagerState } from "@sleeper-ai/shared";
+import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
 
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
 const playerCacheTtlMs = 24 * 60 * 60 * 1000;
@@ -73,6 +73,15 @@ export type SleeperNflState = {
   week?: number | null;
 };
 
+export type SleeperMatchup = {
+  roster_id: number;
+  matchup_id?: number | string | null;
+  points?: number | string | null;
+  starters?: string[] | null;
+  players?: string[] | null;
+  players_points?: Record<string, number | string | null> | null;
+};
+
 export type SleeperPlayer = {
   player_id?: string | null;
   full_name?: string | null;
@@ -97,6 +106,16 @@ export type SleeperTeamManagerStateInput = {
   players: SleeperPlayerMap;
   userRosterId?: string | null;
   week?: number | null;
+};
+
+export type SleeperTeamWeekContextInput = {
+  league: SleeperLeague;
+  rosters: SleeperRoster[];
+  users: SleeperUser[];
+  players: SleeperPlayerMap;
+  matchups: SleeperMatchup[];
+  userRosterId?: string | null;
+  week: number;
 };
 export type SleeperDraftStateInput = {
   draft: SleeperDraft;
@@ -161,6 +180,29 @@ export class SleeperClient {
     });
   }
 
+  async getTeamWeekContext(leagueId: string, week?: number | null, userRosterId?: string | null): Promise<TeamWeekContext | null> {
+    const [leagueBundle, players, nflState] = await Promise.all([
+      this.getLeagueBundle(leagueId),
+      this.getPlayers(),
+      week ? Promise.resolve(null) : this.getNflState().catch(() => null),
+    ]);
+    const resolvedWeek = week ?? nflState?.display_week ?? nflState?.week ?? null;
+    if (!resolvedWeek) {
+      return null;
+    }
+
+    const matchups = await this.getLeagueMatchups(leagueId, resolvedWeek);
+    return normalizeSleeperTeamWeekContext({
+      league: leagueBundle.league,
+      rosters: leagueBundle.rosters,
+      users: leagueBundle.users,
+      players,
+      matchups,
+      userRosterId,
+      week: resolvedWeek,
+    });
+  }
+
   async getDraftState(draftId: string, userRosterId?: string | null): Promise<DraftState> {
     const draft = await this.getDraft(draftId);
     const leagueId = draft.league_id ?? null;
@@ -200,6 +242,10 @@ export class SleeperClient {
 
   async getLeagueUsers(leagueId: string): Promise<SleeperUser[]> {
     return this.fetchJson<SleeperUser[]>(`/league/${encodeURIComponent(leagueId)}/users`);
+  }
+
+  async getLeagueMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
+    return this.fetchJson<SleeperMatchup[]>(`/league/${encodeURIComponent(leagueId)}/matchups/${encodeURIComponent(String(week))}`);
   }
 
   async getPlayers(): Promise<SleeperPlayerMap> {
@@ -307,6 +353,56 @@ export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateI
   };
 }
 
+
+export function normalizeSleeperTeamWeekContext(input: SleeperTeamWeekContextInput): TeamWeekContext | null {
+  const userRoster = getTeamManagerRoster(input.rosters, input.userRosterId);
+  const userMatchup = input.matchups.find((matchup) => matchup.roster_id === userRoster.roster_id);
+  if (!userMatchup) {
+    return null;
+  }
+
+  const matchupId = numberFrom(userMatchup.matchup_id);
+  const opponentMatchup = matchupId
+    ? input.matchups.find((matchup) => matchup.roster_id !== userRoster.roster_id && numberFrom(matchup.matchup_id) === matchupId)
+    : undefined;
+  const opponentRoster = opponentMatchup
+    ? input.rosters.find((roster) => roster.roster_id === opponentMatchup.roster_id)
+    : undefined;
+  const userById = new Map(input.users.map((user) => [user.user_id, user]));
+  const userOwner = userRoster.owner_id ? userById.get(userRoster.owner_id) : undefined;
+  const opponentOwner = opponentRoster?.owner_id ? userById.get(opponentRoster.owner_id) : undefined;
+  const userPoints = numberFrom(userMatchup.points);
+  const opponentPoints = numberFrom(opponentMatchup?.points);
+  const userTeamName = getTeamName(userOwner, `Roster ${userRoster.roster_id}`);
+  const opponentTeamName = opponentRoster ? getTeamName(opponentOwner, `Roster ${opponentRoster.roster_id}`) : null;
+  const facts = [`Week ${input.week} Sleeper matchup data is loaded.`];
+  if (opponentTeamName) {
+    facts.push(`Opponent: ${opponentTeamName}.`);
+  }
+  if (userPoints !== null || opponentPoints !== null) {
+    facts.push(`Current Sleeper score: ${formatNullablePoints(userPoints)} to ${formatNullablePoints(opponentPoints)}.`);
+  }
+
+  return {
+    week: input.week,
+    matchupId,
+    status: getMatchupStatus(userPoints, opponentPoints),
+    userRosterId: String(userRoster.roster_id),
+    opponentRosterId: opponentRoster ? String(opponentRoster.roster_id) : null,
+    userTeamName,
+    opponentTeamName,
+    userPoints,
+    opponentPoints,
+    userStarters: buildWeekPlayers(userMatchup, input.league, input.players),
+    opponentStarters: opponentMatchup ? buildWeekPlayers(opponentMatchup, input.league, input.players) : [],
+    facts,
+    limitations: [
+      "Sleeper matchup data is current lineup and points state, not a projection model.",
+      "Points may be empty or partial before games finish.",
+    ],
+    updatedAt: new Date().toISOString(),
+  };
+}
 function getTeamManagerRoster(rosters: SleeperRoster[], userRosterId: string | null | undefined): SleeperRoster {
   if (rosters.length === 0) {
     throw new Error("Sleeper league has no rosters to load.");
@@ -344,6 +440,40 @@ function countPlayersByPosition(players: Player[]): Record<Position, number> {
   return counts;
 }
 
+
+function buildWeekPlayers(matchup: SleeperMatchup, league: SleeperLeague, players: SleeperPlayerMap): TeamWeekPlayer[] {
+  const starterSlots = getStarterSlots(league.roster_positions ?? []);
+  return uniqueStrings(matchup.starters ?? [])
+    .filter((playerId) => playerId !== "0")
+    .map((playerId, index) => {
+      const player = players[playerId] ? toPlayer(players[playerId]) : null;
+      if (!player) {
+        return null;
+      }
+
+      return {
+        playerId,
+        name: player.name,
+        team: player.team,
+        position: player.position,
+        slot: starterSlots[index] ?? null,
+        points: numberFrom(matchup.players_points?.[playerId]),
+      };
+    })
+    .filter(isPresent);
+}
+
+function getMatchupStatus(userPoints: number | null, opponentPoints: number | null): TeamWeekContext["status"] {
+  if ((userPoints ?? 0) > 0 || (opponentPoints ?? 0) > 0) {
+    return "in_progress";
+  }
+
+  return "scheduled";
+}
+
+function formatNullablePoints(points: number | null): string {
+  return points === null ? "not scored" : points.toFixed(2);
+}
 function getLeagueScoringLabel(league: SleeperLeague): string {
   const receptions = numberFrom(league.scoring_settings?.rec);
   if (receptions === 1) {
@@ -802,6 +932,7 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
 
 
 

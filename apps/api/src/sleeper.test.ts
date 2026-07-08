@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeSleeperDraftState, normalizeSleeperTeamManagerState, type SleeperDraftStateInput } from "./sleeper";
+import { normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
 
 const fixture: SleeperDraftStateInput = {
   draft: {
@@ -239,3 +239,72 @@ describe("Sleeper team manager normalization", () => {
     expect(state.userTeam.name).toBe("Alpha");
   });
 });
+
+describe("Sleeper weekly matchup normalization", () => {
+  it("maps the user matchup and opponent by Sleeper matchup id", () => {
+    const context = normalizeSleeperTeamWeekContext({
+      league: fixture.league!,
+      rosters: fixture.rosters!,
+      users: fixture.users!,
+      players: fixture.players,
+      userRosterId: "12",
+      week: 3,
+      matchups: [
+        {
+          roster_id: 12,
+          matchup_id: 7,
+          points: 83.24,
+          starters: ["p3", "p2"],
+          players: ["p3", "p2"],
+          players_points: { p3: 21.12, p2: 14.5 },
+        },
+        {
+          roster_id: 13,
+          matchup_id: 7,
+          points: 78,
+          starters: ["p1", "p4"],
+          players: ["p1", "p4"],
+          players_points: { p1: 18, p4: 9.4 },
+        },
+        {
+          roster_id: 14,
+          matchup_id: 8,
+          points: 50,
+          starters: ["p2"],
+        },
+      ],
+    });
+
+    expect(context).not.toBeNull();
+    expect(context).toMatchObject({
+      week: 3,
+      matchupId: 7,
+      status: "in_progress",
+      userRosterId: "12",
+      opponentRosterId: "13",
+      userTeamName: "Bravo Squad",
+      opponentTeamName: "Charlie",
+      userPoints: 83.24,
+      opponentPoints: 78,
+    });
+    expect(context?.userStarters[0]).toMatchObject({ playerId: "p3", name: "Player Three", slot: "QB", points: 21.12 });
+    expect(context?.opponentStarters.map((player) => player.name)).toEqual(["Player One", "Player Four"]);
+    expect(context?.facts).toContain("Opponent: Charlie.");
+    expect(context?.limitations[0]).toContain("not a projection model");
+  });
+
+  it("returns null when the selected roster has no weekly matchup row", () => {
+    const context = normalizeSleeperTeamWeekContext({
+      league: fixture.league!,
+      rosters: fixture.rosters!,
+      users: fixture.users!,
+      players: fixture.players,
+      userRosterId: "12",
+      week: 3,
+      matchups: [{ roster_id: 13, matchup_id: 1, points: 0 }],
+    });
+
+    expect(context).toBeNull();
+  });
+});
+

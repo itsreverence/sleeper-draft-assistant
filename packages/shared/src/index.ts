@@ -183,6 +183,33 @@ export const TeamNeedsSummarySchema = z.object({
   limitations: z.array(z.string()),
 });
 export type TeamNeedsSummary = z.infer<typeof TeamNeedsSummarySchema>;
+export const TeamWeekPlayerSchema = z.object({
+  playerId: z.string(),
+  name: z.string(),
+  team: z.string(),
+  position: PositionSchema,
+  slot: z.string().nullable(),
+  points: z.number().nullable(),
+});
+export type TeamWeekPlayer = z.infer<typeof TeamWeekPlayerSchema>;
+
+export const TeamWeekContextSchema = z.object({
+  week: z.number(),
+  matchupId: z.number().nullable(),
+  status: z.enum(["scheduled", "in_progress", "final", "unknown"]),
+  userRosterId: z.string(),
+  opponentRosterId: z.string().nullable(),
+  userTeamName: z.string(),
+  opponentTeamName: z.string().nullable(),
+  userPoints: z.number().nullable(),
+  opponentPoints: z.number().nullable(),
+  userStarters: z.array(TeamWeekPlayerSchema),
+  opponentStarters: z.array(TeamWeekPlayerSchema),
+  facts: z.array(z.string()),
+  limitations: z.array(z.string()),
+  updatedAt: z.string(),
+});
+export type TeamWeekContext = z.infer<typeof TeamWeekContextSchema>;
 export const CandidateSignalSchema = z.object({
   player: PlayerSchema,
   score: z.number(),
@@ -224,5 +251,6 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
+
 
 

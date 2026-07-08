@@ -1,4 +1,4 @@
-import type { DraftRecommendation, DraftState, Position, TeamManagerState, TeamNeedsSummary } from "@sleeper-ai/shared";
+import type { DraftRecommendation, DraftState, Position, TeamManagerState, TeamNeedsSummary, TeamWeekContext } from "@sleeper-ai/shared";
 
 export type AiProviderId = "noop" | "codex-app-server" | "experimental-codex-backend";
 
@@ -121,6 +121,8 @@ export type TeamAiContext = {
     openStarterSlots: string[];
     depthSignals: string[];
     deterministicFacts: string[];
+    matchupFacts: string[];
+    opponent: string | null;
     weakestPositions: Position[];
     starterCandidates: string[];
     benchPlayers: string[];
@@ -128,6 +130,7 @@ export type TeamAiContext = {
     responseRules: string[];
   };
   teamState: TeamManagerState;
+  weekContext: TeamWeekContext | null;
 };
 
 export type AiAnswer = {
@@ -140,6 +143,8 @@ export interface AiProvider {
   answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer>;
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
 }
+
+
 
 
 

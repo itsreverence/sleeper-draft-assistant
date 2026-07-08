@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AiConversationMessage, AiProviderStatus, TeamManagerState, TeamNeedsSummary } from "../types";
+  import type { AiConversationMessage, AiProviderStatus, TeamManagerState, TeamNeedsSummary, TeamWeekContext } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
@@ -7,11 +7,13 @@
   let {
     teamState,
     teamNeeds,
+    weekContext = null,
     onAsk,
     providerStatus = null,
   }: {
     teamState: TeamManagerState | null;
     teamNeeds?: TeamNeedsSummary | null;
+    weekContext?: TeamWeekContext | null;
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
   } = $props();
@@ -24,14 +26,14 @@
 
   const providerLabel = $derived(providerStatus?.label ?? "AI manager");
   const providerReady = $derived(Boolean(providerStatus?.configured));
-  const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds));
+  const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds, weekContext));
   const contextChips = $derived(
     teamState
       ? [
           teamState.league.scoring,
           teamNeeds?.weakestPositions.length ? `Weak: ${teamNeeds.weakestPositions.join("/")}` : `${teamState.roster.starters.length} starters`,
           teamNeeds?.openStarterSlots.length ? `${teamNeeds.openStarterSlots.length} open slots` : `${teamState.roster.bench.length} bench`,
-          teamState.week ? `Week ${teamState.week}` : "Week unknown",
+          weekContext ? `Vs ${weekContext.opponentTeamName ?? "opponent"}` : teamState.week ? `Week ${teamState.week}` : "Week unknown",
         ]
       : ["No team loaded"],
   );
@@ -100,7 +102,7 @@
       .slice(-8);
   }
 
-  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined): string[] {
+  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined, currentWeek: TeamWeekContext | null | undefined): string[] {
     if (!currentState) {
       return ["What should I check after loading my roster?"];
     }
@@ -119,6 +121,13 @@
 
     if (currentNeeds?.weakestPositions.length) {
       questions.unshift(`How should I fix ${currentNeeds.weakestPositions.join("/")} first?`);
+    }
+
+    if (currentWeek) {
+      questions.unshift("What does this week's matchup tell me?");
+      if (currentWeek.userPoints !== null || currentWeek.opponentPoints !== null) {
+        questions.unshift("Am I ahead in this matchup?");
+      }
     }
 
     return Array.from(new Set(questions)).slice(0, 5);
@@ -143,7 +152,7 @@
     </div>
   </div>
 
-  <p class="context-note">Team answers use Sleeper roster structure and player metadata, not projections, news, or matchup models yet.</p>
+  <p class="context-note">Team answers use Sleeper roster structure plus current weekly matchup state when available. Matchup scores are not projections.</p>
 
   {#if messages.length === 0}
     <SuggestedQuestions questions={suggestions} disabled={isAsking || !teamState} onChoose={(nextQuestion) => submit(nextQuestion)} />
@@ -236,5 +245,6 @@
     color: var(--danger);
   }
 </style>
+
 
 

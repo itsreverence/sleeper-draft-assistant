@@ -12,6 +12,7 @@
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import TeamNeedsPanel from "./lib/components/TeamNeedsPanel.svelte";
+  import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
@@ -47,6 +48,7 @@
     RankingImportSummary,
     TeamManagerState,
     TeamNeedsSummary,
+    TeamWeekContext,
     ReadinessItem,
     AiConversationMessage,
     PlayerPreferenceLevel,
@@ -72,6 +74,7 @@
   let rankingImportSummary: RankingImportSummary | null = $state(null);
   let teamManagerState: TeamManagerState | null = $state(null);
   let teamNeeds: TeamNeedsSummary | null = $state(null);
+  let teamWeekContext: TeamWeekContext | null = $state(null);
   let teamManagerError = $state("");
   let isLoadingTeamManager = $state(false);
   let playerPreferences: PlayerPreferences = $state({});
@@ -387,6 +390,7 @@
     activeUserRosterId = null;
     teamManagerState = null;
     teamNeeds = null;
+    teamWeekContext = null;
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
@@ -443,6 +447,7 @@
       activeUserRosterId = null;
       teamManagerState = null;
       teamNeeds = null;
+      teamWeekContext = null;
       teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
@@ -458,6 +463,7 @@
     if (!leagueId || isMockDraft(activeDraftId)) {
       teamManagerState = null;
       teamNeeds = null;
+      teamWeekContext = null;
       teamManagerError = "";
       isLoadingTeamManager = false;
       return;
@@ -469,9 +475,11 @@
       const payload = await fetchTeamManagerState(leagueId, userRosterId);
       teamManagerState = payload.state;
       teamNeeds = payload.needs;
+      teamWeekContext = payload.weekContext;
     } catch (error) {
       teamManagerState = null;
       teamNeeds = null;
+      teamWeekContext = null;
       teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
     } finally {
       isLoadingTeamManager = false;
@@ -599,6 +607,7 @@
     );
     teamManagerState = payload.state;
     teamNeeds = payload.needs;
+    teamWeekContext = payload.weekContext;
     return payload.answer;
   }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
@@ -780,7 +789,8 @@
           />
           <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
           <TeamNeedsPanel needs={teamNeeds} />
-          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+          <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
+          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} weekContext={teamWeekContext} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
           <RosterPanel state={draftState} />
           <PickFeedPanel state={draftState} />
           <AskManagerPanel
@@ -830,6 +840,8 @@
     }
   }
 </style>
+
+
 
 
 

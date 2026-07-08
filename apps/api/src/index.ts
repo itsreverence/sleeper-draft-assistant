@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type TeamManagerState, type TeamNeedsSummary } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWeekContext } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -40,6 +40,7 @@ type DraftPayload = {
 type TeamPayload = {
   state: TeamManagerState;
   needs: TeamNeedsSummary;
+  weekContext: TeamWeekContext | null;
 };
 
 app.use(
@@ -144,8 +145,13 @@ app.get("/sleeper/connect", async (c) => {
 
 app.get("/leagues/:leagueId/team", async (c) => {
   try {
-    const state = await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c));
-    return c.json(toTeamPayload(state));
+    const leagueId = c.req.param("leagueId");
+    const userRosterId = getUserRosterId(c);
+    const [state, weekContext] = await Promise.all([
+      sleeperClient.getTeamManagerState(leagueId, userRosterId),
+      sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
+    ]);
+    return c.json(toTeamPayload(state, weekContext));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -161,17 +167,22 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
       return c.json({ error: "Ask a team question before requesting AI advice." }, 400);
     }
 
-    const state = await sleeperClient.getTeamManagerState(c.req.param("leagueId"), getUserRosterId(c));
+    const leagueId = c.req.param("leagueId");
+    const userRosterId = getUserRosterId(c);
+    const [state, weekContext] = await Promise.all([
+      sleeperClient.getTeamManagerState(leagueId, userRosterId),
+      sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
+    ]);
     const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
     const aiAnswer = await aiProvider.answerTeamQuestion(
-      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory)),
+      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext),
     );
 
     return c.json({
       provider: aiAnswer.provider,
       question,
       answer: aiAnswer.answer,
-      ...toTeamPayload(state),
+      ...toTeamPayload(state, weekContext),
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -284,10 +295,11 @@ async function loadDraftState(draftId: string, userRosterId?: string | null): Pr
   return rankingImportStore.apply(draftId, state);
 }
 
-function toTeamPayload(state: TeamManagerState): TeamPayload {
+function toTeamPayload(state: TeamManagerState, weekContext: TeamWeekContext | null = null): TeamPayload {
   return {
     state,
     needs: buildTeamNeedsSummary(state),
+    weekContext,
   };
 }
 function toDraftPayload(state: DraftState, draftId: string): DraftPayload {
@@ -325,6 +337,16 @@ function normalizeConversationHistory(history: Array<{ role?: string; content?: 
 }
 function getUserRosterId(c: Context): string | null {
   return c.req.query("userRosterId") ?? null;
+}
+
+function getWeek(c: Context): number | null {
+  const rawWeek = c.req.query("week");
+  if (!rawWeek) {
+    return null;
+  }
+
+  const week = Number(rawWeek);
+  return Number.isInteger(week) && week > 0 ? week : null;
 }
 
 function isMockDraft(draftId: string): boolean {
@@ -483,6 +505,7 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
+
 
 
 

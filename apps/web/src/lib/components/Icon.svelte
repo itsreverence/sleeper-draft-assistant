@@ -6,6 +6,7 @@
     | "target"
     | "users"
     | "activity"
+    | "calendar"
     | "message"
     | "alert"
     | "check-circle"
@@ -44,6 +45,9 @@
       <path d="M15.8 14.5c2.2.4 3.7 2 4.2 4.5" />
     {:else if name === "activity"}
       <path d="M3 12h3.5l2-6 4 12 2-9 1.5 3H21" />
+    {:else if name === "calendar"}
+      <rect x="4" y="5" width="16" height="15" rx="2" />
+      <path d="M8 3.5v3M16 3.5v3M4 10h16" />
     {:else if name === "message"}
       <path d="M4 5.5h16v10.5H9.5L5.5 19.5V16H4Z" />
     {:else if name === "alert"}
@@ -78,3 +82,4 @@
     height: 100%;
   }
 </style>
+

@@ -1,5 +1,5 @@
 import { buildTeamNeedsSummary } from "@sleeper-ai/engine";
-import type { TeamManagerState, TeamNeedsSummary } from "@sleeper-ai/shared";
+import type { TeamManagerState, TeamNeedsSummary, TeamWeekContext } from "@sleeper-ai/shared";
 
 import type { AiConversationMessage, TeamAiContext } from "./types";
 
@@ -7,6 +7,7 @@ export function buildTeamAiContext(
   state: TeamManagerState,
   question: string,
   conversationHistory: AiConversationMessage[] = [],
+  weekContext: TeamWeekContext | null = null,
 ): TeamAiContext {
   const teamNeeds = buildTeamNeedsSummary(state);
   return {
@@ -14,12 +15,13 @@ export function buildTeamAiContext(
     question,
     conversationHistory: conversationHistory.slice(-8),
     teamNeeds,
-    teamBrief: buildTeamBrief(state, teamNeeds),
+    teamBrief: buildTeamBrief(state, teamNeeds, weekContext),
     teamState: state,
+    weekContext,
   };
 }
 
-function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary): TeamAiContext["teamBrief"] {
+function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null): TeamAiContext["teamBrief"] {
   const openStarterSlots = state.roster.starters
     .filter((slot) => !slot.player)
     .map((slot) => `${slot.slot} (${slot.eligiblePositions.join("/")})`);
@@ -39,13 +41,16 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary): T
     openStarterSlots,
     depthSignals: teamNeeds.facts,
     deterministicFacts: teamNeeds.facts,
+    matchupFacts: weekContext?.facts ?? ["No Sleeper weekly matchup context is loaded."],
+    opponent: weekContext?.opponentTeamName ?? null,
     weakestPositions: teamNeeds.weakestPositions,
     starterCandidates,
     benchPlayers,
-    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations],
+    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...(weekContext?.limitations ?? [])],
     responseRules: [
       "Answer only from the provided Sleeper team context.",
-      "Do not invent projections, injuries, matchup data, waiver-wire availability, or player news.",
+      "Do not invent projections, injuries, waiver-wire availability, or player news.",
+      "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
       "If the user asks for lineup optimization, explain that current advice is based on roster structure and Sleeper metadata only.",
       "If a starter slot is open, prioritize filling that slot before bench-upgrade advice.",
       "Keep the answer concise and action-oriented.",
@@ -65,4 +70,5 @@ function formatRosterSlots(slots: Record<string, number>): string {
     .map(([slot, count]) => `${slot}:${count}`)
     .join("/");
 }
+
 
