@@ -14,3 +14,4 @@ data/*.db-*
 data/*.json
 apps/desktop/out/
 apps/desktop/out-builder/
+data/*.sqlite

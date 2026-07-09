@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import type { DraftRecommendation, DraftState } from "@sleeper-ai/shared";
 
+import type { SqliteAppDatabase } from "./sqlite-app-database";
+
 export type DecisionSnapshotTrigger =
   | "state-load"
   | "rankings-import"
@@ -53,6 +55,7 @@ export class DecisionLogStore {
   constructor(
     private readonly filePath = getDefaultDecisionLogPath(),
     private readonly maxSnapshotsPerDraft = 200,
+    private readonly database?: SqliteAppDatabase,
   ) {
     this.load();
   }
@@ -67,7 +70,20 @@ export class DecisionLogStore {
     const snapshot = createDecisionSnapshot(input);
     const existing = this.snapshotsByDraft.get(input.draftId) ?? [];
     this.snapshotsByDraft.set(input.draftId, [snapshot, ...existing].slice(0, this.maxSnapshotsPerDraft));
-    this.save();
+
+    if (this.database) {
+      this.database.insertDecisionSnapshot({
+        id: snapshot.id,
+        draftId: snapshot.draftId,
+        createdAt: snapshot.createdAt,
+        trigger: snapshot.trigger,
+        value: snapshot,
+      });
+      this.database.pruneDecisionSnapshots(input.draftId, this.maxSnapshotsPerDraft);
+    } else {
+      this.save();
+    }
+
     return snapshot;
   }
 
@@ -78,12 +94,27 @@ export class DecisionLogStore {
   clear(draftId: string): boolean {
     const deleted = this.snapshotsByDraft.delete(draftId);
     if (deleted) {
-      this.save();
+      if (this.database) {
+        this.database.clearDecisionSnapshots(draftId);
+      } else {
+        this.save();
+      }
     }
     return deleted;
   }
 
   private load() {
+    if (this.database) {
+      const snapshots = this.database.listAllDecisionSnapshots<DecisionSnapshot>();
+      for (const snapshot of snapshots) {
+        const existing = this.snapshotsByDraft.get(snapshot.draftId) ?? [];
+        this.snapshotsByDraft.set(snapshot.draftId, [...existing, snapshot].slice(0, this.maxSnapshotsPerDraft));
+      }
+      if (snapshots.length > 0) {
+        return;
+      }
+    }
+
     if (!existsSync(this.filePath)) {
       return;
     }
@@ -91,7 +122,17 @@ export class DecisionLogStore {
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as SerializedDecisionLog;
       for (const [draftId, snapshots] of Object.entries(parsed)) {
-        this.snapshotsByDraft.set(draftId, Array.isArray(snapshots) ? snapshots.slice(0, this.maxSnapshotsPerDraft) : []);
+        const safeSnapshots = Array.isArray(snapshots) ? snapshots.slice(0, this.maxSnapshotsPerDraft) : [];
+        this.snapshotsByDraft.set(draftId, safeSnapshots);
+        for (const snapshot of safeSnapshots) {
+          this.database?.insertDecisionSnapshot({
+            id: snapshot.id,
+            draftId: snapshot.draftId,
+            createdAt: snapshot.createdAt,
+            trigger: snapshot.trigger,
+            value: snapshot,
+          });
+        }
       }
     } catch {
       this.snapshotsByDraft.clear();

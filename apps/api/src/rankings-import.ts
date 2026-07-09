@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import type { DraftState, Player, Position, RankingImportSummary } from "@sleeper-ai/shared";
 
+import type { SqliteAppDatabase } from "./sqlite-app-database";
+
 export type StoredRankingImport = {
   summary: RankingImportSummary;
   playersById: Map<string, ImportedPlayerValues>;
@@ -50,13 +52,13 @@ const positionBaselines: Record<Position, number> = {
 export class RankingImportStore {
   private readonly imports = new Map<string, StoredRankingImport>();
 
-  constructor(private readonly filePath = getDefaultStorePath()) {
+  constructor(private readonly filePath = getDefaultStorePath(), private readonly database?: SqliteAppDatabase) {
     this.load();
   }
 
   set(draftId: string, storedImport: StoredRankingImport) {
     this.imports.set(draftId, storedImport);
-    this.save();
+    this.saveDraft(draftId, storedImport);
   }
 
   get(draftId: string): StoredRankingImport | null {
@@ -66,7 +68,11 @@ export class RankingImportStore {
   delete(draftId: string): boolean {
     const deleted = this.imports.delete(draftId);
     if (deleted) {
-      this.save();
+      if (this.database) {
+        this.database.deleteJson("ranking_imports", draftId);
+      } else {
+        this.saveFile();
+      }
     }
     return deleted;
   }
@@ -77,6 +83,16 @@ export class RankingImportStore {
   }
 
   private load() {
+    if (this.database) {
+      const imports = this.database.listJson<SerializedRankingImport>("ranking_imports");
+      if (imports.length > 0) {
+        for (const [draftId, storedImport] of imports) {
+          this.imports.set(draftId, deserializeRankingImport(storedImport));
+        }
+        return;
+      }
+    }
+
     if (!existsSync(this.filePath)) {
       return;
     }
@@ -84,29 +100,45 @@ export class RankingImportStore {
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as Record<string, SerializedRankingImport>;
       for (const [draftId, storedImport] of Object.entries(parsed)) {
-        this.imports.set(draftId, {
-          summary: storedImport.summary,
-          playersById: new Map(storedImport.players),
-        });
+        const deserialized = deserializeRankingImport(storedImport);
+        this.imports.set(draftId, deserialized);
+        this.database?.setJson("ranking_imports", draftId, serializeRankingImport(deserialized));
       }
     } catch {
       this.imports.clear();
     }
   }
 
-  private save() {
+  private saveDraft(draftId: string, storedImport: StoredRankingImport) {
+    if (this.database) {
+      this.database.setJson("ranking_imports", draftId, serializeRankingImport(storedImport));
+      return;
+    }
+
+    this.saveFile();
+  }
+
+  private saveFile() {
     mkdirSync(path.dirname(this.filePath), { recursive: true });
     const serialized = Object.fromEntries(
-      Array.from(this.imports.entries()).map(([draftId, storedImport]) => [
-        draftId,
-        {
-          summary: storedImport.summary,
-          players: Array.from(storedImport.playersById.entries()),
-        } satisfies SerializedRankingImport,
-      ]),
+      Array.from(this.imports.entries()).map(([draftId, storedImport]) => [draftId, serializeRankingImport(storedImport)]),
     );
     writeFileSync(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`, "utf8");
   }
+}
+
+function serializeRankingImport(storedImport: StoredRankingImport): SerializedRankingImport {
+  return {
+    summary: storedImport.summary,
+    players: Array.from(storedImport.playersById.entries()),
+  };
+}
+
+function deserializeRankingImport(storedImport: SerializedRankingImport): StoredRankingImport {
+  return {
+    summary: storedImport.summary,
+    playersById: new Map(storedImport.players),
+  };
 }
 
 export function importFantasyProsCsv(state: DraftState, csvText: string): StoredRankingImport {

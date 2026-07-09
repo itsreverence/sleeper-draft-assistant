@@ -22,6 +22,7 @@ execFileSync(process.execPath, [npmCli, "run", "build", "-w", "@sleeper-ai/web"]
 });
 
 await build({
+  banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
   entryPoints: [path.join(repoRoot, "apps", "api", "src", "index.ts")],
   outfile: path.join(desktopDist, "api-server.mjs"),
   bundle: true,

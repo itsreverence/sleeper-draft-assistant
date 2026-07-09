@@ -23,13 +23,15 @@ import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } f
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
+import { SqliteAppDatabase } from "./sqlite-app-database";
 
 export const app = new Hono();
 const port = Number(process.env.PORT ?? 8787);
 const sleeperClient = new SleeperClient();
-const rankingImportStore = new RankingImportStore();
-const decisionLogStore = new DecisionLogStore();
-const settingsStore = new SettingsStore();
+const appDatabase = await SqliteAppDatabase.open();
+const rankingImportStore = new RankingImportStore(undefined, appDatabase);
+const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
+const settingsStore = new SettingsStore(undefined, appDatabase);
 const experimentalCodexTokenStore = new ExperimentalCodexTokenStore();
 const experimentalCodexAuthClient = new ExperimentalCodexAuthClient();
 let pendingExperimentalCodexDeviceCode: { userCode: string; deviceAuthId: string; verificationUri: string; interval: number } | null = null;
@@ -72,6 +74,7 @@ app.get("/health", (c) =>
     capabilities: {
       decisionLog: true,
       draftLeagueId: true,
+      sqliteStorage: true,
     },
     now: new Date().toISOString(),
   }),
