@@ -70,7 +70,6 @@
 
 <section class="panel connect-panel" aria-label="Sleeper connection">
   <div class="section-header">
-    <p class="eyebrow">Step 1</p>
     <h2><Icon name="link" size={17} /> Connect Sleeper</h2>
   </div>
 

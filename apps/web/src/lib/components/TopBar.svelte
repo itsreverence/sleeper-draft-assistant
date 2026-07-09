@@ -24,7 +24,6 @@
   <div class="brand">
     <div class="brand-mark" aria-hidden="true">SA</div>
     <div>
-      <p class="eyebrow">Sleeper AI Team Manager</p>
       <div class="title-row">
         <h1>{title}</h1>
         {#if showChangeDraft}
@@ -34,6 +33,7 @@
         {/if}
         <button class="btn btn-ghost btn-change" type="button" onclick={onOpenSettings}>Settings</button>
       </div>
+      <p class="product-name">Sleeper AI Team Manager</p>
     </div>
   </div>
   <div class="status-panel" class:connected>
@@ -67,12 +67,11 @@
     height: 42px;
     flex-shrink: 0;
     border-radius: var(--radius-md);
-    background: linear-gradient(155deg, var(--accent) 0%, var(--info) 130%);
+    background: var(--accent);
     color: var(--text-on-accent);
     font-size: 14px;
     font-weight: 800;
     letter-spacing: 0.02em;
-    box-shadow: var(--shadow-sm);
   }
 
   .title-row {
@@ -86,6 +85,13 @@
     font-weight: 700;
     letter-spacing: -0.01em;
     line-height: 1.15;
+  }
+
+  .product-name {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
   }
 
   .btn-change {

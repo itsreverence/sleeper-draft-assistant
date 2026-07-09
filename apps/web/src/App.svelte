@@ -3,11 +3,13 @@
 
   import TopBar from "./lib/components/TopBar.svelte";
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
+  import ModeTabs from "./lib/components/ModeTabs.svelte";
   import ConnectPanel from "./lib/components/ConnectPanel.svelte";
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsPanel from "./lib/components/SettingsPanel.svelte";
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
+  import TeamNeedsStrip from "./lib/components/TeamNeedsStrip.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
@@ -18,6 +20,7 @@
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
+  import type { WorkspaceMode } from "./lib/components/ModeTabs.svelte";
 
   import {
     askManagerRequest,
@@ -222,6 +225,7 @@
 
   let connectExpanded = $state(!hasStoredDraft());
   let rankingsExpanded = $state(false);
+  let workspaceMode: WorkspaceMode = $state("draft");
 
   onMount(async () => {
     await loadSettings();
@@ -406,6 +410,7 @@
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
+    workspaceMode = "draft";
     window.localStorage.removeItem("lastDraftId");
     window.localStorage.removeItem("lastUserRosterId");
     window.localStorage.removeItem("lastLeagueId");
@@ -466,6 +471,7 @@
       teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
+      workspaceMode = "draft";
       window.localStorage.removeItem("lastDraftId");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
@@ -496,7 +502,6 @@
       teamLineupSummary = payload.lineupSummary;
       teamWeekContext = payload.weekContext;
       teamWaiverSummary = payload.waiverSummary;
-    teamActivitySummary = payload.activitySummary;
       teamActivitySummary = payload.activitySummary;
     } catch (error) {
       teamManagerState = null;
@@ -736,6 +741,15 @@
       tone: hasImportedRankings || isDemoDraftActive ? (rankingImportSummary && (rankingImportSummary.unmatched.length > 0 || rankingImportSummary.ambiguous.length > 0) ? "warning" : "ready") : isRealDraftActive ? "warning" : "neutral",
     },
   ]);
+  const setupComplete = $derived(readinessItems.every((item) => item.tone === "ready" || item.tone === "neutral"));
+  const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
+  const showSetupChecklist = $derived(!draftState || !setupComplete || connectExpanded);
+
+  $effect(() => {
+    if (!manageAvailable && workspaceMode === "manage") {
+      workspaceMode = "draft";
+    }
+  });
 </script>
 
 <main class="app-shell">
@@ -766,7 +780,9 @@
     />
   {/if}
 
-  <SetupChecklist items={readinessItems} />
+  {#if showSetupChecklist}
+    <SetupChecklist items={readinessItems} />
+  {/if}
 
   {#if connectExpanded}
     <div class="connect-editor">
@@ -797,50 +813,63 @@
 
   {#if draftState}
     {#key activeDraftId}
+      <ModeTabs bind:mode={workspaceMode} {manageAvailable} />
       <DraftSummaryStrip state={draftState} />
 
-      <section class="dashboard-grid">
-        <RecommendationPanel
-          {recommendation}
-          playerPreferences={playerPreferences}
-          showPlaceholderWarning={recommendationsUsePlaceholder}
-          onSetPreference={setPlayerPreference}
-          onWhatIf={askWhatIf}
-          onClearPreferences={clearPlayerPreferences}
-          onOpenRankings={() => (rankingsExpanded = true)}
-        />
-        <div class="side-column">
-          <RankingsImportPanel
-            hasDraft={true}
-            {hasImportedRankings}
-            {isImportingRankings}
-            {isClearingRankings}
-            {rankingImportSummary}
-            {rankingImportError}
-            onImport={importRankings}
-            onClear={clearRankings}
-            onOpenFantasyPros={openFantasyProsRankings}
-            bind:expanded={rankingsExpanded}
-          />
-          <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
-          <TeamNeedsPanel needs={teamNeeds} />
-          <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
-          <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
-          <RosterPanel state={draftState} />
-          <PickFeedPanel state={draftState} />
-          <AskManagerPanel
-            onAsk={askManager}
-            providerStatus={aiProviderStatus}
-            {hasImportedRankings}
-            showPlaceholderWarning={recommendationsUsePlaceholder}
-            {draftState}
-            {recommendation}
-          />
-        </div>
-      </section>
+      {#if workspaceMode === "draft"}
+        <TeamNeedsStrip needs={teamNeeds} />
+        <section class="dashboard-grid draft-grid">
+          <div class="primary-column">
+            <RecommendationPanel
+              {recommendation}
+              playerPreferences={playerPreferences}
+              showPlaceholderWarning={recommendationsUsePlaceholder}
+              onSetPreference={setPlayerPreference}
+              onWhatIf={askWhatIf}
+              onClearPreferences={clearPlayerPreferences}
+              onOpenRankings={() => (rankingsExpanded = true)}
+            />
+            <AskManagerPanel
+              onAsk={askManager}
+              providerStatus={aiProviderStatus}
+              {hasImportedRankings}
+              showPlaceholderWarning={recommendationsUsePlaceholder}
+              {draftState}
+              {recommendation}
+            />
+          </div>
+          <div class="side-column">
+            <RankingsImportPanel
+              hasDraft={true}
+              {hasImportedRankings}
+              {isImportingRankings}
+              {isClearingRankings}
+              {rankingImportSummary}
+              {rankingImportError}
+              onImport={importRankings}
+              onClear={clearRankings}
+              onOpenFantasyPros={openFantasyProsRankings}
+              bind:expanded={rankingsExpanded}
+            />
+            <RosterPanel state={draftState} />
+            <PickFeedPanel state={draftState} />
+          </div>
+        </section>
+      {:else}
+        <section class="dashboard-grid manage-grid">
+          <div class="primary-column">
+            <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
+            <TeamNeedsPanel needs={teamNeeds} />
+            <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+            <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+          </div>
+          <div class="side-column">
+            <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
+            <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+            <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+          </div>
+        </section>
+      {/if}
     {/key}
   {/if}
 </main>
@@ -866,6 +895,7 @@
     margin-top: var(--space-5);
   }
 
+  .primary-column,
   .side-column {
     display: grid;
     gap: var(--space-5);
@@ -878,6 +908,7 @@
     }
   }
 </style>
+
 
 
 

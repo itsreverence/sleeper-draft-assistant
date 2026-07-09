@@ -63,7 +63,6 @@
     <button class="header-toggle" type="button" onclick={toggleExpanded} aria-expanded={expanded} disabled={!hasDraft}>
       <Icon name="chevron-right" size={14} />
       <div>
-        <p class="eyebrow">Step 2</p>
         <h2><Icon name="upload" size={17} /> Import player values</h2>
         {#if !expanded}
           <span class="collapsed-summary">{summaryText}</span>

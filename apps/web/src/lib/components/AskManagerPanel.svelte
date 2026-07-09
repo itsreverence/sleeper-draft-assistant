@@ -105,8 +105,7 @@
 <article class="panel ask-panel">
   <div class="panel-heading compact">
     <div>
-      <p class="eyebrow">Ask the manager</p>
-      <h2><Icon name="message" size={17} /> AI draft manager</h2>
+      <h2><Icon name="message" size={17} /> Ask draft manager</h2>
     </div>
     <span class:offline={!providerReady} class="pill pill-info">{providerLabel}</span>
   </div>

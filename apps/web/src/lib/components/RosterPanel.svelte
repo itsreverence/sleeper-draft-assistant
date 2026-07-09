@@ -11,8 +11,7 @@
 <article class="panel">
   <div class="panel-heading compact">
     <div>
-      <p class="eyebrow">Your roster</p>
-      <h2><Icon name="users" size={17} /> {userTeam?.name ?? "Unknown team"}</h2>
+      <h2><Icon name="users" size={17} /> {userTeam?.name ?? "Your draft roster"}</h2>
     </div>
   </div>
   {#if userTeam && userTeam.roster.length > 0}

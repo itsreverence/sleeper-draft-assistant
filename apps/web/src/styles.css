@@ -280,7 +280,6 @@ textarea {
   display: flex;
   gap: 10px;
   border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   padding: 11px 13px;
@@ -294,19 +293,19 @@ textarea {
 }
 
 .callout-danger {
-  border-left-color: var(--danger);
+  border-color: var(--danger-border);
   background: var(--danger-soft);
   color: var(--text-primary);
 }
 
 .callout-warning {
-  border-left-color: var(--warning);
+  border-color: var(--warning-border);
   background: var(--warning-soft);
   color: var(--text-primary);
 }
 
 .callout-info {
-  border-left-color: var(--info);
+  border-color: var(--info-border);
   background: var(--info-soft);
   color: var(--text-primary);
 }

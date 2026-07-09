@@ -57,7 +57,6 @@
 <section class="panel settings-panel" aria-label="Application settings">
   <div class="panel-heading">
     <div>
-      <p class="eyebrow">Settings</p>
       <h2>AI provider</h2>
     </div>
     {#if providerStatus}
