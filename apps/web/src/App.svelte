@@ -323,6 +323,7 @@
       isCopyingDiagnostics = false;
     }
   }
+
   async function startExperimentalCodexAuth() {
     isStartingExperimentalCodexLogin = true;
     settingsError = "";
@@ -780,11 +781,11 @@
     },
     {
       label: "Player values",
-      value: hasImportedRankings ? "Imported" : draftState ? "Needed" : "Pending",
+      value: hasImportedRankings ? "Imported" : draftState ? "Import needed" : "Pending",
       detail: hasImportedRankings
         ? `${rankingImportSummary?.matched ?? 0} players matched${importMatchRate === null ? "" : ` (${importMatchRate}%)`}`
         : isRealDraftActive
-          ? "Import FantasyPros CSV"
+          ? "FantasyPros CSV required for real advice"
           : isDemoDraftActive
             ? "Demo projections active"
             : "Available after draft selection",
