@@ -1,13 +1,37 @@
 <script lang="ts">
-  export type WorkspaceMode = "draft" | "manage";
+  import type { DraftPhase, WorkspaceMode } from "../format";
 
   let {
     mode = $bindable("draft"),
     manageAvailable = false,
+    phase = null,
+    onUserSelect,
   }: {
     mode?: WorkspaceMode;
     manageAvailable?: boolean;
+    phase?: DraftPhase | null;
+    onUserSelect?: () => void;
   } = $props();
+
+  const draftLabel = $derived(
+    phase === "complete" ? "Draft review" : phase === "pre_draft" ? "Draft prep" : "Draft room",
+  );
+  const manageLabel = $derived(phase === "complete" ? "Season" : "Team manager");
+  const manageTitle = $derived(
+    manageAvailable
+      ? phase === "complete"
+        ? "Lineups, waivers, and weekly decisions"
+        : "Season team manager"
+      : "Open a real Sleeper league to manage your team",
+  );
+
+  function select(next: WorkspaceMode) {
+    if (next === "manage" && !manageAvailable) {
+      return;
+    }
+    onUserSelect?.();
+    mode = next;
+  }
 </script>
 
 <div class="mode-tabs" role="tablist" aria-label="Workspace mode">
@@ -17,9 +41,9 @@
     type="button"
     role="tab"
     aria-selected={mode === "draft"}
-    onclick={() => (mode = "draft")}
+    onclick={() => select("draft")}
   >
-    Draft room
+    {draftLabel}
   </button>
   <button
     class="mode-tab"
@@ -28,14 +52,10 @@
     role="tab"
     aria-selected={mode === "manage"}
     disabled={!manageAvailable}
-    title={manageAvailable ? "Season team manager" : "Open a real Sleeper league to manage your team"}
-    onclick={() => {
-      if (manageAvailable) {
-        mode = "manage";
-      }
-    }}
+    title={manageTitle}
+    onclick={() => select("manage")}
   >
-    Team manager
+    {manageLabel}
   </button>
 </div>
 

@@ -85,6 +85,23 @@ export function isUserOnTheClock(state: DraftState | null): boolean {
   return picksUntilUserTurn(state) === 0;
 }
 
+export type DraftPhase = DraftState["status"];
+export type WorkspaceMode = "draft" | "manage";
+
+export function getDraftPhase(state: DraftState | null): DraftPhase | null {
+  return state?.status ?? null;
+}
+
+export function preferredWorkspaceMode(
+  phase: DraftPhase | null,
+  manageAvailable: boolean,
+): WorkspaceMode {
+  if (phase === "complete" && manageAvailable) {
+    return "manage";
+  }
+  return "draft";
+}
+
 export function rosterFitLabel(rosterFit: CandidateSignal["rosterFit"]) {
   switch (rosterFit) {
     case "need":

@@ -20,7 +20,6 @@
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
-  import type { WorkspaceMode } from "./lib/components/ModeTabs.svelte";
 
   import {
     askManagerRequest,
@@ -40,7 +39,8 @@
     startExperimentalCodexLogin,
     updateSettings,
   } from "./lib/api";
-  import { draftSlotToRosterFallback, getUserTeam, isMockDraft } from "./lib/format";
+  import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
+  import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
     ConnectLeague,
@@ -226,6 +226,8 @@
   let connectExpanded = $state(!hasStoredDraft());
   let rankingsExpanded = $state(false);
   let workspaceMode: WorkspaceMode = $state("draft");
+  let userPickedMode = $state(false);
+  let phaseSyncKey = $state("");
 
   onMount(async () => {
     await loadSettings();
@@ -411,6 +413,8 @@
     connectExpanded = true;
     rankingsExpanded = false;
     workspaceMode = "draft";
+    userPickedMode = false;
+    phaseSyncKey = "";
     window.localStorage.removeItem("lastDraftId");
     window.localStorage.removeItem("lastUserRosterId");
     window.localStorage.removeItem("lastLeagueId");
@@ -472,6 +476,8 @@
       connectExpanded = true;
       rankingsExpanded = false;
       workspaceMode = "draft";
+      userPickedMode = false;
+      phaseSyncKey = "";
       window.localStorage.removeItem("lastDraftId");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
@@ -744,6 +750,26 @@
   const setupComplete = $derived(readinessItems.every((item) => item.tone === "ready" || item.tone === "neutral"));
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
   const showSetupChecklist = $derived(!draftState || !setupComplete || connectExpanded);
+  const draftPhase = $derived(getDraftPhase(draftState));
+
+  $effect(() => {
+    const key = `${activeDraftId}:${draftPhase ?? ""}`;
+    if (!draftState || !activeDraftId) {
+      phaseSyncKey = "";
+      return;
+    }
+
+    if (key !== phaseSyncKey) {
+      phaseSyncKey = key;
+      userPickedMode = false;
+      workspaceMode = preferredWorkspaceMode(draftPhase, manageAvailable);
+      return;
+    }
+
+    if (!userPickedMode && draftPhase === "complete" && manageAvailable && workspaceMode !== "manage") {
+      workspaceMode = "manage";
+    }
+  });
 
   $effect(() => {
     if (!manageAvailable && workspaceMode === "manage") {
@@ -813,46 +839,93 @@
 
   {#if draftState}
     {#key activeDraftId}
-      <ModeTabs bind:mode={workspaceMode} {manageAvailable} />
+      <ModeTabs
+        bind:mode={workspaceMode}
+        {manageAvailable}
+        phase={draftPhase}
+        onUserSelect={() => {
+          userPickedMode = true;
+        }}
+      />
       <DraftSummaryStrip state={draftState} />
 
       {#if workspaceMode === "draft"}
-        <TeamNeedsStrip needs={teamNeeds} />
+        {#if draftPhase !== "complete"}
+          <TeamNeedsStrip needs={teamNeeds} />
+        {/if}
         <section class="dashboard-grid draft-grid">
           <div class="primary-column">
-            <RecommendationPanel
-              {recommendation}
-              playerPreferences={playerPreferences}
-              showPlaceholderWarning={recommendationsUsePlaceholder}
-              onSetPreference={setPlayerPreference}
-              onWhatIf={askWhatIf}
-              onClearPreferences={clearPlayerPreferences}
-              onOpenRankings={() => (rankingsExpanded = true)}
-            />
-            <AskManagerPanel
-              onAsk={askManager}
-              providerStatus={aiProviderStatus}
-              {hasImportedRankings}
-              showPlaceholderWarning={recommendationsUsePlaceholder}
-              {draftState}
-              {recommendation}
-            />
+            {#if draftPhase === "complete"}
+              <article class="panel phase-note">
+                <h2>Draft is over</h2>
+                <p>Recommendations and pick tools stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
+                {#if manageAvailable}
+                  <button
+                    class="btn btn-primary"
+                    type="button"
+                    onclick={() => {
+                      userPickedMode = true;
+                      workspaceMode = "manage";
+                    }}
+                  >
+                    Open season manager
+                  </button>
+                {/if}
+              </article>
+            {/if}
+            {#if draftPhase !== "complete"}
+              <RecommendationPanel
+                {recommendation}
+                playerPreferences={playerPreferences}
+                showPlaceholderWarning={recommendationsUsePlaceholder}
+                onSetPreference={setPlayerPreference}
+                onWhatIf={askWhatIf}
+                onClearPreferences={clearPlayerPreferences}
+                onOpenRankings={() => (rankingsExpanded = true)}
+              />
+              <AskManagerPanel
+                onAsk={askManager}
+                providerStatus={aiProviderStatus}
+                {hasImportedRankings}
+                showPlaceholderWarning={recommendationsUsePlaceholder}
+                {draftState}
+                {recommendation}
+              />
+            {:else}
+              <RosterPanel state={draftState} />
+              <PickFeedPanel state={draftState} />
+            {/if}
           </div>
           <div class="side-column">
-            <RankingsImportPanel
-              hasDraft={true}
-              {hasImportedRankings}
-              {isImportingRankings}
-              {isClearingRankings}
-              {rankingImportSummary}
-              {rankingImportError}
-              onImport={importRankings}
-              onClear={clearRankings}
-              onOpenFantasyPros={openFantasyProsRankings}
-              bind:expanded={rankingsExpanded}
-            />
-            <RosterPanel state={draftState} />
-            <PickFeedPanel state={draftState} />
+            {#if draftPhase !== "complete"}
+              <RankingsImportPanel
+                hasDraft={true}
+                {hasImportedRankings}
+                {isImportingRankings}
+                {isClearingRankings}
+                {rankingImportSummary}
+                {rankingImportError}
+                onImport={importRankings}
+                onClear={clearRankings}
+                onOpenFantasyPros={openFantasyProsRankings}
+                bind:expanded={rankingsExpanded}
+              />
+              <RosterPanel state={draftState} />
+              <PickFeedPanel state={draftState} />
+            {:else if hasImportedRankings}
+              <RankingsImportPanel
+                hasDraft={true}
+                {hasImportedRankings}
+                {isImportingRankings}
+                {isClearingRankings}
+                {rankingImportSummary}
+                {rankingImportError}
+                onImport={importRankings}
+                onClear={clearRankings}
+                onOpenFantasyPros={openFantasyProsRankings}
+                bind:expanded={rankingsExpanded}
+              />
+            {/if}
           </div>
         </section>
       {:else}
@@ -900,6 +973,25 @@
     display: grid;
     gap: var(--space-5);
     align-content: start;
+  }
+
+  .phase-note {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-5);
+  }
+
+  .phase-note h2 {
+    font-size: var(--text-lg);
+  }
+
+  .phase-note p {
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .phase-note .btn {
+    justify-self: start;
   }
 
   @media (max-width: 920px) {

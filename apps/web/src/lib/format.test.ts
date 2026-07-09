@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DraftState } from "./types";
-import { draftSlotForPick, isUserOnTheClock, picksUntilUserTurn } from "./format";
+import { draftSlotForPick, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode } from "./format";
 
 describe("draft turn helpers", () => {
   it("computes snake draft slots", () => {
@@ -20,6 +20,18 @@ describe("draft turn helpers", () => {
     const state = createState({ currentPick: 1, userSlot: 1 });
     expect(picksUntilUserTurn(state)).toBe(0);
     expect(isUserOnTheClock(state)).toBe(true);
+  });
+});
+
+describe("preferredWorkspaceMode", () => {
+  it("defaults to draft prep and live draft modes", () => {
+    expect(preferredWorkspaceMode("pre_draft", true)).toBe("draft");
+    expect(preferredWorkspaceMode("drafting", true)).toBe("draft");
+    expect(preferredWorkspaceMode("complete", false)).toBe("draft");
+  });
+
+  it("defaults to season manager after the draft when available", () => {
+    expect(preferredWorkspaceMode("complete", true)).toBe("manage");
   });
 });
 
