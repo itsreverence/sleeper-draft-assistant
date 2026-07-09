@@ -1,0 +1,160 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import type { DraftRecommendation, DraftState } from "@sleeper-ai/shared";
+
+export type DecisionSnapshotTrigger =
+  | "state-load"
+  | "rankings-import"
+  | "rankings-clear"
+  | "manual-refresh"
+  | "ai-question"
+  | "pick-update";
+
+export type DecisionSnapshot = {
+  id: string;
+  draftId: string;
+  leagueId: string | null;
+  userRosterId: string | null;
+  trigger: DecisionSnapshotTrigger;
+  createdAt: string;
+  draftName: string;
+  status: DraftState["status"];
+  currentPick: number;
+  picksMade: number;
+  userTeamId: string;
+  userTeamName: string | null;
+  recommendedPlayerId: string | null;
+  headline: string;
+  confidence: DraftRecommendation["confidence"];
+  candidatePlayerIds: string[];
+  recommendation: DraftRecommendation;
+  context: {
+    topCandidates: Array<{
+      playerId: string;
+      name: string;
+      position: string;
+      team: string;
+      score: number;
+      reasons: string[];
+    }>;
+    assumptions: string[];
+    risks: string[];
+  };
+};
+
+type SerializedDecisionLog = Record<string, DecisionSnapshot[]>;
+
+export class DecisionLogStore {
+  private readonly snapshotsByDraft = new Map<string, DecisionSnapshot[]>();
+
+  constructor(
+    private readonly filePath = getDefaultDecisionLogPath(),
+    private readonly maxSnapshotsPerDraft = 200,
+  ) {
+    this.load();
+  }
+
+  record(input: {
+    draftId: string;
+    state: DraftState;
+    recommendation: DraftRecommendation;
+    trigger: DecisionSnapshotTrigger;
+    userRosterId?: string | null;
+  }): DecisionSnapshot {
+    const snapshot = createDecisionSnapshot(input);
+    const existing = this.snapshotsByDraft.get(input.draftId) ?? [];
+    this.snapshotsByDraft.set(input.draftId, [snapshot, ...existing].slice(0, this.maxSnapshotsPerDraft));
+    this.save();
+    return snapshot;
+  }
+
+  list(draftId: string, limit = 50): DecisionSnapshot[] {
+    return (this.snapshotsByDraft.get(draftId) ?? []).slice(0, Math.max(1, Math.min(limit, this.maxSnapshotsPerDraft)));
+  }
+
+  clear(draftId: string): boolean {
+    const deleted = this.snapshotsByDraft.delete(draftId);
+    if (deleted) {
+      this.save();
+    }
+    return deleted;
+  }
+
+  private load() {
+    if (!existsSync(this.filePath)) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as SerializedDecisionLog;
+      for (const [draftId, snapshots] of Object.entries(parsed)) {
+        this.snapshotsByDraft.set(draftId, Array.isArray(snapshots) ? snapshots.slice(0, this.maxSnapshotsPerDraft) : []);
+      }
+    } catch {
+      this.snapshotsByDraft.clear();
+    }
+  }
+
+  private save() {
+    mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const serialized = Object.fromEntries(this.snapshotsByDraft.entries()) satisfies SerializedDecisionLog;
+    writeFileSync(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`, "utf8");
+  }
+}
+
+function createDecisionSnapshot(input: {
+  draftId: string;
+  state: DraftState;
+  recommendation: DraftRecommendation;
+  trigger: DecisionSnapshotTrigger;
+  userRosterId?: string | null;
+}): DecisionSnapshot {
+  const createdAt = new Date().toISOString();
+  const userTeam = input.state.teams.find((team) => team.id === input.state.userTeamId) ?? null;
+
+  return {
+    id: `${input.draftId}:${input.state.currentPick}:${input.trigger}:${createdAt}`,
+    draftId: input.draftId,
+    leagueId: input.state.leagueId ?? null,
+    userRosterId: input.userRosterId ?? null,
+    trigger: input.trigger,
+    createdAt,
+    draftName: input.state.name,
+    status: input.state.status,
+    currentPick: input.state.currentPick,
+    picksMade: input.state.picks.length,
+    userTeamId: input.state.userTeamId,
+    userTeamName: userTeam?.name ?? null,
+    recommendedPlayerId: input.recommendation.recommendedPlayerId,
+    headline: input.recommendation.headline,
+    confidence: input.recommendation.confidence,
+    candidatePlayerIds: input.recommendation.candidates.map((candidate) => candidate.player.id),
+    recommendation: input.recommendation,
+    context: {
+      topCandidates: input.recommendation.candidates.slice(0, 5).map((candidate) => ({
+        playerId: candidate.player.id,
+        name: candidate.player.name,
+        position: candidate.player.position,
+        team: candidate.player.team,
+        score: candidate.score,
+        reasons: candidate.reasons.slice(0, 4),
+      })),
+      assumptions: input.recommendation.assumptions,
+      risks: input.recommendation.risks,
+    },
+  };
+}
+
+function getDefaultDecisionLogPath(): string {
+  if (process.env.NODE_ENV === "test") {
+    return path.join(tmpdir(), "sleeper-ai-team-manager-test", "decision-log.json");
+  }
+
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  return process.env.SLEEPER_AI_DATA_DIR
+    ? path.join(process.env.SLEEPER_AI_DATA_DIR, "decision-log.json")
+    : path.join(repoRoot, "data", "decision-log.json");
+}

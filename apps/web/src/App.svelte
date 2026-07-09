@@ -429,10 +429,11 @@
 
     try {
       const payload = await fetchDraftState(draftId, userRosterId);
+      const resolvedLeagueId = leagueId || payload.state.leagueId || "";
       applyDraftPayload(payload);
       activeDraftId = draftId;
       activeUserRosterId = userRosterId;
-      void loadTeamManager(leagueId, userRosterId);
+      void loadTeamManager(resolvedLeagueId, userRosterId);
       loadPlayerPreferences(draftId);
       if (hasPlayerPreferences()) {
         void refreshRecommendationWithPreferences();
@@ -450,8 +451,8 @@
         } else {
           window.localStorage.removeItem("lastUserRosterId");
         }
-        if (leagueId) {
-          window.localStorage.setItem("lastLeagueId", leagueId);
+        if (resolvedLeagueId) {
+          window.localStorage.setItem("lastLeagueId", resolvedLeagueId);
         } else {
           window.localStorage.removeItem("lastLeagueId");
         }

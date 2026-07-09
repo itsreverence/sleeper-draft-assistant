@@ -17,6 +17,7 @@ import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { ExperimentalCodexAuthClient, ExperimentalCodexTokenStore } from "./ai/experimental-codex-auth";
+import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
@@ -27,6 +28,7 @@ export const app = new Hono();
 const port = Number(process.env.PORT ?? 8787);
 const sleeperClient = new SleeperClient();
 const rankingImportStore = new RankingImportStore();
+const decisionLogStore = new DecisionLogStore();
 const settingsStore = new SettingsStore();
 const experimentalCodexTokenStore = new ExperimentalCodexTokenStore();
 const experimentalCodexAuthClient = new ExperimentalCodexAuthClient();
@@ -37,6 +39,12 @@ type DraftPayload = {
   state: DraftState;
   recommendation: DraftRecommendation;
   rankingImportSummary: RankingImportSummary | null;
+};
+
+type DraftPayloadOptions = {
+  recommendation?: DraftRecommendation;
+  recordTrigger?: DecisionSnapshotTrigger;
+  userRosterId?: string | null;
 };
 
 type TeamPayload = {
@@ -61,6 +69,10 @@ app.get("/health", (c) =>
   c.json({
     ok: true,
     service: "sleeper-ai-api",
+    capabilities: {
+      decisionLog: true,
+      draftLeagueId: true,
+    },
     now: new Date().toISOString(),
   }),
 );
@@ -201,7 +213,8 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
 app.get("/drafts/:draftId/state", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
-    return c.json(toDraftPayload(state, c.req.param("draftId")));
+    const draftId = c.req.param("draftId");
+    return c.json(toDraftPayload(state, draftId, { recordTrigger: "state-load", userRosterId: getUserRosterId(c) }));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -218,7 +231,7 @@ app.post("/drafts/:draftId/rankings/import", async (c) => {
 
     return c.json({
       summary: storedImport.summary,
-      ...toDraftPayload(importedState, draftId),
+      ...toDraftPayload(importedState, draftId, { recordTrigger: "rankings-import", userRosterId: getUserRosterId(c) }),
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -230,7 +243,7 @@ app.delete("/drafts/:draftId/rankings/import", async (c) => {
     const draftId = c.req.param("draftId");
     rankingImportStore.delete(draftId);
     const state = await loadDraftState(draftId, getUserRosterId(c));
-    return c.json(toDraftPayload(state, draftId));
+    return c.json(toDraftPayload(state, draftId, { recordTrigger: "rankings-clear", userRosterId: getUserRosterId(c) }));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -239,7 +252,10 @@ app.delete("/drafts/:draftId/rankings/import", async (c) => {
 app.get("/drafts/:draftId/recommendations", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
-    return c.json(buildDraftRecommendation(state));
+    const draftId = c.req.param("draftId");
+    const recommendation = buildDraftRecommendation(state);
+    decisionLogStore.record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
+    return c.json(recommendation);
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -248,7 +264,10 @@ app.post("/drafts/:draftId/recommendations", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
     const body = (await c.req.json<{ recommendationPreferences?: DraftRecommendationOptions["preferences"] }>().catch(() => ({}))) as { recommendationPreferences?: DraftRecommendationOptions["preferences"] };
-    return c.json(buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) }));
+    const draftId = c.req.param("draftId");
+    const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+    decisionLogStore.record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
+    return c.json(recommendation);
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -266,7 +285,9 @@ app.post("/drafts/:draftId/ask", async (c) => {
     }
     const conversationHistory = normalizeConversationHistory(body.conversationHistory);
     const userPreferences = normalizeUserPreferences(body.userPreferences);
+    const draftId = c.req.param("draftId");
     const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+    decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
     const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
     const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question, conversationHistory, userPreferences));
 
@@ -279,6 +300,11 @@ app.post("/drafts/:draftId/ask", async (c) => {
   } catch (error) {
     return handleRouteError(c, error);
   }
+});
+
+app.get("/drafts/:draftId/decisions", (c) => {
+  const limit = Number(c.req.query("limit") ?? 50);
+  return c.json({ snapshots: decisionLogStore.list(c.req.param("draftId"), Number.isFinite(limit) ? limit : 50) });
 });
 
 app.get("/drafts/:draftId/events", async (c) => {
@@ -328,10 +354,21 @@ function emptyActivitySummary(): TeamActivitySummary {
   };
 }
 
-function toDraftPayload(state: DraftState, draftId: string): DraftPayload {
+function toDraftPayload(state: DraftState, draftId: string, options: DraftPayloadOptions = {}): DraftPayload {
+  const recommendation = options.recommendation ?? buildDraftRecommendation(state);
+  if (options.recordTrigger) {
+    decisionLogStore.record({
+      draftId,
+      state,
+      recommendation,
+      trigger: options.recordTrigger,
+      userRosterId: options.userRosterId,
+    });
+  }
+
   return {
     state,
-    recommendation: buildDraftRecommendation(state),
+    recommendation,
     rankingImportSummary: rankingImportStore.get(draftId)?.summary ?? null,
   };
 }
@@ -489,7 +526,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
         send(controller, "pick", {
           type: "pick",
           pick: nextState.picks[nextState.picks.length - 1],
-          ...toDraftPayload(nextState, draftId),
+          ...toDraftPayload(nextState, draftId, { recordTrigger: "pick-update", userRosterId }),
         });
         return;
       }

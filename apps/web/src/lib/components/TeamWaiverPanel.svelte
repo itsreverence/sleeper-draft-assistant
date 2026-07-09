@@ -42,7 +42,7 @@
         <div class="candidate-row">
           <div>
             <strong>{candidate.player.name}</strong>
-            <span>{candidate.player.team} {candidate.player.position} · {candidate.valueLabel}</span>
+            <span>{candidate.player.team} {candidate.player.position} - {candidate.valueLabel}</span>
           </div>
           <span class="score">{candidate.score.toFixed(0)}</span>
         </div>

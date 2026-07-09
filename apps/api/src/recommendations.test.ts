@@ -60,6 +60,11 @@ describe("draft recommendation routes", () => {
       const initialPayload = (await initialStateResponse.json()) as DraftPayload;
       expect(initialPayload.rankingImportSummary).toBeNull();
 
+      const initialDecisionsResponse = await app.request("/drafts/mock-draft/decisions?limit=5");
+      expect(initialDecisionsResponse.status).toBe(200);
+      const initialDecisions = (await initialDecisionsResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
+      expect(initialDecisions.snapshots.some((snapshot) => snapshot.trigger === "state-load")).toBe(true);
+
       const importResponse = await app.request("/drafts/mock-draft/rankings/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,6 +116,12 @@ describe("draft recommendation routes", () => {
       expect(askPayload.recommendation.candidates.some((candidate) => candidate.player.id === excludedId)).toBe(false);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
+
+      const decisionResponse = await app.request("/drafts/mock-draft/decisions?limit=10");
+      expect(decisionResponse.status).toBe(200);
+      const decisions = (await decisionResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
     } finally {
       await updateSettings(originalSettings);
     }

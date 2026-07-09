@@ -106,6 +106,7 @@ describe("Sleeper draft normalization", () => {
     const state = normalizeSleeperDraftState(fixture);
 
     expect(state.id).toBe("draft-1");
+    expect(state.leagueId).toBe("league-1");
     expect(state.name).toBe("Fixture League");
     expect(state.status).toBe("drafting");
     expect(state.currentPick).toBe(4);

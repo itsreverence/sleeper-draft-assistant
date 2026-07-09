@@ -10,10 +10,10 @@
   const rosteredCount = $derived(userTeam?.roster.length ?? 0);
   const urgencyLabel = $derived.by(() => {
     if (state.status === "complete") {
-      return "Draft complete · manage your season";
+      return "Draft complete - manage your season";
     }
     if (state.status === "pre_draft") {
-      return "Draft hasn't started · prep rankings and board";
+      return "Draft hasn't started - prep rankings and board";
     }
     if (onTheClock) {
       return "You're on the clock";

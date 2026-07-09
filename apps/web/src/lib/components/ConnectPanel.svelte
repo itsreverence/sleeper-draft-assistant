@@ -111,7 +111,7 @@
     <div class="connect-results">
       <div class="results-heading">
         <strong>{connectPayload.user.displayName ?? connectPayload.user.username ?? connectPayload.user.userId}</strong>
-        <span>{connectPayload.season} season · {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
+        <span>{connectPayload.season} season - {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
       </div>
 
       {#if connectPayload.leagues.length > 0}
@@ -127,7 +127,7 @@
                   onclick={() => onSelectLeague(league)}
                 >
                   <strong>{league.name}</strong>
-                  <span>{league.status} · {league.totalRosters ?? "?"} teams · {league.scoring}</span>
+                  <span>{league.status} - {league.totalRosters ?? "?"} teams - {league.scoring}</span>
                 </button>
               {/each}
             </div>
@@ -146,7 +146,7 @@
                   onclick={() => onSelectDraft(draft)}
                 >
                   <strong>{draft.name}</strong>
-                  <span>{draft.status} · {draft.type} · {draft.rounds ?? "?"} rounds</span>
+                  <span>{draft.status} - {draft.type} - {draft.rounds ?? "?"} rounds</span>
                 </button>
               {/each}
             </div>
@@ -158,7 +158,7 @@
             <div class="ready-copy">
               <strong>{selectedLeague.name}</strong>
               <span>
-                {selectedLeague.totalRosters ?? "?"} teams · {selectedLeague.scoring} · {selectedDraft.type} · {selectedDraft.rounds ?? "?"} rounds
+                {selectedLeague.totalRosters ?? "?"} teams - {selectedLeague.scoring} - {selectedDraft.type} - {selectedDraft.rounds ?? "?"} rounds
               </span>
               <span class="ready-meta">{formatRosterSlots(selectedLeague.rosterSlots) || "Roster settings unavailable"}</span>
               <span class="ready-match">{teamMatchLabel(selectedLeague, selectedDraft)}</span>

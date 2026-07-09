@@ -35,7 +35,7 @@
           <span class="slot-label">{slot.slot}</span>
           {#if slot.player}
             <span class="player-name">{slot.player.name}</span>
-            <span class="player-meta">{slot.player.team} · {slot.player.position}</span>
+            <span class="player-meta">{slot.player.team} - {slot.player.position}</span>
           {:else}
             <span class="player-name muted">Open starter slot {index + 1}</span>
             <span class="player-meta">{slot.eligiblePositions.join("/")}</span>

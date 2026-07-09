@@ -6,6 +6,7 @@ const path = require("node:path");
 const apiPort = Number(process.env.PORT ?? 8787);
 const webDevUrl = process.env.SLEEPER_AI_WEB_URL ?? "http://127.0.0.1:5173";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
+const expectedWebTitle = "Sleeper AI Team Manager";
 
 let apiProcess = null;
 let webProcess = null;
@@ -76,7 +77,7 @@ async function createWindow() {
 
   if (!app.isPackaged) {
     await ensureWebServer();
-    await waitForHttp(webDevUrl, 30000);
+    await waitForSleeperWeb(30000);
     await mainWindow.loadURL(webDevUrl);
     mainWindow.webContents.openDevTools({ mode: "detach" });
     return;
@@ -87,7 +88,10 @@ async function createWindow() {
 
 async function ensureApiServer() {
   if (await isPortOpen(apiPort)) {
-    return;
+    if (await isCompatibleApiServer()) {
+      return;
+    }
+    throw new Error(`Port ${apiPort} is already running a different or stale Sleeper API server.`);
   }
 
   if (app.isPackaged) {
@@ -122,15 +126,16 @@ async function ensureApiServer() {
     }
   });
 
-  await waitForHttp(`${apiUrl}/health`, 30000);
+  await waitForApiServer(30000);
 }
 
 async function ensureWebServer() {
-  const isRunning = await waitForHttp(webDevUrl, 1200)
-    .then(() => true)
-    .catch(() => false);
-  if (isRunning) {
-    return;
+  const existingHtml = await fetchText(webDevUrl, 1200).catch(() => null);
+  if (existingHtml !== null) {
+    if (isSleeperWebHtml(existingHtml)) {
+      return;
+    }
+    throw new Error(`${webDevUrl} is already serving a different app. Stop that dev server before launching Sleeper AI Team Manager.`);
   }
 
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -177,18 +182,67 @@ function isPortOpen(port) {
   });
 }
 
-async function waitForHttp(url, timeoutMs) {
+async function waitForApiServer(timeoutMs) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    try {
-      const response = await fetch(url);
-      if (response.ok || response.status < 500) {
-        return;
-      }
-    } catch {
-      // Retry until timeout.
+    if (await isCompatibleApiServer()) {
+      return;
     }
     await new Promise((resolve) => setTimeout(resolve, 400));
   }
-  throw new Error(`Timed out waiting for ${url}`);
+  throw new Error(`Timed out waiting for compatible Sleeper API at ${apiUrl}`);
+}
+
+async function isCompatibleApiServer() {
+  try {
+    const payload = await fetchJson(`${apiUrl}/health`, 1200);
+    return payload?.ok === true
+      && payload?.service === "sleeper-ai-api"
+      && payload?.capabilities?.decisionLog === true
+      && payload?.capabilities?.draftLeagueId === true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForSleeperWeb(timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const html = await fetchText(webDevUrl, 1200).catch(() => null);
+    if (html !== null && isSleeperWebHtml(html)) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  throw new Error(`Timed out waiting for Sleeper web app at ${webDevUrl}`);
+}
+
+function isSleeperWebHtml(html) {
+  return html.includes(`<title>${expectedWebTitle}</title>`);
+}
+
+async function fetchJson(url, timeoutMs) {
+  const response = await fetchWithTimeout(url, timeoutMs);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${url}`);
+  }
+  return response.json();
+}
+
+async function fetchText(url, timeoutMs) {
+  const response = await fetchWithTimeout(url, timeoutMs);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${url}`);
+  }
+  return response.text();
+}
+
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }

@@ -92,8 +92,11 @@
     <div class="rankings-instructions">
       <strong>Recommended flow</strong>
       <p>
-        Download the FantasyPros draft rankings CSV, then upload it here. The app will match rows to the active Sleeper
-        draft and use rank, tier, bye week, and ECR-vs-ADP as the primary valuation signal.
+        Open FantasyPros, download the draft rankings CSV for your scoring format, then upload it here. Until this import
+        is added, live draft advice falls back to Sleeper search-rank placeholders and should be treated as low confidence.
+      </p>
+      <p>
+        Matched rows are saved for this draft and feed rank, tier, bye week, and ECR-vs-ADP into recommendations and AI context.
       </p>
     </div>
 

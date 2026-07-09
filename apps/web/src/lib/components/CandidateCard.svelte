@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
   import type { CandidateSignal, PlayerPreferenceLevel } from "../types";
   import { rosterFitLabel, sourceLabel } from "../format";
 
@@ -44,11 +44,11 @@
           <span class="preference-badge preference-{preference}">{preference}</span>
         {/if}
       </div>
-      <p>{candidate.player.team} · {candidate.player.position} · {rosterFitLabel(candidate.rosterFit)}</p>
+      <p>{candidate.player.team} - {candidate.player.position} - {rosterFitLabel(candidate.rosterFit)}</p>
       <p class="reason">{primaryReason}</p>
       {#if candidate.player.importedRank}
         <p class="import-meta">
-          Rank {candidate.player.importedRank}{candidate.player.tier ? ` · Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` · Bye ${candidate.player.byeWeek}` : ""}
+          Rank {candidate.player.importedRank}{candidate.player.tier ? ` - Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` - Bye ${candidate.player.byeWeek}` : ""}
         </p>
       {:else}
         <p class="import-meta">{sourceLabel(candidate)}</p>
