@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -67,16 +67,25 @@ app.use(
   }),
 );
 
-app.get("/health", (c) =>
+app.get("/health", (c) => c.json(createHealthPayload()));
+
+app.get("/diagnostics", (c) =>
   c.json({
-    ok: true,
-    service: "sleeper-ai-api",
-    capabilities: {
-      decisionLog: true,
-      draftLeagueId: true,
+    ...createHealthPayload(),
+    diagnosticsVersion: 1,
+    settings: redactSettings(settingsStore.get()),
+    storage: {
       sqliteStorage: true,
+      settingsRecords: appDatabase.countJson("settings"),
+      rankingImportRecords: appDatabase.countJson("ranking_imports"),
+      decisionSnapshots: appDatabase.countDecisionSnapshots(),
     },
-    now: new Date().toISOString(),
+    runtime: {
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      packagedDataDir: Boolean(process.env.SLEEPER_AI_DATA_DIR),
+    },
   }),
 );
 
@@ -376,6 +385,27 @@ function toDraftPayload(state: DraftState, draftId: string, options: DraftPayloa
   };
 }
 
+function createHealthPayload() {
+  return {
+    ok: true,
+    service: "sleeper-ai-api",
+    capabilities: {
+      decisionLog: true,
+      draftLeagueId: true,
+      sqliteStorage: true,
+    },
+    now: new Date().toISOString(),
+  };
+}
+
+function redactSettings(settings: AppSettings) {
+  return {
+    aiProvider: settings.aiProvider,
+    codexBinConfigured: settings.codexBin.trim().length > 0,
+    codexModel: settings.codexModel,
+    codexTimeoutMs: settings.codexTimeoutMs,
+  };
+}
 function normalizeRecommendationPreferences(preferences: DraftRecommendationOptions["preferences"] | undefined): DraftRecommendationOptions["preferences"] {
   return {
     pinnedPlayerIds: normalizePreferenceNames(preferences?.pinnedPlayerIds),

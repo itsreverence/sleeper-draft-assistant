@@ -29,6 +29,7 @@
     fetchAiStatus,
     fetchDraftRecommendationRequest,
     fetchDraftState,
+    fetchDiagnostics,
     fetchExperimentalCodexStatus,
     fetchSettings,
     fetchSleeperConnect,
@@ -103,6 +104,8 @@
   let experimentalCodexAuthStatus: ExperimentalCodexAuthStatus | null = $state(null);
   let isStartingExperimentalCodexLogin = $state(false);
   let isPollingExperimentalCodexLogin = $state(false);
+  let isCopyingDiagnostics = $state(false);
+  let diagnosticsStatus = $state("");
   let eventSource: EventSource | null = null;
 
   function preferenceStorageKey(draftId: string): string {
@@ -280,6 +283,46 @@
     }
   }
 
+  async function copyTextToClipboard(text: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await Promise.race([
+          navigator.clipboard.writeText(text),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Clipboard write timed out.")), 1500)),
+        ]);
+        return;
+      }
+    } catch {
+      // Fall through to the textarea copy path below.
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) {
+      throw new Error("Clipboard copy is not available in this browser.");
+    }
+  }
+
+  async function copyDiagnostics() {
+    isCopyingDiagnostics = true;
+    diagnosticsStatus = "";
+    try {
+      const diagnostics = await fetchDiagnostics();
+      await copyTextToClipboard(JSON.stringify(diagnostics, null, 2));
+      diagnosticsStatus = "Diagnostics copied. It excludes local auth tokens.";
+    } catch (error) {
+      diagnosticsStatus = error instanceof Error ? error.message : "Could not copy diagnostics.";
+    } finally {
+      isCopyingDiagnostics = false;
+    }
+  }
   async function startExperimentalCodexAuth() {
     isStartingExperimentalCodexLogin = true;
     settingsError = "";
@@ -800,10 +843,13 @@
       codexAuthStatus={experimentalCodexAuthStatus}
       isStartingCodexLogin={isStartingExperimentalCodexLogin}
       isPollingCodexLogin={isPollingExperimentalCodexLogin}
+      {isCopyingDiagnostics}
+      {diagnosticsStatus}
       onSave={saveSettings}
       onStartCodexLogin={startExperimentalCodexAuth}
       onPollCodexLogin={pollExperimentalCodexAuth}
       onLogoutCodex={logoutExperimentalCodexAuth}
+      onCopyDiagnostics={copyDiagnostics}
     />
   {/if}
 

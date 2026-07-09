@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload } from "./types";
+import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload } from "./types";
 
 export const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8787" : "/api";
 
@@ -19,6 +19,15 @@ async function readErrorMessage(response: Response, fallback: string) {
   return payload.error ?? fallback;
 }
 
+
+export async function fetchDiagnostics(): Promise<DiagnosticsPayload> {
+  const response = await fetch(`${apiBase}/diagnostics`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not load diagnostics."));
+  }
+
+  return (await response.json()) as DiagnosticsPayload;
+}
 export async function fetchSettings(): Promise<AppSettings> {
   const response = await fetch(`${apiBase}/settings`);
   if (!response.ok) {

@@ -121,3 +121,29 @@ export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Pos
 
 
 
+
+export type DiagnosticsPayload = {
+  ok: boolean;
+  service: string;
+  capabilities: Record<string, boolean>;
+  now: string;
+  diagnosticsVersion: number;
+  settings: {
+    aiProvider: AppSettings["aiProvider"];
+    codexBinConfigured: boolean;
+    codexModel: string;
+    codexTimeoutMs: number;
+  };
+  storage: {
+    sqliteStorage: boolean;
+    settingsRecords: number;
+    rankingImportRecords: number;
+    decisionSnapshots: number;
+  };
+  runtime: {
+    node: string;
+    platform: string;
+    arch: string;
+    packagedDataDir: boolean;
+  };
+};

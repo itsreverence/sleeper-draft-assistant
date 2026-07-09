@@ -126,6 +126,28 @@ describe("draft recommendation routes", () => {
       await updateSettings(originalSettings);
     }
   });
+  it("returns redacted diagnostics for support", async () => {
+    const response = await app.request("/diagnostics");
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      ok: boolean;
+      service: string;
+      capabilities: { sqliteStorage?: boolean };
+      settings: { aiProvider: string; codexBinConfigured: boolean; codexModel: string; codexTimeoutMs: number };
+      storage: { sqliteStorage: boolean; settingsRecords: number; rankingImportRecords: number; decisionSnapshots: number };
+      runtime: { node: string; platform: string; arch: string; packagedDataDir: boolean };
+    };
+
+    expect(payload.ok).toBe(true);
+    expect(payload.service).toBe("sleeper-ai-api");
+    expect(payload.capabilities.sqliteStorage).toBe(true);
+    expect(payload.settings.codexBinConfigured).toBe(true);
+    expect(payload.storage.sqliteStorage).toBe(true);
+    expect(payload.storage.settingsRecords).toBeGreaterThanOrEqual(1);
+    expect(payload.runtime.node).toMatch(/^v/);
+    expect(JSON.stringify(payload)).not.toContain("accessToken");
+    expect(JSON.stringify(payload)).not.toContain("refreshToken");
+  });
 });
 
 async function getSettings(): Promise<AppSettings> {

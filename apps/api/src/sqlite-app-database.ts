@@ -54,6 +54,18 @@ export class SqliteAppDatabase {
     return rows;
   }
 
+  countJson(namespace: JsonNamespace): number {
+    const statement = this.db.prepare("SELECT COUNT(*) AS count FROM app_kv WHERE namespace = ?");
+    try {
+      statement.bind([namespace]);
+      statement.step();
+      const row = statement.getAsObject() as { count?: number };
+      return Number(row.count ?? 0);
+    } finally {
+      statement.free();
+    }
+  }
+
   setJson(namespace: JsonNamespace, key: string, value: unknown): void {
     this.db.run(
       `INSERT INTO app_kv (namespace, key, value_json, updated_at)
@@ -116,6 +128,11 @@ export class SqliteAppDatabase {
       statement.free();
     }
     return rows;
+  }
+
+  countDecisionSnapshots(): number {
+    const result = this.db.exec("SELECT COUNT(*) AS count FROM decision_snapshots");
+    return Number(result[0]?.values[0]?.[0] ?? 0);
   }
 
   pruneDecisionSnapshots(draftId: string, keep: number): void {
