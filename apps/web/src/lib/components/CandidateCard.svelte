@@ -6,28 +6,35 @@
     candidate,
     rank,
     preference = null,
+    featured = false,
     onSetPreference,
     onWhatIf,
   }: {
     candidate: CandidateSignal;
     rank: number;
     preference?: PlayerPreferenceLevel | null;
+    featured?: boolean;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
     onWhatIf?: (playerName: string) => void;
   } = $props();
 
+  let detailsOpen = $state(false);
+
   const returnPct = $derived(Math.round(candidate.returnProbability * 100));
-  const returnTone = $derived(returnPct >= 65 ? "ready" : returnPct >= 40 ? "neutral" : "warning");
-  const fitTone = $derived(
-    candidate.rosterFit === "need" ? "ready" : candidate.rosterFit === "luxury" ? "info" : "neutral",
-  );
+  const primaryReason = $derived(candidate.reasons[0] ?? rosterFitLabel(candidate.rosterFit));
+  const extraReasons = $derived(candidate.reasons.slice(1));
 
   function togglePreference(nextPreference: PlayerPreferenceLevel) {
     onSetPreference?.(candidate.player.id, preference === nextPreference ? null : nextPreference);
   }
 </script>
 
-<section class:excluded={preference === "exclude"} class:pinned={preference === "pin"} class="candidate-card">
+<section
+  class="candidate-card"
+  class:excluded={preference === "exclude"}
+  class:pinned={preference === "pin"}
+  class:featured
+>
   <div class="candidate-main">
     <div class="rank">{rank}</div>
     <div class="candidate-copy">
@@ -37,35 +44,66 @@
           <span class="preference-badge preference-{preference}">{preference}</span>
         {/if}
       </div>
-      <p>{candidate.player.team} - {candidate.player.position}</p>
-      <div class="badge-row">
-        <span class="pill pill-neutral">{sourceLabel(candidate)}</span>
-        {#if candidate.player.importedRank}
-          <span class="import-meta">
-            Rank {candidate.player.importedRank}{candidate.player.tier ? ` / Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` / Bye ${candidate.player.byeWeek}` : ""}
-          </span>
-        {/if}
-      </div>
+      <p>{candidate.player.team} · {candidate.player.position} · {rosterFitLabel(candidate.rosterFit)}</p>
+      <p class="reason">{primaryReason}</p>
+      {#if candidate.player.importedRank}
+        <p class="import-meta">
+          Rank {candidate.player.importedRank}{candidate.player.tier ? ` · Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` · Bye ${candidate.player.byeWeek}` : ""}
+        </p>
+      {:else}
+        <p class="import-meta">{sourceLabel(candidate)}</p>
+      {/if}
     </div>
     <strong class="score">{candidate.score.toFixed(1)}</strong>
   </div>
-  <div class="signal-grid">
-    <span class="pill pill-{fitTone}">{rosterFitLabel(candidate.rosterFit)}</span>
-    <span class="pill pill-neutral">{candidate.valueLabel}</span>
-    <span class="pill pill-neutral">{candidate.scarcityLabel}</span>
-    <span class="pill pill-{returnTone}">{returnPct}% return</span>
-  </div>
-  <ul>
-    {#each candidate.reasons as reason}
-      <li>{reason}</li>
-    {/each}
-  </ul>
-  <div class="preference-actions" aria-label={`Local controls for ${candidate.player.name}`}>
-    <button class:active={preference === "pin"} type="button" onclick={() => togglePreference("pin")}>Pin</button>
-    <button class:active={preference === "fade"} type="button" onclick={() => togglePreference("fade")}>Fade</button>
-    <button class:active={preference === "exclude"} type="button" onclick={() => togglePreference("exclude")}>Exclude</button>
+
+  <div class="actions">
+    <button
+      class:active={preference === "pin"}
+      type="button"
+      aria-pressed={preference === "pin"}
+      onclick={() => togglePreference("pin")}
+    >
+      Pin
+    </button>
+    <button
+      class:active={preference === "fade"}
+      type="button"
+      aria-pressed={preference === "fade"}
+      onclick={() => togglePreference("fade")}
+    >
+      Fade
+    </button>
+    <button
+      class:active={preference === "exclude"}
+      type="button"
+      aria-pressed={preference === "exclude"}
+      onclick={() => togglePreference("exclude")}
+    >
+      Exclude
+    </button>
     <button type="button" onclick={() => onWhatIf?.(candidate.player.name)}>What if</button>
+    <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
+      {detailsOpen ? "Less" : "Signals"}
+    </button>
   </div>
+
+  {#if detailsOpen}
+    <div class="details">
+      <div class="signal-row">
+        <span>{candidate.valueLabel}</span>
+        <span>{candidate.scarcityLabel}</span>
+        <span>{returnPct}% return</span>
+      </div>
+      {#if extraReasons.length > 0}
+        <ul>
+          {#each extraReasons as reason}
+            <li>{reason}</li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -74,11 +112,16 @@
     border-radius: var(--radius-md);
     background: var(--surface-sunken);
     padding: var(--space-4);
-    transition: border-color var(--transition-base), transform var(--transition-base), opacity var(--transition-fast);
+    transition: border-color var(--transition-base), opacity var(--transition-fast);
   }
 
   .candidate-card:hover {
     border-color: var(--border-strong);
+  }
+
+  .candidate-card.featured {
+    border-color: var(--accent-border);
+    background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface-sunken));
   }
 
   .candidate-card.pinned {
@@ -107,6 +150,12 @@
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .featured .rank {
+    background: var(--accent);
+    color: var(--text-on-accent);
   }
 
   .candidate-copy {
@@ -128,17 +177,29 @@
   }
 
   .candidate-copy p {
-    margin-bottom: 0;
+    margin: 0;
     color: var(--text-muted);
     font-size: var(--text-sm);
   }
 
+  .reason {
+    margin-top: 6px !important;
+    color: var(--text-secondary) !important;
+    line-height: 1.45;
+  }
+
+  .import-meta {
+    margin-top: 4px !important;
+    font-size: var(--text-xs) !important;
+    font-weight: 600;
+  }
+
   .preference-badge {
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-sm);
     padding: 3px 7px;
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 800;
     letter-spacing: 0.04em;
     line-height: 1;
     text-transform: uppercase;
@@ -162,85 +223,75 @@
     color: var(--danger);
   }
 
-  .badge-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .import-meta {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-
   .score {
     flex-shrink: 0;
     color: var(--accent);
     font-size: var(--text-2xl);
     font-weight: 700;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
-  .signal-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    margin: 12px 0;
-  }
-
-  .signal-grid .pill {
-    justify-content: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .candidate-card ul {
-    margin: 0;
-    padding-left: 18px;
-  }
-
-  .candidate-card li {
-    margin-bottom: 4px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .candidate-card li:last-child {
-    margin-bottom: 0;
-  }
-
-  .preference-actions {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     margin-top: 12px;
   }
 
-  .preference-actions button {
+  .actions button {
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--surface-raised);
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
-    padding: 7px 8px;
+    font-weight: 700;
+    padding: 7px 10px;
   }
 
-  .preference-actions button:hover,
-  .preference-actions button.active {
+  .actions button:hover,
+  .actions button.active {
     border-color: var(--accent-border);
     background: var(--accent-soft);
     color: var(--text-primary);
   }
 
-  @media (max-width: 560px) {
-    .signal-grid,
-    .preference-actions {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .details-toggle {
+    margin-left: auto;
+  }
+
+  .details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .signal-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .signal-row span {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .details ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .details li {
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .details li:last-child {
+    margin-bottom: 0;
   }
 </style>

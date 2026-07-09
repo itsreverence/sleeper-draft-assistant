@@ -3,11 +3,13 @@
 
   import TopBar from "./lib/components/TopBar.svelte";
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
+  import ModeTabs from "./lib/components/ModeTabs.svelte";
   import ConnectPanel from "./lib/components/ConnectPanel.svelte";
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsPanel from "./lib/components/SettingsPanel.svelte";
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
+  import TeamNeedsStrip from "./lib/components/TeamNeedsStrip.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
@@ -37,7 +39,8 @@
     startExperimentalCodexLogin,
     updateSettings,
   } from "./lib/api";
-  import { draftSlotToRosterFallback, getUserTeam, isMockDraft } from "./lib/format";
+  import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
+  import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
     ConnectLeague,
@@ -222,6 +225,9 @@
 
   let connectExpanded = $state(!hasStoredDraft());
   let rankingsExpanded = $state(false);
+  let workspaceMode: WorkspaceMode = $state("draft");
+  let userPickedMode = $state(false);
+  let phaseSyncKey = $state("");
 
   onMount(async () => {
     await loadSettings();
@@ -406,6 +412,9 @@
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
+    workspaceMode = "draft";
+    userPickedMode = false;
+    phaseSyncKey = "";
     window.localStorage.removeItem("lastDraftId");
     window.localStorage.removeItem("lastUserRosterId");
     window.localStorage.removeItem("lastLeagueId");
@@ -466,6 +475,9 @@
       teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
+      workspaceMode = "draft";
+      userPickedMode = false;
+      phaseSyncKey = "";
       window.localStorage.removeItem("lastDraftId");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
@@ -496,7 +508,6 @@
       teamLineupSummary = payload.lineupSummary;
       teamWeekContext = payload.weekContext;
       teamWaiverSummary = payload.waiverSummary;
-    teamActivitySummary = payload.activitySummary;
       teamActivitySummary = payload.activitySummary;
     } catch (error) {
       teamManagerState = null;
@@ -736,6 +747,35 @@
       tone: hasImportedRankings || isDemoDraftActive ? (rankingImportSummary && (rankingImportSummary.unmatched.length > 0 || rankingImportSummary.ambiguous.length > 0) ? "warning" : "ready") : isRealDraftActive ? "warning" : "neutral",
     },
   ]);
+  const setupComplete = $derived(readinessItems.every((item) => item.tone === "ready" || item.tone === "neutral"));
+  const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
+  const showSetupChecklist = $derived(!draftState || !setupComplete || connectExpanded);
+  const draftPhase = $derived(getDraftPhase(draftState));
+
+  $effect(() => {
+    const key = `${activeDraftId}:${draftPhase ?? ""}`;
+    if (!draftState || !activeDraftId) {
+      phaseSyncKey = "";
+      return;
+    }
+
+    if (key !== phaseSyncKey) {
+      phaseSyncKey = key;
+      userPickedMode = false;
+      workspaceMode = preferredWorkspaceMode(draftPhase, manageAvailable);
+      return;
+    }
+
+    if (!userPickedMode && draftPhase === "complete" && manageAvailable && workspaceMode !== "manage") {
+      workspaceMode = "manage";
+    }
+  });
+
+  $effect(() => {
+    if (!manageAvailable && workspaceMode === "manage") {
+      workspaceMode = "draft";
+    }
+  });
 </script>
 
 <main class="app-shell">
@@ -766,7 +806,9 @@
     />
   {/if}
 
-  <SetupChecklist items={readinessItems} />
+  {#if showSetupChecklist}
+    <SetupChecklist items={readinessItems} />
+  {/if}
 
   {#if connectExpanded}
     <div class="connect-editor">
@@ -797,50 +839,110 @@
 
   {#if draftState}
     {#key activeDraftId}
+      <ModeTabs
+        bind:mode={workspaceMode}
+        {manageAvailable}
+        phase={draftPhase}
+        onUserSelect={() => {
+          userPickedMode = true;
+        }}
+      />
       <DraftSummaryStrip state={draftState} />
 
-      <section class="dashboard-grid">
-        <RecommendationPanel
-          {recommendation}
-          playerPreferences={playerPreferences}
-          showPlaceholderWarning={recommendationsUsePlaceholder}
-          onSetPreference={setPlayerPreference}
-          onWhatIf={askWhatIf}
-          onClearPreferences={clearPlayerPreferences}
-          onOpenRankings={() => (rankingsExpanded = true)}
-        />
-        <div class="side-column">
-          <RankingsImportPanel
-            hasDraft={true}
-            {hasImportedRankings}
-            {isImportingRankings}
-            {isClearingRankings}
-            {rankingImportSummary}
-            {rankingImportError}
-            onImport={importRankings}
-            onClear={clearRankings}
-            onOpenFantasyPros={openFantasyProsRankings}
-            bind:expanded={rankingsExpanded}
-          />
-          <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
-          <TeamNeedsPanel needs={teamNeeds} />
-          <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
-          <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
-          <RosterPanel state={draftState} />
-          <PickFeedPanel state={draftState} />
-          <AskManagerPanel
-            onAsk={askManager}
-            providerStatus={aiProviderStatus}
-            {hasImportedRankings}
-            showPlaceholderWarning={recommendationsUsePlaceholder}
-            {draftState}
-            {recommendation}
-          />
-        </div>
-      </section>
+      {#if workspaceMode === "draft"}
+        {#if draftPhase !== "complete"}
+          <TeamNeedsStrip needs={teamNeeds} />
+        {/if}
+        <section class="dashboard-grid draft-grid">
+          <div class="primary-column">
+            {#if draftPhase === "complete"}
+              <article class="panel phase-note">
+                <h2>Draft is over</h2>
+                <p>Recommendations and pick tools stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
+                {#if manageAvailable}
+                  <button
+                    class="btn btn-primary"
+                    type="button"
+                    onclick={() => {
+                      userPickedMode = true;
+                      workspaceMode = "manage";
+                    }}
+                  >
+                    Open season manager
+                  </button>
+                {/if}
+              </article>
+            {/if}
+            {#if draftPhase !== "complete"}
+              <RecommendationPanel
+                {recommendation}
+                playerPreferences={playerPreferences}
+                showPlaceholderWarning={recommendationsUsePlaceholder}
+                onSetPreference={setPlayerPreference}
+                onWhatIf={askWhatIf}
+                onClearPreferences={clearPlayerPreferences}
+                onOpenRankings={() => (rankingsExpanded = true)}
+              />
+              <AskManagerPanel
+                onAsk={askManager}
+                providerStatus={aiProviderStatus}
+                {hasImportedRankings}
+                showPlaceholderWarning={recommendationsUsePlaceholder}
+                {draftState}
+                {recommendation}
+              />
+            {:else}
+              <RosterPanel state={draftState} />
+              <PickFeedPanel state={draftState} />
+            {/if}
+          </div>
+          <div class="side-column">
+            {#if draftPhase !== "complete"}
+              <RankingsImportPanel
+                hasDraft={true}
+                {hasImportedRankings}
+                {isImportingRankings}
+                {isClearingRankings}
+                {rankingImportSummary}
+                {rankingImportError}
+                onImport={importRankings}
+                onClear={clearRankings}
+                onOpenFantasyPros={openFantasyProsRankings}
+                bind:expanded={rankingsExpanded}
+              />
+              <RosterPanel state={draftState} />
+              <PickFeedPanel state={draftState} />
+            {:else if hasImportedRankings}
+              <RankingsImportPanel
+                hasDraft={true}
+                {hasImportedRankings}
+                {isImportingRankings}
+                {isClearingRankings}
+                {rankingImportSummary}
+                {rankingImportError}
+                onImport={importRankings}
+                onClear={clearRankings}
+                onOpenFantasyPros={openFantasyProsRankings}
+                bind:expanded={rankingsExpanded}
+              />
+            {/if}
+          </div>
+        </section>
+      {:else}
+        <section class="dashboard-grid manage-grid">
+          <div class="primary-column">
+            <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
+            <TeamNeedsPanel needs={teamNeeds} />
+            <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+            <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+          </div>
+          <div class="side-column">
+            <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
+            <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+            <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+          </div>
+        </section>
+      {/if}
     {/key}
   {/if}
 </main>
@@ -866,10 +968,30 @@
     margin-top: var(--space-5);
   }
 
+  .primary-column,
   .side-column {
     display: grid;
     gap: var(--space-5);
     align-content: start;
+  }
+
+  .phase-note {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-5);
+  }
+
+  .phase-note h2 {
+    font-size: var(--text-lg);
+  }
+
+  .phase-note p {
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .phase-note .btn {
+    justify-self: start;
   }
 
   @media (max-width: 920px) {
@@ -878,20 +1000,3 @@
     }
   }
 </style>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

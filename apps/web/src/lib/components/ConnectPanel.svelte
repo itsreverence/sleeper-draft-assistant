@@ -48,6 +48,11 @@
 
   const selectedLeague = $derived(connectPayload?.leagues.find((league) => league.leagueId === selectedLeagueId) ?? null);
   const selectedDraft = $derived(selectedLeague?.drafts.find((draft) => draft.draftId === selectedDraftId) ?? null);
+  const hasMultipleLeagues = $derived((connectPayload?.leagues.length ?? 0) > 1);
+  const hasMultipleDrafts = $derived((selectedLeague?.drafts.length ?? 0) > 1);
+  const showLeaguePicker = $derived(hasMultipleLeagues);
+  const showDraftPicker = $derived(Boolean(selectedLeague && hasMultipleDrafts));
+  const showReadyCard = $derived(Boolean(selectedLeague && selectedDraft));
 
   function formatRosterSlots(slots: Record<string, number>) {
     const order = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "BN", "K", "DEF"];
@@ -55,6 +60,16 @@
       .filter((slot) => slots[slot])
       .map((slot) => `${slot} ${slots[slot]}`)
       .join(" / ");
+  }
+
+  function teamMatchLabel(league: ConnectLeague, draft: ConnectDraft) {
+    if (league.userRosterId) {
+      return `Matched to your roster ${league.userRosterId}`;
+    }
+    if (draft.userDraftSlot) {
+      return `Matched to draft slot ${draft.userDraftSlot}`;
+    }
+    return "Team match will be checked after opening";
   }
 
   function submitLookup(event: SubmitEvent) {
@@ -70,7 +85,6 @@
 
 <section class="panel connect-panel" aria-label="Sleeper connection">
   <div class="section-header">
-    <p class="eyebrow">Step 1</p>
     <h2><Icon name="link" size={17} /> Connect Sleeper</h2>
   </div>
 
@@ -96,19 +110,14 @@
   {#if connectPayload}
     <div class="connect-results">
       <div class="results-heading">
-        <div>
-          <strong>{connectPayload.user.displayName ?? connectPayload.user.username ?? connectPayload.user.userId}</strong>
-          <span>{connectPayload.season} season</span>
-        </div>
-        {#if selectedLeague && selectedDraft}
-          <small>{selectedLeague.name} / {selectedDraft.name}</small>
-        {/if}
+        <strong>{connectPayload.user.displayName ?? connectPayload.user.username ?? connectPayload.user.userId}</strong>
+        <span>{connectPayload.season} season · {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
       </div>
 
       {#if connectPayload.leagues.length > 0}
-        <div class="choice-grid">
+        {#if showLeaguePicker}
           <section class="choice-column" aria-label="Leagues">
-            <h3>Leagues</h3>
+            <h3>Choose a league</h3>
             <div class="option-list">
               {#each connectPayload.leagues as league (league.leagueId)}
                 <button
@@ -118,57 +127,50 @@
                   onclick={() => onSelectLeague(league)}
                 >
                   <strong>{league.name}</strong>
-                  <span>{league.status} - {league.totalRosters ?? "?"} teams - {league.scoring}</span>
-                  <small>{formatRosterSlots(league.rosterSlots) || "Roster settings unavailable"}</small>
+                  <span>{league.status} · {league.totalRosters ?? "?"} teams · {league.scoring}</span>
                 </button>
               {/each}
             </div>
           </section>
+        {/if}
 
+        {#if showDraftPicker && selectedLeague}
           <section class="choice-column" aria-label="Drafts">
-            <h3>Drafts</h3>
-            {#if selectedLeague && selectedLeague.drafts.length > 0}
-              <div class="option-list">
-                {#each selectedLeague.drafts as draft (draft.draftId)}
-                  <button
-                    class="option-row"
-                    class:selected={draft.draftId === selectedDraftId}
-                    type="button"
-                    onclick={() => onSelectDraft(draft)}
-                  >
-                    <strong>{draft.name}</strong>
-                    <span>{draft.status} - {draft.type} - {draft.rounds ?? "?"} rounds</span>
-                    <small>
-                      {selectedLeague.userRosterId
-                        ? `Your roster ${selectedLeague.userRosterId}`
-                        : draft.userDraftSlot
-                          ? `Your slot ${draft.userDraftSlot}`
-                          : "Confirm your team after opening"}
-                    </small>
-                  </button>
-                {/each}
-              </div>
-              {#if selectedDraft}
-                <div class="selected-draft-summary">
-                  <strong>{selectedDraft.name}</strong>
-                  <span>
-                    {selectedLeague.userRosterId
-                      ? `Matched to your roster ${selectedLeague.userRosterId}`
-                      : selectedDraft.userDraftSlot
-                        ? `Matched to draft slot ${selectedDraft.userDraftSlot}`
-                        : "Team match will be checked after opening"}
-                  </span>
-                </div>
-              {/if}
-              <button class="btn btn-primary btn-block" type="button" disabled={!selectedDraft || isLoading} onclick={onOpenSelectedDraft}>
-                {#if isLoading}<span class="spinner"></span>{/if}
-                {isLoading ? "Opening" : "Open draft room"}
-              </button>
-            {:else}
-              <p class="empty">No drafts found for this league.</p>
-            {/if}
+            <h3>Choose a draft</h3>
+            <div class="option-list">
+              {#each selectedLeague.drafts as draft (draft.draftId)}
+                <button
+                  class="option-row"
+                  class:selected={draft.draftId === selectedDraftId}
+                  type="button"
+                  onclick={() => onSelectDraft(draft)}
+                >
+                  <strong>{draft.name}</strong>
+                  <span>{draft.status} · {draft.type} · {draft.rounds ?? "?"} rounds</span>
+                </button>
+              {/each}
+            </div>
           </section>
-        </div>
+        {/if}
+
+        {#if showReadyCard && selectedLeague && selectedDraft}
+          <div class="ready-card">
+            <div class="ready-copy">
+              <strong>{selectedLeague.name}</strong>
+              <span>
+                {selectedLeague.totalRosters ?? "?"} teams · {selectedLeague.scoring} · {selectedDraft.type} · {selectedDraft.rounds ?? "?"} rounds
+              </span>
+              <span class="ready-meta">{formatRosterSlots(selectedLeague.rosterSlots) || "Roster settings unavailable"}</span>
+              <span class="ready-match">{teamMatchLabel(selectedLeague, selectedDraft)}</span>
+            </div>
+            <button class="btn btn-primary" type="button" disabled={isLoading} onclick={onOpenSelectedDraft}>
+              {#if isLoading}<span class="spinner"></span>{/if}
+              {isLoading ? "Opening" : "Open draft room"}
+            </button>
+          </div>
+        {:else if selectedLeague && selectedLeague.drafts.length === 0}
+          <p class="empty">No drafts found for this league.</p>
+        {/if}
       {:else}
         <p class="empty">No leagues found from the user listing. For newly-created predraft leagues, paste the Sleeper league URL or ID above.</p>
       {/if}
@@ -239,16 +241,9 @@
 
   .connect-results {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
     border-top: 1px solid var(--border);
     padding-top: var(--space-4);
-  }
-
-  .results-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
   }
 
   .results-heading strong {
@@ -257,20 +252,9 @@
 
   .results-heading span {
     display: block;
+    margin-top: 2px;
     color: var(--text-muted);
     font-size: var(--text-sm);
-  }
-
-  .results-heading small {
-    text-align: right;
-    color: var(--text-secondary);
-    font-weight: 700;
-  }
-
-  .choice-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.85fr);
-    gap: var(--space-4);
   }
 
   .choice-column h3 {
@@ -298,7 +282,7 @@
     text-align: left;
     white-space: normal;
     cursor: pointer;
-    transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+    transition: border-color var(--transition-fast), background var(--transition-fast);
   }
 
   .option-row:hover {
@@ -306,22 +290,16 @@
     border-color: var(--border-strong);
   }
 
-  .option-row:active {
-    transform: scale(0.995);
-  }
-
   .option-row.selected {
     border-color: var(--accent-border);
     background: var(--accent-soft);
-    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .option-row strong {
     display: block;
   }
 
-  .option-row span,
-  .option-row small {
+  .option-row span {
     display: block;
     margin-top: 2px;
     color: var(--text-muted);
@@ -329,21 +307,44 @@
     font-weight: 600;
   }
 
-  .selected-draft-summary {
-    display: grid;
-    gap: 2px;
-    margin-top: 10px;
+  .ready-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
     border: 1px solid var(--accent-border);
     border-radius: var(--radius-md);
     background: var(--accent-soft);
-    padding: 10px 12px;
+    padding: 14px 16px;
   }
 
-  .selected-draft-summary span {
-    display: block;
-    color: var(--accent);
+  .ready-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .ready-copy strong {
+    font-size: var(--text-md);
+  }
+
+  .ready-copy span {
+    color: var(--text-secondary);
     font-size: var(--text-sm);
+  }
+
+  .ready-meta {
+    color: var(--text-muted) !important;
+    font-size: var(--text-xs) !important;
+  }
+
+  .ready-match {
+    color: var(--accent) !important;
     font-weight: 700;
+  }
+
+  .ready-card .btn {
+    flex-shrink: 0;
   }
 
   .disclosure {
@@ -396,18 +397,13 @@
   }
 
   @media (max-width: 720px) {
-    .lookup-form,
-    .choice-grid {
+    .lookup-form {
       grid-template-columns: 1fr;
     }
 
-    .results-heading {
+    .ready-card {
       align-items: stretch;
       flex-direction: column;
-    }
-
-    .results-heading small {
-      text-align: left;
     }
   }
 </style>

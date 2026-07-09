@@ -12,7 +12,6 @@
 <article class="panel team-needs-panel">
   <div class="panel-heading compact">
     <div>
-      <p class="eyebrow">Team needs</p>
       <h2><Icon name="target" size={17} /> Roster structure</h2>
     </div>
   </div>
@@ -42,14 +41,14 @@
     <p class="flex-pressure">{needs.flexPressure}</p>
 
     <div class="lineup-block">
-      <p class="eyebrow">Deterministic lineup</p>
+      <p class="section-label">Deterministic lineup</p>
       <div class="lineup-list">
         {#each needs.lineup as assignment}
           <div class:open={!assignment.player} class="lineup-row">
             <span class="slot-label">{assignment.slot}</span>
             {#if assignment.player}
               <span class="player-name">{assignment.player.name}</span>
-              <span class="player-meta">{assignment.player.team} ∑ {assignment.player.position}</span>
+              <span class="player-meta">{assignment.player.team} ù {assignment.player.position}</span>
             {:else}
               <span class="player-name muted">Open</span>
               <span class="player-meta">{assignment.eligiblePositions.join("/")}</span>
@@ -60,7 +59,7 @@
     </div>
 
     <div class="facts-block">
-      <p class="eyebrow">Engine facts</p>
+      <p class="section-label">Engine facts</p>
       <ul>
         {#each needs.facts.slice(0, 5) as fact}
           <li>{fact}</li>
@@ -138,6 +137,13 @@
   .facts-block {
     display: grid;
     gap: 8px;
+  }
+
+  .section-label {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
   }
 
   .lineup-list {

@@ -11,7 +11,6 @@
 <article class="panel">
   <div class="panel-heading compact">
     <div>
-      <p class="eyebrow">Team manager</p>
       <h2><Icon name="users" size={17} /> {state?.userTeam.name ?? "My Team"}</h2>
     </div>
     {#if state?.week}

@@ -46,7 +46,6 @@
 <article class="panel recommendation-panel">
   <div class="panel-heading">
     <div>
-      <p class="eyebrow">Recommendation</p>
       <h2><Icon name="target" size={18} /> {recommendation?.headline ?? "Waiting for board context"}</h2>
     </div>
     {#if recommendation}
@@ -109,6 +108,7 @@
         <CandidateCard
           {candidate}
           rank={index + 1}
+          featured={index === 0}
           preference={playerPreferences[candidate.player.id] ?? null}
           {onSetPreference}
           {onWhatIf}

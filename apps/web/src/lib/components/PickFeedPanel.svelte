@@ -11,8 +11,7 @@
 <article class="panel">
   <div class="panel-heading compact">
     <div>
-      <p class="eyebrow">Recent picks</p>
-      <h2><Icon name="activity" size={17} /> Pick feed</h2>
+      <h2><Icon name="activity" size={17} /> Recent picks</h2>
     </div>
   </div>
   {#if recentPicks.length > 0}

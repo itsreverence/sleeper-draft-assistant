@@ -53,6 +53,55 @@ export function getUserTeam(state: DraftState | null) {
   return state.teams.find((team) => team.id === state.userTeamId) ?? null;
 }
 
+export function draftSlotForPick(pickNo: number, teamCount: number): number {
+  if (teamCount <= 0 || pickNo <= 0) {
+    return 1;
+  }
+
+  const pickIndex = pickNo - 1;
+  const roundIndex = Math.floor(pickIndex / teamCount);
+  const positionInRound = pickIndex % teamCount;
+  return roundIndex % 2 === 0 ? positionInRound + 1 : teamCount - positionInRound;
+}
+
+export function picksUntilUserTurn(state: DraftState | null): number | null {
+  const userTeam = getUserTeam(state);
+  if (!state || !userTeam || state.status === "complete") {
+    return null;
+  }
+
+  const teamCount = state.settings.teams;
+  const totalPicks = teamCount * state.settings.rounds;
+  for (let pickNo = state.currentPick; pickNo <= totalPicks; pickNo += 1) {
+    if (draftSlotForPick(pickNo, teamCount) === userTeam.draftSlot) {
+      return pickNo - state.currentPick;
+    }
+  }
+
+  return null;
+}
+
+export function isUserOnTheClock(state: DraftState | null): boolean {
+  return picksUntilUserTurn(state) === 0;
+}
+
+export type DraftPhase = DraftState["status"];
+export type WorkspaceMode = "draft" | "manage";
+
+export function getDraftPhase(state: DraftState | null): DraftPhase | null {
+  return state?.status ?? null;
+}
+
+export function preferredWorkspaceMode(
+  phase: DraftPhase | null,
+  manageAvailable: boolean,
+): WorkspaceMode {
+  if (phase === "complete" && manageAvailable) {
+    return "manage";
+  }
+  return "draft";
+}
+
 export function rosterFitLabel(rosterFit: CandidateSignal["rosterFit"]) {
   switch (rosterFit) {
     case "need":
