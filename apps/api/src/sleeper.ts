@@ -1,4 +1,4 @@
-import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
+import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
 
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
 const playerCacheTtlMs = 24 * 60 * 60 * 1000;
@@ -82,6 +82,23 @@ export type SleeperMatchup = {
   players_points?: Record<string, number | string | null> | null;
 };
 
+
+export type SleeperTransaction = {
+  transaction_id: string;
+  type?: string | null;
+  status?: string | null;
+  created?: number | null;
+  roster_ids?: Array<number | string> | null;
+  adds?: Record<string, number | string | null> | null;
+  drops?: Record<string, number | string | null> | null;
+  settings?: JsonRecord | null;
+  waiver_budget?: Array<{ amount?: number | string | null; sender?: number | string | null; receiver?: number | string | null }> | null;
+};
+
+export type SleeperTrendingPlayer = {
+  player_id: string;
+  count?: number | string | null;
+};
 export type SleeperPlayer = {
   player_id?: string | null;
   full_name?: string | null;
@@ -193,6 +210,27 @@ export class SleeperClient {
     });
   }
 
+
+  async getTeamActivitySummary(leagueId: string, week?: number | null): Promise<TeamActivitySummary> {
+    const [players, nflState] = await Promise.all([
+      this.getPlayers(),
+      week ? Promise.resolve(null) : this.getNflState().catch(() => null),
+    ]);
+    const resolvedWeek = week ?? nflState?.display_week ?? nflState?.week ?? null;
+    const [transactions, trendingAdds, trendingDrops] = await Promise.all([
+      resolvedWeek ? this.getLeagueTransactions(leagueId, resolvedWeek).catch(() => []) : Promise.resolve([]),
+      this.getTrendingPlayers("add", 24, 25).catch(() => []),
+      this.getTrendingPlayers("drop", 24, 25).catch(() => []),
+    ]);
+
+    return normalizeSleeperActivitySummary({
+      players,
+      transactions,
+      trendingAdds,
+      trendingDrops,
+      week: resolvedWeek,
+    });
+  }
   async getTeamWeekContext(leagueId: string, week?: number | null, userRosterId?: string | null): Promise<TeamWeekContext | null> {
     const [leagueBundle, players, nflState] = await Promise.all([
       this.getLeagueBundle(leagueId),
@@ -261,6 +299,14 @@ export class SleeperClient {
     return this.fetchJson<SleeperMatchup[]>(`/league/${encodeURIComponent(leagueId)}/matchups/${encodeURIComponent(String(week))}`);
   }
 
+  async getLeagueTransactions(leagueId: string, week: number): Promise<SleeperTransaction[]> {
+    return this.fetchJson<SleeperTransaction[]>(`/league/${encodeURIComponent(leagueId)}/transactions/${encodeURIComponent(String(week))}`);
+  }
+
+  async getTrendingPlayers(type: "add" | "drop", lookbackHours = 24, limit = 25): Promise<SleeperTrendingPlayer[]> {
+    return this.fetchJson<SleeperTrendingPlayer[]>(`/players/nfl/trending/${type}?lookback_hours=${encodeURIComponent(String(lookbackHours))}&limit=${encodeURIComponent(String(limit))}`);
+  }
+
   async getPlayers(): Promise<SleeperPlayerMap> {
     if (playerCache && Date.now() - playerCache.loadedAt < playerCacheTtlMs) {
       return playerCache.players;
@@ -301,6 +347,38 @@ export class SleeperClient {
 }
 
 
+
+export function normalizeSleeperActivitySummary(input: {
+  players: SleeperPlayerMap;
+  transactions: SleeperTransaction[];
+  trendingAdds: SleeperTrendingPlayer[];
+  trendingDrops: SleeperTrendingPlayer[];
+  week?: number | null;
+}): TeamActivitySummary {
+  const recentTransactions = input.transactions
+    .filter((transaction) => transaction.status === "complete" || transaction.status === "pending")
+    .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+    .slice(0, 10)
+    .map((transaction) => normalizeTransactionItem(transaction, input.players));
+  const trendingAdds = normalizeTrendingPlayers(input.trendingAdds, input.players, "add");
+  const trendingDrops = normalizeTrendingPlayers(input.trendingDrops, input.players, "drop");
+  const facts = buildActivityFacts(recentTransactions, trendingAdds, trendingDrops);
+
+  return {
+    headline: facts[0] ?? "No recent Sleeper activity is available yet.",
+    week: input.week ?? null,
+    recentTransactions,
+    trendingAdds,
+    trendingDrops,
+    facts,
+    limitations: [
+      "Sleeper activity reflects transactions and trending add/drop counts, not projections or news analysis.",
+      "Trending data is global Sleeper activity and may not reflect this league's waivers.",
+      "Transaction data is read-only; this app does not submit adds, drops, trades, or bids.",
+    ],
+    updatedAt: new Date().toISOString(),
+  };
+}
 export function normalizeSleeperAvailablePlayers(input: { rosters: SleeperRoster[]; players: SleeperPlayerMap; limit?: number }): Player[] {
   const rosteredIds = new Set(
     input.rosters.flatMap((roster) => [
@@ -317,6 +395,78 @@ export function normalizeSleeperAvailablePlayers(input: { rosters: SleeperRoster
     .filter(isPresent)
     .sort(compareSleeperPlayers)
     .slice(0, input.limit ?? 160);
+}
+
+function normalizeTransactionItem(transaction: SleeperTransaction, players: SleeperPlayerMap): TeamActivitySummary["recentTransactions"][number] {
+  const addedPlayers = Object.keys(transaction.adds ?? {}).map((playerId) => toActivityPlayer(playerId, players)).filter(isPresent);
+  const droppedPlayers = Object.keys(transaction.drops ?? {}).map((playerId) => toActivityPlayer(playerId, players)).filter(isPresent);
+  const waiverBid = numberFrom(transaction.settings?.waiver_bid) ?? numberFrom(transaction.waiver_budget?.[0]?.amount);
+  const type = transaction.type ?? "unknown";
+  const descriptionParts: string[] = [];
+  if (addedPlayers.length) {
+    descriptionParts.push(`added ${addedPlayers.map((player) => player.name).join(", ")}`);
+  }
+  if (droppedPlayers.length) {
+    descriptionParts.push(`dropped ${droppedPlayers.map((player) => player.name).join(", ")}`);
+  }
+  if (!descriptionParts.length) {
+    descriptionParts.push(type.replace("_", " "));
+  }
+
+  return {
+    id: transaction.transaction_id,
+    type,
+    status: transaction.status ?? "unknown",
+    createdAt: transaction.created ? new Date(transaction.created).toISOString() : null,
+    rosterIds: (transaction.roster_ids ?? []).map(String),
+    addedPlayers,
+    droppedPlayers,
+    waiverBid,
+    description: `${type.replace("_", " ")}: ${descriptionParts.join("; ")}${waiverBid !== null ? ` for $${waiverBid}` : ""}`,
+  };
+}
+
+function normalizeTrendingPlayers(source: SleeperTrendingPlayer[], players: SleeperPlayerMap, direction: "add" | "drop"): TeamActivitySummary["trendingAdds"] {
+  return source
+    .map((item) => {
+      const player = toActivityPlayer(item.player_id, players);
+      if (!player) {
+        return null;
+      }
+      return {
+        player,
+        count: numberFrom(item.count),
+        direction,
+      };
+    })
+    .filter(isPresent)
+    .slice(0, 10);
+}
+
+function toActivityPlayer(playerId: string, players: SleeperPlayerMap): Player | null {
+  const rawPlayer = players[playerId];
+  return rawPlayer ? toPlayer(rawPlayer) : null;
+}
+
+function buildActivityFacts(
+  recentTransactions: TeamActivitySummary["recentTransactions"],
+  trendingAdds: TeamActivitySummary["trendingAdds"],
+  trendingDrops: TeamActivitySummary["trendingDrops"],
+): string[] {
+  const facts: string[] = [];
+  if (recentTransactions.length) {
+    facts.push(`${recentTransactions.length} recent league transaction${recentTransactions.length === 1 ? "" : "s"} loaded.`);
+  }
+  if (trendingAdds[0]) {
+    facts.push(`Top global add: ${trendingAdds[0].player.name}${trendingAdds[0].count !== null ? ` (${trendingAdds[0].count} adds)` : ""}.`);
+  }
+  if (trendingDrops[0]) {
+    facts.push(`Top global drop: ${trendingDrops[0].player.name}${trendingDrops[0].count !== null ? ` (${trendingDrops[0].count} drops)` : ""}.`);
+  }
+  if (!facts.length) {
+    facts.push("No recent Sleeper transaction or trending activity is available yet.");
+  }
+  return facts;
 }
 export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateInput): TeamManagerState {
   const userRoster = getTeamManagerRoster(input.rosters, input.userRosterId);
@@ -975,6 +1125,7 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
 
 
 

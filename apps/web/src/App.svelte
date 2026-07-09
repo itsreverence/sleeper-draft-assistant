@@ -11,6 +11,7 @@
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
+  import TeamActivityPanel from "./lib/components/TeamActivityPanel.svelte";
   import TeamNeedsPanel from "./lib/components/TeamNeedsPanel.svelte";
   import TeamLineupPanel from "./lib/components/TeamLineupPanel.svelte";
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
@@ -48,6 +49,7 @@
     DraftRecommendation,
     DraftState,
     RankingImportSummary,
+    TeamActivitySummary,
     TeamLineupSummary,
     TeamManagerState,
     TeamNeedsSummary,
@@ -81,6 +83,7 @@
   let teamLineupSummary: TeamLineupSummary | null = $state(null);
   let teamWeekContext: TeamWeekContext | null = $state(null);
   let teamWaiverSummary: TeamWaiverSummary | null = $state(null);
+  let teamActivitySummary: TeamActivitySummary | null = $state(null);
   let teamManagerError = $state("");
   let isLoadingTeamManager = $state(false);
   let playerPreferences: PlayerPreferences = $state({});
@@ -399,6 +402,7 @@
     teamLineupSummary = null;
     teamWeekContext = null;
     teamWaiverSummary = null;
+    teamActivitySummary = null;
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
@@ -458,6 +462,7 @@
       teamLineupSummary = null;
       teamWeekContext = null;
       teamWaiverSummary = null;
+      teamActivitySummary = null;
       teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
@@ -476,6 +481,7 @@
       teamLineupSummary = null;
       teamWeekContext = null;
       teamWaiverSummary = null;
+      teamActivitySummary = null;
       teamManagerError = "";
       isLoadingTeamManager = false;
       return;
@@ -490,12 +496,15 @@
       teamLineupSummary = payload.lineupSummary;
       teamWeekContext = payload.weekContext;
       teamWaiverSummary = payload.waiverSummary;
+    teamActivitySummary = payload.activitySummary;
+      teamActivitySummary = payload.activitySummary;
     } catch (error) {
       teamManagerState = null;
       teamNeeds = null;
       teamLineupSummary = null;
       teamWeekContext = null;
       teamWaiverSummary = null;
+      teamActivitySummary = null;
       teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
     } finally {
       isLoadingTeamManager = false;
@@ -633,6 +642,7 @@
     teamLineupSummary = payload.lineupSummary;
     teamWeekContext = payload.weekContext;
     teamWaiverSummary = payload.waiverSummary;
+    teamActivitySummary = payload.activitySummary;
     return payload.answer;
   }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
@@ -817,7 +827,8 @@
           <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
           <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
           <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+          <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
           <RosterPanel state={draftState} />
           <PickFeedPanel state={draftState} />
           <AskManagerPanel
@@ -867,6 +878,7 @@
     }
   }
 </style>
+
 
 
 

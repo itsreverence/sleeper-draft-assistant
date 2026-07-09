@@ -1,4 +1,4 @@
-import type { Player, TeamLineupSummary, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import type { Player, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildTeamAiContext } from "./team-context";
@@ -32,6 +32,15 @@ describe("team AI context", () => {
   });
 
 
+
+  it("includes Sleeper activity facts for market questions", () => {
+    const context = buildTeamAiContext(createTeamState(), "Who is trending?", [], null, null, null, createActivitySummary());
+
+    expect(context.activitySummary.trendingAdds[0]?.player.name).toBe("Trending RB");
+    expect(context.teamBrief.activityFacts).toContain("Top global add: Trending RB (50 adds).");
+    expect(context.teamBrief.trendingAdds[0]).toContain("Trending RB");
+    expect(context.teamBrief.recentTransactions[0]).toContain("added Trending RB");
+  });
   it("includes lineup decisions for start/sit questions", () => {
     const context = buildTeamAiContext(createTeamState(), "Who should I start?", [], null, null, createLineupSummary());
 
@@ -70,6 +79,31 @@ describe("team AI context", () => {
   });
 });
 
+function createActivitySummary(): TeamActivitySummary {
+  const trending = player("trend-rb", "Trending RB", "ATL", "RB");
+  return {
+    headline: "Top global add: Trending RB (50 adds).",
+    week: 1,
+    recentTransactions: [
+      {
+        id: "tx-1",
+        type: "free_agent",
+        status: "complete",
+        createdAt: "2026-09-01T00:00:00.000Z",
+        rosterIds: ["1"],
+        addedPlayers: [trending],
+        droppedPlayers: [],
+        waiverBid: null,
+        description: "free agent: added Trending RB",
+      },
+    ],
+    trendingAdds: [{ player: trending, count: 50, direction: "add" }],
+    trendingDrops: [],
+    facts: ["Top global add: Trending RB (50 adds)."],
+    limitations: ["Sleeper activity reflects transactions and trending add/drop counts, not projections or news analysis."],
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  };
+}
 function createLineupSummary(): TeamLineupSummary {
   const current = player("wr-1", "Ja'Marr Chase", "CIN", "WR");
   const recommended = player("bench-wr", "Bench WR", "SEA", "WR");
@@ -191,6 +225,7 @@ function player(id: string, name: string, team: string, position: Player["positi
     riskTags: [],
   };
 }
+
 
 
 

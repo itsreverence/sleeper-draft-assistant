@@ -1,4 +1,4 @@
-import type { DraftRecommendation, DraftState, Position, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import type { DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
 
 export type AiProviderId = "noop" | "codex-app-server" | "experimental-codex-backend";
 
@@ -128,6 +128,10 @@ export type TeamAiContext = {
     waiverFacts: string[];
     topWaiverCandidates: string[];
     topDropCandidates: string[];
+    activityFacts: string[];
+    recentTransactions: string[];
+    trendingAdds: string[];
+    trendingDrops: string[];
     opponent: string | null;
     weakestPositions: Position[];
     starterCandidates: string[];
@@ -138,6 +142,7 @@ export type TeamAiContext = {
   teamState: TeamManagerState;
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
+  activitySummary: TeamActivitySummary;
 };
 
 export type AiAnswer = {
@@ -150,6 +155,7 @@ export interface AiProvider {
   answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer>;
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
 }
+
 
 
 

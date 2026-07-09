@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
+import { normalizeSleeperActivitySummary, normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
 
 const fixture: SleeperDraftStateInput = {
   draft: {
@@ -318,4 +318,33 @@ describe("Sleeper weekly matchup normalization", () => {
   });
 });
 
+describe("Sleeper activity normalization", () => {
+  it("maps transactions and trending players into team activity context", () => {
+    const summary = normalizeSleeperActivitySummary({
+      players: fixture.players,
+      week: 2,
+      transactions: [
+        {
+          transaction_id: "tx-1",
+          type: "waiver",
+          status: "complete",
+          created: 1760000000000,
+          roster_ids: [12],
+          adds: { p4: 12 },
+          drops: { p1: 12 },
+          settings: { waiver_bid: 7 },
+        },
+      ],
+      trendingAdds: [{ player_id: "p2", count: 42 }],
+      trendingDrops: [{ player_id: "p1", count: 9 }],
+    });
+
+    expect(summary.week).toBe(2);
+    expect(summary.recentTransactions[0]).toMatchObject({ type: "waiver", waiverBid: 7 });
+    expect(summary.recentTransactions[0]?.description).toContain("added Player Four");
+    expect(summary.trendingAdds[0]?.player.name).toBe("Player Two");
+    expect(summary.trendingDrops[0]?.count).toBe(9);
+    expect(summary.facts).toContain("Top global add: Player Two (42 adds).");
+  });
+});
 

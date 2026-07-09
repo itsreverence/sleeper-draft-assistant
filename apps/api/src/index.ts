@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -45,6 +45,7 @@ type TeamPayload = {
   lineupSummary: TeamLineupSummary;
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
+  activitySummary: TeamActivitySummary;
 };
 
 app.use(
@@ -151,12 +152,13 @@ app.get("/leagues/:leagueId/team", async (c) => {
   try {
     const leagueId = c.req.param("leagueId");
     const userRosterId = getUserRosterId(c);
-    const [state, weekContext, availablePlayers] = await Promise.all([
+    const [state, weekContext, availablePlayers, activitySummary] = await Promise.all([
       sleeperClient.getTeamManagerState(leagueId, userRosterId),
       sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
+      sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
-    return c.json(toTeamPayload(state, weekContext, applyTeamRankingImport(c, availablePlayers)));
+    return c.json(toTeamPayload(state, weekContext, applyTeamRankingImport(c, availablePlayers), activitySummary));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -174,22 +176,23 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
 
     const leagueId = c.req.param("leagueId");
     const userRosterId = getUserRosterId(c);
-    const [state, weekContext, availablePlayers] = await Promise.all([
+    const [state, weekContext, availablePlayers, activitySummary] = await Promise.all([
       sleeperClient.getTeamManagerState(leagueId, userRosterId),
       sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
+      sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
     const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
     const aiAnswer = await aiProvider.answerTeamQuestion(
-      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(state, rankedAvailablePlayers), buildTeamLineupSummary(state)),
+      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(state, rankedAvailablePlayers), buildTeamLineupSummary(state), activitySummary),
     );
 
     return c.json({
       provider: aiAnswer.provider,
       question,
       answer: aiAnswer.answer,
-      ...toTeamPayload(state, weekContext, rankedAvailablePlayers),
+      ...toTeamPayload(state, weekContext, rankedAvailablePlayers, activitySummary),
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -302,15 +305,29 @@ async function loadDraftState(draftId: string, userRosterId?: string | null): Pr
   return rankingImportStore.apply(draftId, state);
 }
 
-function toTeamPayload(state: TeamManagerState, weekContext: TeamWeekContext | null = null, availablePlayers: Player[] = []): TeamPayload {
+function toTeamPayload(state: TeamManagerState, weekContext: TeamWeekContext | null = null, availablePlayers: Player[] = [], activitySummary: TeamActivitySummary | null = null): TeamPayload {
   return {
     state,
     needs: buildTeamNeedsSummary(state),
     lineupSummary: buildTeamLineupSummary(state),
     weekContext,
     waiverSummary: buildTeamWaiverSummary(state, availablePlayers),
+    activitySummary: activitySummary ?? emptyActivitySummary(),
   };
 }
+function emptyActivitySummary(): TeamActivitySummary {
+  return {
+    headline: "No Sleeper activity context is loaded yet.",
+    week: null,
+    recentTransactions: [],
+    trendingAdds: [],
+    trendingDrops: [],
+    facts: ["No Sleeper activity context is loaded yet."],
+    limitations: ["Sleeper activity could not be loaded for this team payload."],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function toDraftPayload(state: DraftState, draftId: string): DraftPayload {
   return {
     state,
@@ -520,6 +537,7 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
+
 
 
 

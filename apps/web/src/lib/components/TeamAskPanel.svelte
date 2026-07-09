@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AiConversationMessage, AiProviderStatus, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "../types";
+  import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
@@ -10,6 +10,7 @@
     lineupSummary = null,
     weekContext = null,
     waiverSummary = null,
+    activitySummary = null,
     onAsk,
     providerStatus = null,
   }: {
@@ -18,6 +19,7 @@
     lineupSummary?: TeamLineupSummary | null;
     weekContext?: TeamWeekContext | null;
     waiverSummary?: TeamWaiverSummary | null;
+    activitySummary?: TeamActivitySummary | null;
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
   } = $props();
@@ -30,7 +32,7 @@
 
   const providerLabel = $derived(providerStatus?.label ?? "AI manager");
   const providerReady = $derived(Boolean(providerStatus?.configured));
-  const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds, lineupSummary, weekContext, waiverSummary));
+  const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds, lineupSummary, weekContext, waiverSummary, activitySummary));
   const contextChips = $derived(
     teamState
       ? [
@@ -39,6 +41,7 @@
           lineupSummary?.swapRecommendations.length ? `${lineupSummary.swapRecommendations.length} lineup swaps` : teamNeeds?.openStarterSlots.length ? `${teamNeeds.openStarterSlots.length} open slots` : `${teamState.roster.bench.length} bench`,
           weekContext ? `Vs ${weekContext.opponentTeamName ?? "opponent"}` : teamState.week ? `Week ${teamState.week}` : "Week unknown",
           waiverSummary?.candidates.length ? `${waiverSummary.candidates.length} waiver options` : "Waivers pending",
+          activitySummary?.trendingAdds.length ? `${activitySummary.trendingAdds.length} trending adds` : "Activity pending",
         ]
       : ["No team loaded"],
   );
@@ -107,7 +110,7 @@
       .slice(-8);
   }
 
-  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined, currentLineup: TeamLineupSummary | null | undefined, currentWeek: TeamWeekContext | null | undefined, currentWaivers: TeamWaiverSummary | null | undefined): string[] {
+  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined, currentLineup: TeamLineupSummary | null | undefined, currentWeek: TeamWeekContext | null | undefined, currentWaivers: TeamWaiverSummary | null | undefined, currentActivity: TeamActivitySummary | null | undefined): string[] {
     if (!currentState) {
       return ["What should I check after loading my roster?"];
     }
@@ -142,6 +145,11 @@
       }
     }
 
+    if (currentActivity?.trendingAdds.length) {
+      questions.unshift("Who is trending that I should care about?");
+      questions.unshift(`Should I care about ${currentActivity.trendingAdds[0].player.name} trending up?`);
+    }
+
     if (currentWaivers?.candidates.length) {
       questions.unshift("Who should I add or drop?");
       questions.unshift(`Is ${currentWaivers.candidates[0].player.name} worth adding?`);
@@ -169,7 +177,7 @@
     </div>
   </div>
 
-  <p class="context-note">Team answers use Sleeper roster structure, inferred waiver availability, and current weekly matchup state when available. Matchup scores and imported ranks are not projections.</p>
+  <p class="context-note">Team answers use Sleeper roster structure, inferred waiver availability, Sleeper activity, and current weekly matchup state when available. Matchup scores and imported ranks are not projections.</p>
 
   {#if messages.length === 0}
     <SuggestedQuestions questions={suggestions} disabled={isAsking || !teamState} onChoose={(nextQuestion) => submit(nextQuestion)} />
@@ -262,6 +270,7 @@
     color: var(--danger);
   }
 </style>
+
 
 
 

@@ -1,4 +1,4 @@
-import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
+import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -71,6 +71,7 @@ export type TeamPayload = {
   lineupSummary: TeamLineupSummary;
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
+  activitySummary: TeamActivitySummary;
 };
 export type TeamAskAnswerPayload = TeamPayload & {
   answer: string;
@@ -107,7 +108,8 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer };
+export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer };
+
 
 
 
