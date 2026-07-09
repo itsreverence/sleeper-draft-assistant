@@ -2,6 +2,8 @@
 
 Use this before tagging or sharing a build. The goal is to prove the first-run path works without local developer context.
 
+Use `docs/alpha-release-notes.md` as the release-notes source for the first shared alpha.
+
 ## 1. Code quality
 
 Run from the repository root:
