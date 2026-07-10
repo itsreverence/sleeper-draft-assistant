@@ -100,6 +100,7 @@ export type DraftSettings = z.infer<typeof DraftSettingsSchema>;
 
 export const DraftStateSchema = z.object({
   id: z.string(),
+  leagueId: z.string().nullable().optional(),
   name: z.string(),
   status: z.enum(["pre_draft", "drafting", "complete"]),
   currentPick: z.number(),

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import type { AiProviderStatus, AppSettings, ExperimentalCodexAuthStatus } from "../types";
 
   let {
@@ -9,10 +10,13 @@
     codexAuthStatus,
     isStartingCodexLogin,
     isPollingCodexLogin,
+    isCopyingDiagnostics,
+    diagnosticsStatus,
     onSave,
     onStartCodexLogin,
     onPollCodexLogin,
     onLogoutCodex,
+    onCopyDiagnostics,
   }: {
     settings: AppSettings | null;
     providerStatus: AiProviderStatus | null;
@@ -21,10 +25,13 @@
     codexAuthStatus: ExperimentalCodexAuthStatus | null;
     isStartingCodexLogin: boolean;
     isPollingCodexLogin: boolean;
+    isCopyingDiagnostics: boolean;
+    diagnosticsStatus: string;
     onSave: (settings: AppSettings) => void;
     onStartCodexLogin: () => void;
     onPollCodexLogin: () => void;
     onLogoutCodex: () => void;
+    onCopyDiagnostics: () => void;
   } = $props();
 
   let aiProvider: AppSettings["aiProvider"] = $state("noop");
@@ -126,9 +133,19 @@
       <p class="callout callout-danger">{error}</p>
     {/if}
 
-    <button class="btn btn-primary" type="submit" disabled={isSaving || !settings}>
-      {isSaving ? "Saving" : "Save settings"}
-    </button>
+    <div class="settings-actions">
+      <button class="btn btn-primary" type="submit" disabled={isSaving || !settings}>
+        {isSaving ? "Saving" : "Save settings"}
+      </button>
+      <button class="btn btn-secondary" type="button" disabled={isCopyingDiagnostics} onclick={onCopyDiagnostics}>
+        <Icon name="clipboard" size={14} />
+        {isCopyingDiagnostics ? "Copying" : "Copy diagnostics"}
+      </button>
+    </div>
+
+    {#if diagnosticsStatus}
+      <p class="settings-note">{diagnosticsStatus}</p>
+    {/if}
   </form>
 </section>
 
@@ -147,6 +164,12 @@
 
   .provider-fields {
     grid-template-columns: minmax(0, 1fr) minmax(160px, 0.55fr) minmax(130px, 0.35fr);
+  }
+
+  .settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .settings-note {

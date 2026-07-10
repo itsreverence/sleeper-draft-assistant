@@ -703,6 +703,7 @@ export function normalizeSleeperDraftState(input: SleeperDraftStateInput): Draft
 
   return {
     id: input.draft.draft_id,
+    leagueId: input.draft.league_id ?? input.league?.league_id ?? null,
     name: buildDraftName(input),
     status: normalizeDraftStatus(input.draft.status, picks.length, totalPicks),
     currentPick: Math.min(picks.length + 1, totalPicks || picks.length + 1),

@@ -1,10 +1,11 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+﻿import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { SettingsStore } from "./settings-store";
+import { SqliteAppDatabase } from "./sqlite-app-database";
 
 describe("SettingsStore", () => {
   it("persists AI provider settings", () => {
@@ -27,6 +28,30 @@ describe("SettingsStore", () => {
       codexBin: "codex-test",
       codexModel: "gpt-5.4-test",
       codexTimeoutMs: 45000,
+    });
+  });
+
+  it("persists settings in SQLite", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-db-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    const firstDatabase = await SqliteAppDatabase.open(dbPath);
+    const firstStore = new SettingsStore(path.join(dir, "legacy-settings.json"), firstDatabase);
+
+    firstStore.update({
+      aiProvider: "codex-app-server",
+      codexBin: "codex-db-test",
+      codexModel: "gpt-db-test",
+      codexTimeoutMs: 30000,
+    });
+
+    const secondDatabase = await SqliteAppDatabase.open(dbPath);
+    const secondStore = new SettingsStore(path.join(dir, "legacy-settings.json"), secondDatabase);
+
+    expect(secondStore.get()).toMatchObject({
+      aiProvider: "codex-app-server",
+      codexBin: "codex-db-test",
+      codexModel: "gpt-db-test",
+      codexTimeoutMs: 30000,
     });
   });
 });

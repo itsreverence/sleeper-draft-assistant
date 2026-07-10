@@ -92,8 +92,15 @@
     <div class="rankings-instructions">
       <strong>Recommended flow</strong>
       <p>
-        Download the FantasyPros draft rankings CSV, then upload it here. The app will match rows to the active Sleeper
-        draft and use rank, tier, bye week, and ECR-vs-ADP as the primary valuation signal.
+        Open FantasyPros, download the draft rankings CSV for your scoring format, then upload it here. For alpha releases,
+        this is the intended player-value source for real drafts.
+      </p>
+      <p>
+        Without this import, the app still loads Sleeper draft state, but recommendations use rough Sleeper search-rank
+        placeholders and should be treated as setup checks rather than draft advice.
+      </p>
+      <p>
+        Matched rows are saved for this draft and feed rank, tier, bye week, and ECR-vs-ADP into recommendations and AI context.
       </p>
     </div>
 
@@ -102,7 +109,7 @@
         <span>FantasyPros CSV</span>
         <input class="input" type="file" accept=".csv,text/csv" onchange={readRankingFile} />
       </label>
-      <textarea class="input" bind:value={rankingCsvText} rows="5" placeholder="Or paste FantasyPros CSV text here."></textarea>
+      <textarea class="input" bind:value={rankingCsvText} rows="5" placeholder="Or paste FantasyPros CSV text here. Expected columns include RK, PLAYER NAME, TEAM, POS, BYE, SOS, and ECR VS. ADP."></textarea>
       <button class="btn btn-primary" type="button" disabled={isImportingRankings || isClearingRankings || !hasDraft} onclick={submitImport}>
         {#if isImportingRankings}<span class="spinner"></span>{/if}
         {isImportingRankings ? "Importing" : "Import rankings"}

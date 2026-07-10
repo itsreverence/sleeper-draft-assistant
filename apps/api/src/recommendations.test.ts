@@ -60,6 +60,11 @@ describe("draft recommendation routes", () => {
       const initialPayload = (await initialStateResponse.json()) as DraftPayload;
       expect(initialPayload.rankingImportSummary).toBeNull();
 
+      const initialDecisionsResponse = await app.request("/drafts/mock-draft/decisions?limit=5");
+      expect(initialDecisionsResponse.status).toBe(200);
+      const initialDecisions = (await initialDecisionsResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
+      expect(initialDecisions.snapshots.some((snapshot) => snapshot.trigger === "state-load")).toBe(true);
+
       const importResponse = await app.request("/drafts/mock-draft/rankings/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,9 +116,37 @@ describe("draft recommendation routes", () => {
       expect(askPayload.recommendation.candidates.some((candidate) => candidate.player.id === excludedId)).toBe(false);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
+
+      const decisionResponse = await app.request("/drafts/mock-draft/decisions?limit=10");
+      expect(decisionResponse.status).toBe(200);
+      const decisions = (await decisionResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
     } finally {
       await updateSettings(originalSettings);
     }
+  });
+  it("returns redacted diagnostics for support", async () => {
+    const response = await app.request("/diagnostics");
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      ok: boolean;
+      service: string;
+      capabilities: { sqliteStorage?: boolean };
+      settings: { aiProvider: string; codexBinConfigured: boolean; codexModel: string; codexTimeoutMs: number };
+      storage: { sqliteStorage: boolean; settingsRecords: number; rankingImportRecords: number; decisionSnapshots: number };
+      runtime: { node: string; platform: string; arch: string; packagedDataDir: boolean };
+    };
+
+    expect(payload.ok).toBe(true);
+    expect(payload.service).toBe("sleeper-ai-api");
+    expect(payload.capabilities.sqliteStorage).toBe(true);
+    expect(payload.settings.codexBinConfigured).toBe(true);
+    expect(payload.storage.sqliteStorage).toBe(true);
+    expect(payload.storage.settingsRecords).toBeGreaterThanOrEqual(1);
+    expect(payload.runtime.node).toMatch(/^v/);
+    expect(JSON.stringify(payload)).not.toContain("accessToken");
+    expect(JSON.stringify(payload)).not.toContain("refreshToken");
   });
 });
 

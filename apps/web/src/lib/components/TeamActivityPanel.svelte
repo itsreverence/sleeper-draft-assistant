@@ -44,7 +44,7 @@
         {#each adds as item}
           <div class="activity-row">
             <strong>{item.player.name}</strong>
-            <em>{item.player.team} {item.player.position}{item.count !== null ? ` · ${item.count}` : ""}</em>
+            <em>{item.player.team} {item.player.position}{item.count !== null ? ` - ${item.count}` : ""}</em>
           </div>
         {/each}
       </div>

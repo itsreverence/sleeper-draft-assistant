@@ -88,6 +88,15 @@
     <h2><Icon name="link" size={17} /> Connect Sleeper</h2>
   </div>
 
+  <div class="first-run-guide" aria-label="First run guide">
+    <strong>First release setup</strong>
+    <ol>
+      <li>Enter your Sleeper username. Paste a league URL or ID too if the league is new or still predraft.</li>
+      <li>Open the draft room and confirm your roster or draft slot matched correctly.</li>
+      <li>Import FantasyPros draft rankings before trusting pick recommendations for a real draft.</li>
+    </ol>
+  </div>
+
   <form class="lookup-form" onsubmit={submitLookup}>
     <label class="field">
       <span>Sleeper username or ID</span>
@@ -111,7 +120,7 @@
     <div class="connect-results">
       <div class="results-heading">
         <strong>{connectPayload.user.displayName ?? connectPayload.user.username ?? connectPayload.user.userId}</strong>
-        <span>{connectPayload.season} season · {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
+        <span>{connectPayload.season} season - {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
       </div>
 
       {#if connectPayload.leagues.length > 0}
@@ -127,7 +136,7 @@
                   onclick={() => onSelectLeague(league)}
                 >
                   <strong>{league.name}</strong>
-                  <span>{league.status} · {league.totalRosters ?? "?"} teams · {league.scoring}</span>
+                  <span>{league.status} - {league.totalRosters ?? "?"} teams - {league.scoring}</span>
                 </button>
               {/each}
             </div>
@@ -146,7 +155,7 @@
                   onclick={() => onSelectDraft(draft)}
                 >
                   <strong>{draft.name}</strong>
-                  <span>{draft.status} · {draft.type} · {draft.rounds ?? "?"} rounds</span>
+                  <span>{draft.status} - {draft.type} - {draft.rounds ?? "?"} rounds</span>
                 </button>
               {/each}
             </div>
@@ -158,7 +167,7 @@
             <div class="ready-copy">
               <strong>{selectedLeague.name}</strong>
               <span>
-                {selectedLeague.totalRosters ?? "?"} teams · {selectedLeague.scoring} · {selectedDraft.type} · {selectedDraft.rounds ?? "?"} rounds
+                {selectedLeague.totalRosters ?? "?"} teams - {selectedLeague.scoring} - {selectedDraft.type} - {selectedDraft.rounds ?? "?"} rounds
               </span>
               <span class="ready-meta">{formatRosterSlots(selectedLeague.rosterSlots) || "Roster settings unavailable"}</span>
               <span class="ready-match">{teamMatchLabel(selectedLeague, selectedDraft)}</span>
@@ -172,7 +181,7 @@
           <p class="empty">No drafts found for this league.</p>
         {/if}
       {:else}
-        <p class="empty">No leagues found from the user listing. For newly-created predraft leagues, paste the Sleeper league URL or ID above.</p>
+        <p class="empty">No leagues found from the user listing. For newly-created predraft leagues, paste the Sleeper league URL or ID above, such as sleeper.com/leagues/123/predraft.</p>
       {/if}
     </div>
   {/if}
@@ -194,7 +203,7 @@
 
   <details class="disclosure">
     <summary>Demo mode</summary>
-    <p class="disclosure-copy">Load a sample draft board for testing the interface. Demo data will not be restored on the next launch.</p>
+    <p class="disclosure-copy">Load a sample draft board for testing the interface only. Demo mode is not a source of player values and will not be restored on the next launch.</p>
     <button class="btn btn-secondary" type="button" onclick={onLoadMockDraft}>Try demo draft</button>
   </details>
 
@@ -226,6 +235,32 @@
     gap: 8px;
     font-size: var(--text-lg);
     margin-top: 2px;
+  }
+
+  .first-run-guide {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .first-run-guide strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .first-run-guide ol {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+
+  .first-run-guide li + li {
+    margin-top: 4px;
   }
 
   .lookup-form {
@@ -397,7 +432,33 @@
   }
 
   @media (max-width: 720px) {
-    .lookup-form {
+    .first-run-guide {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .first-run-guide strong {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .first-run-guide ol {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+  }
+
+  .first-run-guide li + li {
+    margin-top: 4px;
+  }
+
+  .lookup-form {
       grid-template-columns: 1fr;
     }
 

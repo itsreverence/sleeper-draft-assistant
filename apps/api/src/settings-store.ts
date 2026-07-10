@@ -4,10 +4,12 @@ import { fileURLToPath } from "node:url";
 
 import { AppSettingsSchema, AppSettingsUpdateSchema, type AppSettings, type AppSettingsUpdate } from "@sleeper-ai/shared";
 
+import type { SqliteAppDatabase } from "./sqlite-app-database";
+
 export class SettingsStore {
   private settings: AppSettings;
 
-  constructor(private readonly filePath = getDefaultSettingsPath()) {
+  constructor(private readonly filePath = getDefaultSettingsPath(), private readonly database?: SqliteAppDatabase) {
     this.settings = this.load();
   }
 
@@ -27,22 +29,39 @@ export class SettingsStore {
 
   private load(): AppSettings {
     const defaults = getDefaultSettings();
+    const storedSettings = this.database?.getJson<unknown>("settings", "app");
+    if (storedSettings) {
+      return AppSettingsSchema.parse({
+        ...defaults,
+        ...(typeof storedSettings === "object" && storedSettings !== null ? storedSettings : {}),
+      });
+    }
+
     if (!existsSync(this.filePath)) {
+      this.database?.setJson("settings", "app", defaults);
       return defaults;
     }
 
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as unknown;
-      return AppSettingsSchema.parse({
+      const settings = AppSettingsSchema.parse({
         ...defaults,
         ...(typeof parsed === "object" && parsed !== null ? parsed : {}),
       });
+      this.database?.setJson("settings", "app", settings);
+      return settings;
     } catch {
+      this.database?.setJson("settings", "app", defaults);
       return defaults;
     }
   }
 
   private save() {
+    if (this.database) {
+      this.database.setJson("settings", "app", this.settings);
+      return;
+    }
+
     mkdirSync(path.dirname(this.filePath), { recursive: true });
     writeFileSync(this.filePath, `${JSON.stringify(this.settings, null, 2)}\n`, "utf8");
   }

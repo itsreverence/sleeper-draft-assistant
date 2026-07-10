@@ -12,22 +12,26 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { ExperimentalCodexAuthClient, ExperimentalCodexTokenStore } from "./ai/experimental-codex-auth";
+import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
+import { SqliteAppDatabase } from "./sqlite-app-database";
 
 export const app = new Hono();
 const port = Number(process.env.PORT ?? 8787);
 const sleeperClient = new SleeperClient();
-const rankingImportStore = new RankingImportStore();
-const settingsStore = new SettingsStore();
+const appDatabase = await SqliteAppDatabase.open();
+const rankingImportStore = new RankingImportStore(undefined, appDatabase);
+const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
+const settingsStore = new SettingsStore(undefined, appDatabase);
 const experimentalCodexTokenStore = new ExperimentalCodexTokenStore();
 const experimentalCodexAuthClient = new ExperimentalCodexAuthClient();
 let pendingExperimentalCodexDeviceCode: { userCode: string; deviceAuthId: string; verificationUri: string; interval: number } | null = null;
@@ -37,6 +41,12 @@ type DraftPayload = {
   state: DraftState;
   recommendation: DraftRecommendation;
   rankingImportSummary: RankingImportSummary | null;
+};
+
+type DraftPayloadOptions = {
+  recommendation?: DraftRecommendation;
+  recordTrigger?: DecisionSnapshotTrigger;
+  userRosterId?: string | null;
 };
 
 type TeamPayload = {
@@ -57,11 +67,25 @@ app.use(
   }),
 );
 
-app.get("/health", (c) =>
+app.get("/health", (c) => c.json(createHealthPayload()));
+
+app.get("/diagnostics", (c) =>
   c.json({
-    ok: true,
-    service: "sleeper-ai-api",
-    now: new Date().toISOString(),
+    ...createHealthPayload(),
+    diagnosticsVersion: 1,
+    settings: redactSettings(settingsStore.get()),
+    storage: {
+      sqliteStorage: true,
+      settingsRecords: appDatabase.countJson("settings"),
+      rankingImportRecords: appDatabase.countJson("ranking_imports"),
+      decisionSnapshots: appDatabase.countDecisionSnapshots(),
+    },
+    runtime: {
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      packagedDataDir: Boolean(process.env.SLEEPER_AI_DATA_DIR),
+    },
   }),
 );
 
@@ -201,7 +225,8 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
 app.get("/drafts/:draftId/state", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
-    return c.json(toDraftPayload(state, c.req.param("draftId")));
+    const draftId = c.req.param("draftId");
+    return c.json(toDraftPayload(state, draftId, { recordTrigger: "state-load", userRosterId: getUserRosterId(c) }));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -218,7 +243,7 @@ app.post("/drafts/:draftId/rankings/import", async (c) => {
 
     return c.json({
       summary: storedImport.summary,
-      ...toDraftPayload(importedState, draftId),
+      ...toDraftPayload(importedState, draftId, { recordTrigger: "rankings-import", userRosterId: getUserRosterId(c) }),
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -230,7 +255,7 @@ app.delete("/drafts/:draftId/rankings/import", async (c) => {
     const draftId = c.req.param("draftId");
     rankingImportStore.delete(draftId);
     const state = await loadDraftState(draftId, getUserRosterId(c));
-    return c.json(toDraftPayload(state, draftId));
+    return c.json(toDraftPayload(state, draftId, { recordTrigger: "rankings-clear", userRosterId: getUserRosterId(c) }));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -239,7 +264,10 @@ app.delete("/drafts/:draftId/rankings/import", async (c) => {
 app.get("/drafts/:draftId/recommendations", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
-    return c.json(buildDraftRecommendation(state));
+    const draftId = c.req.param("draftId");
+    const recommendation = buildDraftRecommendation(state);
+    decisionLogStore.record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
+    return c.json(recommendation);
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -248,7 +276,10 @@ app.post("/drafts/:draftId/recommendations", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
     const body = (await c.req.json<{ recommendationPreferences?: DraftRecommendationOptions["preferences"] }>().catch(() => ({}))) as { recommendationPreferences?: DraftRecommendationOptions["preferences"] };
-    return c.json(buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) }));
+    const draftId = c.req.param("draftId");
+    const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+    decisionLogStore.record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
+    return c.json(recommendation);
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -266,7 +297,9 @@ app.post("/drafts/:draftId/ask", async (c) => {
     }
     const conversationHistory = normalizeConversationHistory(body.conversationHistory);
     const userPreferences = normalizeUserPreferences(body.userPreferences);
+    const draftId = c.req.param("draftId");
     const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+    decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
     const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
     const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question, conversationHistory, userPreferences));
 
@@ -279,6 +312,11 @@ app.post("/drafts/:draftId/ask", async (c) => {
   } catch (error) {
     return handleRouteError(c, error);
   }
+});
+
+app.get("/drafts/:draftId/decisions", (c) => {
+  const limit = Number(c.req.query("limit") ?? 50);
+  return c.json({ snapshots: decisionLogStore.list(c.req.param("draftId"), Number.isFinite(limit) ? limit : 50) });
 });
 
 app.get("/drafts/:draftId/events", async (c) => {
@@ -328,14 +366,46 @@ function emptyActivitySummary(): TeamActivitySummary {
   };
 }
 
-function toDraftPayload(state: DraftState, draftId: string): DraftPayload {
+function toDraftPayload(state: DraftState, draftId: string, options: DraftPayloadOptions = {}): DraftPayload {
+  const recommendation = options.recommendation ?? buildDraftRecommendation(state);
+  if (options.recordTrigger) {
+    decisionLogStore.record({
+      draftId,
+      state,
+      recommendation,
+      trigger: options.recordTrigger,
+      userRosterId: options.userRosterId,
+    });
+  }
+
   return {
     state,
-    recommendation: buildDraftRecommendation(state),
+    recommendation,
     rankingImportSummary: rankingImportStore.get(draftId)?.summary ?? null,
   };
 }
 
+function createHealthPayload() {
+  return {
+    ok: true,
+    service: "sleeper-ai-api",
+    capabilities: {
+      decisionLog: true,
+      draftLeagueId: true,
+      sqliteStorage: true,
+    },
+    now: new Date().toISOString(),
+  };
+}
+
+function redactSettings(settings: AppSettings) {
+  return {
+    aiProvider: settings.aiProvider,
+    codexBinConfigured: settings.codexBin.trim().length > 0,
+    codexModel: settings.codexModel,
+    codexTimeoutMs: settings.codexTimeoutMs,
+  };
+}
 function normalizeRecommendationPreferences(preferences: DraftRecommendationOptions["preferences"] | undefined): DraftRecommendationOptions["preferences"] {
   return {
     pinnedPlayerIds: normalizePreferenceNames(preferences?.pinnedPlayerIds),
@@ -489,7 +559,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
         send(controller, "pick", {
           type: "pick",
           pick: nextState.picks[nextState.picks.length - 1],
-          ...toDraftPayload(nextState, draftId),
+          ...toDraftPayload(nextState, draftId, { recordTrigger: "pick-update", userRosterId }),
         });
         return;
       }

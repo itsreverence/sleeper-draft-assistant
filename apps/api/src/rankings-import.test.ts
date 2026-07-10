@@ -7,6 +7,7 @@ import type { DraftState, Player } from "@sleeper-ai/shared";
 import { describe, expect, it } from "vitest";
 
 import { RankingImportStore, applyImportedRankings, importFantasyProsCsv } from "./rankings-import";
+import { SqliteAppDatabase } from "./sqlite-app-database";
 
 const csv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
 "1",1,"Jahmyr Gibbs",DET,"RB1","6","Coach Upside rating","Coach Bust rating","5 out of 5 stars","0"
@@ -76,6 +77,28 @@ describe("FantasyPros ranking import", () => {
     expect(gibbs?.projectionSource).toBe("mock");
   });
 
+
+  it("persists ranking imports in SQLite", async () => {
+    const state = createMockDraftState(0);
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-rankings-db-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    const firstDatabase = await SqliteAppDatabase.open(dbPath);
+    const firstStore = new RankingImportStore(path.join(dir, "legacy-ranking-imports.json"), firstDatabase);
+    firstStore.set(state.id, importFantasyProsCsv(state, csv));
+
+    const secondDatabase = await SqliteAppDatabase.open(dbPath);
+    const secondStore = new RankingImportStore(path.join(dir, "legacy-ranking-imports.json"), secondDatabase);
+    const importedState = secondStore.apply(state.id, state);
+    const gibbs = importedState.players.find((player) => player.name === "Jahmyr Gibbs");
+
+    expect(gibbs?.projectionSource).toBe("imported");
+    expect(gibbs?.importedRank).toBe(1);
+    expect(secondStore.delete(state.id)).toBe(true);
+
+    const thirdDatabase = await SqliteAppDatabase.open(dbPath);
+    const thirdStore = new RankingImportStore(path.join(dir, "legacy-ranking-imports.json"), thirdDatabase);
+    expect(thirdStore.get(state.id)).toBeNull();
+  });
   it("handles suffix, team alias, and DST position matching", () => {
     const state = withPlayers(createMockDraftState(0), [
       player("p-etienne", "Travis Etienne", "JAX", "RB"),
