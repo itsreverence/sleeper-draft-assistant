@@ -77,9 +77,8 @@ export class SqliteAppDatabase {
   }
 
   deleteJson(namespace: JsonNamespace, key: string): boolean {
-    const before = this.db.getRowsModified();
     this.db.run("DELETE FROM app_kv WHERE namespace = ? AND key = ?", [namespace, key]);
-    const deleted = this.db.getRowsModified() > before;
+    const deleted = this.db.getRowsModified() > 0;
     if (deleted) {
       this.persist();
     }
