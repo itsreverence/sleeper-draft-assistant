@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { app, redactErrorMessage } from "./index";
 
 describe("API public-release boundaries", () => {
-  it("keeps the direct experimental backend unavailable without explicit build opt-in", async () => {
-    const statusResponse = await app.request("/ai/experimental-codex/status");
+  it("does not expose removed direct-backend routes or settings", async () => {
+    const statusResponse = await app.request("/ai/direct-backend/status");
     const settingsResponse = await app.request("/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ aiProvider: "experimental-codex-backend" }),
+      body: JSON.stringify({ aiProvider: "unsupported-provider" }),
     });
 
     expect(statusResponse.status).toBe(404);

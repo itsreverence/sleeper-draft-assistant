@@ -30,14 +30,10 @@
     fetchDraftRecommendationRequest,
     fetchDraftState,
     fetchDiagnostics,
-    fetchExperimentalCodexStatus,
     fetchSettings,
     fetchSleeperConnect,
     fetchTeamManagerState,
     importRankingsRequest,
-    logoutExperimentalCodex,
-    pollExperimentalCodexLogin,
-    startExperimentalCodexLogin,
     updateSettings,
   } from "./lib/api";
   import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
@@ -49,7 +45,6 @@
     AppSettings,
     ConnectPayload,
     DraftPayload,
-    ExperimentalCodexAuthStatus,
     DraftRecommendation,
     DraftState,
     RankingImportSummary,
@@ -66,7 +61,6 @@
     PlayerPreferences,
     RecommendationPreferenceRequest,
   } from "./lib/types";
-  const experimentalCodexBackendEnabled = import.meta.env.VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND === "1";
   let draftState: DraftState | null = $state(null);
   let recommendation: DraftRecommendation | null = $state(null);
   let status = $state("Connect Sleeper");
@@ -102,9 +96,6 @@
   let appSettings: AppSettings | null = $state(null);
   let aiProviderStatus: AiProviderStatus | null = $state(null);
   let settingsError = $state("");
-  let experimentalCodexAuthStatus: ExperimentalCodexAuthStatus | null = $state(null);
-  let isStartingExperimentalCodexLogin = $state(false);
-  let isPollingExperimentalCodexLogin = $state(false);
   let isCopyingDiagnostics = $state(false);
   let diagnosticsStatus = $state("");
   let eventSource: EventSource | null = null;
@@ -257,14 +248,9 @@
   async function loadSettings() {
     settingsError = "";
     try {
-      const [settings, status, codexAuthStatus] = await Promise.all([
-        fetchSettings(),
-        fetchAiStatus(),
-        experimentalCodexBackendEnabled ? fetchExperimentalCodexStatus() : Promise.resolve(null),
-      ]);
+      const [settings, status] = await Promise.all([fetchSettings(), fetchAiStatus()]);
       appSettings = settings;
       aiProviderStatus = status;
-      experimentalCodexAuthStatus = codexAuthStatus;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not load settings.";
     }
@@ -276,9 +262,6 @@
     try {
       appSettings = await updateSettings(settings);
       aiProviderStatus = await fetchAiStatus();
-      experimentalCodexAuthStatus = experimentalCodexBackendEnabled
-        ? await fetchExperimentalCodexStatus()
-        : null;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not save settings.";
     } finally {
@@ -324,42 +307,6 @@
       diagnosticsStatus = error instanceof Error ? error.message : "Could not copy diagnostics.";
     } finally {
       isCopyingDiagnostics = false;
-    }
-  }
-
-  async function startExperimentalCodexAuth() {
-    isStartingExperimentalCodexLogin = true;
-    settingsError = "";
-    try {
-      experimentalCodexAuthStatus = await startExperimentalCodexLogin();
-      aiProviderStatus = await fetchAiStatus();
-    } catch (error) {
-      settingsError = error instanceof Error ? error.message : "Could not start Codex login.";
-    } finally {
-      isStartingExperimentalCodexLogin = false;
-    }
-  }
-
-  async function pollExperimentalCodexAuth() {
-    isPollingExperimentalCodexLogin = true;
-    settingsError = "";
-    try {
-      experimentalCodexAuthStatus = await pollExperimentalCodexLogin();
-      aiProviderStatus = await fetchAiStatus();
-    } catch (error) {
-      settingsError = error instanceof Error ? error.message : "Could not finish Codex login.";
-    } finally {
-      isPollingExperimentalCodexLogin = false;
-    }
-  }
-
-  async function logoutExperimentalCodexAuth() {
-    settingsError = "";
-    try {
-      experimentalCodexAuthStatus = await logoutExperimentalCodex();
-      aiProviderStatus = await fetchAiStatus();
-    } catch (error) {
-      settingsError = error instanceof Error ? error.message : "Could not log out of Codex.";
     }
   }
 
@@ -844,15 +791,9 @@
       providerStatus={aiProviderStatus}
       isSaving={isSavingSettings}
       error={settingsError}
-      codexAuthStatus={experimentalCodexAuthStatus}
-      isStartingCodexLogin={isStartingExperimentalCodexLogin}
-      isPollingCodexLogin={isPollingExperimentalCodexLogin}
       {isCopyingDiagnostics}
       {diagnosticsStatus}
       onSave={saveSettings}
-      onStartCodexLogin={startExperimentalCodexAuth}
-      onPollCodexLogin={pollExperimentalCodexAuth}
-      onLogoutCodex={logoutExperimentalCodexAuth}
       onCopyDiagnostics={copyDiagnostics}
     />
   {/if}

@@ -49,7 +49,6 @@ function createChildEnv() {
     FORCE_COLOR: "1",
     SLEEPER_AI_API_TOKEN: apiToken,
     VITE_SLEEPER_AI_API_TOKEN: apiToken,
-    VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND: process.env.SLEEPER_AI_ENABLE_EXPERIMENTAL_CODEX_BACKEND ?? "",
   };
 
   if (process.platform !== "win32") {

@@ -34,7 +34,7 @@ export const RankingImportRequestSchema = z.object({
 });
 export type RankingImportRequest = z.infer<typeof RankingImportRequestSchema>;
 
-export const AiProviderIdSchema = z.enum(["noop", "codex-app-server", "experimental-codex-backend"]);
+export const AiProviderIdSchema = z.enum(["noop", "codex-app-server"]);
 export type AiProviderId = z.infer<typeof AiProviderIdSchema>;
 
 export function isCodexExecutableReference(value: string): boolean {

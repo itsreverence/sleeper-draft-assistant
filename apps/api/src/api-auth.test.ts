@@ -10,6 +10,8 @@ describe("local API authentication", () => {
     app.get("/health", (c) => c.json({ ok: true }));
     app.get("/settings", (c) => c.json({ ok: true }));
     app.get("/drafts/mock/events", (c) => c.text("event"));
+    app.get("/drafts/mock/events/extra", (c) => c.text("not an event stream"));
+    app.get("/not-drafts/mock/events", (c) => c.text("not a draft event stream"));
     return app;
   }
 
@@ -31,6 +33,8 @@ describe("local API authentication", () => {
     const app = createApp();
     expect((await app.request("/drafts/mock/events?apiToken=test-capability")).status).toBe(200);
     expect((await app.request("/settings?apiToken=test-capability")).status).toBe(401);
+    expect((await app.request("/drafts/mock/events/extra?apiToken=test-capability")).status).toBe(401);
+    expect((await app.request("/not-drafts/mock/events?apiToken=test-capability")).status).toBe(401);
   });
 
   it("rejects missing or incorrect capabilities", async () => {

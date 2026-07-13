@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload } from "./types";
+import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -80,44 +80,6 @@ export async function fetchAiStatus(): Promise<AiProviderStatus> {
   }
 
   return (await response.json()) as AiProviderStatus;
-}
-
-export async function fetchExperimentalCodexStatus(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await apiFetch(`${apiBase}/ai/experimental-codex/status`);
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not load Codex auth status."));
-  }
-
-  return (await response.json()) as ExperimentalCodexAuthStatus;
-}
-
-export async function startExperimentalCodexLogin(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await apiFetch(`${apiBase}/ai/experimental-codex/auth/start`, { method: "POST" });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not start Codex login."));
-  }
-
-  return (await response.json()) as ExperimentalCodexAuthStatus;
-}
-
-export async function pollExperimentalCodexLogin(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await apiFetch(`${apiBase}/ai/experimental-codex/auth/poll`, {
-    method: "POST",
-  });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not poll Codex login."));
-  }
-
-  return (await response.json()) as ExperimentalCodexAuthStatus;
-}
-
-export async function logoutExperimentalCodex(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await apiFetch(`${apiBase}/ai/experimental-codex/logout`, { method: "POST" });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not log out of Codex."));
-  }
-
-  return (await response.json()) as ExperimentalCodexAuthStatus;
 }
 
 export async function fetchSleeperConnect(params: {

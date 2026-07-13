@@ -16,7 +16,6 @@ import { RankingImportRequestSchema, type AppSettings, type DraftRecommendation,
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
-import { ExperimentalCodexAuthClient, ExperimentalCodexTokenStore } from "./ai/experimental-codex-auth";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
@@ -25,21 +24,17 @@ import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 import { requireApiToken } from "./api-auth";
-import { isExperimentalCodexBackendEnabled } from "./experimental-features";
+import { parseApiPort } from "./config";
 
 export const app = new Hono();
-const port = Number(process.env.PORT ?? 8787);
+const port = parseApiPort(process.env.PORT);
 const hostname = "127.0.0.1";
 const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || null;
-const experimentalCodexBackendEnabled = isExperimentalCodexBackendEnabled();
 const sleeperClient = new SleeperClient();
 const appDatabase = await SqliteAppDatabase.open();
 const rankingImportStore = new RankingImportStore(undefined, appDatabase);
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
-const experimentalCodexTokenStore = new ExperimentalCodexTokenStore();
-const experimentalCodexAuthClient = new ExperimentalCodexAuthClient();
-let pendingExperimentalCodexDeviceCode: { userCode: string; deviceAuthId: string; verificationUri: string; interval: number } | null = null;
 let mockState = createMockDraftState(8);
 
 type DraftPayload = {
@@ -77,13 +72,6 @@ app.use(
   requireApiToken(apiToken, { allowUnauthenticated: process.env.NODE_ENV === "test" }),
 );
 
-app.use("/ai/experimental-codex/*", async (c, next) => {
-  if (!experimentalCodexBackendEnabled) {
-    return c.json({ error: "The direct experimental Codex backend is disabled in this build." }, 404);
-  }
-  await next();
-});
-
 app.get("/health", (c) => c.json(createHealthPayload()));
 
 app.get("/diagnostics", (c) =>
@@ -111,62 +99,13 @@ app.get("/settings", (c) => c.json(settingsStore.get()));
 app.put("/settings", async (c) => {
   try {
     const input = await c.req.json<Record<string, unknown>>();
-    if (input.aiProvider === "experimental-codex-backend" && !experimentalCodexBackendEnabled) {
-      return c.json({ error: "The direct experimental Codex backend is disabled in this build." }, 400);
-    }
     return c.json(settingsStore.update(input));
   } catch (error) {
     return handleRouteError(c, error);
   }
 });
 
-app.get("/ai/status", (c) => c.json(createAiProvider(settingsStore.get(), experimentalCodexTokenStore).status()));
-
-app.get("/ai/experimental-codex/status", (c) => {
-  const pending = pendingExperimentalCodexDeviceCode;
-  return c.json({
-    authenticated: Boolean(experimentalCodexTokenStore.get()),
-    verificationUri: pending?.verificationUri,
-    userCode: pending?.userCode,
-    interval: pending?.interval,
-  });
-});
-
-app.post("/ai/experimental-codex/auth/start", async (c) => {
-  try {
-    pendingExperimentalCodexDeviceCode = await experimentalCodexAuthClient.requestDeviceCode();
-    return c.json({ authenticated: false, ...pendingExperimentalCodexDeviceCode });
-  } catch (error) {
-    return handleRouteError(c, error);
-  }
-});
-
-app.post("/ai/experimental-codex/auth/poll", async (c) => {
-  try {
-    const deviceAuthId = pendingExperimentalCodexDeviceCode?.deviceAuthId;
-    const userCode = pendingExperimentalCodexDeviceCode?.userCode;
-    if (!deviceAuthId || !userCode) {
-      return c.json({ authenticated: false, pending: false, error: "Start Codex login first." }, 400);
-    }
-
-    const tokens = await experimentalCodexAuthClient.pollDeviceCode(deviceAuthId, userCode);
-    if (!tokens) {
-      return c.json({ authenticated: false, pending: true });
-    }
-
-    experimentalCodexTokenStore.set(tokens);
-    pendingExperimentalCodexDeviceCode = null;
-    return c.json({ authenticated: true, pending: false });
-  } catch (error) {
-    return handleRouteError(c, error);
-  }
-});
-
-app.post("/ai/experimental-codex/logout", (c) => {
-  experimentalCodexTokenStore.clear();
-  pendingExperimentalCodexDeviceCode = null;
-  return c.json({ authenticated: false });
-});
+app.get("/ai/status", (c) => c.json(createAiProvider(settingsStore.get()).status()));
 
 app.get("/drafts/mock/state", (c) => {
   return c.json(toDraftPayload(rankingImportStore.apply("mock-draft", mockState), "mock-draft"));
@@ -223,7 +162,7 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
-    const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
+    const aiProvider = createAiProvider(settingsStore.get());
     const aiAnswer = await aiProvider.answerTeamQuestion(
       buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(state, rankedAvailablePlayers), buildTeamLineupSummary(state), activitySummary),
     );
@@ -316,7 +255,7 @@ app.post("/drafts/:draftId/ask", async (c) => {
     const draftId = c.req.param("draftId");
     const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
     decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
-    const aiProvider = createAiProvider(settingsStore.get(), experimentalCodexTokenStore);
+    const aiProvider = createAiProvider(settingsStore.get());
     const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question, conversationHistory, userPreferences));
 
     return c.json({
@@ -409,7 +348,6 @@ function createHealthPayload() {
       decisionLog: true,
       draftLeagueId: true,
       sqliteStorage: true,
-      experimentalCodexBackend: experimentalCodexBackendEnabled,
     },
     now: new Date().toISOString(),
   };

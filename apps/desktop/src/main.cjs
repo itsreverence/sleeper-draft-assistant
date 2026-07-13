@@ -3,8 +3,9 @@ const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const net = require("node:net");
 const path = require("node:path");
+const { parseApiPort } = require("./config.cjs");
 
-const apiPort = Number(process.env.PORT ?? 8787);
+const apiPort = parseApiPort(process.env.PORT);
 const webDevUrl = process.env.SLEEPER_AI_WEB_URL ?? "http://127.0.0.1:5173";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || randomBytes(32).toString("base64url");
@@ -158,7 +159,6 @@ async function ensureWebServer() {
       ...process.env,
       FORCE_COLOR: "1",
       VITE_SLEEPER_AI_API_TOKEN: apiToken,
-      VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND: process.env.SLEEPER_AI_ENABLE_EXPERIMENTAL_CODEX_BACKEND ?? "",
     },
     stdio: "inherit",
     shell: process.platform === "win32",

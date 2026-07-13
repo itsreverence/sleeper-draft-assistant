@@ -17,7 +17,7 @@ export function requireApiToken(token: string | null, options: { allowUnauthenti
 
     const authorization = c.req.header("Authorization");
     const bearerToken = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : null;
-    const eventToken = c.req.path.endsWith("/events") ? c.req.query("apiToken") ?? null : null;
+    const eventToken = isDraftEventStreamPath(c.req.path) ? c.req.query("apiToken") ?? null : null;
 
     if (!token || (!tokensMatch(token, bearerToken) && !tokensMatch(token, eventToken))) {
       return c.json({ error: "Local API authentication required." }, 401);
@@ -25,6 +25,10 @@ export function requireApiToken(token: string | null, options: { allowUnauthenti
 
     await next();
   };
+}
+
+function isDraftEventStreamPath(requestPath: string): boolean {
+  return /^\/drafts\/[^/]+\/events$/.test(requestPath);
 }
 
 function tokensMatch(expected: string, candidate: string | null): boolean {

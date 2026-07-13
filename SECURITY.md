@@ -23,4 +23,4 @@ You should receive an acknowledgement within seven days. Please allow a reasonab
 
 The desktop application runs a loopback-only API protected by a random per-launch capability token. The token is an application boundary, not a defense against malware or another process already executing as the same operating-system user. Local files are protected with owner-only POSIX modes where supported; Windows relies on profile ACLs.
 
-The project does not claim to secure a compromised host, compromised Codex installation, malicious imported file beyond documented parser limits, or unsupported experimental provider integrations.
+The project does not claim to secure a compromised host, malware or another process running as the same operating-system user, a compromised Codex installation, or a malicious imported file beyond documented parser limits. Filesystem symlink checks reject links observed before access but are not a race-proof boundary against same-user path replacement.

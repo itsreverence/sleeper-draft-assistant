@@ -90,15 +90,6 @@ export type ReadinessItem = {
   tone: Tone;
 };
 
-export type ExperimentalCodexAuthStatus = {
-  authenticated: boolean;
-  verificationUri?: string;
-  userCode?: string;
-  interval?: number;
-  pending?: boolean;
-  error?: string;
-};
-
 export type AiProviderStatus = {
   id: AppSettings["aiProvider"];
   label: string;

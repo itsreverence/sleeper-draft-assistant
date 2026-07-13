@@ -1,6 +1,6 @@
 import type { DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
-export type AiProviderId = "noop" | "codex-app-server" | "experimental-codex-backend";
+export type AiProviderId = "noop" | "codex-app-server";
 
 export type AiProviderStatus = {
   id: AiProviderId;

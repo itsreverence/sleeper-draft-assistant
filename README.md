@@ -46,7 +46,7 @@ The app reads Sleeper data but does not submit picks, change lineups, or modify 
 
 AI is optional. **Deterministic fallback** is the default and makes no external AI request.
 
-The supported optional integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. A direct ChatGPT/Codex backend experiment remains source-visible for research but is disabled from normal builds and unsupported.
+The supported optional integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. No provider credentials are stored by Sleeper Draft Assistant.
 
 See [AI providers](docs/AI_PROVIDERS.md) for setup and limitations.
 

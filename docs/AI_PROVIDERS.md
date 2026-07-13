@@ -29,18 +29,6 @@ npm run dev
 
 Codex installation, login state, model availability, subscription requirements, and provider terms remain the user's responsibility. This project is not endorsed by OpenAI.
 
-## Unsupported direct-backend experiment
-
-The source contains an isolated research adapter for a direct ChatGPT/Codex backend. It uses an unstable, non-public integration surface and is disabled from normal API routes and UI builds. It is not a supported release feature and should not be used for dependable workflows.
-
-Developers deliberately researching it must opt in with:
-
-```bash
-SLEEPER_AI_ENABLE_EXPERIMENTAL_CODEX_BACKEND=1 npm run dev
-```
-
-That mode can persist long-lived access and refresh tokens locally. Read `PRIVACY.md` first. Compatibility, account impact, and upstream-policy acceptance are not guaranteed.
-
 ## Provider boundary
 
 Renderer code never stores provider credentials or contacts an AI provider directly. `AiProvider` adapters live in the local API and receive a focused context packet rather than the entire player database. Provider failures must be returned as bounded, redacted application errors.

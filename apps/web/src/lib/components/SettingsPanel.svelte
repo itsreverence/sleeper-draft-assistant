@@ -1,38 +1,24 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
-  import type { AiProviderStatus, AppSettings, ExperimentalCodexAuthStatus } from "../types";
-
-  const experimentalCodexBackendEnabled = import.meta.env.VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND === "1";
+  import type { AiProviderStatus, AppSettings } from "../types";
 
   let {
     settings,
     providerStatus,
     isSaving,
     error,
-    codexAuthStatus,
-    isStartingCodexLogin,
-    isPollingCodexLogin,
     isCopyingDiagnostics,
     diagnosticsStatus,
     onSave,
-    onStartCodexLogin,
-    onPollCodexLogin,
-    onLogoutCodex,
     onCopyDiagnostics,
   }: {
     settings: AppSettings | null;
     providerStatus: AiProviderStatus | null;
     isSaving: boolean;
     error: string;
-    codexAuthStatus: ExperimentalCodexAuthStatus | null;
-    isStartingCodexLogin: boolean;
-    isPollingCodexLogin: boolean;
     isCopyingDiagnostics: boolean;
     diagnosticsStatus: string;
     onSave: (settings: AppSettings) => void;
-    onStartCodexLogin: () => void;
-    onPollCodexLogin: () => void;
-    onLogoutCodex: () => void;
     onCopyDiagnostics: () => void;
   } = $props();
 
@@ -81,13 +67,10 @@
       <select class="input" bind:value={aiProvider}>
         <option value="noop">Deterministic fallback</option>
         <option value="codex-app-server">Codex app-server</option>
-        {#if experimentalCodexBackendEnabled}
-          <option value="experimental-codex-backend">Unsupported direct Codex experiment</option>
-        {/if}
       </select>
     </label>
 
-    {#if aiProvider === "codex-app-server" || aiProvider === "experimental-codex-backend"}
+    {#if aiProvider === "codex-app-server"}
       <div class="provider-fields">
         <label class="field">
           <span>Codex command</span>
@@ -102,29 +85,7 @@
           <input class="input" bind:value={codexTimeoutMs} type="number" min="5000" max="300000" step="1000" />
         </label>
       </div>
-      {#if aiProvider === "codex-app-server"}
-        <p class="settings-note">Requires the Codex CLI to be installed and signed in on this machine. Provider auth stays in the backend.</p>
-      {:else}
-        <div class="codex-auth-box">
-          <strong>{codexAuthStatus?.authenticated ? "Codex backend connected" : "Codex backend login"}</strong>
-          {#if codexAuthStatus?.authenticated}
-            <p>Authenticated with local backend token storage.</p>
-            <button class="btn btn-secondary" type="button" onclick={onLogoutCodex}>Log out</button>
-          {:else if codexAuthStatus?.userCode && codexAuthStatus?.verificationUri}
-            <p>Open the verification page and enter this code.</p>
-            <a href={codexAuthStatus.verificationUri} target="_blank" rel="noreferrer">{codexAuthStatus.verificationUri}</a>
-            <code>{codexAuthStatus.userCode}</code>
-            <button class="btn btn-secondary" type="button" disabled={isPollingCodexLogin} onclick={onPollCodexLogin}>
-              {isPollingCodexLogin ? "Checking" : "I approved login"}
-            </button>
-          {:else}
-            <p>Starts the ChatGPT/Codex device-code flow used by the experimental backend provider.</p>
-            <button class="btn btn-secondary" type="button" disabled={isStartingCodexLogin} onclick={onStartCodexLogin}>
-              {isStartingCodexLogin ? "Starting" : "Start Codex login"}
-            </button>
-          {/if}
-        </div>
-      {/if}
+      <p class="settings-note">Requires the Codex CLI to be installed and signed in on this machine. Provider auth stays in the backend.</p>
     {:else}
       <p class="settings-note">Uses deterministic draft signals only. No external AI provider is called.</p>
     {/if}
@@ -180,38 +141,6 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
-  }
-
-  .codex-auth-box {
-    display: grid;
-    gap: 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    padding: var(--space-4);
-  }
-
-  .codex-auth-box p {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.5;
-  }
-
-  .codex-auth-box a {
-    word-break: break-all;
-  }
-
-  .codex-auth-box code {
-    display: inline-flex;
-    justify-self: start;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    padding: 6px 10px;
-    color: var(--text-primary);
-    font-size: var(--text-lg);
-    font-weight: 800;
-    letter-spacing: 0.08em;
   }
 
   @media (max-width: 720px) {

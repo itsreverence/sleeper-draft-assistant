@@ -80,6 +80,8 @@ export function removePrivateFile(filePath: string): void {
 }
 
 export function assertNoSymlinkPath(targetPath: string): void {
+  // Defense in depth: rejects links observed during validation, but does not
+  // claim to defeat a same-user process racing ancestor replacement.
   const absolutePath = path.resolve(targetPath);
   const parsed = path.parse(absolutePath);
   let currentPath = parsed.root;

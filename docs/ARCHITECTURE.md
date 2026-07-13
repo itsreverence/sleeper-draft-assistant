@@ -44,7 +44,7 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 
 ## Persistence
 
-Packaged runs use Electron's per-user data directory. Development defaults to repository `data/` or `SLEEPER_AI_DATA_DIR` when supplied. Writes are atomic, reject symlink targets, and use owner-only POSIX permissions. Windows privacy depends on the user's profile ACLs.
+Packaged runs use Electron's per-user data directory. Development defaults to repository `data/` or `SLEEPER_AI_DATA_DIR` when supplied. Writes use atomic replacement, reject symlink components observed during path validation, and use owner-only POSIX permissions. The path checks are defense in depth, not a race-proof boundary against another process running as the same OS user. Windows privacy depends on the user's profile ACLs.
 
 ## Provider boundary
 
@@ -52,7 +52,6 @@ Packaged runs use Electron's per-user data directory. Development defaults to re
 
 - `noop`: deterministic response; default and offline-safe.
 - `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
-- `experimental-codex-backend`: unsupported direct-backend research path, disabled unless explicitly opted in at build and runtime.
 
 Executable configuration is limited to commands or paths ending in `codex`, `codex.exe`, or `codex.cmd`.
 
