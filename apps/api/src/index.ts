@@ -427,10 +427,6 @@ function handleRouteError(c: Context, error: unknown) {
     return c.json({ error: "Invalid request data." }, 400);
   }
 
-  if (error instanceof Error && error.message === "The direct experimental Codex backend is disabled in this build.") {
-    return c.json({ error: error.message }, 400);
-  }
-
   return c.json({ error: "The local service could not complete this request." }, 500);
 }
 

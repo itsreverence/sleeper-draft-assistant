@@ -1,4 +1,4 @@
-﻿import { mkdtempSync, readFileSync } from "node:fs";
+﻿import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -55,6 +55,43 @@ describe("SettingsStore", () => {
       codexModel: "gpt-db-test",
       codexTimeoutMs: 30000,
     });
+  });
+
+  it("migrates removed provider settings and deletes legacy tokens", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-migration-"));
+    const filePath = path.join(dir, "app-settings.json");
+    const tokenPath = path.join(dir, "experimental-codex-tokens.json");
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+    database.setJson("settings", "app", {
+      aiProvider: "experimental-codex-backend",
+      codexBin: "codex",
+      codexModel: "legacy-model",
+      codexTimeoutMs: 60000,
+    });
+    writeFileSync(tokenPath, '{"accessToken":"legacy","refreshToken":"legacy"}\n', { mode: 0o600 });
+
+    const store = new SettingsStore(filePath, database);
+
+    expect(store.get().aiProvider).toBe("noop");
+    expect(database.getJson<{ aiProvider: string }>("settings", "app")?.aiProvider).toBe("noop");
+    expect(existsSync(tokenPath)).toBe(false);
+  });
+
+  it("migrates a legacy JSON settings file in place", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-json-migration-"));
+    const filePath = path.join(dir, "app-settings.json");
+    writeFileSync(filePath, JSON.stringify({
+      aiProvider: "experimental-codex-backend",
+      codexBin: "codex",
+      codexModel: "legacy-model",
+      codexTimeoutMs: 60000,
+    }), { mode: 0o600 });
+
+    const store = new SettingsStore(filePath);
+    const migrated = JSON.parse(readFileSync(filePath, "utf8")) as { aiProvider: string };
+
+    expect(store.get().aiProvider).toBe("noop");
+    expect(migrated.aiProvider).toBe("noop");
   });
 
   it("rejects arbitrary subprocess commands", () => {

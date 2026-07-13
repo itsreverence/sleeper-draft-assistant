@@ -10,7 +10,7 @@ const webDevUrl = process.env.SLEEPER_AI_WEB_URL ?? "http://127.0.0.1:5173";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || randomBytes(32).toString("base64url");
 const expectedWebTitle = "Sleeper Draft Assistant";
-const allowedExternalHosts = new Set(["auth.openai.com", "chatgpt.com", "www.fantasypros.com"]);
+const allowedExternalHosts = new Set(["www.fantasypros.com"]);
 
 let apiProcess = null;
 let webProcess = null;

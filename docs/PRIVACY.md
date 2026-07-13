@@ -27,7 +27,7 @@ POSIX directories/files are created with owner-only `0700`/`0600` permissions. W
 
 ## Authentication material
 
-The supported Codex app-server provider relies on the user's separate local Codex installation and login. Sleeper Draft Assistant does not persist Codex credentials itself.
+The supported Codex app-server provider relies on the user's separate local Codex installation and login. Sleeper Draft Assistant does not persist Codex credentials itself. On first launch after upgrading from a development build that offered the removed direct-backend experiment, the app resets that provider setting to deterministic mode and deletes its obsolete local token file.
 
 The local API capability token is generated for each launch and kept in process/renderer memory; it is not intended as a persistent credential.
 
