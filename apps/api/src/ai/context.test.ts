@@ -1,5 +1,5 @@
-import { buildDraftRecommendation, createMockDraftState } from "@sleeper-ai/engine";
-import type { DraftState, Player, Position } from "@sleeper-ai/shared";
+import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
+import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildDraftAiContext } from "./context";

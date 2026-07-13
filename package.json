@@ -1,6 +1,6 @@
 {
   "name": "sleeper-draft-assistant",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -12,10 +12,10 @@
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "desktop": "npm run start -w @sleeper-ai/desktop",
-    "desktop:package": "npm run package -w @sleeper-ai/desktop",
-    "desktop:make": "npm run make -w @sleeper-ai/desktop",
-    "desktop:dist": "npm run dist -w @sleeper-ai/desktop"
+    "desktop": "npm run start -w @sleeper-draft-assistant/desktop",
+    "desktop:package": "npm run package -w @sleeper-draft-assistant/desktop",
+    "desktop:make": "npm run make -w @sleeper-draft-assistant/desktop",
+    "desktop:dist": "npm run dist -w @sleeper-draft-assistant/desktop"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
@@ -23,6 +23,19 @@
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
-  "description": "Local Sleeper-first AI fantasy football team manager and draft assistant.",
-  "author": "Sleeper AI Team Manager Contributors"
+  "description": "Unofficial, local-first fantasy football draft and team-management assistant for Sleeper.",
+  "author": "Sleeper Draft Assistant contributors",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "npm@11.6.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itsreverence/sleeper-draft-assistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itsreverence/sleeper-draft-assistant/issues"
+  },
+  "homepage": "https://github.com/itsreverence/sleeper-draft-assistant#readme"
 }

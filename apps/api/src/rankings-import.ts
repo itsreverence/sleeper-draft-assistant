@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { DraftState, Player, Position, RankingImportSummary } from "@sleeper-ai/shared";
+import type { DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
+import { readPrivateTextFile, writePrivateFile } from "./secure-file";
 
 export type StoredRankingImport = {
   summary: RankingImportSummary;
@@ -98,7 +99,7 @@ export class RankingImportStore {
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as Record<string, SerializedRankingImport>;
+      const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedRankingImport>;
       for (const [draftId, storedImport] of Object.entries(parsed)) {
         const deserialized = deserializeRankingImport(storedImport);
         this.imports.set(draftId, deserialized);
@@ -119,11 +120,10 @@ export class RankingImportStore {
   }
 
   private saveFile() {
-    mkdirSync(path.dirname(this.filePath), { recursive: true });
     const serialized = Object.fromEntries(
       Array.from(this.imports.entries()).map(([draftId, storedImport]) => [draftId, serializeRankingImport(storedImport)]),
     );
-    writeFileSync(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`, "utf8");
+    writePrivateFile(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`);
   }
 }
 

@@ -1,4 +1,4 @@
-import type { AppSettings, DraftRecommendation, DraftState, RankingImportSummary } from "@sleeper-ai/shared";
+import type { AppSettings, DraftRecommendation, DraftState, RankingImportSummary } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { app } from "./index";

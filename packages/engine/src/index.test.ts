@@ -1,4 +1,4 @@
-import type { DraftState, Player, Position, TeamManagerState } from "@sleeper-ai/shared";
+import type { DraftState, Player, Position, TeamManagerState } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import {

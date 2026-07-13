@@ -2,6 +2,8 @@
   import Icon from "./Icon.svelte";
   import type { AiProviderStatus, AppSettings, ExperimentalCodexAuthStatus } from "../types";
 
+  const experimentalCodexBackendEnabled = import.meta.env.VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND === "1";
+
   let {
     settings,
     providerStatus,
@@ -78,8 +80,10 @@
       <span>Provider</span>
       <select class="input" bind:value={aiProvider}>
         <option value="noop">Deterministic fallback</option>
-        <option value="experimental-codex-backend">Experimental Codex backend</option>
         <option value="codex-app-server">Codex app-server</option>
+        {#if experimentalCodexBackendEnabled}
+          <option value="experimental-codex-backend">Unsupported direct Codex experiment</option>
+        {/if}
       </select>
     </label>
 

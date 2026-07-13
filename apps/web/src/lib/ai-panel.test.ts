@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Player } from "@sleeper-ai/shared";
+import type { Player } from "@sleeper-draft-assistant/shared";
 import type { DraftRecommendation, DraftState, Position } from "./types";
 import { buildAiPanelContextSummary, buildSuggestedQuestions } from "./ai-panel";
 

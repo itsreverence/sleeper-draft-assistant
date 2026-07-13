@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const childEnv = createChildEnv();
@@ -6,11 +7,11 @@ const childEnv = createChildEnv();
 const processes = [
   {
     name: "api",
-    args: ["run", "dev", "-w", "@sleeper-ai/api"],
+    args: ["run", "dev", "-w", "@sleeper-draft-assistant/api"],
   },
   {
     name: "web",
-    args: ["run", "dev", "-w", "@sleeper-ai/web"],
+    args: ["run", "dev", "-w", "@sleeper-draft-assistant/web"],
   },
 ].map(({ name, args }) => {
   const child = spawn(npm, args, {
@@ -42,7 +43,14 @@ function shutdown(code = 0) {
 }
 
 function createChildEnv() {
-  const env = { ...process.env, FORCE_COLOR: "1" };
+  const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || randomBytes(32).toString("base64url");
+  const env = {
+    ...process.env,
+    FORCE_COLOR: "1",
+    SLEEPER_AI_API_TOKEN: apiToken,
+    VITE_SLEEPER_AI_API_TOKEN: apiToken,
+    VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND: process.env.SLEEPER_AI_ENABLE_EXPERIMENTAL_CODEX_BACKEND ?? "",
+  };
 
   if (process.platform !== "win32") {
     return env;

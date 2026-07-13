@@ -1,95 +1,99 @@
-# Sleeper AI Team Manager
+# Sleeper Draft Assistant
 
-Local Sleeper-first fantasy football draft assistant and team manager.
+An unofficial, local-first fantasy football draft and team-management assistant for Sleeper.
 
-This app is built to run on your own machine. Sleeper data is read through Sleeper's public API, player values come from an imported FantasyPros draft-rankings CSV, and AI answers are routed through a backend provider boundary instead of browser/frontend code.
+> [!WARNING]
+> This project is an early alpha. Validate every recommendation yourself, keep backups of anything important, and expect breaking changes before the first stable release.
 
-## Current Alpha Scope
+![Sleeper Draft Assistant demo using synthetic data](docs/images/app-demo.png)
 
-- Sleeper league and draft connection.
-- Live draft board polling.
-- Draft recommendations with deterministic engine signals.
-- FantasyPros draft-rankings CSV import.
-- Team Manager views for roster needs, lineup structure, waivers, weekly context, and activity.
-- AI question panels over draft and team context.
-- Experimental Codex subscription-backed provider options.
-- Windows Electron packaging.
+## What it does
 
-## Important Limitations
+- Connects to Sleeper's tokenless, read-only API by username, league, or draft.
+- Tracks live and completed draft boards.
+- Produces deterministic recommendations from roster construction, scarcity, availability, ADP, tiers, and other explainable signals.
+- Imports a FantasyPros rankings CSV that you download yourself; no ranking data is bundled or redistributed.
+- Shows roster needs, lineup structure, waiver context, weekly context, and league activity.
+- Offers an optional local Codex app-server provider for conversational analysis.
+- Stores settings, imported rankings, and decision history locally in SQLite.
 
-- Sleeper is the only supported fantasy platform.
-- FantasyPros draft rankings are the expected player-value source for real draft advice.
-- Sleeper search-rank fallback is low-confidence setup scaffolding, not a real projection model.
-- Weekly projection imports are planned, but should wait until current FantasyPros weekly projection exports are available.
-- Codex subscription-backed integration is experimental and isolated behind the backend `AiProvider` interface.
+Sleeper is currently the only supported fantasy platform. Sleeper search rank is a low-confidence fallback; import current rankings before relying on real-draft recommendations.
 
-## Requirements
+## Try the demo in about a minute
 
-- Node.js 22+.
-- npm.
-- Windows for the packaged desktop build.
+Requires Node.js 22.12 or later and npm.
 
-## Development
-
-Install dependencies:
-
-```powershell
-npm install
-```
-
-Run the local API and web app:
-
-```powershell
+```bash
+git clone https://github.com/itsreverence/sleeper-draft-assistant.git
+cd sleeper-draft-assistant
+npm ci
 npm run dev
 ```
 
-Run validation:
+Open `http://127.0.0.1:5173`, then choose **Load demo draft**. The demo uses synthetic data and requires no Sleeper account or AI provider.
 
-```powershell
+## Use your Sleeper league
+
+1. Enter your Sleeper username or user ID.
+2. If needed, paste a Sleeper league URL or league ID.
+3. Select the draft and confirm your team or draft slot.
+4. Export rankings for your scoring format from FantasyPros and import the CSV in the app.
+5. Review the recommendation evidence before making a pick.
+
+The app reads Sleeper data but does not submit picks, change lineups, or modify your Sleeper account.
+
+## AI providers
+
+AI is optional. **Deterministic fallback** is the default and makes no external AI request.
+
+The supported optional integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. A direct ChatGPT/Codex backend experiment remains source-visible for research but is disabled from normal builds and unsupported.
+
+See [AI providers](docs/AI_PROVIDERS.md) for setup and limitations.
+
+## Desktop builds
+
+```bash
+npm run desktop          # Electron development
+npm run desktop:package  # unpacked build for the current OS
+npm run desktop:make     # distributable targets
+```
+
+Release builds are currently unsigned. Windows may display a SmartScreen warning, and macOS packaging/signing is not yet supported. Only install artifacts from this repository's Releases page once releases are published.
+
+## Local data and privacy
+
+The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported rankings, settings, and recommendation history.
+
+The API binds only to `127.0.0.1` and protects non-health routes with a random per-launch capability token. On POSIX systems, local data directories and files are created with owner-only permissions. Windows uses its normal per-user profile ACLs; POSIX mode bits are not a Windows security guarantee.
+
+Read [Privacy and local data](docs/PRIVACY.md) before sharing diagnostics or deleting local state.
+
+## Development
+
+```bash
+npm ci
 npm run check
 npm test
 npm run build
 ```
 
-## Desktop App
+Useful docs:
 
-Run Electron in development:
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development workflow](docs/WORKFLOW.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Release process](docs/RELEASING.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
-```powershell
-npm run desktop
-```
+## Status and support
 
-Build an unpacked Windows desktop app:
+This is active alpha software. Use [GitHub Issues](https://github.com/itsreverence/sleeper-draft-assistant/issues) for reproducible bugs and scoped feature requests. Do not post tokens, private league data, imported rankings, or unredacted diagnostics.
 
-```powershell
-npm run desktop:package
-```
+## Unofficial project notice
 
-Create distributable Windows targets:
+Sleeper Draft Assistant is an independent project and is not affiliated with, endorsed by, or sponsored by Sleeper, FantasyPros, OpenAI, or ChatGPT. Sleeper, FantasyPros, OpenAI, ChatGPT, Codex, and related marks belong to their respective owners.
 
-```powershell
-npm run desktop:make
-```
+## License
 
-The unpacked app is written under `apps/desktop/out-builder/win-unpacked`.
-
-## First-Run Flow
-
-1. Enter a Sleeper username or user ID.
-2. Paste a Sleeper league URL or league ID if the league is new or still predraft.
-3. Open the matching draft room.
-4. Confirm your roster or draft slot was matched.
-5. Open FantasyPros from the import panel, download the draft-rankings CSV for your scoring format, and import it.
-6. Use recommendations and AI answers only after player values are imported for a real draft.
-
-## AI Providers
-
-The frontend never talks directly to Codex, ChatGPT, or OpenAI. All AI traffic goes through the local backend provider boundary.
-
-See [docs/ai-provider.md](docs/ai-provider.md) for setup details.
-
-## Release Prep
-
-Before sharing a build, follow [docs/release-checklist.md](docs/release-checklist.md).
-
-Planned weekly projection work is tracked in [docs/weekly-projections-plan.md](docs/weekly-projections-plan.md).
+[MIT](LICENSE)

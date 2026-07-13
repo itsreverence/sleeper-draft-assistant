@@ -112,7 +112,7 @@ function codexHeaders(accessToken: string): Record<string, string> {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
     Accept: "text/event-stream",
-    "User-Agent": "codex_cli_rs/0.0.0 (Sleeper AI Team Manager)",
+    "User-Agent": "codex_cli_rs/0.0.0 (Sleeper Draft Assistant)",
     originator: "codex_cli_rs",
   };
   const accountId = chatgptAccountId(accessToken);

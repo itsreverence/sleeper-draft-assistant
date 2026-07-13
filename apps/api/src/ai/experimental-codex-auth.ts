@@ -1,6 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "../secure-file";
 
 export type ExperimentalCodexTokenSet = {
   accessToken: string;
@@ -31,7 +33,7 @@ export class ExperimentalCodexTokenStore {
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as Partial<ExperimentalCodexTokenSet>;
+      const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Partial<ExperimentalCodexTokenSet>;
       if (!parsed.accessToken || !parsed.refreshToken) {
         return null;
       }
@@ -45,14 +47,11 @@ export class ExperimentalCodexTokenStore {
   }
 
   set(tokens: ExperimentalCodexTokenSet) {
-    mkdirSync(path.dirname(this.filePath), { recursive: true });
-    writeFileSync(this.filePath, `${JSON.stringify(tokens, null, 2)}\n`, "utf8");
+    writePrivateFile(this.filePath, `${JSON.stringify(tokens, null, 2)}\n`);
   }
 
   clear() {
-    if (existsSync(this.filePath)) {
-      rmSync(this.filePath);
-    }
+    removePrivateFile(this.filePath);
   }
 }
 

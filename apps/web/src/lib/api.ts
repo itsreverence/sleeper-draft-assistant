@@ -1,6 +1,21 @@
 import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, ExperimentalCodexAuthStatus, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload } from "./types";
+import { resolvePackagedApiPort } from "./api-config";
 
-export const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8787" : "/api";
+const packagedParameters = window.location.protocol === "file:"
+  ? new URLSearchParams(window.location.search)
+  : null;
+const packagedApiToken = packagedParameters?.get("apiToken") ?? null;
+const packagedApiPort = resolvePackagedApiPort(packagedParameters?.get("apiPort") ?? null);
+export const apiBase = window.location.protocol === "file:" ? `http://127.0.0.1:${packagedApiPort}` : "/api";
+const apiToken = packagedApiToken ?? import.meta.env.VITE_SLEEPER_AI_API_TOKEN ?? "";
+
+if (packagedApiToken) {
+  try {
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+  } catch {
+    // The token remains an in-memory capability even if a file URL cannot be rewritten.
+  }
+}
 
 export type DraftAction = "state" | "events" | "ask" | "recommendations" | "rankings/import";
 
@@ -19,9 +34,17 @@ async function readErrorMessage(response: Response, fallback: string) {
   return payload.error ?? fallback;
 }
 
+async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (apiToken) {
+    headers.set("Authorization", `Bearer ${apiToken}`);
+  }
+  return window.fetch(input, { ...init, headers });
+}
+
 
 export async function fetchDiagnostics(): Promise<DiagnosticsPayload> {
-  const response = await fetch(`${apiBase}/diagnostics`);
+  const response = await apiFetch(`${apiBase}/diagnostics`);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not load diagnostics."));
   }
@@ -29,7 +52,7 @@ export async function fetchDiagnostics(): Promise<DiagnosticsPayload> {
   return (await response.json()) as DiagnosticsPayload;
 }
 export async function fetchSettings(): Promise<AppSettings> {
-  const response = await fetch(`${apiBase}/settings`);
+  const response = await apiFetch(`${apiBase}/settings`);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not load settings."));
   }
@@ -38,7 +61,7 @@ export async function fetchSettings(): Promise<AppSettings> {
 }
 
 export async function updateSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
-  const response = await fetch(`${apiBase}/settings`, {
+  const response = await apiFetch(`${apiBase}/settings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(settings),
@@ -51,7 +74,7 @@ export async function updateSettings(settings: Partial<AppSettings>): Promise<Ap
 }
 
 export async function fetchAiStatus(): Promise<AiProviderStatus> {
-  const response = await fetch(`${apiBase}/ai/status`);
+  const response = await apiFetch(`${apiBase}/ai/status`);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not load AI provider status."));
   }
@@ -60,7 +83,7 @@ export async function fetchAiStatus(): Promise<AiProviderStatus> {
 }
 
 export async function fetchExperimentalCodexStatus(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await fetch(`${apiBase}/ai/experimental-codex/status`);
+  const response = await apiFetch(`${apiBase}/ai/experimental-codex/status`);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not load Codex auth status."));
   }
@@ -69,7 +92,7 @@ export async function fetchExperimentalCodexStatus(): Promise<ExperimentalCodexA
 }
 
 export async function startExperimentalCodexLogin(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await fetch(`${apiBase}/ai/experimental-codex/auth/start`, { method: "POST" });
+  const response = await apiFetch(`${apiBase}/ai/experimental-codex/auth/start`, { method: "POST" });
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not start Codex login."));
   }
@@ -77,11 +100,9 @@ export async function startExperimentalCodexLogin(): Promise<ExperimentalCodexAu
   return (await response.json()) as ExperimentalCodexAuthStatus;
 }
 
-export async function pollExperimentalCodexLogin(status?: ExperimentalCodexAuthStatus): Promise<ExperimentalCodexAuthStatus> {
-  const response = await fetch(`${apiBase}/ai/experimental-codex/auth/poll`, {
+export async function pollExperimentalCodexLogin(): Promise<ExperimentalCodexAuthStatus> {
+  const response = await apiFetch(`${apiBase}/ai/experimental-codex/auth/poll`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deviceAuthId: status?.deviceAuthId, userCode: status?.userCode }),
   });
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not poll Codex login."));
@@ -91,7 +112,7 @@ export async function pollExperimentalCodexLogin(status?: ExperimentalCodexAuthS
 }
 
 export async function logoutExperimentalCodex(): Promise<ExperimentalCodexAuthStatus> {
-  const response = await fetch(`${apiBase}/ai/experimental-codex/logout`, { method: "POST" });
+  const response = await apiFetch(`${apiBase}/ai/experimental-codex/logout`, { method: "POST" });
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not log out of Codex."));
   }
@@ -112,7 +133,7 @@ export async function fetchSleeperConnect(params: {
     query.set("leagueId", params.leagueId);
   }
 
-  const response = await fetch(`${apiBase}/sleeper/connect?${query.toString()}`);
+  const response = await apiFetch(`${apiBase}/sleeper/connect?${query.toString()}`);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Sleeper lookup failed."));
   }
@@ -129,7 +150,7 @@ export async function fetchTeamManagerState(leagueId: string, userRosterId: stri
     query.set("draftId", draftId);
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await fetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team${suffix}`);
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team${suffix}`);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Could not load team roster."));
   }
@@ -137,7 +158,7 @@ export async function fetchTeamManagerState(leagueId: string, userRosterId: stri
   return (await response.json()) as TeamPayload;
 }
 export async function fetchDraftState(draftId: string, userRosterId: string | null): Promise<DraftPayload> {
-  const response = await fetch(buildDraftUrl(draftId, "state", userRosterId));
+  const response = await apiFetch(buildDraftUrl(draftId, "state", userRosterId));
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Draft load failed."));
   }
@@ -150,7 +171,7 @@ export async function importRankingsRequest(
   userRosterId: string | null,
   csvText: string,
 ): Promise<RankingImportPayload> {
-  const response = await fetch(buildDraftUrl(draftId, "rankings/import", userRosterId), {
+  const response = await apiFetch(buildDraftUrl(draftId, "rankings/import", userRosterId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ source: "fantasypros", csvText }),
@@ -164,7 +185,7 @@ export async function importRankingsRequest(
 }
 
 export async function clearRankingsRequest(draftId: string, userRosterId: string | null): Promise<DraftPayload> {
-  const response = await fetch(buildDraftUrl(draftId, "rankings/import", userRosterId), {
+  const response = await apiFetch(buildDraftUrl(draftId, "rankings/import", userRosterId), {
     method: "DELETE",
   });
 
@@ -180,7 +201,7 @@ export async function fetchDraftRecommendationRequest(
   userRosterId: string | null,
   recommendationPreferences: RecommendationPreferenceRequest,
 ): Promise<DraftRecommendation> {
-  const response = await fetch(buildDraftUrl(draftId, "recommendations", userRosterId), {
+  const response = await apiFetch(buildDraftUrl(draftId, "recommendations", userRosterId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ recommendationPreferences }),
@@ -200,7 +221,7 @@ export async function askManagerRequest(
   userPreferences: PlayerPreferenceSummary = { pinned: [], faded: [], excluded: [] },
   recommendationPreferences: RecommendationPreferenceRequest = { pinnedPlayerIds: [], fadedPlayerIds: [], excludedPlayerIds: [] },
 ): Promise<AskAnswerPayload> {
-  const response = await fetch(buildDraftUrl(draftId, "ask", userRosterId), {
+  const response = await apiFetch(buildDraftUrl(draftId, "ask", userRosterId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, conversationHistory, userPreferences, recommendationPreferences }),
@@ -214,7 +235,11 @@ export async function askManagerRequest(
 }
 
 export function createDraftEventSource(draftId: string, userRosterId: string | null): EventSource {
-  return new EventSource(buildDraftUrl(draftId, "events", userRosterId));
+  const url = new URL(buildDraftUrl(draftId, "events", userRosterId), window.location.href);
+  if (apiToken) {
+    url.searchParams.set("apiToken", apiToken);
+  }
+  return new EventSource(url.toString());
 }
 
 
@@ -239,7 +264,7 @@ export async function askTeamManagerRequest(
     query.set("draftId", draftId);
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await fetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, conversationHistory }),

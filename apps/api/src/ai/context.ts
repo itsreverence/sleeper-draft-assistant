@@ -1,4 +1,4 @@
-import type { DraftRecommendation, DraftState, Player, Position } from "@sleeper-ai/shared";
+import type { DraftRecommendation, DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 
 import type { AiConversationMessage, DraftAiContext, PlayerPreferenceSummary } from "./types";
 

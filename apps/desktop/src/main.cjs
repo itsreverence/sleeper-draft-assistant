@@ -1,18 +1,21 @@
 const { app, BrowserWindow, shell } = require("electron");
 const { spawn } = require("node:child_process");
+const { randomBytes } = require("node:crypto");
 const net = require("node:net");
 const path = require("node:path");
 
 const apiPort = Number(process.env.PORT ?? 8787);
 const webDevUrl = process.env.SLEEPER_AI_WEB_URL ?? "http://127.0.0.1:5173";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
-const expectedWebTitle = "Sleeper AI Team Manager";
+const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || randomBytes(32).toString("base64url");
+const expectedWebTitle = "Sleeper Draft Assistant";
+const allowedExternalHosts = new Set(["auth.openai.com", "chatgpt.com", "www.fantasypros.com"]);
 
 let apiProcess = null;
 let webProcess = null;
 let mainWindow = null;
 
-app.setName("Sleeper AI Team Manager");
+app.setName("Sleeper Draft Assistant");
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -61,7 +64,7 @@ async function createWindow() {
     minWidth: 1040,
     minHeight: 720,
     backgroundColor: "#f7f6f1",
-    title: "Sleeper AI Team Manager",
+    title: "Sleeper Draft Assistant",
     icon: getAppAssetPath("assets", "icon.ico"),
     webPreferences: {
       contextIsolation: true,
@@ -71,8 +74,14 @@ async function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
     return { action: "deny" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event) => {
+    event.preventDefault();
   });
 
   if (!app.isPackaged) {
@@ -83,7 +92,9 @@ async function createWindow() {
     return;
   }
 
-  await mainWindow.loadFile(getAppAssetPath("dist", "web", "index.html"));
+  await mainWindow.loadFile(getAppAssetPath("dist", "web", "index.html"), {
+    query: { apiToken, apiPort: String(apiPort) },
+  });
 }
 
 async function ensureApiServer() {
@@ -100,6 +111,7 @@ async function ensureApiServer() {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",
         PORT: String(apiPort),
+        SLEEPER_AI_API_TOKEN: apiToken,
         SLEEPER_AI_DATA_DIR: path.join(app.getPath("userData"), "data"),
       },
       stdio: "ignore",
@@ -107,11 +119,12 @@ async function ensureApiServer() {
     });
   } else {
     const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-    apiProcess = spawn(npmCommand, ["run", "dev", "-w", "@sleeper-ai/api"], {
+    apiProcess = spawn(npmCommand, ["run", "dev", "-w", "@sleeper-draft-assistant/api"], {
       cwd: path.resolve(__dirname, "..", "..", ".."),
       env: {
         ...process.env,
         PORT: String(apiPort),
+        SLEEPER_AI_API_TOKEN: apiToken,
         SLEEPER_AI_DATA_DIR: path.join(app.getPath("userData"), "data"),
         FORCE_COLOR: "1",
       },
@@ -135,15 +148,17 @@ async function ensureWebServer() {
     if (isSleeperWebHtml(existingHtml)) {
       return;
     }
-    throw new Error(`${webDevUrl} is already serving a different app. Stop that dev server before launching Sleeper AI Team Manager.`);
+    throw new Error(`${webDevUrl} is already serving a different app. Stop that dev server before launching Sleeper Draft Assistant.`);
   }
 
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  webProcess = spawn(npmCommand, ["run", "dev", "-w", "@sleeper-ai/web"], {
+  webProcess = spawn(npmCommand, ["run", "dev", "-w", "@sleeper-draft-assistant/web"], {
     cwd: path.resolve(__dirname, "..", "..", ".."),
     env: {
       ...process.env,
       FORCE_COLOR: "1",
+      VITE_SLEEPER_AI_API_TOKEN: apiToken,
+      VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND: process.env.SLEEPER_AI_ENABLE_EXPERIMENTAL_CODEX_BACKEND ?? "",
     },
     stdio: "inherit",
     shell: process.platform === "win32",
@@ -195,7 +210,9 @@ async function waitForApiServer(timeoutMs) {
 
 async function isCompatibleApiServer() {
   try {
-    const payload = await fetchJson(`${apiUrl}/health`, 1200);
+    const payload = await fetchJson(`${apiUrl}/diagnostics`, 1200, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    });
     return payload?.ok === true
       && payload?.service === "sleeper-ai-api"
       && payload?.capabilities?.decisionLog === true
@@ -221,8 +238,8 @@ function isSleeperWebHtml(html) {
   return html.includes(`<title>${expectedWebTitle}</title>`);
 }
 
-async function fetchJson(url, timeoutMs) {
-  const response = await fetchWithTimeout(url, timeoutMs);
+async function fetchJson(url, timeoutMs, init) {
+  const response = await fetchWithTimeout(url, timeoutMs, init);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} from ${url}`);
   }
@@ -237,12 +254,21 @@ async function fetchText(url, timeoutMs) {
   return response.text();
 }
 
-async function fetchWithTimeout(url, timeoutMs) {
+async function fetchWithTimeout(url, timeoutMs, init = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function isAllowedExternalUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return url.protocol === "https:" && allowedExternalHosts.has(url.hostname);
+  } catch {
+    return false;
   }
 }

@@ -1,9 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sleeper AI Team Manager icon">
-  <rect width="256" height="256" rx="56" fill="#12231f"/>
-  <path d="M58 165c16 24 40 36 70 36s54-12 70-36" fill="none" stroke="#f5f1e7" stroke-width="16" stroke-linecap="round"/>
-  <path d="M72 91c20-21 45-32 74-32 21 0 38 5 52 16" fill="none" stroke="#39d98a" stroke-width="16" stroke-linecap="round"/>
-  <path d="M73 103h108c12 0 21 9 21 21v4c0 12-9 21-21 21H73c-12 0-21-9-21-21v-4c0-12 9-21 21-21Z" fill="#f5f1e7"/>
-  <circle cx="96" cy="126" r="10" fill="#12231f"/>
-  <circle cx="160" cy="126" r="10" fill="#12231f"/>
-  <path d="M120 151h16" stroke="#12231f" stroke-width="10" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sleeper Draft Assistant icon">
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="#10201d"/>
+  <rect x="54" y="45" width="148" height="170" rx="22" fill="#f5f1e7"/>
+  <rect x="91" y="30" width="74" height="34" rx="15" fill="#39d98a"/>
+  <circle cx="82" cy="94" r="10" fill="#39d98a"/>
+  <path d="m76 94 4 4 8-9" fill="none" stroke="#10201d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M108 92h60" fill="none" stroke="#10201d" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="82" cy="132" r="10" fill="#c8d4cd"/>
+  <path d="M108 130h48" fill="none" stroke="#50635c" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="82" cy="170" r="10" fill="#c8d4cd"/>
+  <path d="M108 168h34" fill="none" stroke="#50635c" stroke-width="10" stroke-linecap="round"/>
+  <ellipse cx="167" cy="173" rx="34" ry="22" fill="#c8753d" transform="rotate(-20 167 173)"/>
+  <path d="M155 173h24m-12-8v16m-7-13v10m14-10v10" fill="none" stroke="#f5f1e7" stroke-width="4" stroke-linecap="round" transform="rotate(-20 167 173)"/>
 </svg>

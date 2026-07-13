@@ -1,6 +1,6 @@
 {
-  "name": "@sleeper-ai/api",
-  "version": "0.0.0",
+  "name": "@sleeper-draft-assistant/api",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
-    "@sleeper-ai/engine": "0.0.0",
-    "@sleeper-ai/shared": "0.0.0",
+    "@sleeper-draft-assistant/engine": "0.1.0-alpha.1",
+    "@sleeper-draft-assistant/shared": "0.1.0-alpha.1",
     "hono": "^4.10.7",
     "sql.js": "^1.14.1"
   },

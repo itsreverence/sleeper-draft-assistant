@@ -1,10 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AppSettingsSchema, AppSettingsUpdateSchema, type AppSettings, type AppSettingsUpdate } from "@sleeper-ai/shared";
+import { AppSettingsSchema, AppSettingsUpdateSchema, type AppSettings, type AppSettingsUpdate } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
+import { isExperimentalCodexBackendEnabled } from "./experimental-features";
+import { readPrivateTextFile, writePrivateFile } from "./secure-file";
 
 export class SettingsStore {
   private settings: AppSettings;
@@ -19,6 +21,9 @@ export class SettingsStore {
 
   update(input: unknown): AppSettings {
     const update = AppSettingsUpdateSchema.parse(input) satisfies AppSettingsUpdate;
+    if (update.aiProvider === "experimental-codex-backend" && !isExperimentalCodexBackendEnabled()) {
+      throw new Error("The direct experimental Codex backend is disabled in this build.");
+    }
     this.settings = AppSettingsSchema.parse({
       ...this.settings,
       ...update,
@@ -31,10 +36,10 @@ export class SettingsStore {
     const defaults = getDefaultSettings();
     const storedSettings = this.database?.getJson<unknown>("settings", "app");
     if (storedSettings) {
-      return AppSettingsSchema.parse({
+      return normalizeEnabledProviders(AppSettingsSchema.parse({
         ...defaults,
         ...(typeof storedSettings === "object" && storedSettings !== null ? storedSettings : {}),
-      });
+      }));
     }
 
     if (!existsSync(this.filePath)) {
@@ -43,11 +48,11 @@ export class SettingsStore {
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as unknown;
-      const settings = AppSettingsSchema.parse({
+      const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as unknown;
+      const settings = normalizeEnabledProviders(AppSettingsSchema.parse({
         ...defaults,
         ...(typeof parsed === "object" && parsed !== null ? parsed : {}),
-      });
+      }));
       this.database?.setJson("settings", "app", settings);
       return settings;
     } catch {
@@ -62,20 +67,25 @@ export class SettingsStore {
       return;
     }
 
-    mkdirSync(path.dirname(this.filePath), { recursive: true });
-    writeFileSync(this.filePath, `${JSON.stringify(this.settings, null, 2)}\n`, "utf8");
+    writePrivateFile(this.filePath, `${JSON.stringify(this.settings, null, 2)}\n`);
   }
 }
 
 function getDefaultSettings(): AppSettings {
-  return AppSettingsSchema.parse({
+  return normalizeEnabledProviders(AppSettingsSchema.parse({
     aiProvider: process.env.SLEEPER_AI_PROVIDER,
     codexBin: process.env.CODEX_BIN,
     codexModel: process.env.SLEEPER_AI_CODEX_MODEL,
     codexTimeoutMs: process.env.SLEEPER_AI_CODEX_TIMEOUT_MS
       ? Number(process.env.SLEEPER_AI_CODEX_TIMEOUT_MS)
       : undefined,
-  });
+  }));
+}
+
+function normalizeEnabledProviders(settings: AppSettings): AppSettings {
+  return settings.aiProvider === "experimental-codex-backend" && !isExperimentalCodexBackendEnabled()
+    ? { ...settings, aiProvider: "noop" }
+    : settings;
 }
 
 function getDefaultSettingsPath(): string {

@@ -7,12 +7,12 @@ import {
   buildTeamWaiverSummary,
   createMockDraftState,
   type DraftRecommendationOptions,
-} from "@sleeper-ai/engine";
+} from "@sleeper-draft-assistant/engine";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-ai/shared";
+import { RankingImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -24,9 +24,14 @@ import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
+import { requireApiToken } from "./api-auth";
+import { isExperimentalCodexBackendEnabled } from "./experimental-features";
 
 export const app = new Hono();
 const port = Number(process.env.PORT ?? 8787);
+const hostname = "127.0.0.1";
+const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || null;
+const experimentalCodexBackendEnabled = isExperimentalCodexBackendEnabled();
 const sleeperClient = new SleeperClient();
 const appDatabase = await SqliteAppDatabase.open();
 const rankingImportStore = new RankingImportStore(undefined, appDatabase);
@@ -63,9 +68,21 @@ app.use(
   cors({
     origin: ["http://localhost:5173", "http://127.0.0.1:5173", "null"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Authorization", "Content-Type"],
   }),
 );
+
+app.use(
+  "*",
+  requireApiToken(apiToken, { allowUnauthenticated: process.env.NODE_ENV === "test" }),
+);
+
+app.use("/ai/experimental-codex/*", async (c, next) => {
+  if (!experimentalCodexBackendEnabled) {
+    return c.json({ error: "The direct experimental Codex backend is disabled in this build." }, 404);
+  }
+  await next();
+});
 
 app.get("/health", (c) => c.json(createHealthPayload()));
 
@@ -93,7 +110,11 @@ app.get("/settings", (c) => c.json(settingsStore.get()));
 
 app.put("/settings", async (c) => {
   try {
-    return c.json(settingsStore.update(await c.req.json()));
+    const input = await c.req.json<Record<string, unknown>>();
+    if (input.aiProvider === "experimental-codex-backend" && !experimentalCodexBackendEnabled) {
+      return c.json({ error: "The direct experimental Codex backend is disabled in this build." }, 400);
+    }
+    return c.json(settingsStore.update(input));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -107,7 +128,6 @@ app.get("/ai/experimental-codex/status", (c) => {
     authenticated: Boolean(experimentalCodexTokenStore.get()),
     verificationUri: pending?.verificationUri,
     userCode: pending?.userCode,
-    deviceAuthId: pending?.deviceAuthId,
     interval: pending?.interval,
   });
 });
@@ -123,12 +143,8 @@ app.post("/ai/experimental-codex/auth/start", async (c) => {
 
 app.post("/ai/experimental-codex/auth/poll", async (c) => {
   try {
-    const body = (await c.req.json<{ deviceAuthId?: string; userCode?: string }>().catch(() => ({}))) as {
-      deviceAuthId?: string;
-      userCode?: string;
-    };
-    const deviceAuthId = body.deviceAuthId ?? pendingExperimentalCodexDeviceCode?.deviceAuthId;
-    const userCode = body.userCode ?? pendingExperimentalCodexDeviceCode?.userCode;
+    const deviceAuthId = pendingExperimentalCodexDeviceCode?.deviceAuthId;
+    const userCode = pendingExperimentalCodexDeviceCode?.userCode;
     if (!deviceAuthId || !userCode) {
       return c.json({ authenticated: false, pending: false, error: "Start Codex login first." }, 400);
     }
@@ -393,6 +409,7 @@ function createHealthPayload() {
       decisionLog: true,
       draftLeagueId: true,
       sqliteStorage: true,
+      experimentalCodexBackend: experimentalCodexBackendEnabled,
     },
     now: new Date().toISOString(),
   };
@@ -456,7 +473,7 @@ function isMockDraft(draftId: string): boolean {
 }
 
 function logRouteError(c: Context, error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = redactErrorMessage(error instanceof Error ? error.message : String(error));
   console.error(`[api] ${c.req.method} ${c.req.path} failed: ${message}`);
 }
 
@@ -465,11 +482,26 @@ function handleRouteError(c: Context, error: unknown) {
 
   if (error instanceof SleeperApiError) {
     const status = error.status === 404 ? 404 : 502;
-    return c.json({ error: error.message }, status);
+    return c.json({ error: status === 404 ? "Sleeper resource not found." : "Sleeper request failed." }, status);
   }
 
-  const message = error instanceof Error ? error.message : "Unknown server error.";
-  return c.json({ error: message }, 500);
+  if (error instanceof SyntaxError || (error instanceof Error && error.name === "ZodError")) {
+    return c.json({ error: "Invalid request data." }, 400);
+  }
+
+  if (error instanceof Error && error.message === "The direct experimental Codex backend is disabled in this build.") {
+    return c.json({ error: error.message }, 400);
+  }
+
+  return c.json({ error: "The local service could not complete this request." }, 500);
+}
+
+export function redactErrorMessage(message: string): string {
+  return message
+    .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, "Bearer [redacted]")
+    .replace(/\b((?:access|refresh)[_-]?token)\b\s*[:=]\s*[^\s,}]+/gi, "$1=[redacted]")
+    .replace(/(?:[A-Za-z]:\\Users\\|\/home\/)[^\\/\s]+/g, "[home]")
+    .slice(0, 500);
 }
 
 function streamMockDraftEvents(): Response {
@@ -600,10 +632,11 @@ if (process.env.NODE_ENV !== "test") {
   serve(
     {
       fetch: app.fetch,
+      hostname,
       port,
     },
     (info) => {
-      console.log(`Sleeper AI API listening on http://localhost:${info.port}`);
+      console.log(`Sleeper Draft Assistant API listening on http://${hostname}:${info.port}`);
     },
   );
 }

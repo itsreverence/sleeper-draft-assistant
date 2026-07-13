@@ -2,7 +2,7 @@
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { buildDraftRecommendation, createMockDraftState } from "@sleeper-ai/engine";
+import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it } from "vitest";
 
 import { DecisionLogStore } from "./decision-log-store";

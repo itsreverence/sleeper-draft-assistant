@@ -1,4 +1,4 @@
-import { buildDraftRecommendation, createMockDraftState } from "@sleeper-ai/engine";
+import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it } from "vitest";
 
 import { buildDraftAiContext } from "./context";

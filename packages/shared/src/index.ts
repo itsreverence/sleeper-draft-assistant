@@ -37,9 +37,16 @@ export type RankingImportRequest = z.infer<typeof RankingImportRequestSchema>;
 export const AiProviderIdSchema = z.enum(["noop", "codex-app-server", "experimental-codex-backend"]);
 export type AiProviderId = z.infer<typeof AiProviderIdSchema>;
 
+export function isCodexExecutableReference(value: string): boolean {
+  const executableName = value.trim().split(/[\\/]/).pop()?.toLowerCase();
+  return executableName === "codex" || executableName === "codex.exe" || executableName === "codex.cmd";
+}
+
 export const AppSettingsSchema = z.object({
   aiProvider: AiProviderIdSchema.default("noop"),
-  codexBin: z.string().trim().min(1).default("codex"),
+  codexBin: z.string().trim().min(1).max(4_096).refine(isCodexExecutableReference, {
+    message: "Codex command must resolve to codex, codex.exe, or codex.cmd.",
+  }).default("codex"),
   codexModel: z.string().trim().min(1).default("gpt-5.4"),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
 });

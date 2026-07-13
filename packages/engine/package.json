@@ -1,6 +1,6 @@
 {
-  "name": "@sleeper-ai/engine",
-  "version": "0.0.0",
+  "name": "@sleeper-draft-assistant/engine",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,10 +13,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sleeper-ai/shared": "0.0.0"
+    "@sleeper-draft-assistant/shared": "0.1.0-alpha.1"
   },
   "devDependencies": {
     "vitest": "^3.2.4"
   }
 }
-

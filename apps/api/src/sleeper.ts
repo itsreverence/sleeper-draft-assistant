@@ -1,4 +1,4 @@
-import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
+import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
 
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
 const playerCacheTtlMs = 24 * 60 * 60 * 1000;

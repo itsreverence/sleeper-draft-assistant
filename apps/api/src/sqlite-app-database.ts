@@ -1,10 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import initSqlJs from "sql.js/dist/sql-asm.js";
 import type { Database } from "sql.js";
+
+import { ensurePrivateDirectory, readPrivateFile, writePrivateFile } from "./secure-file";
 
 export type JsonNamespace = "settings" | "ranking_imports";
 
@@ -18,8 +20,8 @@ export class SqliteAppDatabase {
 
   static async open(filePath = getDefaultDatabasePath()): Promise<SqliteAppDatabase> {
     const SQL = await initSqlJs();
-    mkdirSync(path.dirname(filePath), { recursive: true });
-    const db = existsSync(filePath) ? new SQL.Database(readFileSync(filePath)) : new SQL.Database();
+    ensurePrivateDirectory(path.dirname(filePath));
+    const db = existsSync(filePath) ? new SQL.Database(readPrivateFile(filePath)) : new SQL.Database();
     return new SqliteAppDatabase(db, filePath);
   }
 
@@ -186,13 +188,13 @@ export class SqliteAppDatabase {
 
   private persist(): void {
     const bytes = this.db.export();
-    writeFileSync(this.filePath, Buffer.from(bytes));
+    writePrivateFile(this.filePath, Buffer.from(bytes));
   }
 }
 
 function getDefaultDatabasePath(): string {
   if (process.env.NODE_ENV === "test") {
-    return path.join(tmpdir(), "sleeper-ai-team-manager-test", "app.sqlite");
+    return path.join(tmpdir(), "sleeper-draft-assistant-test", "app.sqlite");
   }
 
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");

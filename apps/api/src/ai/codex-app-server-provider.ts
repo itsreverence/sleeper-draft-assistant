@@ -118,9 +118,9 @@ class CodexJsonRpcClient {
 
     await this.request("initialize", {
       clientInfo: {
-        name: "sleeper_ai_team_manager",
-        title: "Sleeper AI Team Manager",
-        version: "0.0.0",
+        name: "sleeper_draft_assistant",
+        title: "Sleeper Draft Assistant",
+        version: "0.1.0-alpha.1",
       },
     });
     this.notify("initialized", {});

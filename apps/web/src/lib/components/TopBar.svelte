@@ -22,7 +22,7 @@
 
 <section class="topbar" aria-label="Draft status">
   <div class="brand">
-    <div class="brand-mark" aria-hidden="true">SA</div>
+    <div class="brand-mark" aria-hidden="true">SDA</div>
     <div>
       <div class="title-row">
         <h1>{title}</h1>
@@ -33,7 +33,7 @@
         {/if}
         <button class="btn btn-ghost btn-change" type="button" onclick={onOpenSettings}>Settings</button>
       </div>
-      <p class="product-name">Sleeper AI Team Manager</p>
+      <p class="product-name">Sleeper Draft Assistant</p>
     </div>
   </div>
   <div class="status-panel" class:connected>

@@ -12,7 +12,7 @@ import type {
   TeamNeedsSummary,
   TeamPositionNeed,
   TeamWaiverSummary,
-} from "@sleeper-ai/shared";
+} from "@sleeper-draft-assistant/shared";
 
 const positionBaselines: Record<Position, number> = {
   QB: 250,

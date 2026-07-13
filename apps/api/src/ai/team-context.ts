@@ -1,5 +1,5 @@
-import { buildTeamLineupSummary, buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-ai/engine";
-import type { TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import { buildTeamLineupSummary, buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-draft-assistant/engine";
+import type { TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 import type { AiConversationMessage, TeamAiContext } from "./types";
 

@@ -1,4 +1,4 @@
-import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer } from "@sleeper-ai/shared";
+import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -94,7 +94,6 @@ export type ExperimentalCodexAuthStatus = {
   authenticated: boolean;
   verificationUri?: string;
   userCode?: string;
-  deviceAuthId?: string;
   interval?: number;
   pending?: boolean;
   error?: string;

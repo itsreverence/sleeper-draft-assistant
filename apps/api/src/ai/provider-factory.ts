@@ -1,4 +1,4 @@
-import type { AppSettings } from "@sleeper-ai/shared";
+import type { AppSettings } from "@sleeper-draft-assistant/shared";
 
 import { CodexAppServerProvider } from "./codex-app-server-provider";
 import { ExperimentalCodexBackendProvider } from "./experimental-codex-backend-provider";

@@ -66,6 +66,7 @@
     PlayerPreferences,
     RecommendationPreferenceRequest,
   } from "./lib/types";
+  const experimentalCodexBackendEnabled = import.meta.env.VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND === "1";
   let draftState: DraftState | null = $state(null);
   let recommendation: DraftRecommendation | null = $state(null);
   let status = $state("Connect Sleeper");
@@ -259,7 +260,7 @@
       const [settings, status, codexAuthStatus] = await Promise.all([
         fetchSettings(),
         fetchAiStatus(),
-        fetchExperimentalCodexStatus(),
+        experimentalCodexBackendEnabled ? fetchExperimentalCodexStatus() : Promise.resolve(null),
       ]);
       appSettings = settings;
       aiProviderStatus = status;
@@ -275,7 +276,9 @@
     try {
       appSettings = await updateSettings(settings);
       aiProviderStatus = await fetchAiStatus();
-      experimentalCodexAuthStatus = await fetchExperimentalCodexStatus();
+      experimentalCodexAuthStatus = experimentalCodexBackendEnabled
+        ? await fetchExperimentalCodexStatus()
+        : null;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not save settings.";
     } finally {
@@ -341,7 +344,7 @@
     isPollingExperimentalCodexLogin = true;
     settingsError = "";
     try {
-      experimentalCodexAuthStatus = await pollExperimentalCodexLogin(experimentalCodexAuthStatus ?? undefined);
+      experimentalCodexAuthStatus = await pollExperimentalCodexLogin();
       aiProviderStatus = await fetchAiStatus();
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not finish Codex login.";

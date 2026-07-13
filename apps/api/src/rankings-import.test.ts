@@ -2,8 +2,8 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { buildDraftRecommendation, createMockDraftState } from "@sleeper-ai/engine";
-import type { DraftState, Player } from "@sleeper-ai/shared";
+import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
+import type { DraftState, Player } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { RankingImportStore, applyImportedRankings, importFantasyProsCsv } from "./rankings-import";

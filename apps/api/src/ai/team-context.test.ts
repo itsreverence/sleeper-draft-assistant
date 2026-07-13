@@ -1,4 +1,4 @@
-import type { Player, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-ai/shared";
+import type { Player, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildTeamAiContext } from "./team-context";

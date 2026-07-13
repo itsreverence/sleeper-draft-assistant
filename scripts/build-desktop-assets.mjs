@@ -16,8 +16,12 @@ if (!npmCli) {
 rmSync(desktopDist, { recursive: true, force: true });
 mkdirSync(desktopDist, { recursive: true });
 
-execFileSync(process.execPath, [npmCli, "run", "build", "-w", "@sleeper-ai/web"], {
+execFileSync(process.execPath, [npmCli, "run", "build", "-w", "@sleeper-draft-assistant/web"], {
   cwd: repoRoot,
+  env: {
+    ...process.env,
+    VITE_ENABLE_EXPERIMENTAL_CODEX_BACKEND: process.env.SLEEPER_AI_ENABLE_EXPERIMENTAL_CODEX_BACKEND ?? "",
+  },
   stdio: "inherit",
 });
 

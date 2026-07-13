@@ -1,10 +1,10 @@
 {
-  "name": "@sleeper-ai/desktop",
-  "version": "0.0.0",
+  "name": "@sleeper-draft-assistant/desktop",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "main": "src/main.cjs",
-  "description": "Local Sleeper-first AI fantasy football team manager and draft assistant.",
-  "author": "Sleeper AI Team Manager Contributors",
+  "description": "Unofficial, local-first fantasy football draft and team-management assistant for Sleeper.",
+  "author": "Sleeper Draft Assistant contributors",
   "scripts": {
     "start": "electron .",
     "build:assets": "node ../../scripts/build-desktop-assets.mjs",
@@ -13,8 +13,8 @@
     "dist": "npm run make"
   },
   "build": {
-    "appId": "com.sleeperai.teammanager",
-    "productName": "Sleeper AI Team Manager",
+    "appId": "com.itsreverence.sleeperdraftassistant",
+    "productName": "Sleeper Draft Assistant",
     "asar": true,
     "asarUnpack": [
       "dist/api-server.mjs"

@@ -1,11 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { DraftRecommendation, DraftState } from "@sleeper-ai/shared";
+import type { DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
+import { readPrivateTextFile, writePrivateFile } from "./secure-file";
 
 export type DecisionSnapshotTrigger =
   | "state-load"
@@ -120,7 +121,7 @@ export class DecisionLogStore {
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as SerializedDecisionLog;
+      const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as SerializedDecisionLog;
       for (const [draftId, snapshots] of Object.entries(parsed)) {
         const safeSnapshots = Array.isArray(snapshots) ? snapshots.slice(0, this.maxSnapshotsPerDraft) : [];
         this.snapshotsByDraft.set(draftId, safeSnapshots);
@@ -140,9 +141,8 @@ export class DecisionLogStore {
   }
 
   private save() {
-    mkdirSync(path.dirname(this.filePath), { recursive: true });
     const serialized = Object.fromEntries(this.snapshotsByDraft.entries()) satisfies SerializedDecisionLog;
-    writeFileSync(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`, "utf8");
+    writePrivateFile(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`);
   }
 }
 
@@ -191,7 +191,7 @@ function createDecisionSnapshot(input: {
 
 function getDefaultDecisionLogPath(): string {
   if (process.env.NODE_ENV === "test") {
-    return path.join(tmpdir(), "sleeper-ai-team-manager-test", "decision-log.json");
+    return path.join(tmpdir(), "sleeper-draft-assistant-test", "decision-log.json");
   }
 
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
