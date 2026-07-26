@@ -8,6 +8,7 @@ This is a direction document, not a promise or release schedule.
 - live/completed draft-state views
 - synthetic demo draft
 - FantasyPros rankings CSV import
+- FantasyPros weekly projection CSV import
 - deterministic recommendation evidence
 - roster, lineup, waiver, week, and activity views
 - optional local Codex app-server analysis
@@ -23,7 +24,7 @@ This is a direction document, not a promise or release schedule.
 
 ## Candidate follow-up work
 
-- weekly projection import after stable export fixtures are available
+- validate the weekly projection importer against current-season exports as formats evolve
 - clearer data-freshness and confidence indicators
 - export/delete controls inside the application
 - stronger accessibility and keyboard-navigation coverage

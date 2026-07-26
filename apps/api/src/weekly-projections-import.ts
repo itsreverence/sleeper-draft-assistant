@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-ai/shared";
+import type { Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
+import { readPrivateTextFile, writePrivateFile } from "./secure-file";
 
 export type WeeklyProjectionImportKey = {
   leagueId: string;
@@ -88,7 +89,7 @@ export class WeeklyProjectionImportStore {
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as Record<string, SerializedWeeklyProjectionImport>;
+      const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedWeeklyProjectionImport>;
       for (const [key, storedImport] of Object.entries(parsed)) {
         const deserialized = deserializeWeeklyProjectionImport(storedImport);
         this.imports.set(key, deserialized);
@@ -109,11 +110,10 @@ export class WeeklyProjectionImportStore {
   }
 
   private saveFile() {
-    mkdirSync(path.dirname(this.filePath), { recursive: true });
     const serialized = Object.fromEntries(
       Array.from(this.imports.entries()).map(([key, storedImport]) => [key, serializeWeeklyProjectionImport(storedImport)]),
     );
-    writeFileSync(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`, "utf8");
+    writePrivateFile(this.filePath, `${JSON.stringify(serialized, null, 2)}\n`);
   }
 }
 

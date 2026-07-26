@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import type { Player } from "@sleeper-ai/shared";
+import type { Player } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import {

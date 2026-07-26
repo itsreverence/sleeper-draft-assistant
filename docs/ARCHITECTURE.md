@@ -12,6 +12,7 @@ Svelte renderer
   └─ authenticated HTTP/SSE → Hono API
        ├─ Sleeper read-only API client
        ├─ ranking CSV importer
+       ├─ weekly projection CSV importer
        ├─ deterministic recommendation engine
        ├─ optional local Codex app-server adapter
        └─ sql.js SQLite persistence
@@ -38,9 +39,11 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 1. The user identifies a Sleeper account, league, or draft.
 2. The API reads tokenless data from Sleeper and normalizes it into shared models.
 3. A user-supplied FantasyPros CSV may add rankings, tiers, bye weeks, and value signals. The repository does not ship ranking data.
-4. The deterministic engine ranks candidates and explains its evidence.
-5. Optional AI providers receive a compact context packet rather than the full player universe.
-6. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
+4. User-supplied weekly projection files for QB, RB, WR, TE, K, and DST may add week-specific points to lineup and waiver analysis.
+5. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data is visible but cannot influence current advice.
+6. The deterministic engine ranks candidates and explains its evidence.
+7. Optional AI providers receive a compact context packet rather than the full player universe.
+8. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
 
 ## Persistence
 
@@ -59,5 +62,6 @@ Executable configuration is limited to commands or paths ending in `codex`, `cod
 
 - Persistence uses `sql.js`, so the database is exported after mutations rather than managed by a native SQLite service.
 - The API is local single-user software; it is not designed for LAN or multi-user hosting.
-- Weekly projection ingestion and signed installers are not implemented.
+- Signed installers are not implemented.
+- Weekly projections require user-downloaded CSV exports; there is no automatic projection feed.
 - The capability token is not an IPC replacement and does not defend against same-user malware.
