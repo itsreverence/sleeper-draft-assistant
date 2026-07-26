@@ -101,6 +101,7 @@ export const WeeklyProjectionImportSummarySchema = z.object({
   season: z.string(),
   week: z.number(),
   position: PositionSchema.nullable(),
+  positions: z.array(PositionSchema),
   rowsParsed: z.number(),
   matched: z.number(),
   unmatched: z.array(

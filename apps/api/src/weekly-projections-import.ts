@@ -168,6 +168,7 @@ export function importFantasyProsWeeklyProjectionCsv(input: {
       season: input.season,
       week: input.week,
       position,
+      positions: position ? [position] : [],
       rowsParsed: rows.length,
       matched: playersById.size,
       unmatched: unmatched.slice(0, 40),
@@ -206,6 +207,7 @@ export function mergeWeeklyProjectionImports(
       season: incomingImport.summary.season,
       week: incomingImport.summary.week,
       position: positions.size === 1 ? Array.from(positions)[0] : null,
+      positions: Array.from(positions).sort(comparePositions),
       rowsParsed: existingImport.summary.rowsParsed + incomingImport.summary.rowsParsed,
       matched: playersById.size,
       unmatched: [...incomingImport.summary.unmatched, ...existingImport.summary.unmatched].slice(0, 40),
@@ -439,10 +441,21 @@ function serializeWeeklyProjectionImport(storedImport: StoredWeeklyProjectionImp
 }
 
 function deserializeWeeklyProjectionImport(storedImport: SerializedWeeklyProjectionImport): StoredWeeklyProjectionImport {
+  const playersById = new Map(storedImport.players);
+  const positions = Array.from(new Set(Array.from(playersById.values()).map((player) => player.position))).sort(comparePositions);
   return {
-    summary: storedImport.summary,
-    playersById: new Map(storedImport.players),
+    summary: {
+      ...storedImport.summary,
+      positions: storedImport.summary.positions ?? positions,
+    },
+    playersById,
   };
+}
+
+const projectionPositionOrder: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
+
+function comparePositions(left: Position, right: Position) {
+  return projectionPositionOrder.indexOf(left) - projectionPositionOrder.indexOf(right);
 }
 
 function parseCsv(text: string): string[][] {

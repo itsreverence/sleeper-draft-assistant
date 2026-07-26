@@ -11,6 +11,7 @@
     { value: "K", label: "K" },
     { value: "DEF", label: "DST/DEF" },
   ];
+  const requiredPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
   let {
     hasTeam,
@@ -48,8 +49,8 @@
   });
 
   $effect(() => {
-    if (!week && defaultWeek) {
-      week = defaultWeek;
+    if (!week) {
+      week = defaultWeek || 1;
     }
   });
 
@@ -59,6 +60,13 @@
       : hasTeam
         ? "Not imported yet"
         : "Available after team load",
+  );
+  const importedPositions = $derived(summary?.positions ?? (summary?.position ? [summary.position] : []));
+  const hasImportMismatch = $derived(
+    Boolean(summary && (
+      (defaultSeason && summary.season !== defaultSeason)
+      || (defaultWeek && summary.week !== defaultWeek)
+    )),
   );
 
   async function readProjectionFile(event: Event) {
@@ -99,6 +107,15 @@
       so importing RB will not remove the QB file you already imported.
     </p>
   </div>
+
+  {#if hasImportMismatch && summary}
+    <p class="callout callout-warning">
+      <Icon name="alert" size={15} />
+      Imported data is for {summary.season} Week {summary.week}, but this team view is
+      {defaultWeek ? `on ${defaultSeason} Week ${defaultWeek}` : `for the ${defaultSeason} season before Sleeper has opened a current week`}.
+      Choose the current week and import its files before using lineup advice.
+    </p>
+  {/if}
 
   <div class="control-grid">
     <label class="field">
@@ -153,6 +170,14 @@
       Active import: FantasyPros {summary.position ?? "multi-position"} projections for {summary.season} Week {summary.week},
       saved {formatImportDate(summary)}.
     </p>
+    <div class="position-status" aria-label="Weekly projection position import status">
+      {#each requiredPositions as requiredPosition}
+        <span class:loaded={importedPositions.includes(requiredPosition)}>
+          {requiredPosition === "DEF" ? "DST" : requiredPosition}
+          <small>{importedPositions.includes(requiredPosition) ? "Loaded" : "Needed"}</small>
+        </span>
+      {/each}
+    </div>
     <div class="import-summary">
       <div>
         <strong>{summary.matched}</strong>
@@ -223,7 +248,8 @@
   }
 
   .weekly-instructions,
-  .import-summary {
+  .import-summary,
+  .position-status {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface-sunken);
@@ -258,6 +284,39 @@
     font-size: var(--text-xs);
     font-weight: 600;
     line-height: 1.45;
+  }
+
+  .position-status {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: hidden;
+  }
+
+  .position-status > span {
+    display: grid;
+    gap: 2px;
+    padding: 7px 5px;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 900;
+    text-align: center;
+  }
+
+  .position-status > span:last-child {
+    border-right: 0;
+  }
+
+  .position-status > span.loaded {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .position-status small {
+    color: inherit;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
   }
 
   .import-summary {
@@ -323,6 +382,10 @@
     .control-grid,
     .import-summary {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .position-status {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .control-grid .field:last-child {

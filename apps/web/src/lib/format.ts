@@ -1,4 +1,4 @@
-import type { CandidateSignal, ConnectDraft, DraftState, RankingImportSummary, WeeklyProjectionImportSummary } from "./types";
+import type { CandidateSignal, ConnectDraft, DraftState, Player, RankingImportSummary, WeeklyProjectionImportSummary } from "./types";
 
 export function isMockDraft(draftId: string) {
   return draftId === "mock" || draftId === "mock-draft";
@@ -41,6 +41,12 @@ export function formatImportDate(summary: RankingImportSummary | WeeklyProjectio
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+export function formatWeeklyProjection(player: Player | null | undefined) {
+  return player?.weeklyProjectedPoints === null || player?.weeklyProjectedPoints === undefined
+    ? null
+    : `${player.weeklyProjectedPoints.toFixed(1)} pts`;
 }
 
 export function playerName(state: DraftState | null, playerId: string): string {

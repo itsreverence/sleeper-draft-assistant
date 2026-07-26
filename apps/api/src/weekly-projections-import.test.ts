@@ -49,6 +49,7 @@ describe("FantasyPros weekly projection import", () => {
     expect(qbImport.summary.rowsParsed).toBe(1);
     expect(qbImport.summary.matched).toBe(1);
     expect(qbImport.summary.position).toBe("QB");
+    expect(qbImport.summary.positions).toEqual(["QB"]);
     expect(qbImport.playersById.get("p-hurts")?.projectedPoints).toBe(23.1);
     expect(qbImport.playersById.get("p-hurts")?.stats.passYards).toBe(218.4);
     expect(qbImport.playersById.get("p-hurts")?.stats.rushYards).toBe(40.9);
@@ -85,6 +86,7 @@ describe("FantasyPros weekly projection import", () => {
     const merged = mergeWeeklyProjectionImports(qbImport, rbImport);
 
     expect(merged.summary.position).toBeNull();
+    expect(merged.summary.positions).toEqual(["QB", "RB"]);
     expect(merged.summary.matched).toBe(2);
     expect(merged.playersById.get("1")?.projectedPoints).toBe(20.1);
     expect(merged.playersById.get("2")?.projectedPoints).toBe(19.4);
