@@ -12,13 +12,14 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import { RankingImportRequestSchema, WeeklyProjectionImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
+import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv } from "./weekly-projections-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
@@ -33,6 +34,7 @@ const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || null;
 const sleeperClient = new SleeperClient();
 const appDatabase = await SqliteAppDatabase.open();
 const rankingImportStore = new RankingImportStore(undefined, appDatabase);
+const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
 let mockState = createMockDraftState(8);
@@ -56,6 +58,7 @@ type TeamPayload = {
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
   activitySummary: TeamActivitySummary;
+  weeklyProjectionSummary: WeeklyProjectionImportSummary | null;
 };
 
 app.use(
@@ -83,6 +86,7 @@ app.get("/diagnostics", (c) =>
       sqliteStorage: true,
       settingsRecords: appDatabase.countJson("settings"),
       rankingImportRecords: appDatabase.countJson("ranking_imports"),
+      weeklyProjectionImportRecords: appDatabase.countJson("weekly_projection_imports"),
       decisionSnapshots: appDatabase.countDecisionSnapshots(),
     },
     runtime: {
@@ -137,7 +141,11 @@ app.get("/leagues/:leagueId/team", async (c) => {
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
-    return c.json(toTeamPayload(state, weekContext, applyTeamRankingImport(c, availablePlayers), activitySummary));
+    const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season);
+    const projectedState = applyWeeklyProjectionsToTeamState(state, weeklyImport);
+    const availableWithRanks = applyTeamRankingImport(c, availablePlayers);
+    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRanks, weeklyImport);
+    return c.json(toTeamPayload(projectedState, weekContext, projectedAvailablePlayers, activitySummary, weeklyImport?.summary ?? null));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -161,18 +169,86 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
+    const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season);
+    const projectedState = applyWeeklyProjectionsToTeamState(state, weeklyImport);
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
+    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, weeklyImport);
     const aiProvider = createAiProvider(settingsStore.get());
     const aiAnswer = await aiProvider.answerTeamQuestion(
-      buildTeamAiContext(state, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(state, rankedAvailablePlayers), buildTeamLineupSummary(state), activitySummary),
+      buildTeamAiContext(projectedState, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(projectedState, projectedAvailablePlayers), buildTeamLineupSummary(projectedState), activitySummary),
     );
 
     return c.json({
       provider: aiAnswer.provider,
       question,
       answer: aiAnswer.answer,
-      ...toTeamPayload(state, weekContext, rankedAvailablePlayers, activitySummary),
+      ...toTeamPayload(projectedState, weekContext, projectedAvailablePlayers, activitySummary, weeklyImport?.summary ?? null),
     });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.get("/leagues/:leagueId/projections/weekly", async (c) => {
+  try {
+    const leagueId = c.req.param("leagueId");
+    const season = c.req.query("season")?.trim();
+    const week = getWeek(c);
+    if (!season || !week) {
+      return c.json({ summary: null });
+    }
+
+    const storedImport = weeklyProjectionImportStore.get({ leagueId, season, week });
+    return c.json({ summary: storedImport?.summary ?? null });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
+  try {
+    const leagueId = c.req.param("leagueId");
+    const userRosterId = getUserRosterId(c);
+    const body = WeeklyProjectionImportRequestSchema.parse(await c.req.json());
+    const [state, weekContext, availablePlayers, activitySummary] = await Promise.all([
+      sleeperClient.getTeamManagerState(leagueId, userRosterId),
+      sleeperClient.getTeamWeekContext(leagueId, body.week, userRosterId).catch(() => null),
+      sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
+      sleeperClient.getTeamActivitySummary(leagueId, body.week).catch(() => null),
+    ]);
+    const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...availablePlayers]);
+    const storedImport = importFantasyProsWeeklyProjectionCsv({
+      players: playerPool,
+      leagueId,
+      season: body.season,
+      week: body.week,
+      csvText: body.csvText,
+      position: body.position ?? null,
+    });
+    weeklyProjectionImportStore.set({ leagueId, season: body.season, week: body.week }, storedImport);
+    const projectedState = applyWeeklyProjectionsToTeamState(state, storedImport);
+    const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
+    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, storedImport);
+
+    return c.json({
+      summary: storedImport.summary,
+      ...toTeamPayload(projectedState, weekContext, projectedAvailablePlayers, activitySummary, storedImport.summary),
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.delete("/leagues/:leagueId/projections/weekly", async (c) => {
+  try {
+    const leagueId = c.req.param("leagueId");
+    const season = c.req.query("season")?.trim();
+    const week = getWeek(c);
+    if (!season || !week) {
+      return c.json({ deleted: false });
+    }
+
+    return c.json({ deleted: weeklyProjectionImportStore.delete({ leagueId, season, week }) });
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -298,7 +374,13 @@ async function loadDraftState(draftId: string, userRosterId?: string | null): Pr
   return rankingImportStore.apply(draftId, state);
 }
 
-function toTeamPayload(state: TeamManagerState, weekContext: TeamWeekContext | null = null, availablePlayers: Player[] = [], activitySummary: TeamActivitySummary | null = null): TeamPayload {
+function toTeamPayload(
+  state: TeamManagerState,
+  weekContext: TeamWeekContext | null = null,
+  availablePlayers: Player[] = [],
+  activitySummary: TeamActivitySummary | null = null,
+  weeklyProjectionSummary: WeeklyProjectionImportSummary | null = null,
+): TeamPayload {
   return {
     state,
     needs: buildTeamNeedsSummary(state),
@@ -306,6 +388,7 @@ function toTeamPayload(state: TeamManagerState, weekContext: TeamWeekContext | n
     weekContext,
     waiverSummary: buildTeamWaiverSummary(state, availablePlayers),
     activitySummary: activitySummary ?? emptyActivitySummary(),
+    weeklyProjectionSummary,
   };
 }
 function emptyActivitySummary(): TeamActivitySummary {
@@ -388,6 +471,33 @@ function normalizeConversationHistory(history: Array<{ role?: string; content?: 
 }
 function getUserRosterId(c: Context): string | null {
   return c.req.query("userRosterId") ?? null;
+}
+
+function getWeeklyProjectionImport(c: Context, leagueId: string, fallbackSeason: string | null) {
+  const week = getWeek(c);
+  const season = c.req.query("season")?.trim() || fallbackSeason;
+  if (!season || !week) {
+    return null;
+  }
+
+  return weeklyProjectionImportStore.get({ leagueId, season, week });
+}
+
+function getTeamRosterPlayers(state: TeamManagerState): Player[] {
+  return uniquePlayers([
+    ...state.roster.starters.map((slot) => slot.player).filter(isPlayer),
+    ...state.roster.bench,
+    ...state.roster.injuredReserve,
+    ...state.roster.taxi,
+  ]);
+}
+
+function uniquePlayers(players: Player[]): Player[] {
+  return Array.from(new Map(players.map((player) => [player.id, player])).values());
+}
+
+function isPlayer(player: Player | null): player is Player {
+  return Boolean(player);
 }
 
 function applyTeamRankingImport(c: Context, players: Player[]) {

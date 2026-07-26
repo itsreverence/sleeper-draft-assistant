@@ -25,6 +25,12 @@ export function sourceLabel(candidate: CandidateSignal) {
     return "Demo projection";
   }
 
+  if (candidate.player.projectionSource === "weekly_projection") {
+    return candidate.player.weeklyProjectionSource
+      ? `${candidate.player.weeklyProjectionSource} weekly projection`
+      : "Weekly projection";
+  }
+
   return candidate.player.importedSource ? `${candidate.player.importedSource} import` : "Imported data";
 }
 

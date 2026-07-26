@@ -3,7 +3,7 @@ import { z } from "zod";
 export const PositionSchema = z.enum(["QB", "RB", "WR", "TE", "K", "DEF"]);
 export type Position = z.infer<typeof PositionSchema>;
 
-export const PlayerSignalSourceSchema = z.enum(["mock", "sleeper_search_rank", "imported"]);
+export const PlayerSignalSourceSchema = z.enum(["mock", "sleeper_search_rank", "imported", "weekly_projection"]);
 export type PlayerSignalSource = z.infer<typeof PlayerSignalSourceSchema>;
 
 export const PlayerSchema = z.object({
@@ -22,6 +22,10 @@ export const PlayerSchema = z.object({
   importedSource: z.string().nullable().optional(),
   byeWeek: z.number().nullable().optional(),
   ecrVsAdp: z.number().nullable().optional(),
+  weeklyProjectedPoints: z.number().nullable().optional(),
+  weeklyProjectionSource: z.string().nullable().optional(),
+  weeklyProjectionSeason: z.string().nullable().optional(),
+  weeklyProjectionWeek: z.number().nullable().optional(),
 });
 export type Player = z.infer<typeof PlayerSchema>;
 
@@ -79,6 +83,46 @@ export const RankingImportSummarySchema = z.object({
   appliedAt: z.string(),
 });
 export type RankingImportSummary = z.infer<typeof RankingImportSummarySchema>;
+
+export const WeeklyProjectionImportSourceSchema = z.enum(["fantasypros"]);
+export type WeeklyProjectionImportSource = z.infer<typeof WeeklyProjectionImportSourceSchema>;
+
+export const WeeklyProjectionImportRequestSchema = z.object({
+  source: WeeklyProjectionImportSourceSchema.default("fantasypros"),
+  season: z.string().trim().min(4),
+  week: z.number().int().min(1).max(22),
+  position: PositionSchema.nullable().optional(),
+  csvText: z.string().min(1),
+});
+export type WeeklyProjectionImportRequest = z.infer<typeof WeeklyProjectionImportRequestSchema>;
+
+export const WeeklyProjectionImportSummarySchema = z.object({
+  source: WeeklyProjectionImportSourceSchema,
+  season: z.string(),
+  week: z.number(),
+  position: PositionSchema.nullable(),
+  rowsParsed: z.number(),
+  matched: z.number(),
+  unmatched: z.array(
+    z.object({
+      row: z.number(),
+      name: z.string(),
+      team: z.string().nullable(),
+      position: PositionSchema.nullable(),
+    }),
+  ),
+  ambiguous: z.array(
+    z.object({
+      row: z.number(),
+      name: z.string(),
+      team: z.string().nullable(),
+      position: PositionSchema.nullable(),
+      candidates: z.array(z.string()),
+    }),
+  ),
+  appliedAt: z.string(),
+});
+export type WeeklyProjectionImportSummary = z.infer<typeof WeeklyProjectionImportSummarySchema>;
 
 export const TeamSchema = z.object({
   id: z.string(),

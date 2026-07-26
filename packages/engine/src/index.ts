@@ -72,11 +72,7 @@ export function buildTeamLineupSummary(state: TeamManagerState): TeamLineupSumma
     swapRecommendations,
     riskyStarters: Array.from(new Map(riskyStarters.map((player) => [player.id, player])).values()),
     facts: buildLineupFacts(decisions, openSlots, swapRecommendations),
-    limitations: [
-      "Lineup decisions use roster metadata and imported ranks when present, not weekly projections or player news.",
-      "Sleeper current starter slots are treated as the current lineup baseline.",
-      "Flex choices are ranked deterministically by imported rank, estimated value, and risk tags.",
-    ],
+    limitations: buildLineupLimitations(rosterPlayers),
   };
 }
 export function buildTeamWaiverSummary(state: TeamManagerState, availablePlayers: Player[]): TeamWaiverSummary {
@@ -98,11 +94,7 @@ export function buildTeamWaiverSummary(state: TeamManagerState, availablePlayers
     candidates,
     dropCandidates,
     facts: buildWaiverFacts(availablePlayers, candidates, dropCandidates, teamNeeds),
-    limitations: [
-      "Waiver candidates use available Sleeper player metadata and imported rankings when present, not real-time projections or news.",
-      "Availability is inferred from players not currently present on Sleeper league rosters.",
-      "Drop suggestions are deterministic roster-shape signals and should be reviewed before making real moves.",
-    ],
+    limitations: buildWaiverLimitations([...availablePlayers, ...rosterPlayers]),
   };
 }
 export function buildTeamNeedsSummary(state: TeamManagerState): TeamNeedsSummary {
@@ -140,6 +132,31 @@ export function buildTeamNeedsSummary(state: TeamManagerState): TeamNeedsSummary
 }
 
 
+
+
+function buildLineupLimitations(rosterPlayers: Player[]): string[] {
+  const hasWeeklyProjections = rosterPlayers.some((player) => player.projectionSource === "weekly_projection");
+  return [
+    hasWeeklyProjections
+      ? "Lineup decisions use imported weekly projections when matched, plus roster metadata and risk tags."
+      : "Lineup decisions use roster metadata and imported ranks when present, not weekly projections or player news.",
+    "Sleeper current starter slots are treated as the current lineup baseline.",
+    hasWeeklyProjections
+      ? "Flex choices are ranked deterministically by weekly projected points, estimated value, and risk tags."
+      : "Flex choices are ranked deterministically by imported rank, estimated value, and risk tags.",
+  ];
+}
+
+function buildWaiverLimitations(players: Player[]): string[] {
+  const hasWeeklyProjections = players.some((player) => player.projectionSource === "weekly_projection");
+  return [
+    hasWeeklyProjections
+      ? "Waiver candidates use imported weekly projections when matched, plus Sleeper availability and roster metadata."
+      : "Waiver candidates use available Sleeper player metadata and imported rankings when present, not real-time projections or news.",
+    "Availability is inferred from players not currently present on Sleeper league rosters.",
+    "Drop suggestions are deterministic roster-shape signals and should be reviewed before making real moves.",
+  ];
+}
 
 function buildLineupDecisions(state: TeamManagerState, rosterPlayers: Player[]): TeamLineupSummary["decisions"] {
   const remaining = new Map(rosterPlayers.map((player) => [player.id, player]));
@@ -188,7 +205,9 @@ function buildLineupDecision(slot: TeamManagerState["roster"]["starters"][number
     reasons.push(`${currentPlayer.name} remains the top eligible ${slot.slot} option by current metadata.`);
   }
 
-  if (recommendedPlayer?.importedRank) {
+  if (recommendedPlayer?.projectionSource === "weekly_projection" && recommendedPlayer.weeklyProjectedPoints !== null && recommendedPlayer.weeklyProjectedPoints !== undefined) {
+    reasons.push(`Recommended option has FantasyPros Week ${recommendedPlayer.weeklyProjectionWeek ?? "?"} projection of ${recommendedPlayer.weeklyProjectedPoints.toFixed(1)} points.`);
+  } else if (recommendedPlayer?.importedRank) {
     reasons.push(`Recommended option has imported rank ${recommendedPlayer.importedRank}${recommendedPlayer.tier ? `, tier ${recommendedPlayer.tier}` : ""}.`);
   }
   if (recommendedPlayer?.riskTags.length) {
@@ -269,7 +288,9 @@ function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, roste
     reasons.push(`Profiles as a bench stash at ${player.position}.`);
   }
 
-  if (player.importedRank) {
+  if (player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined) {
+    reasons.push(`FantasyPros Week ${player.weeklyProjectionWeek ?? "?"} projection: ${player.weeklyProjectedPoints.toFixed(1)} points.`);
+  } else if (player.importedRank) {
     reasons.push(`FantasyPros import rank ${player.importedRank}${player.tier ? `, tier ${player.tier}` : ""}.`);
   } else {
     reasons.push("No imported rank matched; using Sleeper metadata fallback.");
@@ -292,7 +313,9 @@ function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, roste
     player,
     score: Math.round(score * 10) / 10,
     rosterFit,
-    valueLabel: player.importedRank ? `Rank ${player.importedRank}` : "Sleeper fallback",
+    valueLabel: player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
+      ? `${player.weeklyProjectedPoints.toFixed(1)} weekly pts`
+      : player.importedRank ? `Rank ${player.importedRank}` : "Sleeper fallback",
     suggestedDrop,
     reasons,
   };
@@ -638,6 +661,12 @@ function getRecommendationAssumptions(source: Player["projectionSource"]): strin
     ];
   }
 
+  if (source === "weekly_projection") {
+    return [
+      "Imported weekly projections are powering this recommendation.",
+    ];
+  }
+
   return [
     "Imported projections or rankings are powering this recommendation.",
   ];
@@ -823,6 +852,10 @@ function getValueLabel(player: Player, adpValue: number): string {
     return "near Sleeper rank";
   }
 
+  if (player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined) {
+    return `${player.weeklyProjectedPoints.toFixed(1)} weekly pts`;
+  }
+
   if (player.projectionSource === "imported") {
     if (player.ecrVsAdp !== null && player.ecrVsAdp !== undefined) {
       if (player.ecrVsAdp >= 12) {
@@ -913,6 +946,10 @@ function getPrimarySignalReason(player: Player, projectedEdge: number): string {
     return player.adp === null
       ? "Sleeper metadata is present, but no search-rank signal is available"
       : `Sleeper search rank ${Math.round(player.adp)} is the temporary ordering signal`;
+  }
+
+  if (player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined) {
+    return `${player.weeklyProjectionSource ?? "Imported"} Week ${player.weeklyProjectionWeek ?? "?"} projection: ${player.weeklyProjectedPoints.toFixed(1)} points`;
   }
 
   if (player.projectionSource === "imported" && player.importedRank) {
