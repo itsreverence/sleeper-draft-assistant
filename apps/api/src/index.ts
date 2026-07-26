@@ -12,14 +12,14 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, WeeklyProjectionImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import { RankingImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
-import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv, mergeWeeklyProjectionImports } from "./weekly-projections-import";
+import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv, isWeeklyProjectionImportActive, mergeWeeklyProjectionImports } from "./weekly-projections-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
@@ -141,10 +141,12 @@ app.get("/leagues/:leagueId/team", async (c) => {
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
-    const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season);
-    const projectedState = applyWeeklyProjectionsToTeamState(state, weeklyImport);
+    const selectedWeek = getWeek(c) ?? state.week ?? 1;
+    const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
+    const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
+    const projectedState = applyWeeklyProjectionsToTeamState(state, activeWeeklyImport);
     const availableWithRanks = applyTeamRankingImport(c, availablePlayers);
-    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRanks, weeklyImport);
+    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRanks, activeWeeklyImport);
     return c.json(toTeamPayload(projectedState, weekContext, projectedAvailablePlayers, activitySummary, weeklyImport?.summary ?? null));
   } catch (error) {
     return handleRouteError(c, error);
@@ -169,10 +171,12 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
-    const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season);
-    const projectedState = applyWeeklyProjectionsToTeamState(state, weeklyImport);
+    const selectedWeek = getWeek(c) ?? state.week ?? 1;
+    const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
+    const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
+    const projectedState = applyWeeklyProjectionsToTeamState(state, activeWeeklyImport);
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
-    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, weeklyImport);
+    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, activeWeeklyImport);
     const aiProvider = createAiProvider(settingsStore.get());
     const aiAnswer = await aiProvider.answerTeamQuestion(
       buildTeamAiContext(projectedState, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(projectedState, projectedAvailablePlayers), buildTeamLineupSummary(projectedState), activitySummary),
@@ -209,34 +213,43 @@ app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
   try {
     const leagueId = c.req.param("leagueId");
     const userRosterId = getUserRosterId(c);
-    const body = WeeklyProjectionImportRequestSchema.parse(await c.req.json());
-    const [state, weekContext, availablePlayers, activitySummary] = await Promise.all([
+    const rawBody = await c.req.json();
+    const batchBody = WeeklyProjectionBatchImportRequestSchema.safeParse(rawBody);
+    const singleBody = batchBody.success ? null : WeeklyProjectionImportRequestSchema.parse(rawBody);
+    const season = batchBody.success ? batchBody.data.season : singleBody!.season;
+    const week = batchBody.success ? batchBody.data.week : singleBody!.week;
+    const files = batchBody.success
+      ? batchBody.data.files
+      : [{ position: singleBody!.position ?? null, csvText: singleBody!.csvText }];
+    const [state, weekContext, availablePlayers, activitySummary, projectionImportPlayers] = await Promise.all([
       sleeperClient.getTeamManagerState(leagueId, userRosterId),
-      sleeperClient.getTeamWeekContext(leagueId, body.week, userRosterId).catch(() => null),
+      sleeperClient.getTeamWeekContext(leagueId, week, userRosterId).catch(() => null),
       sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
-      sleeperClient.getTeamActivitySummary(leagueId, body.week).catch(() => null),
+      sleeperClient.getTeamActivitySummary(leagueId, week).catch(() => null),
+      sleeperClient.getProjectionImportPlayers(),
     ]);
-    const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...availablePlayers]);
-    const incomingImport = importFantasyProsWeeklyProjectionCsv({
-      players: playerPool,
-      leagueId,
-      season: body.season,
-      week: body.week,
-      csvText: body.csvText,
-      position: body.position ?? null,
-    });
-    const storedImport = mergeWeeklyProjectionImports(
-      weeklyProjectionImportStore.get({ leagueId, season: body.season, week: body.week }),
-      incomingImport,
-    );
-    weeklyProjectionImportStore.set({ leagueId, season: body.season, week: body.week }, storedImport);
-    const projectedState = applyWeeklyProjectionsToTeamState(state, storedImport);
+    const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...projectionImportPlayers]);
+    let storedImport = weeklyProjectionImportStore.get({ leagueId, season, week });
+    for (const file of files) {
+      const incomingImport = importFantasyProsWeeklyProjectionCsv({
+        players: playerPool,
+        leagueId,
+        season,
+        week,
+        csvText: file.csvText,
+        position: file.position,
+      });
+      storedImport = mergeWeeklyProjectionImports(storedImport, incomingImport);
+    }
+    weeklyProjectionImportStore.set({ leagueId, season, week }, storedImport!);
+    const activeWeeklyImport = isWeeklyProjectionImportActive(state, storedImport, week) ? storedImport : null;
+    const projectedState = applyWeeklyProjectionsToTeamState(state, activeWeeklyImport);
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
-    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, storedImport);
+    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, activeWeeklyImport);
 
     return c.json({
-      summary: storedImport.summary,
-      ...toTeamPayload(projectedState, weekContext, projectedAvailablePlayers, activitySummary, storedImport.summary),
+      summary: storedImport!.summary,
+      ...toTeamPayload(projectedState, weekContext, projectedAvailablePlayers, activitySummary, storedImport!.summary),
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -477,8 +490,8 @@ function getUserRosterId(c: Context): string | null {
   return c.req.query("userRosterId") ?? null;
 }
 
-function getWeeklyProjectionImport(c: Context, leagueId: string, fallbackSeason: string | null) {
-  const week = getWeek(c);
+function getWeeklyProjectionImport(c: Context, leagueId: string, fallbackSeason: string | null, fallbackWeek: number | null = null) {
+  const week = getWeek(c) ?? fallbackWeek;
   const season = c.req.query("season")?.trim() || fallbackSeason;
   if (!season || !week) {
     return null;

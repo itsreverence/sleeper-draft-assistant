@@ -103,13 +103,25 @@ export async function fetchSleeperConnect(params: {
   return (await response.json()) as ConnectPayload;
 }
 
-export async function fetchTeamManagerState(leagueId: string, userRosterId: string | null, draftId: string | null = null): Promise<TeamPayload> {
+export async function fetchTeamManagerState(
+  leagueId: string,
+  userRosterId: string | null,
+  draftId: string | null = null,
+  season: string | null = null,
+  week: number | null = null,
+): Promise<TeamPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
     query.set("userRosterId", userRosterId);
   }
   if (draftId) {
     query.set("draftId", draftId);
+  }
+  if (season) {
+    query.set("season", season);
+  }
+  if (week) {
+    query.set("week", String(week));
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team${suffix}`);
@@ -134,7 +146,21 @@ export async function importWeeklyProjectionsRequest(input: {
   season: string;
   week: number;
   csvText: string;
-  position?: Position | null;
+  position: Position;
+  userRosterId?: string | null;
+  draftId?: string | null;
+}): Promise<WeeklyProjectionImportPayload> {
+  return importWeeklyProjectionFilesRequest({
+    ...input,
+    files: [{ position: input.position, csvText: input.csvText }],
+  });
+}
+
+export async function importWeeklyProjectionFilesRequest(input: {
+  leagueId: string;
+  season: string;
+  week: number;
+  files: Array<{ position: Position; csvText: string }>;
   userRosterId?: string | null;
   draftId?: string | null;
 }): Promise<WeeklyProjectionImportPayload> {
@@ -153,8 +179,7 @@ export async function importWeeklyProjectionsRequest(input: {
       source: "fantasypros",
       season: input.season,
       week: input.week,
-      csvText: input.csvText,
-      position: input.position ?? null,
+      files: input.files,
     }),
   });
   if (!response.ok) {
@@ -274,6 +299,8 @@ export async function askTeamManagerRequest(
   draftId: string | null,
   question: string,
   conversationHistory: AiConversationMessage[] = [],
+  season: string | null = null,
+  week: number | null = null,
 ): Promise<TeamAskAnswerPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
@@ -281,6 +308,12 @@ export async function askTeamManagerRequest(
   }
   if (draftId) {
     query.set("draftId", draftId);
+  }
+  if (season) {
+    query.set("season", season);
+  }
+  if (week) {
+    query.set("week", String(week));
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {

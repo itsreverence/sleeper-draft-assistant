@@ -96,12 +96,34 @@ export const WeeklyProjectionImportRequestSchema = z.object({
 });
 export type WeeklyProjectionImportRequest = z.infer<typeof WeeklyProjectionImportRequestSchema>;
 
+export const WeeklyProjectionBatchImportRequestSchema = z.object({
+  source: WeeklyProjectionImportSourceSchema.default("fantasypros"),
+  season: z.string().trim().min(4),
+  week: z.number().int().min(1).max(22),
+  files: z.array(z.object({
+    position: PositionSchema,
+    csvText: z.string().min(1),
+  })).min(1).max(6),
+});
+export type WeeklyProjectionBatchImportRequest = z.infer<typeof WeeklyProjectionBatchImportRequestSchema>;
+
+export const WeeklyProjectionPositionResultSchema = z.object({
+  position: PositionSchema,
+  rowsParsed: z.number(),
+  matched: z.number(),
+  unmatched: z.number(),
+  ambiguous: z.number(),
+  appliedAt: z.string(),
+});
+export type WeeklyProjectionPositionResult = z.infer<typeof WeeklyProjectionPositionResultSchema>;
+
 export const WeeklyProjectionImportSummarySchema = z.object({
   source: WeeklyProjectionImportSourceSchema,
   season: z.string(),
   week: z.number(),
   position: PositionSchema.nullable(),
   positions: z.array(PositionSchema),
+  positionResults: z.array(WeeklyProjectionPositionResultSchema),
   rowsParsed: z.number(),
   matched: z.number(),
   unmatched: z.array(

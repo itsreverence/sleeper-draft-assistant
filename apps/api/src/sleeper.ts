@@ -377,6 +377,15 @@ export class SleeperClient {
       : "network request failed";
     throw new SleeperApiError(`Could not reach Sleeper (${reason}). Check your connection and try again.`);
   }
+
+  async getProjectionImportPlayers(): Promise<Player[]> {
+    const players = await this.getPlayers();
+    return Object.values(players)
+      .filter((player) => player.sport === "nfl" && player.player_id)
+      .map(toPlayer)
+      .filter(isPresent)
+      .sort(compareSleeperPlayers);
+  }
 }
 
 function isRetryableSleeperStatus(status?: number) {

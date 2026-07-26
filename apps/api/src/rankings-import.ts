@@ -346,13 +346,19 @@ function normalizeHeader(header: string): string {
 }
 
 function normalizeName(name: string): string {
-  return name
+  const normalized = name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, "")
     .replace(/[^a-z0-9]/g, "");
+  return playerNameAliases[normalized] ?? normalized;
 }
+
+const playerNameAliases: Record<string, string> = {
+  bamknight: "zonovanknight",
+  hollywoodbrown: "marquisebrown",
+};
 
 function normalizeTeam(team: string): string {
   return team.toUpperCase() === "JAC" ? "JAX" : team.toUpperCase();

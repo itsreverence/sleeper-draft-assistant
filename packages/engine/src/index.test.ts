@@ -236,6 +236,52 @@ describe("team needs engine", () => {
     expect(summary.riskyStarters.map((player) => player.id)).toContain("bench-rb-risk");
     expect(summary.facts.some((fact) => fact.includes("Risky Bench RB"))).toBe(true);
   });
+  it("uses weekly projections to recommend a lineup swap", () => {
+    const state = createTeamManagerState();
+    const starterWr = state.roster.starters.find((slot) => slot.slot === "WR")?.player;
+    if (!starterWr) {
+      throw new Error("Expected a starting WR fixture.");
+    }
+    Object.assign(starterWr, {
+      projectedPoints: 14.2,
+      projectionSource: "weekly_projection",
+      weeklyProjectedPoints: 14.2,
+      weeklyProjectionSource: "FantasyPros",
+      weeklyProjectionSeason: "2026",
+      weeklyProjectionWeek: 1,
+    });
+    const weeklyBenchWr = {
+      ...teamPlayer("bench-wr-weekly", "Weekly Breakout WR", "WR", 28.4, 150),
+      projectionSource: "weekly_projection" as const,
+      weeklyProjectedPoints: 28.4,
+      weeklyProjectionSource: "FantasyPros",
+      weeklyProjectionSeason: "2026",
+      weeklyProjectionWeek: 1,
+    };
+    state.roster.bench = [weeklyBenchWr];
+    state.roster.positionCounts.WR = 2;
+    const summary = buildTeamLineupSummary(state);
+    const swap = summary.swapRecommendations.find((decision) => decision.currentPlayer?.id === "wr-1");
+
+    expect(swap?.recommendedPlayer?.id).toBe("bench-wr-weekly");
+    expect(swap?.reasons.some((reason) => reason.includes("28.4 points"))).toBe(true);
+  });
+  it("scores weekly waiver projections on a weekly scale", () => {
+    const state = createTeamManagerState();
+    const weeklyCandidate = {
+      ...teamPlayer("fa-weekly", "Projected Breakout", "RB", 24, 150),
+      projectionSource: "weekly_projection" as const,
+      weeklyProjectedPoints: 24,
+      weeklyProjectionSource: "FantasyPros",
+      weeklyProjectionSeason: "2026",
+      weeklyProjectionWeek: 1,
+    };
+    const fallbackCandidate = teamPlayer("fa-fallback", "Sleeper Placeholder", "RB", 399, 1);
+    const summary = buildTeamWaiverSummary(state, [fallbackCandidate, weeklyCandidate]);
+
+    expect(summary.candidates[0]?.player.id).toBe("fa-weekly");
+    expect(summary.candidates[0]?.valueLabel).toBe("24.0 weekly pts");
+  });
   it("summarizes available add and drop candidates", () => {
     const state = createTeamManagerState({
       bench: [teamPlayer("bench-k", "Bench K", "K", 100, 260)],

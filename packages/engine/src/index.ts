@@ -270,7 +270,9 @@ function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, roste
   const beatsRosterBest = rosterBestAtPosition ? comparePlayersForLineup(player, rosterBestAtPosition) < 0 : true;
   const reasons: string[] = [];
   let rosterFit: TeamWaiverSummary["candidates"][number]["rosterFit"] = "stash";
-  let score = Math.max(0, 260 - rank);
+  let score = player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
+    ? player.weeklyProjectedPoints * 12
+    : Math.max(0, 260 - rank);
 
   if (need?.status === "open_starter") {
     rosterFit = "starter_need";
@@ -422,6 +424,17 @@ function takeBestEligiblePlayer(remaining: Map<string, Player>, eligiblePosition
 function comparePlayersForLineup(a: Player, b: Player): number {
   const aRank = a.importedRank ?? a.adp ?? Number.MAX_SAFE_INTEGER;
   const bRank = b.importedRank ?? b.adp ?? Number.MAX_SAFE_INTEGER;
+  const aHasWeeklyProjection = a.projectionSource === "weekly_projection" && a.weeklyProjectedPoints !== null && a.weeklyProjectedPoints !== undefined;
+  const bHasWeeklyProjection = b.projectionSource === "weekly_projection" && b.weeklyProjectedPoints !== null && b.weeklyProjectedPoints !== undefined;
+  if (aHasWeeklyProjection && bHasWeeklyProjection && a.weeklyProjectedPoints !== b.weeklyProjectedPoints) {
+    return b.weeklyProjectedPoints! - a.weeklyProjectedPoints!;
+  }
+  if (aHasWeeklyProjection !== bHasWeeklyProjection) {
+    if (aRank !== bRank) {
+      return aRank - bRank;
+    }
+    return aHasWeeklyProjection ? -1 : 1;
+  }
   if (a.projectedPoints !== b.projectedPoints) {
     return b.projectedPoints - a.projectedPoints;
   }

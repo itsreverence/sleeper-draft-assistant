@@ -9,6 +9,7 @@ import {
   WeeklyProjectionImportStore,
   applyWeeklyProjectionsToPlayers,
   importFantasyProsWeeklyProjectionCsv,
+  isWeeklyProjectionImportActive,
   mergeWeeklyProjectionImports,
 } from "./weekly-projections-import";
 import { SqliteAppDatabase } from "./sqlite-app-database";
@@ -50,6 +51,9 @@ describe("FantasyPros weekly projection import", () => {
     expect(qbImport.summary.matched).toBe(1);
     expect(qbImport.summary.position).toBe("QB");
     expect(qbImport.summary.positions).toEqual(["QB"]);
+    expect(qbImport.summary.positionResults).toEqual([
+      expect.objectContaining({ position: "QB", rowsParsed: 1, matched: 1, unmatched: 0, ambiguous: 0 }),
+    ]);
     expect(qbImport.playersById.get("p-hurts")?.projectedPoints).toBe(23.1);
     expect(qbImport.playersById.get("p-hurts")?.stats.passYards).toBe(218.4);
     expect(qbImport.playersById.get("p-hurts")?.stats.rushYards).toBe(40.9);
@@ -87,9 +91,71 @@ describe("FantasyPros weekly projection import", () => {
 
     expect(merged.summary.position).toBeNull();
     expect(merged.summary.positions).toEqual(["QB", "RB"]);
+    expect(merged.summary.positionResults.map((result) => result.position)).toEqual(["QB", "RB"]);
+    expect(merged.summary.rowsParsed).toBe(2);
     expect(merged.summary.matched).toBe(2);
     expect(merged.playersById.get("1")?.projectedPoints).toBe(20.1);
     expect(merged.playersById.get("2")?.projectedPoints).toBe(19.4);
+  });
+
+  it("replaces per-position counts instead of accumulating re-imported rows", () => {
+    const players = [
+      player("1", "Josh Allen", "BUF", "QB"),
+      player("2", "Jalen Hurts", "PHI", "QB"),
+    ];
+    const firstImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,24`,
+      position: "QB",
+    });
+    const replacementImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,25\nJalen Hurts,PHI,29,19,215,2,0,8,42,1,0,26`,
+      position: "QB",
+    });
+
+    const merged = mergeWeeklyProjectionImports(firstImport, replacementImport);
+
+    expect(merged.summary.rowsParsed).toBe(2);
+    expect(merged.summary.matched).toBe(2);
+    expect(merged.summary.positionResults).toEqual([
+      expect.objectContaining({ position: "QB", rowsParsed: 2, matched: 2 }),
+    ]);
+    expect(merged.playersById.get("1")?.projectedPoints).toBe(25);
+  });
+
+  it("only activates projections for the connected league season and selected week", () => {
+    const players = [player("1", "Josh Allen", "BUF", "QB")];
+    const historicalImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2025",
+      week: 1,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,24`,
+      position: "QB",
+    });
+    const currentImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 2,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,25`,
+      position: "QB",
+    });
+    const state = {
+      league: { season: "2026" },
+      week: 1,
+    } as Parameters<typeof isWeeklyProjectionImportActive>[0];
+
+    expect(isWeeklyProjectionImportActive(state, historicalImport, 1)).toBe(false);
+    expect(isWeeklyProjectionImportActive(state, currentImport, 1)).toBe(false);
+    expect(isWeeklyProjectionImportActive(state, currentImport, 2)).toBe(true);
   });
 
   it("matches FantasyPros DST rows to Sleeper DEF players", () => {
@@ -113,6 +179,32 @@ describe("FantasyPros weekly projection import", () => {
       weeklyProjectionSeason: "2025",
       weeklyProjectionWeek: 1,
     });
+  });
+
+  it("matches common FantasyPros player aliases", () => {
+    const players = [
+      player("brown", "Marquise Brown", "PHI", "WR"),
+      player("knight", "Zonovan Knight", "ARI", "RB"),
+    ];
+    const brownImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2025",
+      week: 1,
+      position: "WR",
+      csvText: `Player,Team,REC,YDS,TDS,ATT,YDS,TDS,FL,FPTS\nHollywood Brown,PHI,4,52,0.4,0,0,0,0,9.6`,
+    });
+    const knightImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2025",
+      week: 1,
+      position: "RB",
+      csvText: `Player,Team,ATT,YDS,TDS,REC,YDS,TDS,FL,FPTS\nBam Knight,ARI,6,24,0.1,1,8,0,0,4.8`,
+    });
+
+    expect(brownImport.playersById.has("brown")).toBe(true);
+    expect(knightImport.playersById.has("knight")).toBe(true);
   });
 
   it("persists weekly projections by league season and week in SQLite", async () => {

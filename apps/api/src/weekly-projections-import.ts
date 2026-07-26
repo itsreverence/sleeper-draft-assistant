@@ -162,6 +162,7 @@ export function importFantasyProsWeeklyProjectionCsv(input: {
   }
 
   const position = rows.find((row) => row.position)?.position ?? input.position ?? null;
+  const appliedAt = new Date().toISOString();
   return {
     summary: {
       source: "fantasypros",
@@ -169,11 +170,19 @@ export function importFantasyProsWeeklyProjectionCsv(input: {
       week: input.week,
       position,
       positions: position ? [position] : [],
+      positionResults: position ? [{
+        position,
+        rowsParsed: rows.length,
+        matched: playersById.size,
+        unmatched: unmatched.length,
+        ambiguous: ambiguous.length,
+        appliedAt,
+      }] : [],
       rowsParsed: rows.length,
       matched: playersById.size,
       unmatched: unmatched.slice(0, 40),
       ambiguous: ambiguous.slice(0, 40),
-      appliedAt: new Date().toISOString(),
+      appliedAt,
     },
     playersById,
   };
@@ -201,6 +210,15 @@ export function mergeWeeklyProjectionImports(
   }
 
   const positions = new Set(Array.from(playersById.values()).map((player) => player.position));
+  const positionResults = new Map<Position, WeeklyProjectionImportSummary["positionResults"][number]>();
+  for (const result of existingImport.summary.positionResults ?? inferPositionResults(existingImport)) {
+    positionResults.set(result.position, result);
+  }
+  for (const result of incomingImport.summary.positionResults ?? inferPositionResults(incomingImport)) {
+    positionResults.set(result.position, result);
+  }
+  const orderedPositionResults = Array.from(positionResults.values())
+    .sort((left, right) => comparePositions(left.position, right.position));
   return {
     summary: {
       source: incomingImport.summary.source,
@@ -208,10 +226,17 @@ export function mergeWeeklyProjectionImports(
       week: incomingImport.summary.week,
       position: positions.size === 1 ? Array.from(positions)[0] : null,
       positions: Array.from(positions).sort(comparePositions),
-      rowsParsed: existingImport.summary.rowsParsed + incomingImport.summary.rowsParsed,
+      positionResults: orderedPositionResults,
+      rowsParsed: orderedPositionResults.reduce((total, result) => total + result.rowsParsed, 0),
       matched: playersById.size,
-      unmatched: [...incomingImport.summary.unmatched, ...existingImport.summary.unmatched].slice(0, 40),
-      ambiguous: [...incomingImport.summary.ambiguous, ...existingImport.summary.ambiguous].slice(0, 40),
+      unmatched: [
+        ...incomingImport.summary.unmatched,
+        ...existingImport.summary.unmatched.filter((row) => !incomingPosition || row.position !== incomingPosition),
+      ].slice(0, 40),
+      ambiguous: [
+        ...incomingImport.summary.ambiguous,
+        ...existingImport.summary.ambiguous.filter((row) => !incomingPosition || row.position !== incomingPosition),
+      ].slice(0, 40),
       appliedAt: incomingImport.summary.appliedAt,
     },
     playersById,
@@ -243,6 +268,19 @@ export function applyWeeklyProjectionsToTeamState(state: TeamManagerState, store
   };
 
   return projectedState;
+}
+
+export function isWeeklyProjectionImportActive(
+  state: Pick<TeamManagerState, "league" | "week">,
+  storedImport: StoredWeeklyProjectionImport | null,
+  selectedWeek: number | null,
+): boolean {
+  if (!storedImport || !state.league.season || !selectedWeek) {
+    return false;
+  }
+
+  return storedImport.summary.season === state.league.season
+    && storedImport.summary.week === selectedWeek;
 }
 
 export function applyWeeklyProjectionsToPlayers(players: Player[], storedImport: StoredWeeklyProjectionImport | null): Player[] {
@@ -443,10 +481,12 @@ function serializeWeeklyProjectionImport(storedImport: StoredWeeklyProjectionImp
 function deserializeWeeklyProjectionImport(storedImport: SerializedWeeklyProjectionImport): StoredWeeklyProjectionImport {
   const playersById = new Map(storedImport.players);
   const positions = Array.from(new Set(Array.from(playersById.values()).map((player) => player.position))).sort(comparePositions);
+  const deserialized = { summary: storedImport.summary, playersById };
   return {
     summary: {
       ...storedImport.summary,
       positions: storedImport.summary.positions ?? positions,
+      positionResults: storedImport.summary.positionResults ?? inferPositionResults(deserialized),
     },
     playersById,
   };
@@ -456,6 +496,30 @@ const projectionPositionOrder: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"]
 
 function comparePositions(left: Position, right: Position) {
   return projectionPositionOrder.indexOf(left) - projectionPositionOrder.indexOf(right);
+}
+
+function inferPositionResults(storedImport: StoredWeeklyProjectionImport): WeeklyProjectionImportSummary["positionResults"] {
+  const positions = storedImport.summary.positions
+    ?? Array.from(new Set(Array.from(storedImport.playersById.values()).map((player) => player.position)));
+  if (positions.length === 1) {
+    return [{
+      position: positions[0],
+      rowsParsed: storedImport.summary.rowsParsed,
+      matched: storedImport.summary.matched,
+      unmatched: storedImport.summary.unmatched.length,
+      ambiguous: storedImport.summary.ambiguous.length,
+      appliedAt: storedImport.summary.appliedAt,
+    }];
+  }
+
+  return positions.map((position) => ({
+    position,
+    rowsParsed: 0,
+    matched: Array.from(storedImport.playersById.values()).filter((player) => player.position === position).length,
+    unmatched: storedImport.summary.unmatched.filter((row) => row.position === position).length,
+    ambiguous: storedImport.summary.ambiguous.filter((row) => row.position === position).length,
+    appliedAt: storedImport.summary.appliedAt,
+  }));
 }
 
 function parseCsv(text: string): string[][] {
@@ -525,13 +589,19 @@ function cleanCell(value: string | undefined): string {
 }
 
 function normalizeName(name: string): string {
-  return name
+  const normalized = name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\b(jr|sr|ii|iii|iv|v|dst|def|defense)\b/g, "")
     .replace(/[^a-z0-9]/g, "");
+  return playerNameAliases[normalized] ?? normalized;
 }
+
+const playerNameAliases: Record<string, string> = {
+  bamknight: "zonovanknight",
+  hollywoodbrown: "marquisebrown",
+};
 
 function normalizeTeam(team: string): string {
   return team.toUpperCase() === "JAC" ? "JAX" : team.toUpperCase();
