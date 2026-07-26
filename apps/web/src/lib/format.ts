@@ -1,4 +1,4 @@
-import type { CandidateSignal, ConnectDraft, DraftState, RankingImportSummary } from "./types";
+import type { CandidateSignal, ConnectDraft, DraftState, RankingImportSummary, WeeklyProjectionImportSummary } from "./types";
 
 export function isMockDraft(draftId: string) {
   return draftId === "mock" || draftId === "mock-draft";
@@ -34,7 +34,7 @@ export function sourceLabel(candidate: CandidateSignal) {
   return candidate.player.importedSource ? `${candidate.player.importedSource} import` : "Imported data";
 }
 
-export function formatImportDate(summary: RankingImportSummary) {
+export function formatImportDate(summary: RankingImportSummary | WeeklyProjectionImportSummary) {
   return new Date(summary.appliedAt).toLocaleString([], {
     month: "short",
     day: "numeric",

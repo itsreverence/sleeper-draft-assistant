@@ -178,6 +178,44 @@ export function importFantasyProsWeeklyProjectionCsv(input: {
   };
 }
 
+export function mergeWeeklyProjectionImports(
+  existingImport: StoredWeeklyProjectionImport | null,
+  incomingImport: StoredWeeklyProjectionImport,
+): StoredWeeklyProjectionImport {
+  if (!existingImport) {
+    return incomingImport;
+  }
+
+  const incomingPosition = incomingImport.summary.position;
+  const playersById = new Map(existingImport.playersById);
+  if (incomingPosition) {
+    for (const [playerId, importedPlayer] of playersById.entries()) {
+      if (importedPlayer.position === incomingPosition) {
+        playersById.delete(playerId);
+      }
+    }
+  }
+  for (const [playerId, importedPlayer] of incomingImport.playersById.entries()) {
+    playersById.set(playerId, importedPlayer);
+  }
+
+  const positions = new Set(Array.from(playersById.values()).map((player) => player.position));
+  return {
+    summary: {
+      source: incomingImport.summary.source,
+      season: incomingImport.summary.season,
+      week: incomingImport.summary.week,
+      position: positions.size === 1 ? Array.from(positions)[0] : null,
+      rowsParsed: existingImport.summary.rowsParsed + incomingImport.summary.rowsParsed,
+      matched: playersById.size,
+      unmatched: [...incomingImport.summary.unmatched, ...existingImport.summary.unmatched].slice(0, 40),
+      ambiguous: [...incomingImport.summary.ambiguous, ...existingImport.summary.ambiguous].slice(0, 40),
+      appliedAt: incomingImport.summary.appliedAt,
+    },
+    playersById,
+  };
+}
+
 export function applyWeeklyProjectionsToTeamState(state: TeamManagerState, storedImport: StoredWeeklyProjectionImport | null): TeamManagerState {
   if (!storedImport) {
     return state;

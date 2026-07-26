@@ -9,6 +9,7 @@ import {
   WeeklyProjectionImportStore,
   applyWeeklyProjectionsToPlayers,
   importFantasyProsWeeklyProjectionCsv,
+  mergeWeeklyProjectionImports,
 } from "./weekly-projections-import";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
@@ -57,6 +58,36 @@ describe("FantasyPros weekly projection import", () => {
     expect(rbImport.summary.position).toBe("RB");
     expect(rbImport.playersById.get("p-bijan")?.stats.rushYards).toBe(83.2);
     expect(rbImport.playersById.get("p-bijan")?.stats.receivingYards).toBe(26.3);
+  });
+
+  it("merges separate position imports without losing the rest of the week", () => {
+    const players = [
+      player("1", "Josh Allen", "BUF", "QB"),
+      player("2", "Bijan Robinson", "ATL", "RB"),
+    ];
+    const qbImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2025",
+      week: 1,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31.2,20.1,218.4,1.6,0.8,6.1,40.9,0.4,0.2,20.1`,
+      position: "QB",
+    });
+    const rbImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2025",
+      week: 1,
+      csvText: `Player,Team,ATT,YDS,TDS,REC,YDS,TDS,FL,FPTS\nBijan Robinson,ATL,16.8,83.2,0.7,4.3,26.3,0.2,0.1,19.4`,
+      position: "RB",
+    });
+
+    const merged = mergeWeeklyProjectionImports(qbImport, rbImport);
+
+    expect(merged.summary.position).toBeNull();
+    expect(merged.summary.matched).toBe(2);
+    expect(merged.playersById.get("1")?.projectedPoints).toBe(20.1);
+    expect(merged.playersById.get("2")?.projectedPoints).toBe(19.4);
   });
 
   it("matches FantasyPros DST rows to Sleeper DEF players", () => {

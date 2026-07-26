@@ -14,6 +14,9 @@
 
   const decisions = $derived(lineupSummary?.decisions.slice(0, 6) ?? []);
   const swaps = $derived(lineupSummary?.swapRecommendations ?? []);
+  const hasWeeklyProjections = $derived(
+    decisions.some((decision) => decision.recommendedPlayer?.projectionSource === "weekly_projection" || decision.currentPlayer?.projectionSource === "weekly_projection"),
+  );
 
   function askLineup() {
     void onAsk?.("Who should I start this week?");
@@ -57,7 +60,11 @@
       {/each}
     </div>
 
-    <p class="muted compact-copy">Lineup decisions use ranks and roster metadata, not weekly projections.</p>
+    <p class="muted compact-copy">
+      {hasWeeklyProjections
+        ? "Lineup decisions use imported weekly projections when available, plus ranks and roster metadata."
+        : "Lineup decisions use ranks and roster metadata, not weekly projections."}
+    </p>
   {/if}
 </article>
 

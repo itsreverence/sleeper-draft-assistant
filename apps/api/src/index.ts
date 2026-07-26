@@ -19,7 +19,7 @@ import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
-import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv } from "./weekly-projections-import";
+import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv, mergeWeeklyProjectionImports } from "./weekly-projections-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
@@ -217,7 +217,7 @@ app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
       sleeperClient.getTeamActivitySummary(leagueId, body.week).catch(() => null),
     ]);
     const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...availablePlayers]);
-    const storedImport = importFantasyProsWeeklyProjectionCsv({
+    const incomingImport = importFantasyProsWeeklyProjectionCsv({
       players: playerPool,
       leagueId,
       season: body.season,
@@ -225,6 +225,10 @@ app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
       csvText: body.csvText,
       position: body.position ?? null,
     });
+    const storedImport = mergeWeeklyProjectionImports(
+      weeklyProjectionImportStore.get({ leagueId, season: body.season, week: body.week }),
+      incomingImport,
+    );
     weeklyProjectionImportStore.set({ leagueId, season: body.season, week: body.week }, storedImport);
     const projectedState = applyWeeklyProjectionsToTeamState(state, storedImport);
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
