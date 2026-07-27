@@ -8,14 +8,12 @@
     preference = null,
     featured = false,
     onSetPreference,
-    onWhatIf,
   }: {
     candidate: CandidateSignal;
     rank: number;
     preference?: PlayerPreferenceLevel | null;
     featured?: boolean;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
-    onWhatIf?: (playerName: string) => void;
   } = $props();
 
   let detailsOpen = $state(false);
@@ -41,7 +39,7 @@
       <div class="name-row">
         <h3>{candidate.player.name}</h3>
         {#if preference}
-          <span class="preference-badge preference-{preference}">{preference}</span>
+          <span class="preference-badge preference-{preference}">{preference === "pin" ? "shortlisted" : preference}</span>
         {/if}
       </div>
       <p>{candidate.player.team} - {candidate.player.position} - {rosterFitLabel(candidate.rosterFit)}</p>
@@ -64,27 +62,10 @@
       aria-pressed={preference === "pin"}
       onclick={() => togglePreference("pin")}
     >
-      Pin
+      {preference === "pin" ? "Shortlisted" : "Shortlist"}
     </button>
-    <button
-      class:active={preference === "fade"}
-      type="button"
-      aria-pressed={preference === "fade"}
-      onclick={() => togglePreference("fade")}
-    >
-      Fade
-    </button>
-    <button
-      class:active={preference === "exclude"}
-      type="button"
-      aria-pressed={preference === "exclude"}
-      onclick={() => togglePreference("exclude")}
-    >
-      Exclude
-    </button>
-    <button type="button" onclick={() => onWhatIf?.(candidate.player.name)}>What if</button>
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
-      {detailsOpen ? "Less" : "Signals"}
+      {detailsOpen ? "Less" : "Details"}
     </button>
   </div>
 
@@ -102,6 +83,24 @@
           {/each}
         </ul>
       {/if}
+      <div class="secondary-actions" aria-label={`Preferences for ${candidate.player.name}`}>
+        <button
+          class:active={preference === "fade"}
+          type="button"
+          aria-pressed={preference === "fade"}
+          onclick={() => togglePreference("fade")}
+        >
+          {preference === "fade" ? "Faded" : "Fade"}
+        </button>
+        <button
+          class:active={preference === "exclude"}
+          type="button"
+          aria-pressed={preference === "exclude"}
+          onclick={() => togglePreference("exclude")}
+        >
+          {preference === "exclude" ? "Excluded" : "Exclude"}
+        </button>
+      </div>
     </div>
   {/if}
 </section>
@@ -293,5 +292,30 @@
 
   .details li:last-child {
     margin-bottom: 0;
+  }
+
+  .secondary-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .secondary-actions button {
+    border: 0;
+    background: transparent;
+    padding: 4px 0;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .secondary-actions button + button {
+    margin-left: 12px;
+  }
+
+  .secondary-actions button:hover,
+  .secondary-actions button.active {
+    color: var(--text-primary);
   }
 </style>
