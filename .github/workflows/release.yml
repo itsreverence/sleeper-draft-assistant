@@ -64,7 +64,8 @@ jobs:
             throw "Expected installer, portable executable, and ZIP; found $($artifacts.Count) release artifacts."
           }
           $checksums = $artifacts | ForEach-Object {
-            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+            $downloadName = $_.Name.Replace(" ", ".")
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $downloadName"
           }
           $checksums | Set-Content (Join-Path $output "SHA256SUMS.txt") -Encoding ascii
 
