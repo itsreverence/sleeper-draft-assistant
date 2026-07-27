@@ -17,9 +17,9 @@ This is a direction document, not a promise or release schedule.
 ## Before the first published alpha installer
 
 - complete clean Windows first-run and uninstall testing
-- publish unsigned-build and rollback guidance
+- validate unsigned-build and rollback guidance against the published artifacts
 - confirm CI packaging on the release commit
-- add release checksums and provenance notes
+- confirm tag-driven release checksums and provenance on the first prerelease
 - validate diagnostics and local-data deletion on Windows
 
 ## Candidate follow-up work

@@ -62,6 +62,8 @@ npm run desktop:make     # distributable targets
 
 Release builds are currently unsigned. Windows may display a SmartScreen warning, and macOS packaging/signing is not yet supported. Only install artifacts from this repository's Releases page once releases are published.
 
+See [Installing on Windows](docs/INSTALLING.md) for artifact choices, checksum verification, local-data cleanup, updates, and rollback.
+
 ## Local data and privacy
 
 The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported rankings and weekly projections, settings, and recommendation history.
@@ -85,6 +87,7 @@ Useful docs:
 - [Development workflow](docs/WORKFLOW.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release process](docs/RELEASING.md)
+- [Installing on Windows](docs/INSTALLING.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
