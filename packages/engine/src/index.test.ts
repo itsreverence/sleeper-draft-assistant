@@ -97,6 +97,33 @@ describe("mock draft engine", () => {
     expect(next.picks).toHaveLength(4);
     expect(next.currentPick).toBe(5);
   });
+  it("runs the mock draft to a board-consistent completion", () => {
+    let state = createMockDraftState(0);
+    const totalPicks = state.settings.teams * state.settings.rounds;
+
+    while (state.status !== "complete") {
+      state = advanceMockDraftState(state);
+    }
+
+    expect(state.picks).toHaveLength(totalPicks);
+    expect(state.currentPick).toBe(totalPicks);
+    expect(state.teams.flatMap((team) => team.roster)).toHaveLength(totalPicks);
+  });
+  it("removes a drafted shortlisted player from later recommendations", () => {
+    const state = createMockDraftState(0);
+    const shortlistedId = buildDraftRecommendation(state).recommendedPlayerId;
+    expect(shortlistedId).toBeTruthy();
+
+    let next = state;
+    while (shortlistedId && !next.picks.some((pick) => pick.playerId === shortlistedId)) {
+      next = advanceMockDraftState(next);
+    }
+
+    const recommendation = buildDraftRecommendation(next, {
+      preferences: { pinnedPlayerIds: shortlistedId ? [shortlistedId] : [] },
+    });
+    expect(recommendation.candidates.some((candidate) => candidate.player.id === shortlistedId)).toBe(false);
+  });
   it("marks Sleeper-only recommendations as placeholder signals", () => {
     const state: DraftState = {
       ...createMockDraftState(0),

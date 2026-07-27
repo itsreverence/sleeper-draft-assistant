@@ -14,7 +14,13 @@ describe("draft board", () => {
   });
 
   it("keeps the live board focused around the current round", () => {
-    const state = { ...createMockDraftState(8), status: "drafting" as const, currentPick: 24 };
+    const mockState = createMockDraftState(8);
+    const state = {
+      ...mockState,
+      settings: { ...mockState.settings, rounds: 16 },
+      status: "drafting" as const,
+      currentPick: 24,
+    };
 
     expect(visibleDraftRounds(state, "live")).toEqual([2, 3, 4, 5]);
     expect(visibleDraftRounds(state, "full")).toHaveLength(16);
