@@ -15,6 +15,7 @@
     | "inbox"
     | "grid"
     | "chevron-right"
+    | "refresh"
     | "external";
 
   let { name, size = 16 }: { name: IconName; size?: number } = $props();
@@ -75,6 +76,11 @@
       <path d="M3.5 9.5h17M3.5 15h17M9 4v16M15 4v16" />
     {:else if name === "chevron-right"}
       <path d="m9 5.5 7 6.5-7 6.5" />
+    {:else if name === "refresh"}
+      <path d="M20 7v5h-5" />
+      <path d="M4 17v-5h5" />
+      <path d="M6.1 8.4A7 7 0 0 1 18.6 7L20 12" />
+      <path d="M17.9 15.6A7 7 0 0 1 5.4 17L4 12" />
     {:else if name === "external"}
       <path d="M9 6h9v9" />
       <path d="M18 6 6 18" />

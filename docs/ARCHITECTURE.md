@@ -43,8 +43,9 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 5. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data is visible but cannot influence current advice.
 6. The deterministic engine evaluates import coverage and matching quality before assigning lineup confidence.
 7. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
-8. Optional AI providers receive a compact context packet rather than the full player universe.
-9. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
+8. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
+9. Optional AI providers receive a compact context packet rather than the full player universe.
+10. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
 
 ## Persistence
 

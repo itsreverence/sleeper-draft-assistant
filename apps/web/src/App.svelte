@@ -20,6 +20,7 @@
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
+  import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
@@ -41,6 +42,11 @@
     updateSettings,
   } from "./lib/api";
   import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
+  import {
+    shouldRefreshTeamManager,
+    TEAM_REFRESH_INTERVAL_MS,
+    teamPayloadFingerprint,
+  } from "./lib/team-refresh";
   import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
@@ -100,6 +106,13 @@
   let isClearingWeeklyProjections = $state(false);
   let teamManagerError = $state("");
   let isLoadingTeamManager = $state(false);
+  let isRefreshingTeamManager = $state(false);
+  let teamRefreshError = $state("");
+  let teamLastCheckedAt: number | null = $state(null);
+  let teamLastChangedAt: number | null = $state(null);
+  let teamPayloadHash = "";
+  let teamManagerRequestId = 0;
+  let teamRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let playerPreferences: PlayerPreferences = $state({});
   let rankingImportError = $state("");
   let isImportingRankings = $state(false);
@@ -236,7 +249,23 @@
   let userPickedMode = $state(false);
   let phaseSyncKey = $state("");
 
+  function handleTeamRefreshFocus() {
+    void refreshTeamManagerIfEligible();
+  }
+
+  function handleTeamRefreshVisibility() {
+    if (document.visibilityState === "visible") {
+      void refreshTeamManagerIfEligible();
+    }
+  }
+
   onMount(async () => {
+    window.addEventListener("focus", handleTeamRefreshFocus);
+    document.addEventListener("visibilitychange", handleTeamRefreshVisibility);
+    teamRefreshInterval = setInterval(() => {
+      void refreshTeamManagerIfEligible();
+    }, TEAM_REFRESH_INTERVAL_MS);
+
     await loadSettings();
     usernameInput = window.localStorage.getItem("sleeperUsername") ?? "";
     seasonInput = window.localStorage.getItem("sleeperSeason") ?? "";
@@ -255,6 +284,11 @@
 
   onDestroy(() => {
     eventSource?.close();
+    window.removeEventListener("focus", handleTeamRefreshFocus);
+    document.removeEventListener("visibilitychange", handleTeamRefreshVisibility);
+    if (teamRefreshInterval) {
+      clearInterval(teamRefreshInterval);
+    }
   });
 
   async function loadSettings() {
@@ -404,6 +438,7 @@
 
   function clearActiveDraft() {
     eventSource?.close();
+    resetTeamRefreshTracking();
     draftState = null;
     recommendation = null;
     rankingImportSummary = null;
@@ -442,6 +477,7 @@
       const payload = await fetchDraftState(draftId, userRosterId);
       const resolvedLeagueId = leagueId || payload.state.leagueId || "";
       if (teamManagerState?.league.id !== resolvedLeagueId) {
+        resetTeamRefreshTracking();
         teamProjectionSeason = "";
         teamProjectionWeek = 0;
         weeklyProjectionSummary = null;
@@ -496,6 +532,7 @@
       teamProjectionWeek = 0;
       weeklyProjectionError = "";
       teamManagerError = "";
+      resetTeamRefreshTracking();
       connectExpanded = true;
       rankingsExpanded = false;
       workspaceMode = "draft";
@@ -514,8 +551,10 @@
     userRosterId: string | null,
     projectionSeason: string | null = teamProjectionSeason || null,
     projectionWeek: number | null = teamProjectionWeek || null,
+    background = false,
   ) {
     if (!leagueId || isMockDraft(activeDraftId)) {
+      resetTeamRefreshTracking();
       teamManagerState = null;
       teamDataReadiness = null;
       teamNeeds = null;
@@ -530,8 +569,16 @@
       return;
     }
 
-    isLoadingTeamManager = true;
-    teamManagerError = "";
+    const requestId = ++teamManagerRequestId;
+    const isBackgroundRefresh = background && Boolean(teamManagerState);
+    if (isBackgroundRefresh) {
+      isRefreshingTeamManager = true;
+    } else {
+      isLoadingTeamManager = true;
+      teamManagerError = "";
+    }
+    teamRefreshError = "";
+
     try {
       const payload = await fetchTeamManagerState(
         leagueId,
@@ -540,20 +587,78 @@
         projectionSeason,
         projectionWeek,
       );
+      if (requestId !== teamManagerRequestId) {
+        return;
+      }
+
+      const nextPayloadHash = teamPayloadFingerprint(payload);
+      const checkedAt = Date.now();
+      const changed = teamPayloadHash === "" || nextPayloadHash !== teamPayloadHash;
       applyTeamPayload(payload);
+      teamPayloadHash = nextPayloadHash;
+      teamLastCheckedAt = checkedAt;
+      if (changed) {
+        teamLastChangedAt = checkedAt;
+      }
+      teamManagerError = "";
     } catch (error) {
-      teamManagerState = null;
-      teamDataReadiness = null;
-      teamNeeds = null;
-      teamLineupSummary = null;
-      teamWeekContext = null;
-      teamWaiverSummary = null;
-      teamActivitySummary = null;
-      weeklyProjectionSummary = null;
-      teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
+      if (requestId !== teamManagerRequestId) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "Could not load team roster.";
+      if (isBackgroundRefresh) {
+        teamRefreshError = message;
+      } else {
+        teamManagerState = null;
+        teamDataReadiness = null;
+        teamNeeds = null;
+        teamLineupSummary = null;
+        teamWeekContext = null;
+        teamWaiverSummary = null;
+        teamActivitySummary = null;
+        weeklyProjectionSummary = null;
+        teamManagerError = message;
+      }
     } finally {
-      isLoadingTeamManager = false;
+      if (requestId === teamManagerRequestId) {
+        isLoadingTeamManager = false;
+        isRefreshingTeamManager = false;
+      }
     }
+  }
+
+  async function refreshTeamManagerIfEligible(force = false) {
+    const state = teamManagerState;
+    if (!state || !shouldRefreshTeamManager({
+      workspaceMode,
+      manageAvailable,
+      visibilityState: document.visibilityState,
+      isRefreshing: isLoadingTeamManager || isRefreshingTeamManager,
+      lastCheckedAt: teamLastCheckedAt,
+      now: Date.now(),
+      force,
+    })) {
+      return;
+    }
+
+    await loadTeamManager(
+      state.league.id,
+      activeUserRosterId,
+      teamProjectionSeason || null,
+      teamProjectionWeek || null,
+      true,
+    );
+  }
+
+  function resetTeamRefreshTracking() {
+    teamManagerRequestId += 1;
+    isLoadingTeamManager = false;
+    isRefreshingTeamManager = false;
+    teamRefreshError = "";
+    teamLastCheckedAt = null;
+    teamLastChangedAt = null;
+    teamPayloadHash = "";
   }
 
   function applyTeamPayload(payload: TeamPayload) {
@@ -1077,6 +1182,13 @@
           </div>
         </section>
       {:else}
+        <TeamRefreshStatus
+          lastCheckedAt={teamLastCheckedAt}
+          lastChangedAt={teamLastChangedAt}
+          isRefreshing={isRefreshingTeamManager}
+          error={teamRefreshError}
+          onRefresh={() => refreshTeamManagerIfEligible(true)}
+        />
         <section class="dashboard-grid manage-grid">
           <div class="primary-column">
             <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
