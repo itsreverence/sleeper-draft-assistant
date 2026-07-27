@@ -18,6 +18,7 @@ import { RankingImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, W
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
+import { createEventStreamChannel } from "./event-stream";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
 import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv, isWeeklyProjectionImportActive, mergeWeeklyProjectionImports } from "./weekly-projections-import";
@@ -572,20 +573,20 @@ export function redactErrorMessage(message: string): string {
 }
 
 function streamMockDraftEvents(): Response {
-  const encoder = new TextEncoder();
+  const channel = createEventStreamChannel();
   let localState: DraftState = rankingImportStore.apply("mock-draft", mockState);
   let interval: ReturnType<typeof setInterval> | undefined;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      send(controller, "snapshot", {
+      channel.send(controller, "snapshot", {
         type: "snapshot",
         ...toDraftPayload(localState, "mock-draft"),
       });
 
       interval = setInterval(() => {
         if (localState.status === "complete") {
-          send(controller, "heartbeat", {
+          channel.send(controller, "heartbeat", {
             type: "heartbeat",
             at: new Date().toISOString(),
           });
@@ -597,7 +598,7 @@ function streamMockDraftEvents(): Response {
         localState = rankingImportStore.apply("mock-draft", mockState);
         const pick = localState.picks[previousPickCount];
 
-        send(controller, "pick", {
+        channel.send(controller, "pick", {
           type: "pick",
           pick,
           ...toDraftPayload(localState, "mock-draft"),
@@ -605,6 +606,7 @@ function streamMockDraftEvents(): Response {
       }, 4500);
     },
     cancel() {
+      channel.close();
       if (interval) {
         clearInterval(interval);
       }
@@ -612,15 +614,10 @@ function streamMockDraftEvents(): Response {
   });
 
   return createEventStreamResponse(stream);
-
-  function send(controller: ReadableStreamDefaultController<Uint8Array>, event: string, data: unknown) {
-    controller.enqueue(encoder.encode(`event: ${event}\n`));
-    controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-  }
 }
 
 async function streamSleeperDraftEvents(draftId: string, userRosterId: string | null): Promise<Response> {
-  const encoder = new TextEncoder();
+  const channel = createEventStreamChannel();
   let localState = await loadDraftState(draftId, userRosterId);
   let lastPickCount = localState.picks.length;
   let consecutiveFailures = 0;
@@ -628,7 +625,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      send(controller, "snapshot", {
+      channel.send(controller, "snapshot", {
         type: "snapshot",
         ...toDraftPayload(localState, draftId),
       });
@@ -638,6 +635,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
       }, 5000);
     },
     cancel() {
+      channel.close();
       if (interval) {
         clearInterval(interval);
       }
@@ -655,7 +653,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
       lastPickCount = nextState.picks.length;
 
       if (nextState.picks.length > previousPickCount) {
-        send(controller, "pick", {
+        channel.send(controller, "pick", {
           type: "pick",
           pick: nextState.picks[nextState.picks.length - 1],
           ...toDraftPayload(nextState, draftId, { recordTrigger: "pick-update", userRosterId }),
@@ -663,25 +661,20 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
         return;
       }
 
-      send(controller, "heartbeat", {
+      channel.send(controller, "heartbeat", {
         type: "heartbeat",
         at: new Date().toISOString(),
       });
     } catch (error) {
       consecutiveFailures += 1;
       const message = error instanceof Error ? error.message : "Sleeper polling failed.";
-      send(controller, "stream-error", {
+      channel.send(controller, "stream-error", {
         type: "stream-error",
         at: new Date().toISOString(),
         message,
         consecutiveFailures,
       });
     }
-  }
-
-  function send(controller: ReadableStreamDefaultController<Uint8Array>, event: string, data: unknown) {
-    controller.enqueue(encoder.encode(`event: ${event}\n`));
-    controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
   }
 }
 

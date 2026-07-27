@@ -8,8 +8,8 @@
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsPanel from "./lib/components/SettingsPanel.svelte";
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
+  import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
-  import TeamNeedsStrip from "./lib/components/TeamNeedsStrip.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
@@ -221,9 +221,6 @@
     }
   }
 
-  function askWhatIf(playerName: string) {
-    void askManager(`What if I draft ${playerName} with this pick? What should my next-round plan be?`, []);
-  }
   function hasStoredDraft(): boolean {
     try {
       const lastDraftId = window.localStorage.getItem("lastDraftId");
@@ -896,9 +893,8 @@
       tone: hasImportedRankings || isDemoDraftActive ? (rankingImportSummary && (rankingImportSummary.unmatched.length > 0 || rankingImportSummary.ambiguous.length > 0) ? "warning" : "ready") : isRealDraftActive ? "warning" : "neutral",
     },
   ]);
-  const setupComplete = $derived(readinessItems.every((item) => item.tone === "ready" || item.tone === "neutral"));
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
-  const showSetupChecklist = $derived(!draftState || !setupComplete || connectExpanded);
+  const showSetupChecklist = $derived(!draftState || connectExpanded);
   const draftPhase = $derived(getDraftPhase(draftState));
   const weeklyProjectionDefaultSeason = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
@@ -1004,9 +1000,7 @@
       <DraftSummaryStrip state={draftState} />
 
       {#if workspaceMode === "draft"}
-        {#if draftPhase !== "complete"}
-          <TeamNeedsStrip needs={teamNeeds} />
-        {/if}
+        <DraftRoomPanel state={draftState} />
         <section class="dashboard-grid draft-grid">
           <div class="primary-column">
             {#if draftPhase === "complete"}
@@ -1033,7 +1027,6 @@
                 playerPreferences={playerPreferences}
                 showPlaceholderWarning={recommendationsUsePlaceholder}
                 onSetPreference={setPlayerPreference}
-                onWhatIf={askWhatIf}
                 onClearPreferences={clearPlayerPreferences}
                 onOpenRankings={() => (rankingsExpanded = true)}
               />
@@ -1064,8 +1057,9 @@
                 onOpenFantasyPros={openFantasyProsRankings}
                 bind:expanded={rankingsExpanded}
               />
-              <RosterPanel state={draftState} />
-              <PickFeedPanel state={draftState} />
+              {#if (userTeam?.roster.length ?? 0) > 0}
+                <RosterPanel state={draftState} />
+              {/if}
             {:else if hasImportedRankings}
               <RankingsImportPanel
                 hasDraft={true}

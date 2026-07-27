@@ -90,17 +90,9 @@
   {#if expanded}
   <div class="rankings-layout">
     <div class="rankings-instructions">
-      <strong>Recommended flow</strong>
+      <strong>Add reliable player values</strong>
       <p>
-        Open FantasyPros, download the draft rankings CSV for your scoring format, then upload it here. For alpha releases,
-        this is the intended player-value source for real drafts.
-      </p>
-      <p>
-        Without this import, the app still loads Sleeper draft state, but recommendations use rough Sleeper search-rank
-        placeholders and should be treated as setup checks rather than draft advice.
-      </p>
-      <p>
-        Matched rows are saved for this draft and feed rank, tier, bye week, and ECR-vs-ADP into recommendations and AI context.
+        Download the FantasyPros rankings CSV for this scoring format, then upload it here. The import is saved to this draft and replaces low-confidence Sleeper search ranks.
       </p>
     </div>
 

@@ -744,16 +744,18 @@ export function createMockDraftState(picksToApply = 5): DraftState {
   const teams = createMockTeams();
   const scriptedPicks = createScriptedPicks(players, teams);
   const picks = scriptedPicks.slice(0, Math.max(0, Math.min(picksToApply, scriptedPicks.length)));
+  const rounds = Math.ceil(scriptedPicks.length / teams.length);
+  const totalPicks = teams.length * rounds;
 
   return hydrateRosters({
     id: "mock-draft",
     name: "Mock Sleeper Draft",
     status: picks.length >= scriptedPicks.length ? "complete" : "drafting",
-    currentPick: picks.length + 1,
+    currentPick: Math.min(picks.length + 1, totalPicks),
     userTeamId: "team-3",
     settings: {
       teams: 10,
-      rounds: 16,
+      rounds,
       scoring: "PPR",
       rosterSlots: {
         QB: 1,
@@ -775,14 +777,15 @@ export function createMockDraftState(picksToApply = 5): DraftState {
 
 export function advanceMockDraftState(state: DraftState): DraftState {
   const scriptedPicks = createScriptedPicks(state.players, state.teams);
+  const totalPicks = state.settings.teams * state.settings.rounds;
   if (state.picks.length >= scriptedPicks.length) {
-    return { ...state, status: "complete", updatedAt: new Date().toISOString() };
+    return { ...state, currentPick: totalPicks, status: "complete", updatedAt: new Date().toISOString() };
   }
 
   const picks = [...state.picks, scriptedPicks[state.picks.length]];
   return hydrateRosters({
     ...state,
-    currentPick: picks.length + 1,
+    currentPick: Math.min(picks.length + 1, totalPicks),
     status: picks.length >= scriptedPicks.length ? "complete" : "drafting",
     picks,
     updatedAt: new Date().toISOString(),
@@ -1264,30 +1267,11 @@ function createMockTeams(): Team[] {
 
 function createScriptedPicks(players: Player[], teams: Team[]): Pick[] {
   const picks: Pick[] = [];
-  const playerOrder = [
-    "p-jefferson",
-    "p-mccaffrey",
-    "p-lamb",
-    "p-chase",
-    "p-bijan",
-    "p-hill",
-    "p-st-brown",
-    "p-hall",
-    "p-robinson",
-    "p-brown",
-    "p-gibbs",
-    "p-wilson",
-    "p-taylor",
-    "p-nacua",
-    "p-barkley",
-  ];
-  const playerIds = new Set(players.map((player) => player.id));
+  const playerOrder = [...players]
+    .sort((a, b) => (a.adp ?? Number.MAX_SAFE_INTEGER) - (b.adp ?? Number.MAX_SAFE_INTEGER))
+    .map((player) => player.id);
 
   for (const playerId of playerOrder) {
-    if (!playerIds.has(playerId)) {
-      continue;
-    }
-
     const pickNo = picks.length + 1;
     const round = Math.ceil(pickNo / teams.length);
     const pickInRound = ((pickNo - 1) % teams.length) + 1;
@@ -1335,6 +1319,8 @@ function createMockPlayers(): Player[] {
     player("p-cook", "James Cook", "BUF", "RB", 211, 41.2, 4),
     player("p-smith", "DeVonta Smith", "PHI", "WR", 210, 42.7, 4),
     player("p-pitts", "Kyle Pitts", "ATL", "TE", 168, 67.0, 3, ["role uncertainty"]),
+    player("p-tucker", "Justin Tucker", "BAL", "K", 142, 145.0, 1),
+    player("p-ravens", "Baltimore Ravens", "BAL", "DEF", 136, 150.0, 1),
   ];
 }
 

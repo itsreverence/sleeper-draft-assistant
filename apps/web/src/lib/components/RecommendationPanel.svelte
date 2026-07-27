@@ -8,7 +8,6 @@
     showPlaceholderWarning = false,
     playerPreferences = {},
     onSetPreference,
-    onWhatIf,
     onClearPreferences,
     onOpenRankings,
   }: {
@@ -16,7 +15,6 @@
     showPlaceholderWarning?: boolean;
     playerPreferences?: PlayerPreferences;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
-    onWhatIf?: (playerName: string) => void;
     onClearPreferences?: () => void;
     onOpenRankings?: () => void;
   } = $props();
@@ -41,6 +39,8 @@
       .filter(Boolean)
       .join(" / "),
   );
+  const primaryCandidates = $derived(recommendation?.candidates.slice(0, 3) ?? []);
+  const additionalCandidates = $derived(recommendation?.candidates.slice(3) ?? []);
 </script>
 
 <article class="panel recommendation-panel">
@@ -69,8 +69,8 @@
     <div class="callout callout-warning placeholder-warning">
       <Icon name="alert" size={15} />
       <div>
-        <strong>Using low-confidence placeholder values.</strong>
-        <span>This draft hasn't had FantasyPros rankings imported yet, so scores are based on Sleeper's rough search-rank data, not real projections.</span>
+        <strong>Import rankings before relying on this recommendation.</strong>
+        <span>Sleeper search rank is only a temporary ordering signal.</span>
         {#if onOpenRankings}
           <button class="btn btn-secondary" type="button" onclick={onOpenRankings}>Import rankings now</button>
         {/if}
@@ -104,17 +104,31 @@
     {/if}
 
     <div class="candidate-list">
-      {#each recommendation.candidates as candidate, index (candidate.player.id)}
+      {#each primaryCandidates as candidate, index (candidate.player.id)}
         <CandidateCard
           {candidate}
           rank={index + 1}
           featured={index === 0}
           preference={playerPreferences[candidate.player.id] ?? null}
           {onSetPreference}
-          {onWhatIf}
         />
       {/each}
     </div>
+    {#if additionalCandidates.length > 0}
+      <details class="more-candidates">
+        <summary>Show {additionalCandidates.length} more candidate{additionalCandidates.length === 1 ? "" : "s"}</summary>
+        <div class="candidate-list">
+          {#each additionalCandidates as candidate, index (candidate.player.id)}
+            <CandidateCard
+              {candidate}
+              rank={index + primaryCandidates.length + 1}
+              preference={playerPreferences[candidate.player.id] ?? null}
+              {onSetPreference}
+            />
+          {/each}
+        </div>
+      </details>
+    {/if}
   {:else}
     <p class="summary">The engine is preparing candidate signals.</p>
   {/if}
@@ -242,6 +256,34 @@
   .candidate-list {
     display: grid;
     gap: 12px;
+  }
+
+  .more-candidates {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .more-candidates summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+
+  .more-candidates[open] summary {
+    margin-bottom: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .panel-heading {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .panel-heading h2 {
+      font-size: var(--text-lg);
+      line-height: 1.3;
+    }
   }
 </style>
 
