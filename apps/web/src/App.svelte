@@ -440,6 +440,12 @@
     try {
       const payload = await fetchDraftState(draftId, userRosterId);
       const resolvedLeagueId = leagueId || payload.state.leagueId || "";
+      if (teamManagerState?.league.id !== resolvedLeagueId) {
+        teamProjectionSeason = "";
+        teamProjectionWeek = 0;
+        weeklyProjectionSummary = null;
+        weeklyProjectionError = "";
+      }
       applyDraftPayload(payload);
       activeDraftId = draftId;
       activeUserRosterId = userRosterId;
@@ -484,6 +490,8 @@
       teamWaiverSummary = null;
       teamActivitySummary = null;
       weeklyProjectionSummary = null;
+      teamProjectionSeason = "";
+      teamProjectionWeek = 0;
       weeklyProjectionError = "";
       teamManagerError = "";
       connectExpanded = true;
