@@ -9,7 +9,8 @@ This is a direction document, not a promise or release schedule.
 - synthetic demo draft
 - FantasyPros rankings CSV import
 - FantasyPros weekly projection CSV import
-- deterministic recommendation evidence
+- deterministic recommendation evidence and weekly data confidence
+- current-versus-optimized lineup totals and projected swap deltas
 - roster, lineup, waiver, week, and activity views
 - optional local Codex app-server analysis
 - local SQLite persistence and Electron packaging
@@ -25,7 +26,7 @@ This is a direction document, not a promise or release schedule.
 ## Candidate follow-up work
 
 - validate the weekly projection importer against current-season exports as formats evolve
-- clearer data-freshness and confidence indicators
+- validate readiness thresholds against current-season projection imports
 - export/delete controls inside the application
 - stronger accessibility and keyboard-navigation coverage
 - release signing when sustainable

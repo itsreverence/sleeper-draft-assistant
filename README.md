@@ -14,7 +14,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Produces deterministic recommendations from roster construction, scarcity, availability, ADP, tiers, and other explainable signals.
 - Imports a FantasyPros rankings CSV that you download yourself; no ranking data is bundled or redistributed.
 - Imports user-downloaded FantasyPros weekly projection CSVs by position for lineup and waiver analysis.
-- Shows roster needs, lineup structure, waiver context, weekly context, and league activity.
+- Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
 - Offers an optional local Codex app-server provider for conversational analysis.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
 

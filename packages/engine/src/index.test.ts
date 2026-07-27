@@ -1,10 +1,11 @@
-import type { DraftState, Player, Position, TeamManagerState } from "@sleeper-draft-assistant/shared";
+import type { DraftState, Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import {
   advanceMockDraftState,
   buildCandidateSignals,
   buildDraftRecommendation,
+  buildTeamDataReadiness,
   buildTeamLineupSummary,
   buildTeamNeedsSummary,
   buildTeamWaiverSummary,
@@ -266,6 +267,66 @@ describe("team needs engine", () => {
     expect(swap?.recommendedPlayer?.id).toBe("bench-wr-weekly");
     expect(swap?.reasons.some((reason) => reason.includes("28.4 points"))).toBe(true);
   });
+  it("suppresses weekly projection swaps that are effectively a toss-up", () => {
+    const state = createTeamManagerState();
+    const starterWr = state.roster.starters.find((slot) => slot.slot === "WR")?.player;
+    if (!starterWr) {
+      throw new Error("Expected a starting WR fixture.");
+    }
+    Object.assign(starterWr, weeklyProjectionFields(14.2));
+    state.roster.bench = [{ ...teamPlayer("bench-wr-close", "Close Bench WR", "WR", 14.4, 100), ...weeklyProjectionFields(14.4) }];
+
+    const summary = buildTeamLineupSummary(state);
+    const decision = summary.decisions.find((item) => item.currentPlayer?.id === "wr-1");
+
+    expect(decision?.status).toBe("locked");
+    expect(decision?.confidence).toBe("low");
+    expect(decision?.projectedPointDelta).toBeCloseTo(0.2);
+    expect(decision?.reasons.some((reason) => reason.includes("toss-up"))).toBe(true);
+  });
+  it("compares complete current and optimized weekly lineup totals", () => {
+    const state = createTeamManagerState();
+    const openPlayers = [
+      { ...teamPlayer("rb-2", "Current RB Two", "RB", 10, 50), ...weeklyProjectionFields(10) },
+      { ...teamPlayer("wr-2", "Current WR Two", "WR", 10, 60), ...weeklyProjectionFields(10) },
+      { ...teamPlayer("flex-rb", "Current Flex RB", "RB", 9, 70), ...weeklyProjectionFields(9) },
+      { ...teamPlayer("flex-wr", "Current Flex WR", "WR", 8, 80), ...weeklyProjectionFields(8) },
+    ];
+    const existingStarters = state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player));
+    existingStarters.forEach((player, index) => Object.assign(player, weeklyProjectionFields(12 + index)));
+    let openIndex = 0;
+    for (const slot of state.roster.starters) {
+      if (!slot.player) {
+        slot.player = openPlayers[openIndex++] ?? null;
+      }
+    }
+    state.roster.bench = [{ ...teamPlayer("bench-wr-elite", "Elite Weekly WR", "WR", 20, 10), ...weeklyProjectionFields(20) }];
+
+    const summary = buildTeamLineupSummary(state);
+
+    expect(summary.currentProjectionCoverage).toBe(1);
+    expect(summary.recommendedProjectionCoverage).toBe(1);
+    expect(summary.currentProjectedPoints).not.toBeNull();
+    expect(summary.recommendedProjectedPoints).not.toBeNull();
+    expect(summary.projectedPointDelta).toBeGreaterThan(0);
+    expect(summary.headline).toContain("projected points");
+  });
+  it("reports weekly data readiness and missing position coverage", () => {
+    const state = createTeamManagerState();
+    for (const player of state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player))) {
+      Object.assign(player, weeklyProjectionFields(12));
+    }
+    const completeSummary = weeklyImportSummary(["QB", "RB", "WR", "TE"]);
+    const ready = buildTeamDataReadiness(state, completeSummary);
+    const partial = buildTeamDataReadiness(state, weeklyImportSummary(["QB"]));
+
+    expect(ready.status).toBe("ready");
+    expect(ready.confidence).toBe("high");
+    expect(ready.rosterProjectionCoverage).toBe(1);
+    expect(partial.status).toBe("partial");
+    expect(partial.missingPositions).toEqual(["RB", "WR", "TE"]);
+    expect(partial.warnings.some((warning) => warning.includes("Missing projection files"))).toBe(true);
+  });
   it("scores weekly waiver projections on a weekly scale", () => {
     const state = createTeamManagerState();
     const weeklyCandidate = {
@@ -373,6 +434,40 @@ function teamPlayer(id: string, name: string, position: Position, projectedPoint
     adp,
     tier: 1,
     riskTags: [],
+  };
+}
+
+function weeklyProjectionFields(points: number) {
+  return {
+    projectedPoints: points,
+    projectionSource: "weekly_projection" as const,
+    weeklyProjectedPoints: points,
+    weeklyProjectionSource: "FantasyPros",
+    weeklyProjectionSeason: "2026",
+    weeklyProjectionWeek: 1,
+  };
+}
+
+function weeklyImportSummary(positions: Position[]): WeeklyProjectionImportSummary {
+  return {
+    source: "fantasypros",
+    season: "2026",
+    week: 1,
+    position: null,
+    positions,
+    positionResults: positions.map((position) => ({
+      position,
+      rowsParsed: 10,
+      matched: 10,
+      unmatched: 0,
+      ambiguous: 0,
+      appliedAt: "2026-09-01T00:00:00.000Z",
+    })),
+    rowsParsed: positions.length * 10,
+    matched: positions.length * 10,
+    unmatched: [],
+    ambiguous: [],
+    appliedAt: "2026-09-01T00:00:00.000Z",
   };
 }
 

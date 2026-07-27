@@ -15,6 +15,7 @@
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import TeamActivityPanel from "./lib/components/TeamActivityPanel.svelte";
   import TeamNeedsPanel from "./lib/components/TeamNeedsPanel.svelte";
+  import TeamDataReadinessPanel from "./lib/components/TeamDataReadinessPanel.svelte";
   import TeamLineupPanel from "./lib/components/TeamLineupPanel.svelte";
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
@@ -52,6 +53,7 @@
     DraftState,
     RankingImportSummary,
     TeamActivitySummary,
+    TeamDataReadiness,
     TeamLineupSummary,
     TeamManagerState,
     TeamNeedsSummary,
@@ -84,6 +86,7 @@
   let loadError = $state("");
   let rankingImportSummary: RankingImportSummary | null = $state(null);
   let teamManagerState: TeamManagerState | null = $state(null);
+  let teamDataReadiness: TeamDataReadiness | null = $state(null);
   let teamNeeds: TeamNeedsSummary | null = $state(null);
   let teamLineupSummary: TeamLineupSummary | null = $state(null);
   let teamWeekContext: TeamWeekContext | null = $state(null);
@@ -410,6 +413,7 @@
     activeDraftId = "";
     activeUserRosterId = null;
     teamManagerState = null;
+    teamDataReadiness = null;
     teamNeeds = null;
     teamLineupSummary = null;
     teamWeekContext = null;
@@ -484,6 +488,7 @@
       activeDraftId = "";
       activeUserRosterId = null;
       teamManagerState = null;
+      teamDataReadiness = null;
       teamNeeds = null;
       teamLineupSummary = null;
       teamWeekContext = null;
@@ -515,6 +520,7 @@
   ) {
     if (!leagueId || isMockDraft(activeDraftId)) {
       teamManagerState = null;
+      teamDataReadiness = null;
       teamNeeds = null;
       teamLineupSummary = null;
       teamWeekContext = null;
@@ -540,6 +546,7 @@
       applyTeamPayload(payload);
     } catch (error) {
       teamManagerState = null;
+      teamDataReadiness = null;
       teamNeeds = null;
       teamLineupSummary = null;
       teamWeekContext = null;
@@ -554,6 +561,7 @@
 
   function applyTeamPayload(payload: TeamPayload) {
     teamManagerState = payload.state;
+    teamDataReadiness = payload.dataReadiness;
     teamNeeds = payload.needs;
     teamLineupSummary = payload.lineupSummary;
     teamWeekContext = payload.weekContext;
@@ -1083,6 +1091,7 @@
             <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
           </div>
           <div class="side-column">
+            <TeamDataReadinessPanel readiness={teamDataReadiness} isLoading={isLoadingTeamManager} />
             <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
             <WeeklyProjectionsImportPanel
               hasTeam={Boolean(teamManagerState)}
@@ -1117,6 +1126,12 @@
     gap: 0;
   }
 
+  .app-shell > *,
+  .primary-column,
+  .side-column {
+    min-width: 0;
+  }
+
   .connect-editor {
     margin-bottom: var(--space-5);
   }
@@ -1132,6 +1147,7 @@
   .primary-column,
   .side-column {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-5);
     align-content: start;
   }
