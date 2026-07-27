@@ -15,6 +15,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Imports a FantasyPros rankings CSV that you download yourself; no ranking data is bundled or redistributed.
 - Imports user-downloaded FantasyPros weekly projection CSVs by position for lineup and waiver analysis.
 - Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
+- Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Offers an optional local Codex app-server provider for conversational analysis.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
 
