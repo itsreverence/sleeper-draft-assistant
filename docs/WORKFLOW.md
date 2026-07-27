@@ -66,3 +66,5 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Codex cannot start:** verify the configured executable is `codex`, `codex.exe`, or `codex.cmd`, then run `codex login` separately.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
 - **Recommendations warn about placeholder values:** import a current rankings CSV for the league's scoring format.
+- **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
+- **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.

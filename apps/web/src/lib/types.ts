@@ -1,4 +1,4 @@
-import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
+import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -72,10 +72,19 @@ export type TeamPayload = {
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
   activitySummary: TeamActivitySummary;
+  weeklyProjectionSummary: WeeklyProjectionImportSummary | null;
 };
 export type TeamAskAnswerPayload = TeamPayload & {
   answer: string;
 };
+export type WeeklyProjectionImportPayload = TeamPayload & {
+  summary: WeeklyProjectionImportSummary;
+};
+
+export type WeeklyProjectionStatusPayload = {
+  summary: WeeklyProjectionImportSummary | null;
+};
+
 export type AskAnswerPayload = {
   answer: string;
   recommendation: DraftRecommendation;
@@ -98,7 +107,7 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer };
+export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 
 
 
@@ -128,6 +137,7 @@ export type DiagnosticsPayload = {
     sqliteStorage: boolean;
     settingsRecords: number;
     rankingImportRecords: number;
+    weeklyProjectionImportRecords: number;
     decisionSnapshots: number;
   };
   runtime: {

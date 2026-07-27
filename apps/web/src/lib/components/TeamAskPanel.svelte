@@ -33,6 +33,14 @@
   const providerLabel = $derived(providerStatus?.label ?? "AI manager");
   const providerReady = $derived(Boolean(providerStatus?.configured));
   const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds, lineupSummary, weekContext, waiverSummary, activitySummary));
+  const hasWeeklyProjections = $derived(
+    Boolean(
+      lineupSummary?.decisions.some((decision) => decision.recommendedPlayer?.projectionSource === "weekly_projection" || decision.currentPlayer?.projectionSource === "weekly_projection") ||
+        waiverSummary?.candidates.some((candidate) => candidate.player.projectionSource === "weekly_projection") ||
+        teamState?.roster.starters.some((slot) => slot.player?.projectionSource === "weekly_projection") ||
+        teamState?.roster.bench.some((player) => player.projectionSource === "weekly_projection"),
+    ),
+  );
   const contextChips = $derived(
     teamState
       ? [
@@ -40,6 +48,7 @@
           teamNeeds?.weakestPositions.length ? `Weak: ${teamNeeds.weakestPositions.join("/")}` : `${teamState.roster.starters.length} starters`,
           lineupSummary?.swapRecommendations.length ? `${lineupSummary.swapRecommendations.length} lineup swaps` : teamNeeds?.openStarterSlots.length ? `${teamNeeds.openStarterSlots.length} open slots` : `${teamState.roster.bench.length} bench`,
           weekContext ? `Vs ${weekContext.opponentTeamName ?? "opponent"}` : teamState.week ? `Week ${teamState.week}` : "Week unknown",
+          hasWeeklyProjections ? "Weekly projections" : "No weekly projections",
           waiverSummary?.candidates.length ? `${waiverSummary.candidates.length} waiver options` : "Waivers pending",
           activitySummary?.trendingAdds.length ? `${activitySummary.trendingAdds.length} trending adds` : "Activity pending",
         ]
@@ -176,7 +185,11 @@
     </div>
   </div>
 
-  <p class="context-note">Team answers use Sleeper roster structure, inferred waiver availability, Sleeper activity, and current weekly matchup state when available. Matchup scores and imported ranks are not projections.</p>
+  <p class="context-note">
+    {hasWeeklyProjections
+      ? "Team answers use Sleeper roster structure, imported weekly projections, inferred waiver availability, Sleeper activity, and current weekly matchup state when available."
+      : "Team answers use Sleeper roster structure, inferred waiver availability, Sleeper activity, and current weekly matchup state when available. Matchup scores and imported ranks are not projections."}
+  </p>
 
   {#if messages.length === 0}
     <SuggestedQuestions questions={suggestions} disabled={isAsking || !teamState} onChoose={(nextQuestion) => submit(nextQuestion)} />

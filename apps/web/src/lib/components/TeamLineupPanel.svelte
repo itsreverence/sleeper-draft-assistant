@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { TeamLineupSummary } from "../types";
+  import { formatWeeklyProjection } from "../format";
   import Icon from "./Icon.svelte";
 
   let {
@@ -14,6 +15,9 @@
 
   const decisions = $derived(lineupSummary?.decisions.slice(0, 6) ?? []);
   const swaps = $derived(lineupSummary?.swapRecommendations ?? []);
+  const hasWeeklyProjections = $derived(
+    decisions.some((decision) => decision.recommendedPlayer?.projectionSource === "weekly_projection" || decision.currentPlayer?.projectionSource === "weekly_projection"),
+  );
 
   function askLineup() {
     void onAsk?.("Who should I start this week?");
@@ -50,14 +54,23 @@
         <div class="decision-row" class:needs-action={decision.status === "open" || decision.status === "swap_recommended" || decision.status === "thin"}>
           <div>
             <strong>{decision.slot}</strong>
-            <span>{decision.recommendedPlayer?.name ?? "No eligible player"}</span>
+            <span>
+              {decision.recommendedPlayer?.name ?? "No eligible player"}
+              {#if formatWeeklyProjection(decision.recommendedPlayer)}
+                <small>{formatWeeklyProjection(decision.recommendedPlayer)}</small>
+              {/if}
+            </span>
           </div>
           <span class="status">{decision.status.replace("_", " ")}</span>
         </div>
       {/each}
     </div>
 
-    <p class="muted compact-copy">Lineup decisions use ranks and roster metadata, not weekly projections.</p>
+    <p class="muted compact-copy">
+      {hasWeeklyProjections
+        ? "Lineup decisions use imported weekly projections when available, plus ranks and roster metadata."
+        : "Lineup decisions use ranks and roster metadata, not weekly projections."}
+    </p>
   {/if}
 </article>
 
@@ -134,6 +147,13 @@
   .decision-row span {
     color: var(--text-muted);
     font-size: var(--text-xs);
+  }
+
+  .decision-row small {
+    margin-left: 6px;
+    color: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: 900;
   }
 
   .decision-row.needs-action .status {

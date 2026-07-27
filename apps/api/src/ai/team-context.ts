@@ -40,6 +40,7 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
       : `${slot.slot}: open (${slot.eligiblePositions.join("/")})`,
   );
   const benchPlayers = state.roster.bench.map((player) => `${player.name} (${player.team} ${player.position})`);
+  const hasWeeklyProjections = teamHasWeeklyProjections(state) || waiverSummary.candidates.some((candidate) => candidate.player.projectionSource === "weekly_projection");
 
   return {
     leagueFormat: `${state.league.teams}-team ${state.league.scoring}, slots ${formatRosterSlots(state.league.rosterSlots)}`,
@@ -67,7 +68,9 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
     dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...lineupSummary.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations, ...activitySummary.limitations],
     responseRules: [
       "Answer only from the provided Sleeper team context.",
-      "Do not invent projections, injuries, waiver-wire availability, or player news.",
+      hasWeeklyProjections
+        ? "Use imported weekly projections when they are present; do not invent injuries, waiver-wire availability, or player news."
+        : "Do not invent projections, injuries, waiver-wire availability, or player news.",
       "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
       "For start/sit and lineup optimization questions, use lineupSummary and lineupDecisions before general roster-shape advice.",
       "For add/drop questions, use waiverSummary, activitySummary, topWaiverCandidates, and trendingAdds before general roster-shape advice.",
@@ -75,6 +78,16 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
       "Keep the answer concise and action-oriented.",
     ],
   };
+}
+
+
+function teamHasWeeklyProjections(state: TeamManagerState): boolean {
+  return [
+    ...state.roster.starters.map((slot) => slot.player),
+    ...state.roster.bench,
+    ...state.roster.injuredReserve,
+    ...state.roster.taxi,
+  ].some((player) => player?.projectionSource === "weekly_projection");
 }
 
 function formatRosterCounts(state: TeamManagerState): string {

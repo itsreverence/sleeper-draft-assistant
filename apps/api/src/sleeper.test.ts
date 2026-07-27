@@ -1,6 +1,35 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { normalizeSleeperActivitySummary, normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
+import { SleeperApiError, SleeperClient, normalizeSleeperActivitySummary, normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+describe("Sleeper client resilience", () => {
+  it("retries temporary network failures", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user_id: "user-1", username: "alpha" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = await new SleeperClient("https://example.test").getUser("alpha");
+
+    expect(user.user_id).toBe("user-1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("turns repeated network failures into a useful Sleeper error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+
+    await expect(new SleeperClient("https://example.test").getUser("alpha"))
+      .rejects.toEqual(expect.objectContaining<SleeperApiError>({
+        name: "SleeperApiError",
+        message: expect.stringContaining("Could not reach Sleeper"),
+      }));
+  });
+});
 
 const fixture: SleeperDraftStateInput = {
   draft: {

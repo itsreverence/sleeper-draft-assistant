@@ -3,6 +3,8 @@ import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamActiv
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
 const playerCacheTtlMs = 24 * 60 * 60 * 1000;
 const playerPoolLimit = 700;
+const sleeperRequestTimeoutMs = 12_000;
+const sleeperRequestAttempts = 3;
 
 const supportedPositions = new Set<Position>(["QB", "RB", "WR", "TE", "K", "DEF"]);
 
@@ -331,19 +333,67 @@ export class SleeperClient {
   }
 
   private async fetchJson<T>(path: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "sleeper-ai-team-manager-local",
-      },
-    });
+    let lastError: unknown;
 
-    if (!response.ok) {
-      throw new SleeperApiError(`Sleeper API returned ${response.status} for ${path}.`, response.status);
+    for (let attempt = 1; attempt <= sleeperRequestAttempts; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), sleeperRequestTimeoutMs);
+
+      try {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "sleeper-ai-team-manager-local",
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const error = new SleeperApiError(`Sleeper API returned ${response.status} for ${path}.`, response.status);
+          if (!isRetryableSleeperStatus(response.status) || attempt === sleeperRequestAttempts) {
+            throw error;
+          }
+          lastError = error;
+        } else {
+          return response.json() as Promise<T>;
+        }
+      } catch (error) {
+        if (error instanceof SleeperApiError && !isRetryableSleeperStatus(error.status)) {
+          throw error;
+        }
+        lastError = error;
+        if (attempt === sleeperRequestAttempts) {
+          break;
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      await delay(150 * attempt);
     }
 
-    return response.json() as Promise<T>;
+    const reason = lastError instanceof Error && lastError.name === "AbortError"
+      ? "request timed out"
+      : "network request failed";
+    throw new SleeperApiError(`Could not reach Sleeper (${reason}). Check your connection and try again.`);
   }
+
+  async getProjectionImportPlayers(): Promise<Player[]> {
+    const players = await this.getPlayers();
+    return Object.values(players)
+      .filter((player) => player.sport === "nfl" && player.player_id)
+      .map(toPlayer)
+      .filter(isPresent)
+      .sort(compareSleeperPlayers);
+  }
+}
+
+function isRetryableSleeperStatus(status?: number) {
+  return status === undefined || status === 408 || status === 429 || status >= 500;
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
 

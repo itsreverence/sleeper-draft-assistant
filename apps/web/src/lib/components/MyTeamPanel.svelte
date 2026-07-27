@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import type { TeamManagerState } from "../types";
+  import { formatWeeklyProjection } from "../format";
 
   let { state, error = "", isLoading = false }: { state: TeamManagerState | null; error?: string; isLoading?: boolean } = $props();
 
@@ -35,7 +36,12 @@
           <span class="slot-label">{slot.slot}</span>
           {#if slot.player}
             <span class="player-name">{slot.player.name}</span>
-            <span class="player-meta">{slot.player.team} - {slot.player.position}</span>
+            <span class="player-meta">
+              {slot.player.team} - {slot.player.position}
+              {#if formatWeeklyProjection(slot.player)}
+                <strong>{formatWeeklyProjection(slot.player)}</strong>
+              {/if}
+            </span>
           {:else}
             <span class="player-name muted">Open starter slot {index + 1}</span>
             <span class="player-meta">{slot.eligiblePositions.join("/")}</span>
@@ -49,7 +55,10 @@
         <p class="eyebrow">Bench</p>
         <div class="bench-list">
           {#each state.roster.bench as player}
-            <span>{player.name} <small>{player.position}</small></span>
+            <span>
+              {player.name}
+              <small>{player.position}{formatWeeklyProjection(player) ? ` · ${formatWeeklyProjection(player)}` : ""}</small>
+            </span>
           {/each}
         </div>
       </div>
@@ -133,6 +142,11 @@
 
   .player-name.muted {
     color: var(--text-secondary);
+  }
+
+  .player-meta strong {
+    margin-left: 5px;
+    color: var(--accent);
   }
 
   .bench-block {

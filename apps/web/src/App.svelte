@@ -18,12 +18,14 @@
   import TeamLineupPanel from "./lib/components/TeamLineupPanel.svelte";
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
+  import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
   import {
     askManagerRequest,
     askTeamManagerRequest,
+    clearWeeklyProjectionsRequest,
     clearRankingsRequest,
     createDraftEventSource,
     fetchAiStatus,
@@ -33,6 +35,7 @@
     fetchSettings,
     fetchSleeperConnect,
     fetchTeamManagerState,
+    importWeeklyProjectionFilesRequest,
     importRankingsRequest,
     updateSettings,
   } from "./lib/api";
@@ -54,6 +57,9 @@
     TeamNeedsSummary,
     TeamWaiverSummary,
     TeamWeekContext,
+    TeamPayload,
+    Position,
+    WeeklyProjectionImportSummary,
     ReadinessItem,
     AiConversationMessage,
     PlayerPreferenceLevel,
@@ -83,6 +89,12 @@
   let teamWeekContext: TeamWeekContext | null = $state(null);
   let teamWaiverSummary: TeamWaiverSummary | null = $state(null);
   let teamActivitySummary: TeamActivitySummary | null = $state(null);
+  let weeklyProjectionSummary: WeeklyProjectionImportSummary | null = $state(null);
+  let teamProjectionSeason = $state("");
+  let teamProjectionWeek = $state(0);
+  let weeklyProjectionError = $state("");
+  let isImportingWeeklyProjections = $state(false);
+  let isClearingWeeklyProjections = $state(false);
   let teamManagerError = $state("");
   let isLoadingTeamManager = $state(false);
   let playerPreferences: PlayerPreferences = $state({});
@@ -403,6 +415,10 @@
     teamWeekContext = null;
     teamWaiverSummary = null;
     teamActivitySummary = null;
+    weeklyProjectionSummary = null;
+    teamProjectionSeason = "";
+    teamProjectionWeek = 0;
+    weeklyProjectionError = "";
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
@@ -424,6 +440,12 @@
     try {
       const payload = await fetchDraftState(draftId, userRosterId);
       const resolvedLeagueId = leagueId || payload.state.leagueId || "";
+      if (teamManagerState?.league.id !== resolvedLeagueId) {
+        teamProjectionSeason = "";
+        teamProjectionWeek = 0;
+        weeklyProjectionSummary = null;
+        weeklyProjectionError = "";
+      }
       applyDraftPayload(payload);
       activeDraftId = draftId;
       activeUserRosterId = userRosterId;
@@ -467,6 +489,10 @@
       teamWeekContext = null;
       teamWaiverSummary = null;
       teamActivitySummary = null;
+      weeklyProjectionSummary = null;
+      teamProjectionSeason = "";
+      teamProjectionWeek = 0;
+      weeklyProjectionError = "";
       teamManagerError = "";
       connectExpanded = true;
       rankingsExpanded = false;
@@ -481,7 +507,12 @@
     }
   }
 
-  async function loadTeamManager(leagueId: string, userRosterId: string | null) {
+  async function loadTeamManager(
+    leagueId: string,
+    userRosterId: string | null,
+    projectionSeason: string | null = teamProjectionSeason || null,
+    projectionWeek: number | null = teamProjectionWeek || null,
+  ) {
     if (!leagueId || isMockDraft(activeDraftId)) {
       teamManagerState = null;
       teamNeeds = null;
@@ -489,6 +520,8 @@
       teamWeekContext = null;
       teamWaiverSummary = null;
       teamActivitySummary = null;
+      weeklyProjectionSummary = null;
+      weeklyProjectionError = "";
       teamManagerError = "";
       isLoadingTeamManager = false;
       return;
@@ -497,13 +530,14 @@
     isLoadingTeamManager = true;
     teamManagerError = "";
     try {
-      const payload = await fetchTeamManagerState(leagueId, userRosterId, activeDraftId);
-      teamManagerState = payload.state;
-      teamNeeds = payload.needs;
-      teamLineupSummary = payload.lineupSummary;
-      teamWeekContext = payload.weekContext;
-      teamWaiverSummary = payload.waiverSummary;
-      teamActivitySummary = payload.activitySummary;
+      const payload = await fetchTeamManagerState(
+        leagueId,
+        userRosterId,
+        activeDraftId,
+        projectionSeason,
+        projectionWeek,
+      );
+      applyTeamPayload(payload);
     } catch (error) {
       teamManagerState = null;
       teamNeeds = null;
@@ -511,11 +545,29 @@
       teamWeekContext = null;
       teamWaiverSummary = null;
       teamActivitySummary = null;
+      weeklyProjectionSummary = null;
       teamManagerError = error instanceof Error ? error.message : "Could not load team roster.";
     } finally {
       isLoadingTeamManager = false;
     }
   }
+
+  function applyTeamPayload(payload: TeamPayload) {
+    teamManagerState = payload.state;
+    teamNeeds = payload.needs;
+    teamLineupSummary = payload.lineupSummary;
+    teamWeekContext = payload.weekContext;
+    teamWaiverSummary = payload.waiverSummary;
+    teamActivitySummary = payload.activitySummary;
+    weeklyProjectionSummary = payload.weeklyProjectionSummary;
+    if (!teamProjectionSeason) {
+      teamProjectionSeason = payload.state.league.season ?? "";
+    }
+    if (!teamProjectionWeek) {
+      teamProjectionWeek = payload.state.week ?? 1;
+    }
+  }
+
   function applyDraftPayload(payload: DraftPayload) {
     draftState = payload.state;
     recommendation = payload.recommendation;
@@ -631,6 +683,103 @@
     window.open("https://www.fantasypros.com/nfl/rankings/consensus-cheatsheets.php", "_blank", "noopener,noreferrer");
   }
 
+  function openFantasyProsWeeklyProjections(position: Position, week: number) {
+    const fantasyProsPosition = position === "DEF" ? "dst" : position.toLowerCase();
+    const params = new URLSearchParams();
+    if (week > 0) {
+      params.set("week", String(week));
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : "";
+    window.open(`https://www.fantasypros.com/nfl/projections/${fantasyProsPosition}.php${suffix}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function importWeeklyProjections(input: {
+    files: Array<{ position: Position; csvText: string }>;
+    season: string;
+    week: number;
+  }) {
+    if (!teamManagerState) {
+      weeklyProjectionError = "Open a Sleeper team before importing weekly projections.";
+      return;
+    }
+    if (input.files.length === 0 || input.files.some((file) => !file.csvText.trim())) {
+      weeklyProjectionError = "Upload or paste at least one FantasyPros weekly projections CSV.";
+      return;
+    }
+    if (!input.season) {
+      weeklyProjectionError = "Enter the season for this projection file.";
+      return;
+    }
+    if (!Number.isInteger(input.week) || input.week < 1 || input.week > 22) {
+      weeklyProjectionError = "Enter a valid NFL week from 1 to 22.";
+      return;
+    }
+
+    isImportingWeeklyProjections = true;
+    weeklyProjectionError = "";
+    teamProjectionSeason = input.season;
+    teamProjectionWeek = input.week;
+
+    try {
+      const payload = await importWeeklyProjectionFilesRequest({
+        leagueId: teamManagerState.league.id,
+        season: input.season,
+        week: input.week,
+        files: input.files,
+        userRosterId: activeUserRosterId,
+        draftId: activeDraftId,
+      });
+      applyTeamPayload(payload);
+      status = "FantasyPros weekly projections imported";
+      lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
+    } catch (error) {
+      weeklyProjectionError = error instanceof Error ? error.message : "Weekly projection import failed.";
+    } finally {
+      isImportingWeeklyProjections = false;
+    }
+  }
+
+  async function loadWeeklyProjectionContext(input: { season: string; week: number }) {
+    if (!teamManagerState) {
+      weeklyProjectionError = "Open a Sleeper team before selecting a projection week.";
+      return;
+    }
+    if (!input.season || !Number.isInteger(input.week) || input.week < 1 || input.week > 22) {
+      weeklyProjectionError = "Enter a valid season and week.";
+      return;
+    }
+
+    teamProjectionSeason = input.season;
+    teamProjectionWeek = input.week;
+    weeklyProjectionError = "";
+    await loadTeamManager(teamManagerState.league.id, activeUserRosterId, input.season, input.week);
+  }
+
+  async function clearWeeklyProjections(input: { season: string; week: number }) {
+    if (!teamManagerState) {
+      weeklyProjectionError = "Open a Sleeper team before clearing weekly projections.";
+      return;
+    }
+    if (!input.season || !Number.isInteger(input.week) || input.week < 1 || input.week > 22) {
+      weeklyProjectionError = "Enter a valid season and week before clearing projections.";
+      return;
+    }
+
+    isClearingWeeklyProjections = true;
+    weeklyProjectionError = "";
+
+    try {
+      await clearWeeklyProjectionsRequest(teamManagerState.league.id, input.season, input.week);
+      await loadTeamManager(teamManagerState.league.id, activeUserRosterId, input.season, input.week);
+      status = "FantasyPros weekly projections cleared";
+      lastEvent = `Cleared Week ${input.week} projection import`;
+    } catch (error) {
+      weeklyProjectionError = error instanceof Error ? error.message : "Could not clear weekly projections.";
+    } finally {
+      isClearingWeeklyProjections = false;
+    }
+  }
+
   async function askTeamManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
     if (!teamManagerState) {
       throw new Error("Open a Sleeper league before asking team questions.");
@@ -642,13 +791,10 @@
       activeDraftId,
       question,
       conversationHistory,
+      teamProjectionSeason || null,
+      teamProjectionWeek || null,
     );
-    teamManagerState = payload.state;
-    teamNeeds = payload.needs;
-    teamLineupSummary = payload.lineupSummary;
-    teamWeekContext = payload.weekContext;
-    teamWaiverSummary = payload.waiverSummary;
-    teamActivitySummary = payload.activitySummary;
+    applyTeamPayload(payload);
     return payload.answer;
   }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
@@ -746,6 +892,14 @@
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
   const showSetupChecklist = $derived(!draftState || !setupComplete || connectExpanded);
   const draftPhase = $derived(getDraftPhase(draftState));
+  const weeklyProjectionDefaultSeason = $derived.by(() => {
+    const state = teamManagerState as TeamManagerState | null;
+    return teamProjectionSeason || state?.league.season || seasonInput.trim() || "";
+  });
+  const weeklyProjectionDefaultWeek = $derived.by(() => {
+    const state = teamManagerState as TeamManagerState | null;
+    return teamProjectionWeek || state?.week || 1;
+  });
 
   $effect(() => {
     const key = `${activeDraftId}:${draftPhase ?? ""}`;
@@ -930,6 +1084,21 @@
           </div>
           <div class="side-column">
             <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
+            <WeeklyProjectionsImportPanel
+              hasTeam={Boolean(teamManagerState)}
+              defaultSeason={weeklyProjectionDefaultSeason}
+              defaultWeek={weeklyProjectionDefaultWeek}
+              leagueSeason={teamManagerState?.league.season ?? ""}
+              currentWeek={teamManagerState?.week ?? 0}
+              summary={weeklyProjectionSummary}
+              error={weeklyProjectionError}
+              isImporting={isImportingWeeklyProjections}
+              isClearing={isClearingWeeklyProjections}
+              onImport={importWeeklyProjections}
+              onLoadContext={loadWeeklyProjectionContext}
+              onClear={clearWeeklyProjections}
+              onOpenFantasyPros={openFantasyProsWeeklyProjections}
+            />
             <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
             <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
           </div>

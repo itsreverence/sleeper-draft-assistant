@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload } from "./types";
+import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -103,13 +103,25 @@ export async function fetchSleeperConnect(params: {
   return (await response.json()) as ConnectPayload;
 }
 
-export async function fetchTeamManagerState(leagueId: string, userRosterId: string | null, draftId: string | null = null): Promise<TeamPayload> {
+export async function fetchTeamManagerState(
+  leagueId: string,
+  userRosterId: string | null,
+  draftId: string | null = null,
+  season: string | null = null,
+  week: number | null = null,
+): Promise<TeamPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
     query.set("userRosterId", userRosterId);
   }
   if (draftId) {
     query.set("draftId", draftId);
+  }
+  if (season) {
+    query.set("season", season);
+  }
+  if (week) {
+    query.set("week", String(week));
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team${suffix}`);
@@ -119,6 +131,76 @@ export async function fetchTeamManagerState(leagueId: string, userRosterId: stri
 
   return (await response.json()) as TeamPayload;
 }
+export async function fetchWeeklyProjectionStatus(leagueId: string, season: string, week: number): Promise<WeeklyProjectionStatusPayload> {
+  const params = new URLSearchParams({ season, week: String(week) });
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/projections/weekly?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not load weekly projection status."));
+  }
+
+  return (await response.json()) as WeeklyProjectionStatusPayload;
+}
+
+export async function importWeeklyProjectionsRequest(input: {
+  leagueId: string;
+  season: string;
+  week: number;
+  csvText: string;
+  position: Position;
+  userRosterId?: string | null;
+  draftId?: string | null;
+}): Promise<WeeklyProjectionImportPayload> {
+  return importWeeklyProjectionFilesRequest({
+    ...input,
+    files: [{ position: input.position, csvText: input.csvText }],
+  });
+}
+
+export async function importWeeklyProjectionFilesRequest(input: {
+  leagueId: string;
+  season: string;
+  week: number;
+  files: Array<{ position: Position; csvText: string }>;
+  userRosterId?: string | null;
+  draftId?: string | null;
+}): Promise<WeeklyProjectionImportPayload> {
+  const params = new URLSearchParams();
+  if (input.userRosterId) {
+    params.set("userRosterId", input.userRosterId);
+  }
+  if (input.draftId) {
+    params.set("draftId", input.draftId);
+  }
+  const query = params.toString();
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(input.leagueId)}/projections/weekly/import${query ? `?${query}` : ""}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source: "fantasypros",
+      season: input.season,
+      week: input.week,
+      files: input.files,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not import weekly projections."));
+  }
+
+  return (await response.json()) as WeeklyProjectionImportPayload;
+}
+
+export async function clearWeeklyProjectionsRequest(leagueId: string, season: string, week: number): Promise<{ deleted: boolean }> {
+  const params = new URLSearchParams({ season, week: String(week) });
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/projections/weekly?${params.toString()}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not clear weekly projections."));
+  }
+
+  return (await response.json()) as { deleted: boolean };
+}
+
 export async function fetchDraftState(draftId: string, userRosterId: string | null): Promise<DraftPayload> {
   const response = await apiFetch(buildDraftUrl(draftId, "state", userRosterId));
   if (!response.ok) {
@@ -217,6 +299,8 @@ export async function askTeamManagerRequest(
   draftId: string | null,
   question: string,
   conversationHistory: AiConversationMessage[] = [],
+  season: string | null = null,
+  week: number | null = null,
 ): Promise<TeamAskAnswerPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
@@ -224,6 +308,12 @@ export async function askTeamManagerRequest(
   }
   if (draftId) {
     query.set("draftId", draftId);
+  }
+  if (season) {
+    query.set("season", season);
+  }
+  if (week) {
+    query.set("week", String(week));
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
