@@ -8,6 +8,7 @@
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsPanel from "./lib/components/SettingsPanel.svelte";
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
+  import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
   import TeamNeedsStrip from "./lib/components/TeamNeedsStrip.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
@@ -1007,6 +1008,7 @@
         {#if draftPhase !== "complete"}
           <TeamNeedsStrip needs={teamNeeds} />
         {/if}
+        <DraftRoomPanel state={draftState} />
         <section class="dashboard-grid draft-grid">
           <div class="primary-column">
             {#if draftPhase === "complete"}

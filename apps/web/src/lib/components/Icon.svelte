@@ -13,6 +13,7 @@
     | "alert"
     | "check-circle"
     | "inbox"
+    | "grid"
     | "chevron-right"
     | "external";
 
@@ -69,6 +70,9 @@
     {:else if name === "inbox"}
       <path d="M4 12h4.5l1.5 2.5h4L15.5 12H20" />
       <path d="M4.5 12 6 5.5h12L19.5 12v6a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18Z" />
+    {:else if name === "grid"}
+      <rect x="3.5" y="4" width="17" height="16" rx="2" />
+      <path d="M3.5 9.5h17M3.5 15h17M9 4v16M15 4v16" />
     {:else if name === "chevron-right"}
       <path d="m9 5.5 7 6.5-7 6.5" />
     {:else if name === "external"}
