@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import {
   advanceMockDraftState,
   buildDraftRecommendation,
+  buildTeamDataReadiness,
   buildTeamLineupSummary,
   buildTeamNeedsSummary,
   buildTeamWaiverSummary,
@@ -12,7 +13,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import { RankingImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -53,6 +54,7 @@ type DraftPayloadOptions = {
 
 type TeamPayload = {
   state: TeamManagerState;
+  dataReadiness: TeamDataReadiness;
   needs: TeamNeedsSummary;
   lineupSummary: TeamLineupSummary;
   weekContext: TeamWeekContext | null;
@@ -178,8 +180,11 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
     const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(rankedAvailablePlayers, activeWeeklyImport);
     const aiProvider = createAiProvider(settingsStore.get());
+    const waiverSummary = buildTeamWaiverSummary(projectedState, projectedAvailablePlayers);
+    const lineupSummary = buildTeamLineupSummary(projectedState);
+    const dataReadiness = buildTeamDataReadiness(projectedState, weeklyImport?.summary ?? null);
     const aiAnswer = await aiProvider.answerTeamQuestion(
-      buildTeamAiContext(projectedState, question, normalizeConversationHistory(body.conversationHistory), weekContext, buildTeamWaiverSummary(projectedState, projectedAvailablePlayers), buildTeamLineupSummary(projectedState), activitySummary),
+      buildTeamAiContext(projectedState, question, normalizeConversationHistory(body.conversationHistory), weekContext, waiverSummary, lineupSummary, activitySummary, dataReadiness),
     );
 
     return c.json({
@@ -400,6 +405,7 @@ function toTeamPayload(
 ): TeamPayload {
   return {
     state,
+    dataReadiness: buildTeamDataReadiness(state, weeklyProjectionSummary),
     needs: buildTeamNeedsSummary(state),
     lineupSummary: buildTeamLineupSummary(state),
     weekContext,

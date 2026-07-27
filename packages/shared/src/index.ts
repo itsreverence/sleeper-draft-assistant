@@ -265,21 +265,49 @@ export const TeamLineupDecisionSchema = z.object({
   alternativePlayers: z.array(PlayerSchema),
   status: z.enum(["locked", "open", "swap_recommended", "thin"]),
   confidence: z.enum(["low", "medium", "high"]),
+  currentProjectedPoints: z.number().nullable(),
+  recommendedProjectedPoints: z.number().nullable(),
+  projectedPointDelta: z.number().nullable(),
   reasons: z.array(z.string()),
 });
 export type TeamLineupDecision = z.infer<typeof TeamLineupDecisionSchema>;
 
 export const TeamLineupSummarySchema = z.object({
   headline: z.string(),
+  confidence: z.enum(["low", "medium", "high"]),
   decisions: z.array(TeamLineupDecisionSchema),
   lockedStarters: z.array(PlayerSchema),
   openSlots: z.array(z.string()),
   swapRecommendations: z.array(TeamLineupDecisionSchema),
   riskyStarters: z.array(PlayerSchema),
+  currentProjectedPoints: z.number().nullable(),
+  recommendedProjectedPoints: z.number().nullable(),
+  projectedPointDelta: z.number().nullable(),
+  currentProjectionCoverage: z.number().min(0).max(1),
+  recommendedProjectionCoverage: z.number().min(0).max(1),
   facts: z.array(z.string()),
   limitations: z.array(z.string()),
 });
 export type TeamLineupSummary = z.infer<typeof TeamLineupSummarySchema>;
+
+export const TeamDataReadinessSchema = z.object({
+  status: z.enum(["ready", "partial", "limited"]),
+  confidence: z.enum(["low", "medium", "high"]),
+  headline: z.string(),
+  activeSeason: z.string().nullable(),
+  activeWeek: z.number().nullable(),
+  importedAt: z.string().nullable(),
+  relevantPositions: z.array(PositionSchema),
+  loadedPositions: z.array(PositionSchema),
+  missingPositions: z.array(PositionSchema),
+  importMatchRate: z.number().min(0).max(1).nullable(),
+  rosterProjectionCoverage: z.number().min(0).max(1),
+  projectedRosterPlayers: z.number().int().nonnegative(),
+  eligibleRosterPlayers: z.number().int().nonnegative(),
+  facts: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type TeamDataReadiness = z.infer<typeof TeamDataReadinessSchema>;
 export const TeamWeekPlayerSchema = z.object({
   playerId: z.string(),
   name: z.string(),

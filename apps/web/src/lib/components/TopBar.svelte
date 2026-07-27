@@ -115,6 +115,10 @@
     padding: 11px 16px;
   }
 
+  .brand > div {
+    min-width: 0;
+  }
+
   .status-panel strong,
   .status-panel span {
     display: block;

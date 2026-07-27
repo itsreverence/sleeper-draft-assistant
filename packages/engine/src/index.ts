@@ -6,12 +6,14 @@ import type {
   Player,
   Position,
   Team,
+  TeamDataReadiness,
   TeamLineupAssignment,
   TeamLineupSummary,
   TeamManagerState,
   TeamNeedsSummary,
   TeamPositionNeed,
   TeamWaiverSummary,
+  WeeklyProjectionImportSummary,
 } from "@sleeper-draft-assistant/shared";
 
 const positionBaselines: Record<Position, number> = {
@@ -53,6 +55,13 @@ export function buildTeamLineupSummary(state: TeamManagerState): TeamLineupSumma
   const decisions = buildLineupDecisions(state, rosterPlayers);
   const openSlots = decisions.filter((decision) => decision.status === "open" || decision.status === "thin").map((decision) => decision.slot);
   const swapRecommendations = decisions.filter((decision) => decision.status === "swap_recommended");
+  const currentProjectionCoverage = getLineupProjectionCoverage(decisions, "current");
+  const recommendedProjectionCoverage = getLineupProjectionCoverage(decisions, "recommended");
+  const currentProjectedPoints = getLineupProjectedTotal(decisions, "current");
+  const recommendedProjectedPoints = getLineupProjectedTotal(decisions, "recommended");
+  const projectedPointDelta = currentProjectedPoints !== null && recommendedProjectedPoints !== null
+    ? roundPoints(recommendedProjectedPoints - currentProjectedPoints)
+    : null;
 
   for (const decision of decisions) {
     if (decision.status === "locked" && decision.currentPlayer) {
@@ -65,14 +74,103 @@ export function buildTeamLineupSummary(state: TeamManagerState): TeamLineupSumma
   }
 
   return {
-    headline: buildLineupHeadline(openSlots, swapRecommendations),
+    headline: buildLineupHeadline(openSlots, swapRecommendations, projectedPointDelta),
+    confidence: getLineupSummaryConfidence(decisions, recommendedProjectionCoverage),
     decisions,
     lockedStarters,
     openSlots,
     swapRecommendations,
     riskyStarters: Array.from(new Map(riskyStarters.map((player) => [player.id, player])).values()),
-    facts: buildLineupFacts(decisions, openSlots, swapRecommendations),
+    currentProjectedPoints,
+    recommendedProjectedPoints,
+    projectedPointDelta,
+    currentProjectionCoverage,
+    recommendedProjectionCoverage,
+    facts: buildLineupFacts(decisions, openSlots, swapRecommendations, currentProjectedPoints, recommendedProjectedPoints, projectedPointDelta),
     limitations: buildLineupLimitations(rosterPlayers),
+  };
+}
+
+export function buildTeamDataReadiness(
+  state: TeamManagerState,
+  weeklyProjectionSummary: WeeklyProjectionImportSummary | null,
+): TeamDataReadiness {
+  const eligibleRosterPlayers = getUniqueActiveRosterPlayers(state);
+  const relevantPositions = teamNeedPositions.filter((position) =>
+    (state.league.rosterSlots[position] ?? 0) > 0
+      || eligibleRosterPlayers.some((player) => player.position === position),
+  );
+  const loadedPositions = relevantPositions.filter((position) => weeklyProjectionSummary?.positions.includes(position));
+  const missingPositions = relevantPositions.filter((position) => !loadedPositions.includes(position));
+  const projectedRosterPlayers = eligibleRosterPlayers.filter((player) =>
+    player.projectionSource === "weekly_projection"
+      && player.weeklyProjectionSeason === weeklyProjectionSummary?.season
+      && player.weeklyProjectionWeek === weeklyProjectionSummary?.week,
+  ).length;
+  const rosterProjectionCoverage = eligibleRosterPlayers.length > 0
+    ? projectedRosterPlayers / eligibleRosterPlayers.length
+    : 0;
+  const importMatchRate = weeklyProjectionSummary && weeklyProjectionSummary.rowsParsed > 0
+    ? weeklyProjectionSummary.matched / weeklyProjectionSummary.rowsParsed
+    : null;
+  const warnings: string[] = [];
+  const facts: string[] = [];
+
+  if (!weeklyProjectionSummary) {
+    warnings.push("No weekly projection import is loaded for this team view.");
+  } else {
+    facts.push(`FantasyPros ${weeklyProjectionSummary.season} Week ${weeklyProjectionSummary.week} was imported ${weeklyProjectionSummary.appliedAt}.`);
+    if (state.league.season && weeklyProjectionSummary.season !== state.league.season) {
+      warnings.push(`Imported projections are for ${weeklyProjectionSummary.season}, but this league is ${state.league.season}.`);
+    }
+    if (missingPositions.length > 0) {
+      warnings.push(`Missing projection files for ${missingPositions.join(", ")}.`);
+    }
+    if (importMatchRate !== null && importMatchRate < 0.85) {
+      warnings.push(`Only ${Math.round(importMatchRate * 100)}% of imported rows matched Sleeper players.`);
+    }
+  }
+
+  facts.push(`${projectedRosterPlayers}/${eligibleRosterPlayers.length} active roster players have projections for the selected import.`);
+  if (rosterProjectionCoverage < 0.8 && eligibleRosterPlayers.length > 0) {
+    warnings.push(`Roster projection coverage is ${Math.round(rosterProjectionCoverage * 100)}%; lineup totals may be incomplete.`);
+  }
+
+  const importIsCurrent = Boolean(
+    weeklyProjectionSummary
+      && (!state.league.season || weeklyProjectionSummary.season === state.league.season)
+      && projectedRosterPlayers > 0,
+  );
+  const status: TeamDataReadiness["status"] = importIsCurrent
+    && missingPositions.length === 0
+    && rosterProjectionCoverage >= 0.8
+    && (importMatchRate === null || importMatchRate >= 0.85)
+    ? "ready"
+    : importIsCurrent
+      ? "partial"
+      : "limited";
+  const confidence: TeamDataReadiness["confidence"] = status === "ready" ? "high" : status === "partial" ? "medium" : "low";
+
+  return {
+    status,
+    confidence,
+    headline: status === "ready"
+      ? "Weekly data is ready for lineup decisions."
+      : status === "partial"
+        ? "Weekly data is usable with coverage gaps."
+        : "Weekly advice is using limited data.",
+    activeSeason: weeklyProjectionSummary?.season ?? state.league.season,
+    activeWeek: weeklyProjectionSummary?.week ?? state.week,
+    importedAt: weeklyProjectionSummary?.appliedAt ?? null,
+    relevantPositions,
+    loadedPositions,
+    missingPositions,
+    importMatchRate,
+    rosterProjectionCoverage,
+    projectedRosterPlayers,
+    eligibleRosterPlayers: eligibleRosterPlayers.length,
+    facts,
+    warnings: Array.from(new Set(warnings)),
   };
 }
 export function buildTeamWaiverSummary(state: TeamManagerState, availablePlayers: Player[]): TeamWaiverSummary {
@@ -185,6 +283,11 @@ function buildLineupDecision(slot: TeamManagerState["roster"]["starters"][number
   const currentPlayer = slot.player;
   const recommendedPlayer = eligible[0] ?? null;
   const alternatives = eligible.filter((player) => player.id !== recommendedPlayer?.id).slice(0, 3);
+  const currentProjectedPoints = currentPlayer ? getWeeklyProjectedPoints(currentPlayer) : 0;
+  const recommendedProjectedPoints = recommendedPlayer ? getWeeklyProjectedPoints(recommendedPlayer) : null;
+  const projectedPointDelta = currentProjectedPoints !== null && recommendedProjectedPoints !== null
+    ? roundPoints(recommendedProjectedPoints - currentProjectedPoints)
+    : null;
   const reasons: string[] = [];
   let status: TeamLineupSummary["decisions"][number]["status"] = "locked";
   let confidence: TeamLineupSummary["decisions"][number]["confidence"] = "medium";
@@ -195,14 +298,27 @@ function buildLineupDecision(slot: TeamManagerState["roster"]["starters"][number
     reasons.push(`No rostered player is eligible for ${slot.slot}.`);
   } else if (!currentPlayer) {
     status = "open";
-    confidence = "high";
+    confidence = recommendedProjectedPoints !== null ? "high" : getPlayerSignalConfidence(recommendedPlayer);
     reasons.push(`${slot.slot} is open; ${recommendedPlayer.name} is the top eligible option.`);
   } else if (recommendedPlayer.id !== currentPlayer.id && comparePlayersForLineup(recommendedPlayer, currentPlayer) < 0) {
-    status = "swap_recommended";
-    confidence = getLineupGap(recommendedPlayer, currentPlayer) >= 25 ? "high" : "medium";
-    reasons.push(`${recommendedPlayer.name} has a stronger deterministic value signal than current starter ${currentPlayer.name}.`);
+    if (projectedPointDelta !== null) {
+      if (projectedPointDelta >= 0.5) {
+        status = "swap_recommended";
+        confidence = projectedPointDelta >= 3 ? "high" : projectedPointDelta >= 1 ? "medium" : "low";
+        reasons.push(`${recommendedPlayer.name} projects ${projectedPointDelta.toFixed(1)} points ahead of current starter ${currentPlayer.name}.`);
+      } else {
+        confidence = "low";
+        reasons.push(`${recommendedPlayer.name} and ${currentPlayer.name} are within 0.5 projected points; treat this as a toss-up.`);
+      }
+    } else {
+      status = "swap_recommended";
+      confidence = getPlayerSignalConfidence(recommendedPlayer);
+      reasons.push(`${recommendedPlayer.name} has a stronger deterministic value signal than current starter ${currentPlayer.name}.`);
+      reasons.push("A weekly point delta is unavailable because both players do not have matched weekly projections.");
+    }
   } else {
     reasons.push(`${currentPlayer.name} remains the top eligible ${slot.slot} option by current metadata.`);
+    confidence = getPlayerSignalConfidence(currentPlayer);
   }
 
   if (recommendedPlayer?.projectionSource === "weekly_projection" && recommendedPlayer.weeklyProjectedPoints !== null && recommendedPlayer.weeklyProjectedPoints !== undefined) {
@@ -222,13 +338,22 @@ function buildLineupDecision(slot: TeamManagerState["roster"]["starters"][number
     alternativePlayers: alternatives,
     status,
     confidence,
+    currentProjectedPoints,
+    recommendedProjectedPoints,
+    projectedPointDelta,
     reasons,
   };
 }
 
-function buildLineupHeadline(openSlots: string[], swaps: TeamLineupSummary["swapRecommendations"]): string {
+function buildLineupHeadline(
+  openSlots: string[],
+  swaps: TeamLineupSummary["swapRecommendations"],
+  projectedPointDelta: number | null,
+): string {
   if (swaps.length > 0) {
-    return `${swaps.length} lineup swap${swaps.length === 1 ? "" : "s"} recommended.`;
+    return projectedPointDelta !== null && projectedPointDelta > 0
+      ? `${swaps.length} lineup swap${swaps.length === 1 ? "" : "s"} can add ${projectedPointDelta.toFixed(1)} projected points.`
+      : `${swaps.length} lineup swap${swaps.length === 1 ? "" : "s"} recommended.`;
   }
   if (openSlots.length > 0) {
     return `${openSlots.length} starter slot${openSlots.length === 1 ? " is" : "s are"} open.`;
@@ -240,8 +365,14 @@ function buildLineupFacts(
   decisions: TeamLineupSummary["decisions"],
   openSlots: string[],
   swaps: TeamLineupSummary["swapRecommendations"],
+  currentProjectedPoints: number | null,
+  recommendedProjectedPoints: number | null,
+  projectedPointDelta: number | null,
 ): string[] {
   const facts: string[] = [];
+  if (currentProjectedPoints !== null && recommendedProjectedPoints !== null && projectedPointDelta !== null) {
+    facts.push(`Current lineup projects for ${currentProjectedPoints.toFixed(1)} points; optimized lineup projects for ${recommendedProjectedPoints.toFixed(1)} (${projectedPointDelta >= 0 ? "+" : ""}${projectedPointDelta.toFixed(1)}).`);
+  }
   if (openSlots.length) {
     facts.push(`Open lineup slots: ${openSlots.join(", ")}.`);
   }
@@ -260,8 +391,65 @@ function buildLineupFacts(
   return facts;
 }
 
-function getLineupGap(a: Player, b: Player): number {
-  return Math.abs(getPlayerRank(b) - getPlayerRank(a));
+function getLineupProjectionCoverage(
+  decisions: TeamLineupSummary["decisions"],
+  lineup: "current" | "recommended",
+): number {
+  if (decisions.length === 0) {
+    return 0;
+  }
+  const projected = decisions.filter((decision) =>
+    lineup === "current"
+      ? decision.currentPlayer !== null && decision.currentProjectedPoints !== null
+      : decision.recommendedPlayer !== null && decision.recommendedProjectedPoints !== null,
+  ).length;
+  return projected / decisions.length;
+}
+
+function getLineupProjectedTotal(
+  decisions: TeamLineupSummary["decisions"],
+  lineup: "current" | "recommended",
+): number | null {
+  if (decisions.length === 0 || getLineupProjectionCoverage(decisions, lineup) < 1) {
+    return null;
+  }
+  return roundPoints(decisions.reduce((total, decision) =>
+    total + (lineup === "current" ? decision.currentProjectedPoints ?? 0 : decision.recommendedProjectedPoints ?? 0), 0));
+}
+
+function getLineupSummaryConfidence(
+  decisions: TeamLineupSummary["decisions"],
+  recommendedProjectionCoverage: number,
+): TeamLineupSummary["confidence"] {
+  if (recommendedProjectionCoverage === 1 && decisions.every((decision) => decision.confidence !== "low")) {
+    return decisions.some((decision) => decision.confidence === "medium") ? "medium" : "high";
+  }
+  if (recommendedProjectionCoverage > 0 && decisions.some((decision) => decision.confidence !== "low")) {
+    return "medium";
+  }
+  return "low";
+}
+
+function getPlayerSignalConfidence(player: Player): TeamLineupSummary["confidence"] {
+  if (getWeeklyProjectedPoints(player) !== null) {
+    return "high";
+  }
+  if (player.projectionSource === "imported" || player.importedRank) {
+    return "medium";
+  }
+  return "low";
+}
+
+function getWeeklyProjectedPoints(player: Player): number | null {
+  return player.projectionSource === "weekly_projection"
+    && player.weeklyProjectedPoints !== null
+    && player.weeklyProjectedPoints !== undefined
+    ? player.weeklyProjectedPoints
+    : null;
+}
+
+function roundPoints(points: number): number {
+  return Math.round(points * 10) / 10;
 }
 function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, rosterPlayers: Player[], suggestedDrop: Player | null): TeamWaiverSummary["candidates"][number] {
   const need = teamNeeds.positionNeeds.find((item) => item.position === player.position);
@@ -528,6 +716,14 @@ function getUniqueRosterPlayers(state: TeamManagerState): Player[] {
     ...state.roster.bench,
     ...state.roster.injuredReserve,
     ...state.roster.taxi,
+  ];
+  return Array.from(new Map(players.map((player) => [player.id, player])).values());
+}
+
+function getUniqueActiveRosterPlayers(state: TeamManagerState): Player[] {
+  const players = [
+    ...state.roster.starters.map((slot) => slot.player).filter(isPlayer),
+    ...state.roster.bench,
   ];
   return Array.from(new Map(players.map((player) => [player.id, player])).values());
 }

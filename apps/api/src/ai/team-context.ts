@@ -1,5 +1,5 @@
 import { buildTeamLineupSummary, buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-draft-assistant/engine";
-import type { TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 import type { AiConversationMessage, TeamAiContext } from "./types";
 
@@ -11,6 +11,7 @@ export function buildTeamAiContext(
   waiverSummary: TeamWaiverSummary | null = null,
   lineupSummary: TeamLineupSummary | null = null,
   activitySummary: TeamActivitySummary | null = null,
+  dataReadiness: TeamDataReadiness | null = null,
 ): TeamAiContext {
   const teamNeeds = buildTeamNeedsSummary(state);
   const resolvedWaiverSummary = waiverSummary ?? buildTeamWaiverSummary(state, []);
@@ -22,15 +23,16 @@ export function buildTeamAiContext(
     conversationHistory: conversationHistory.slice(-8),
     teamNeeds,
     lineupSummary: resolvedLineupSummary,
-    teamBrief: buildTeamBrief(state, teamNeeds, weekContext, resolvedWaiverSummary, resolvedLineupSummary, resolvedActivitySummary),
+    teamBrief: buildTeamBrief(state, teamNeeds, weekContext, resolvedWaiverSummary, resolvedLineupSummary, resolvedActivitySummary, dataReadiness),
     teamState: state,
+    dataReadiness,
     weekContext,
     waiverSummary: resolvedWaiverSummary,
     activitySummary: resolvedActivitySummary,
   };
 }
 
-function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null, waiverSummary: TeamWaiverSummary, lineupSummary: TeamLineupSummary, activitySummary: TeamActivitySummary): TeamAiContext["teamBrief"] {
+function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null, waiverSummary: TeamWaiverSummary, lineupSummary: TeamLineupSummary, activitySummary: TeamActivitySummary, dataReadiness: TeamDataReadiness | null): TeamAiContext["teamBrief"] {
   const openStarterSlots = state.roster.starters
     .filter((slot) => !slot.player)
     .map((slot) => `${slot.slot} (${slot.eligiblePositions.join("/")})`);
@@ -50,6 +52,9 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
     lineupStatus: `${state.roster.starters.filter((slot) => slot.player).length}/${state.roster.starters.length} starter slots filled, ${state.roster.bench.length} bench players, ${state.roster.injuredReserve.length} IR, ${state.roster.taxi.length} taxi.`,
     lineupFacts: lineupSummary.facts,
     lineupDecisions: lineupSummary.decisions.slice(0, 8).map((decision) => `${decision.slot}: ${decision.status}; current ${decision.currentPlayer?.name ?? "open"}; recommended ${decision.recommendedPlayer?.name ?? "none"}; ${decision.reasons.join(" ")}`),
+    dataReadinessFacts: dataReadiness
+      ? [dataReadiness.headline, ...dataReadiness.facts, ...dataReadiness.warnings]
+      : ["Weekly data readiness was not provided."],
     openStarterSlots,
     depthSignals: teamNeeds.facts,
     deterministicFacts: teamNeeds.facts,
@@ -65,7 +70,7 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
     weakestPositions: teamNeeds.weakestPositions,
     starterCandidates,
     benchPlayers,
-    dataWarnings: [...state.dataQuality.limitations, ...teamNeeds.limitations, ...lineupSummary.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations, ...activitySummary.limitations],
+    dataWarnings: [...(dataReadiness?.warnings ?? []), ...state.dataQuality.limitations, ...teamNeeds.limitations, ...lineupSummary.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations, ...activitySummary.limitations],
     responseRules: [
       "Answer only from the provided Sleeper team context.",
       hasWeeklyProjections
@@ -73,6 +78,7 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
         : "Do not invent projections, injuries, waiver-wire availability, or player news.",
       "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
       "For start/sit and lineup optimization questions, use lineupSummary and lineupDecisions before general roster-shape advice.",
+      "Use dataReadinessFacts to qualify confidence; never present incomplete or mismatched projection data as current.",
       "For add/drop questions, use waiverSummary, activitySummary, topWaiverCandidates, and trendingAdds before general roster-shape advice.",
       "If a starter slot is open, prioritize filling that slot before bench-upgrade advice.",
       "Keep the answer concise and action-oriented.",

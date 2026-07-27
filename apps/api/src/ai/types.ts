@@ -1,4 +1,4 @@
-import type { DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -121,6 +121,7 @@ export type TeamAiContext = {
     lineupStatus: string;
     lineupFacts: string[];
     lineupDecisions: string[];
+    dataReadinessFacts: string[];
     openStarterSlots: string[];
     depthSignals: string[];
     deterministicFacts: string[];
@@ -140,6 +141,7 @@ export type TeamAiContext = {
     responseRules: string[];
   };
   teamState: TeamManagerState;
+  dataReadiness: TeamDataReadiness | null;
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
   activitySummary: TeamActivitySummary;
