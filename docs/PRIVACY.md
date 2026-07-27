@@ -19,6 +19,7 @@ The local SQLite database may contain:
 - settings and provider selection;
 - Sleeper league, roster, user, and draft identifiers needed for app state;
 - imported ranking values and import summaries;
+- imported weekly projection values and import summaries;
 - recommendation and decision snapshots.
 
 The packaged app writes beneath Electron's per-user application-data directory, in a `data` subdirectory. Development writes to repository `data/` unless `SLEEPER_AI_DATA_DIR` is set.

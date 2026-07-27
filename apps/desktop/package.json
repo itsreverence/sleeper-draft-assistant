@@ -25,6 +25,7 @@
     },
     "files": [
       "assets/icon.ico",
+      "src/config.cjs",
       "src/main.cjs",
       "dist/**/*",
       "package.json"

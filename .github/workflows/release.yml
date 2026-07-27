@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-prerelease:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+          cache: npm
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $expectedTag = "v$version"
+          if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $version. Expected $expectedTag."
+          }
+          $workspaceManifests = Get-ChildItem apps, packages -Directory |
+            ForEach-Object { Get-Item (Join-Path $_.FullName "package.json") }
+          foreach ($manifest in $workspaceManifests) {
+            $workspaceVersion = (Get-Content $manifest.FullName | ConvertFrom-Json).version
+            if ($workspaceVersion -ne $version) {
+              throw "$($manifest.FullName) has version $workspaceVersion; expected $version."
+            }
+          }
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run desktop:make
+      - name: Smoke test packaged API and desktop startup
+        shell: pwsh
+        run: ./scripts/smoke-packaged-windows.ps1
+
+      - name: Create release checksums
+        shell: pwsh
+        run: |
+          $output = Resolve-Path "apps/desktop/out-builder"
+          $artifacts = Get-ChildItem $output -File |
+            Where-Object {
+              $_.Name -like "Sleeper Draft Assistant*" -and
+              ($_.Extension -eq ".exe" -or $_.Extension -eq ".zip")
+            } |
+            Sort-Object Name
+          if ($artifacts.Count -ne 3) {
+            throw "Expected installer, portable executable, and ZIP; found $($artifacts.Count) release artifacts."
+          }
+          $checksums = $artifacts | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          }
+          $checksums | Set-Content (Join-Path $output "SHA256SUMS.txt") -Encoding ascii
+
+      - name: Publish GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $output = Resolve-Path "apps/desktop/out-builder"
+          $artifacts = @(
+            Get-ChildItem $output -File |
+              Where-Object {
+                $_.Name -like "Sleeper Draft Assistant*" -and
+                ($_.Extension -eq ".exe" -or $_.Extension -eq ".zip")
+              } |
+              Sort-Object Name
+          )
+          $artifacts += Get-Item (Join-Path $output "SHA256SUMS.txt")
+          $artifactPaths = $artifacts.FullName
+
+          & gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            & gh release upload $env:GITHUB_REF_NAME @artifactPaths --clobber
+          } else {
+            & gh release create $env:GITHUB_REF_NAME @artifactPaths `
+              --title "Sleeper Draft Assistant $env:GITHUB_REF_NAME" `
+              --generate-notes `
+              --prerelease `
+              --verify-tag
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw "GitHub release publication failed."
+          }

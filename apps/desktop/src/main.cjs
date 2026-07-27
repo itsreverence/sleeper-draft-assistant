@@ -9,6 +9,9 @@ const apiPort = parseApiPort(process.env.PORT);
 const webDevUrl = process.env.SLEEPER_AI_WEB_URL ?? "http://127.0.0.1:5173";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || randomBytes(32).toString("base64url");
+const userDataOverride = process.env.SLEEPER_AI_PACKAGE_SMOKE === "1"
+  ? process.env.SLEEPER_AI_USER_DATA_DIR?.trim() || null
+  : null;
 const expectedWebTitle = "Sleeper Draft Assistant";
 const allowedExternalHosts = new Set(["www.fantasypros.com"]);
 
@@ -33,6 +36,7 @@ app.on("second-instance", () => {
 });
 
 app.whenReady().then(async () => {
+  app.setPath("userData", userDataOverride ?? path.join(app.getPath("appData"), "Sleeper Draft Assistant"));
   await ensureApiServer();
   await createWindow();
 });

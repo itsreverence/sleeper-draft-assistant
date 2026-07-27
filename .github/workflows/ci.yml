@@ -36,8 +36,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run desktop:package
-      - name: Verify unpacked executable
+      - name: Smoke test packaged API and desktop startup
         shell: pwsh
-        run: |
-          $exe = "apps/desktop/out-builder/win-unpacked/Sleeper Draft Assistant.exe"
-          if (-not (Test-Path $exe)) { throw "Missing packaged executable: $exe" }
+        run: ./scripts/smoke-packaged-windows.ps1
