@@ -1,6 +1,6 @@
 {
   "name": "@sleeper-draft-assistant/web",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
-    "@sleeper-draft-assistant/shared": "0.1.0-alpha.1",
+    "@sleeper-draft-assistant/shared": "0.1.0-alpha.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "svelte": "^5.43.14",
     "vite": "^7.2.7"
