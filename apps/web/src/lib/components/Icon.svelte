@@ -16,7 +16,10 @@
     | "grid"
     | "chevron-right"
     | "refresh"
-    | "external";
+    | "external"
+    | "database"
+    | "download"
+    | "trash";
 
   let { name, size = 16 }: { name: IconName; size?: number } = $props();
 </script>
@@ -84,6 +87,19 @@
     {:else if name === "external"}
       <path d="M9 6h9v9" />
       <path d="M18 6 6 18" />
+    {:else if name === "database"}
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="3" />
+      <path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" />
+      <path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" />
+    {:else if name === "download"}
+      <path d="M12 4v11" />
+      <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+      <path d="M5 20h14" />
+    {:else if name === "trash"}
+      <path d="M5 7h14" />
+      <path d="M9 7V4.5h6V7" />
+      <path d="m7 7 .8 13h8.4L17 7" />
+      <path d="M10 11v5M14 11v5" />
     {/if}
   </svg>
 </span>

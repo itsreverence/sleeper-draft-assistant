@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -50,6 +50,42 @@ export async function fetchDiagnostics(): Promise<DiagnosticsPayload> {
   }
 
   return (await response.json()) as DiagnosticsPayload;
+}
+
+export async function fetchStorageInventory(): Promise<StorageInventory> {
+  const response = await apiFetch(`${apiBase}/data`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not load local data details."));
+  }
+  return (await response.json()) as StorageInventory;
+}
+
+export async function fetchSupportReport(): Promise<Record<string, unknown>> {
+  const response = await apiFetch(`${apiBase}/data/support-report`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not create the support report."));
+  }
+  return (await response.json()) as Record<string, unknown>;
+}
+
+export async function clearLocalDataCategory(category: LocalDataCategory): Promise<DataMutationPayload> {
+  const response = await apiFetch(`${apiBase}/data/${encodeURIComponent(category)}`, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not clear the selected local data."));
+  }
+  return (await response.json()) as DataMutationPayload;
+}
+
+export async function resetLocalData(): Promise<{ settings: AppSettings; inventory: StorageInventory }> {
+  const response = await apiFetch(`${apiBase}/data/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation: "DELETE ALL LOCAL DATA" }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not reset local app data."));
+  }
+  return (await response.json()) as { settings: AppSettings; inventory: StorageInventory };
 }
 export async function fetchSettings(): Promise<AppSettings> {
   const response = await apiFetch(`${apiBase}/settings`);

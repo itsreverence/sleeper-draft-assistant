@@ -32,6 +32,13 @@ export class SettingsStore {
     return this.settings;
   }
 
+  reset(): AppSettings {
+    this.settings = getDefaultSettings();
+    removePrivateFile(this.filePath);
+    this.save();
+    return this.settings;
+  }
+
   private load(): AppSettings {
     const defaults = getDefaultSettings();
     const storedSettings = this.database?.getJson<unknown>("settings", "app");

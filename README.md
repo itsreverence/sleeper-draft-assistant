@@ -69,6 +69,8 @@ See [Installing on Windows](docs/INSTALLING.md) for artifact choices, checksum v
 
 The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported rankings and weekly projections, settings, and recommendation history.
 
+Settings shows aggregate local-data counts, can download a redacted support report, and provides controls to clear imports, recommendation history, or all local app data.
+
 The API binds only to `127.0.0.1` and protects non-health routes with a random per-launch capability token. On POSIX systems, local data directories and files are created with owner-only permissions. Windows uses its normal per-user profile ACLs; POSIX mode bits are not a Windows security guarantee.
 
 Read [Privacy and local data](docs/PRIVACY.md) before sharing diagnostics or deleting local state.

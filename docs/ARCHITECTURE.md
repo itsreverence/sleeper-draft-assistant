@@ -46,10 +46,13 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 8. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
 9. Optional AI providers receive a compact context packet rather than the full player universe.
 10. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
+11. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
 
 ## Persistence
 
 Packaged runs use Electron's per-user data directory. Development defaults to repository `data/` or `SLEEPER_AI_DATA_DIR` when supplied. Writes use atomic replacement, reject symlink components observed during path validation, and use owner-only POSIX permissions. The path checks are defense in depth, not a race-proof boundary against another process running as the same OS user. Windows privacy depends on the user's profile ACLs.
+
+The renderer can clear ranking imports, weekly projections, or decision history independently. A full reset also restores provider settings and removes app-owned renderer preferences before reload. Exported support reports omit database contents, local paths, identifiers, names, recommendation text, imported values, and provider credentials.
 
 ## Provider boundary
 

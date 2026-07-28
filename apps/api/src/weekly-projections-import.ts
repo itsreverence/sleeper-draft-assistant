@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
-import { readPrivateTextFile, writePrivateFile } from "./secure-file";
+import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
 export type WeeklyProjectionImportKey = {
   leagueId: string;
@@ -70,6 +70,18 @@ export class WeeklyProjectionImportStore {
         this.saveFile();
       }
     }
+    return deleted;
+  }
+
+  clearAll(): number {
+    const deleted = this.imports.size;
+    this.imports.clear();
+    if (this.database) {
+      this.database.clearJson("weekly_projection_imports");
+    } else {
+      this.saveFile();
+    }
+    removePrivateFile(this.filePath);
     return deleted;
   }
 

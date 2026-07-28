@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
-import { readPrivateTextFile, writePrivateFile } from "./secure-file";
+import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
 export type StoredRankingImport = {
   summary: RankingImportSummary;
@@ -75,6 +75,18 @@ export class RankingImportStore {
         this.saveFile();
       }
     }
+    return deleted;
+  }
+
+  clearAll(): number {
+    const deleted = this.imports.size;
+    this.imports.clear();
+    if (this.database) {
+      this.database.clearJson("ranking_imports");
+    } else {
+      this.saveFile();
+    }
+    removePrivateFile(this.filePath);
     return deleted;
   }
 
