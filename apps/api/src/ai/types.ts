@@ -29,6 +29,7 @@ export type DraftAiContext = {
   dataQuality: {
     playerValueSource: string;
     hasImportedRankings: boolean;
+    hasSeasonProjections: boolean;
     usesSleeperPlaceholderRanks: boolean;
     limitations: string[];
   };
@@ -97,6 +98,9 @@ export type DraftAiContext = {
       reasons: string[];
       source: string;
       importedRank?: number | null;
+      seasonProjectedPoints?: number | null;
+      sleeperAdp?: number | null;
+      realTimeAdp?: number | null;
       tier?: number | null;
       byeWeek?: number | null;
       riskTags: string[];

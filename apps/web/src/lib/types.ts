@@ -1,13 +1,23 @@
-import type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 export type DraftPayload = {
   state: DraftState;
   recommendation: DraftRecommendation;
   rankingImportSummary: RankingImportSummary | null;
+  seasonProjectionImportSummary: SeasonProjectionImportSummary | null;
+  adpImportSummary: AdpImportSummary | null;
 };
 
 export type RankingImportPayload = DraftPayload & {
   summary: RankingImportSummary;
+};
+
+export type SeasonProjectionImportPayload = DraftPayload & {
+  summary: SeasonProjectionImportSummary;
+};
+
+export type AdpImportPayload = DraftPayload & {
+  summary: AdpImportSummary;
 };
 
 export type ConnectDraft = {
@@ -108,7 +118,7 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
+export type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 
 
 
@@ -138,6 +148,8 @@ export type DiagnosticsPayload = {
     sqliteStorage: boolean;
     settingsRecords: number;
     rankingImportRecords: number;
+    seasonProjectionImportRecords: number;
+    adpImportRecords: number;
     weeklyProjectionImportRecords: number;
     decisionSnapshots: number;
   };
@@ -153,11 +165,13 @@ export type StorageInventory = {
   location: "application-data" | "development-data";
   sqliteStorage: true;
   rankingImports: number;
+  seasonProjectionImports: number;
+  adpImports: number;
   weeklyProjectionImports: number;
   decisionSnapshots: number;
 };
 
-export type LocalDataCategory = "rankings" | "weekly-projections" | "decision-history";
+export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "weekly-projections" | "decision-history";
 
 export type DataMutationPayload = {
   deleted: number;

@@ -160,6 +160,53 @@ describe("mock draft engine", () => {
     expect(recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
   });
 
+  it("does not let imported season signals saturate a shallow one-QB board", () => {
+    const state = createEightTeamTwoFlexState();
+    const importedRanks = new Map([
+      ["format-qb-allen", 25],
+      ["format-rb-gibbs", 4],
+      ["format-wr-chase", 1],
+      ["format-rb-bijan", 3],
+      ["format-te-bowers", 16],
+      ["format-qb-hurts", 31],
+    ]);
+    state.players = state.players.map((player) => ({
+      ...player,
+      projectionSource: "season_projection",
+      importedRank: importedRanks.get(player.id),
+      seasonProjectedPoints: player.projectedPoints,
+      seasonProjectionSource: "FantasyPros",
+      seasonProjectionSeason: "2026",
+      seasonProjectionCoverage: "league_scored",
+      adpSource: "FantasyPros Sleeper ADP",
+    }));
+
+    const recommendation = buildDraftRecommendation(state);
+    const allen = recommendation.candidates.find((candidate) => candidate.player.id === "format-qb-allen");
+
+    expect(recommendation.candidates[0]?.player.position).toMatch(/RB|WR/);
+    expect(recommendation.recommendedPlayerId).not.toBe("format-qb-allen");
+    expect(recommendation.candidates[0]?.score).toBeLessThan(100);
+    expect(allen?.score).toBeLessThan(recommendation.candidates[0]?.score ?? 0);
+  });
+
+  it("uses the faster of Sleeper and real-time ADP for return probability", () => {
+    const state = createEightTeamTwoFlexState();
+    const player = state.players.find((candidate) => candidate.id === "format-rb-gibbs");
+    if (!player) {
+      throw new Error("Expected Gibbs fixture.");
+    }
+    player.adp = 28;
+    player.realTimeAdp = 4;
+    player.adpSource = "FantasyPros Sleeper ADP";
+
+    const signal = buildCandidateSignals(state, state.players.length)
+      .find((candidate) => candidate.player.id === player.id);
+
+    expect(signal?.returnProbability).toBe(0.08);
+    expect(signal?.reasons).toContain("real-time market is 24.0 picks earlier than Sleeper ADP");
+  });
+
   it("explains shallow-league QB replacement pressure in small one-QB formats", () => {
     const state = createEightTeamTwoFlexState();
     const signals = buildCandidateSignals(state, 10);

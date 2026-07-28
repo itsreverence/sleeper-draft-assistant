@@ -7,6 +7,8 @@ export type StorageInventory = {
   location: "application-data" | "development-data";
   sqliteStorage: true;
   rankingImports: number;
+  seasonProjectionImports: number;
+  adpImports: number;
   weeklyProjectionImports: number;
   decisionSnapshots: number;
 };
@@ -16,6 +18,8 @@ export function buildStorageInventory(database: SqliteAppDatabase): StorageInven
     location: process.env.SLEEPER_AI_DATA_DIR ? "application-data" : "development-data",
     sqliteStorage: true,
     rankingImports: database.countJson("ranking_imports"),
+    seasonProjectionImports: database.countJson("season_projection_imports"),
+    adpImports: database.countJson("adp_imports"),
     weeklyProjectionImports: database.countJson("weekly_projection_imports"),
     decisionSnapshots: database.countDecisionSnapshots(),
   };

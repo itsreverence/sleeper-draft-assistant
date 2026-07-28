@@ -1,4 +1,11 @@
-import type { AppSettings, DraftRecommendation, DraftState, RankingImportSummary } from "@sleeper-draft-assistant/shared";
+import type {
+  AdpImportSummary,
+  AppSettings,
+  DraftRecommendation,
+  DraftState,
+  RankingImportSummary,
+  SeasonProjectionImportSummary,
+} from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { app } from "./index";
@@ -7,6 +14,8 @@ type DraftPayload = {
   state: DraftState;
   recommendation: DraftRecommendation;
   rankingImportSummary: RankingImportSummary | null;
+  seasonProjectionImportSummary: SeasonProjectionImportSummary | null;
+  adpImportSummary: AdpImportSummary | null;
 };
 
 type AskPayload = {
@@ -19,6 +28,11 @@ const fantasyProsCsv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE "
 "1",1,"Josh Allen",BUF,"QB1","7","","","4 out of 5 stars","+8"
 "2",1,"Jahmyr Gibbs",DET,"RB1","6","","","5 out of 5 stars","0"
 "3",1,"A.J. Brown",PHI,"WR1","9","","","3 out of 5 stars","+2"`;
+const fantasyProsQbProjectionsCsv = `"Player","Team","ATT","CMP","YDS","TDS","INTS","ATT","YDS","TDS","FL","FPTS"
+"Josh Allen","BUF","500","330","4,000","30","10","100","500","10","2","365"`;
+const fantasyProsAdpCsv = `Rank,Player (Bye),POS,Sleeper,RTSports,AVG,Real-Time
+1,Jahmyr Gibbs DET (6),RB1,2,-,2.0,1
+2,Josh Allen BUF (7),QB1,18,-,18.0,16`;
 
 describe("draft recommendation routes", () => {
   it("applies preference ids to mock draft recommendations", async () => {
@@ -54,11 +68,15 @@ describe("draft recommendation routes", () => {
     try {
       await updateSettings({ ...originalSettings, aiProvider: "noop" });
       await app.request("/drafts/mock-draft/rankings/import", { method: "DELETE" });
+      await app.request("/drafts/mock-draft/projections/season/import", { method: "DELETE" });
+      await app.request("/drafts/mock-draft/adp/import", { method: "DELETE" });
 
       const initialStateResponse = await app.request("/drafts/mock-draft/state");
       expect(initialStateResponse.status).toBe(200);
       const initialPayload = (await initialStateResponse.json()) as DraftPayload;
       expect(initialPayload.rankingImportSummary).toBeNull();
+      expect(initialPayload.seasonProjectionImportSummary).toBeNull();
+      expect(initialPayload.adpImportSummary).toBeNull();
 
       const initialDecisionsResponse = await app.request("/drafts/mock-draft/decisions?limit=5");
       expect(initialDecisionsResponse.status).toBe(200);
@@ -82,6 +100,42 @@ describe("draft recommendation routes", () => {
       const importedPayload = (await importedStateResponse.json()) as DraftPayload;
       expect(importedPayload.rankingImportSummary?.matched).toBe(3);
       expect(importedPayload.recommendation.candidates[0]?.reasons[0]).toContain("FantasyPros rank");
+
+      const projectionResponse = await app.request("/drafts/mock-draft/projections/season/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "fantasypros",
+          season: "2026",
+          files: [{ position: "QB", csvText: fantasyProsQbProjectionsCsv }],
+        }),
+      });
+      expect(projectionResponse.status).toBe(200);
+      const projectionPayload = (await projectionResponse.json()) as DraftPayload & { summary: SeasonProjectionImportSummary };
+      expect(projectionPayload.summary.matched).toBe(1);
+      expect(projectionPayload.state.players.find((player) => player.name === "Josh Allen")).toMatchObject({
+        projectionSource: "season_projection",
+        seasonProjectionSeason: "2026",
+      });
+
+      const adpResponse = await app.request("/drafts/mock-draft/adp/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "fantasypros", season: "2026", csvText: fantasyProsAdpCsv }),
+      });
+      expect(adpResponse.status).toBe(200);
+      const adpPayload = (await adpResponse.json()) as DraftPayload & { summary: AdpImportSummary };
+      expect(adpPayload.summary.matched).toBe(2);
+      expect(adpPayload.state.players.find((player) => player.name === "Josh Allen")).toMatchObject({
+        adp: 18,
+        realTimeAdp: 16,
+      });
+
+      const draftDataReloadResponse = await app.request("/drafts/mock-draft/state");
+      const draftDataReload = (await draftDataReloadResponse.json()) as DraftPayload;
+      expect(draftDataReload.rankingImportSummary?.matched).toBe(3);
+      expect(draftDataReload.seasonProjectionImportSummary?.matched).toBe(1);
+      expect(draftDataReload.adpImportSummary?.matched).toBe(2);
 
       const excludedId = importedPayload.recommendation.candidates[0]?.player.id;
       const fadedId = importedPayload.recommendation.candidates[1]?.player.id;
@@ -123,6 +177,9 @@ describe("draft recommendation routes", () => {
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
     } finally {
+      await app.request("/drafts/mock-draft/rankings/import", { method: "DELETE" });
+      await app.request("/drafts/mock-draft/projections/season/import", { method: "DELETE" });
+      await app.request("/drafts/mock-draft/adp/import", { method: "DELETE" });
       await updateSettings(originalSettings);
     }
   });

@@ -65,6 +65,8 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Web requests return 401:** use the root `npm run dev` launcher so renderer and API receive the same token.
 - **Codex cannot start:** verify the configured executable is `codex`, `codex.exe`, or `codex.cmd`, then run `codex login` separately.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
-- **Recommendations warn about placeholder values:** import a current rankings CSV for the league's scoring format.
+- **Recommendations warn about placeholder values:** import the scoring-specific ECR CSV first, then season projections and Overall ADP for full draft context.
+- **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
+- **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
 - **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.

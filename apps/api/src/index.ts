@@ -13,7 +13,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { RankingImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import { AdpImportRequestSchema, RankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
@@ -21,6 +21,7 @@ import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-s
 import { createEventStreamChannel } from "./event-stream";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
+import { AdpImportStore, SeasonProjectionImportStore, applyAdpValue, applySeasonProjectionValue, importFantasyProsAdpCsv, importFantasyProsSeasonProjectionCsvs } from "./draft-value-import";
 import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv, isWeeklyProjectionImportActive, mergeWeeklyProjectionImports } from "./weekly-projections-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
@@ -37,6 +38,8 @@ const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || null;
 const sleeperClient = new SleeperClient();
 const appDatabase = await SqliteAppDatabase.open();
 const rankingImportStore = new RankingImportStore(undefined, appDatabase);
+const seasonProjectionImportStore = new SeasonProjectionImportStore(undefined, appDatabase);
+const adpImportStore = new AdpImportStore(undefined, appDatabase);
 const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
@@ -46,6 +49,8 @@ type DraftPayload = {
   state: DraftState;
   recommendation: DraftRecommendation;
   rankingImportSummary: RankingImportSummary | null;
+  seasonProjectionImportSummary: SeasonProjectionImportSummary | null;
+  adpImportSummary: AdpImportSummary | null;
 };
 
 type DraftPayloadOptions = {
@@ -108,6 +113,10 @@ app.delete("/data/:category", async (c) => {
     let deleted = 0;
     if (category === "rankings") {
       deleted = rankingImportStore.clearAll();
+    } else if (category === "season-projections") {
+      deleted = seasonProjectionImportStore.clearAll();
+    } else if (category === "adp") {
+      deleted = adpImportStore.clearAll();
     } else if (category === "weekly-projections") {
       deleted = weeklyProjectionImportStore.clearAll();
     } else if (category === "decision-history") {
@@ -129,6 +138,8 @@ app.post("/data/reset", async (c) => {
     }
 
     rankingImportStore.clearAll();
+    seasonProjectionImportStore.clearAll();
+    adpImportStore.clearAll();
     weeklyProjectionImportStore.clearAll();
     decisionLogStore.clearAll();
     const settings = settingsStore.reset();
@@ -152,7 +163,7 @@ app.put("/settings", async (c) => {
 app.get("/ai/status", (c) => c.json(createAiProvider(settingsStore.get()).status()));
 
 app.get("/drafts/mock/state", (c) => {
-  return c.json(toDraftPayload(rankingImportStore.apply("mock-draft", mockState), "mock-draft"));
+  return c.json(toDraftPayload(applyDraftData("mock-draft", mockState), "mock-draft"));
 });
 
 app.get("/sleeper/connect", async (c) => {
@@ -328,14 +339,88 @@ app.post("/drafts/:draftId/rankings/import", async (c) => {
     const draftId = c.req.param("draftId");
     const state = await loadDraftState(draftId, getUserRosterId(c));
     const body = RankingImportRequestSchema.parse(await c.req.json());
-    const storedImport = importFantasyProsCsv(state, body.csvText);
+    const storedImport = importFantasyProsCsv(state, body.csvText, body.scoring);
     rankingImportStore.set(draftId, storedImport);
-    const importedState = rankingImportStore.apply(draftId, state);
+    const importedState = applyDraftData(draftId, state);
 
     return c.json({
       summary: storedImport.summary,
       ...toDraftPayload(importedState, draftId, { recordTrigger: "rankings-import", userRosterId: getUserRosterId(c) }),
     });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/drafts/:draftId/projections/season/import", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = SeasonProjectionImportRequestSchema.parse(await c.req.json());
+    const storedImport = importFantasyProsSeasonProjectionCsvs({
+      state,
+      season: body.season,
+      files: body.files,
+    });
+    seasonProjectionImportStore.set(draftId, storedImport);
+    return c.json({
+      summary: storedImport.summary,
+      ...toDraftPayload(applyDraftData(draftId, state), draftId, {
+        recordTrigger: "rankings-import",
+        userRosterId: getUserRosterId(c),
+      }),
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.delete("/drafts/:draftId/projections/season/import", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    seasonProjectionImportStore.delete(draftId);
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    return c.json(toDraftPayload(state, draftId, {
+      recordTrigger: "rankings-clear",
+      userRosterId: getUserRosterId(c),
+    }));
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/drafts/:draftId/adp/import", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = AdpImportRequestSchema.parse(await c.req.json());
+    const storedImport = importFantasyProsAdpCsv({
+      state,
+      season: body.season,
+      csvText: body.csvText,
+    });
+    adpImportStore.set(draftId, storedImport);
+    return c.json({
+      summary: storedImport.summary,
+      ...toDraftPayload(applyDraftData(draftId, state), draftId, {
+        recordTrigger: "rankings-import",
+        userRosterId: getUserRosterId(c),
+      }),
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.delete("/drafts/:draftId/adp/import", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    adpImportStore.delete(draftId);
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    return c.json(toDraftPayload(state, draftId, {
+      recordTrigger: "rankings-clear",
+      userRosterId: getUserRosterId(c),
+    }));
   } catch (error) {
     return handleRouteError(c, error);
   }
@@ -427,11 +512,18 @@ app.get("/drafts/:draftId/events", async (c) => {
 
 async function loadDraftState(draftId: string, userRosterId?: string | null): Promise<DraftState> {
   if (isMockDraft(draftId)) {
-    return rankingImportStore.apply(draftId, mockState);
+    return applyDraftData(draftId, mockState);
   }
 
   const state = await sleeperClient.getDraftState(draftId, userRosterId);
-  return rankingImportStore.apply(draftId, state);
+  return applyDraftData(draftId, state);
+}
+
+function applyDraftData(draftId: string, state: DraftState): DraftState {
+  return adpImportStore.apply(
+    draftId,
+    seasonProjectionImportStore.apply(draftId, rankingImportStore.apply(draftId, state)),
+  );
 }
 
 function toTeamPayload(
@@ -481,6 +573,8 @@ function toDraftPayload(state: DraftState, draftId: string, options: DraftPayloa
     state,
     recommendation,
     rankingImportSummary: rankingImportStore.get(draftId)?.summary ?? null,
+    seasonProjectionImportSummary: seasonProjectionImportStore.get(draftId)?.summary ?? null,
+    adpImportSummary: adpImportStore.get(draftId)?.summary ?? null,
   };
 }
 
@@ -506,6 +600,8 @@ function createDiagnosticsPayload() {
       sqliteStorage: true,
       settingsRecords: appDatabase.countJson("settings"),
       rankingImportRecords: appDatabase.countJson("ranking_imports"),
+      seasonProjectionImportRecords: appDatabase.countJson("season_projection_imports"),
+      adpImportRecords: appDatabase.countJson("adp_imports"),
       weeklyProjectionImportRecords: appDatabase.countJson("weekly_projection_imports"),
       decisionSnapshots: appDatabase.countDecisionSnapshots(),
     },
@@ -584,8 +680,13 @@ function isPlayer(player: Player | null): player is Player {
 
 function applyTeamRankingImport(c: Context, players: Player[]) {
   const draftId = c.req.query("draftId") ?? null;
-  const storedImport = draftId ? rankingImportStore.get(draftId) : null;
-  return players.map((player) => applyImportedPlayerValues(player, storedImport));
+  const rankingImport = draftId ? rankingImportStore.get(draftId) : null;
+  const seasonProjectionImport = draftId ? seasonProjectionImportStore.get(draftId) : null;
+  const adpImport = draftId ? adpImportStore.get(draftId) : null;
+  return players.map((player) => applyAdpValue(
+    applySeasonProjectionValue(applyImportedPlayerValues(player, rankingImport), seasonProjectionImport),
+    adpImport,
+  ));
 }
 
 function getWeek(c: Context): number | null {
@@ -632,7 +733,7 @@ export function redactErrorMessage(message: string): string {
 
 function streamMockDraftEvents(): Response {
   const channel = createEventStreamChannel();
-  let localState: DraftState = rankingImportStore.apply("mock-draft", mockState);
+  let localState: DraftState = applyDraftData("mock-draft", mockState);
   let interval: ReturnType<typeof setInterval> | undefined;
 
   const stream = new ReadableStream<Uint8Array>({
@@ -653,7 +754,7 @@ function streamMockDraftEvents(): Response {
 
         const previousPickCount = mockState.picks.length;
         mockState = advanceMockDraftState(mockState);
-        localState = rankingImportStore.apply("mock-draft", mockState);
+        localState = applyDraftData("mock-draft", mockState);
         const pick = localState.picks[previousPickCount];
 
         channel.send(controller, "pick", {

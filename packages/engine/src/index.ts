@@ -16,7 +16,7 @@ import type {
   WeeklyProjectionImportSummary,
 } from "@sleeper-draft-assistant/shared";
 
-const positionBaselines: Record<Position, number> = {
+const defaultPositionBaselines: Record<Position, number> = {
   QB: 250,
   RB: 180,
   WR: 175,
@@ -806,9 +806,10 @@ export function buildCandidateSignals(state: DraftState, limit = 8, options: Dra
   const rosterCounts = countRosterPositions(userTeam, state.players);
   const preferenceSets = toPreferenceSets(options.preferences);
   const available = getAvailablePlayers(state).filter((player) => !preferenceSets.excluded.has(player.id));
+  const replacementBaselines = getReplacementBaselines(state);
 
   return available
-    .map((player) => toCandidateSignal(player, state, rosterCounts, preferenceSets))
+    .map((player) => toCandidateSignal(player, state, rosterCounts, preferenceSets, replacementBaselines))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
@@ -879,6 +880,13 @@ function getRecommendationAssumptions(source: Player["projectionSource"]): strin
     ];
   }
 
+  if (source === "season_projection") {
+    return [
+      "Imported season projections are scored with the connected Sleeper league settings for supported offensive statistics.",
+      "Kicker and defense projections may use FantasyPros provider points when the export lacks enough detail for exact league scoring.",
+    ];
+  }
+
   return [
     "Imported projections or rankings are powering this recommendation.",
   ];
@@ -905,21 +913,39 @@ function toCandidateSignal(
   state: DraftState,
   rosterCounts: Record<Position, number>,
   preferences: NormalizedRecommendationPreferences,
+  replacementBaselines: Record<Position, number>,
 ): CandidateSignal {
-  const baseline = positionBaselines[player.position];
+  const baseline = replacementBaselines[player.position];
   const projectedEdge = Number((player.projectedPoints - baseline).toFixed(1));
   const rosterFit = getRosterFit(player.position, rosterCounts);
-  const scarcityBoost = getScarcityBoost(player.position, state);
+  const scarcityBoost = getScarcityBoost(player.position, state, baseline);
   const constructionBoost = getRosterConstructionBoost(player.position, state, rosterCounts);
   const adpValue = player.adp === null ? 0 : player.adp - state.currentPick;
   const returnProbability = estimateReturnProbability(player, state);
-  const fitBoost = rosterFit === "need" ? 13 : rosterFit === "depth" ? 5 : -4;
+  const fitBoost = rosterFit === "need" ? 9 : rosterFit === "depth" ? 4 : -4;
   const tierBoost = player.tier === null ? 0 : Math.max(0, 8 - player.tier);
-  const importedRankBoost = player.importedRank ? Math.max(0, 30 - player.importedRank / 16) : 0;
+  const importedRankBoost = player.importedRank
+    ? clamp(12 - player.importedRank / 4, -8, 12)
+    : 0;
   const riskPenalty = player.riskTags.length * 3;
   const preferenceBoost = getPreferenceBoost(player.id, preferences);
+  const projectionBoost = clamp(
+    projectedEdge / getProjectedEdgeDivisor(player.position),
+    -12,
+    25,
+  );
+  const marketBoost = clamp(adpValue / 8, -10, 10);
   const score = clamp(
-    55 + projectedEdge / getProjectedEdgeDivisor(player.position) + fitBoost + scarcityBoost + constructionBoost + adpValue / 6 + tierBoost + importedRankBoost + preferenceBoost - riskPenalty,
+    35 +
+      projectionBoost +
+      fitBoost +
+      scarcityBoost +
+      clamp(constructionBoost, -10, 12) +
+      marketBoost +
+      tierBoost +
+      importedRankBoost +
+      preferenceBoost -
+      riskPenalty,
     0,
     100,
   );
@@ -985,10 +1011,10 @@ function getRosterConstructionBoost(
 
   return -10;
 }
-function getScarcityBoost(position: Position, state: DraftState): number {
+function getScarcityBoost(position: Position, state: DraftState, baseline: number): number {
   const availableAtPosition = getAvailablePlayers(state).filter((player) => player.position === position);
   const aboveBaseline = availableAtPosition.filter(
-    (player) => player.projectedPoints > positionBaselines[position],
+    (player) => player.projectedPoints > baseline,
   ).length;
 
   if (position === "TE" && aboveBaseline <= 2) {
@@ -1003,7 +1029,12 @@ function getScarcityBoost(position: Position, state: DraftState): number {
 }
 
 function estimateReturnProbability(player: Player, state: DraftState): number {
-  const marketRank = player.adp ?? player.importedRank ?? null;
+  const currentMarketRanks = [player.adp, player.realTimeAdp].filter(
+    (rank): rank is number => rank !== null && rank !== undefined,
+  );
+  const marketRank = currentMarketRanks.length > 0
+    ? Math.min(...currentMarketRanks)
+    : player.importedRank ?? null;
   if (marketRank === null) {
     return 0.35;
   }
@@ -1030,8 +1061,14 @@ function estimateReturnProbability(player: Player, state: DraftState): number {
 function picksUntilNextUserPick(state: DraftState): number {
   const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot ?? 1;
   const currentPick = state.currentPick;
+  const currentRound = Math.ceil(currentPick / state.settings.teams);
+  const currentPickInRound = ((currentPick - 1) % state.settings.teams) + 1;
+  const currentDraftSlot = currentRound % 2 === 1
+    ? currentPickInRound
+    : state.settings.teams + 1 - currentPickInRound;
+  const searchFrom = currentDraftSlot === userSlot ? currentPick + 1 : currentPick;
 
-  for (let pickNo = currentPick; pickNo <= state.settings.teams * state.settings.rounds; pickNo += 1) {
+  for (let pickNo = searchFrom; pickNo <= state.settings.teams * state.settings.rounds; pickNo += 1) {
     const round = Math.ceil(pickNo / state.settings.teams);
     const pickInRound = ((pickNo - 1) % state.settings.teams) + 1;
     const draftSlot = round % 2 === 1 ? pickInRound : state.settings.teams + 1 - pickInRound;
@@ -1086,6 +1123,19 @@ function getValueLabel(player: Player, adpValue: number): string {
     return player.importedRank ? `rank ${player.importedRank}` : "imported rank";
   }
 
+  if (player.adpSource) {
+    if (adpValue >= 12) {
+      return "major Sleeper ADP discount";
+    }
+    if (adpValue >= 4) {
+      return "positive Sleeper ADP value";
+    }
+    if (adpValue <= -10) {
+      return "ahead of Sleeper ADP";
+    }
+    return "near Sleeper ADP";
+  }
+
   if (adpValue >= 12) {
     return "major ADP discount";
   }
@@ -1099,6 +1149,39 @@ function getValueLabel(player: Player, adpValue: number): string {
   }
 
   return "near market";
+}
+
+function getReplacementBaselines(state: DraftState): Record<Position, number> {
+  if (!state.players.some((player) => player.projectionSource === "season_projection")) {
+    return defaultPositionBaselines;
+  }
+
+  const slots = state.settings.rosterSlots;
+  const flexSlots = (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0);
+  const receivingFlexSlots = slots.REC_FLEX ?? 0;
+  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
+  const demandPerTeam: Record<Position, number> = {
+    QB: (slots.QB ?? 0) + superFlexSlots,
+    RB: (slots.RB ?? 0) + flexSlots * 0.45,
+    WR: (slots.WR ?? 0) + flexSlots * 0.45 + receivingFlexSlots * 0.75,
+    TE: (slots.TE ?? 0) + flexSlots * 0.1 + receivingFlexSlots * 0.25,
+    K: slots.K ?? 0,
+    DEF: slots.DEF ?? 0,
+  };
+
+  return Object.fromEntries(
+    (Object.keys(defaultPositionBaselines) as Position[]).map((position) => {
+      const projections = state.players
+        .filter((player) => player.position === position && player.projectionSource === "season_projection")
+        .map((player) => player.projectedPoints)
+        .sort((a, b) => b - a);
+      const replacementIndex = Math.max(0, Math.ceil(state.settings.teams * demandPerTeam[position]) - 1);
+      return [
+        position,
+        projections[replacementIndex] ?? projections.at(-1) ?? defaultPositionBaselines[position],
+      ];
+    }),
+  ) as Record<Position, number>;
 }
 function getScarcityLabel(boost: number): string {
   if (boost >= 8) {
@@ -1147,6 +1230,17 @@ function getReasons(
     reasons.push("unlikely to return to your next pick");
   }
 
+  if (
+    player.adp !== null &&
+    player.adp !== undefined &&
+    player.realTimeAdp !== null &&
+    player.realTimeAdp !== undefined &&
+    Math.abs(player.adp - player.realTimeAdp) >= 8
+  ) {
+    const direction = player.realTimeAdp < player.adp ? "earlier" : "later";
+    reasons.push(`real-time market is ${Math.abs(player.adp - player.realTimeAdp).toFixed(1)} picks ${direction} than Sleeper ADP`);
+  }
+
   if (player.riskTags.length > 0) {
     reasons.push(`risk flags: ${player.riskTags.join(", ")}`);
   }
@@ -1162,6 +1256,11 @@ function getPrimarySignalReason(player: Player, projectedEdge: number): string {
 
   if (player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined) {
     return `${player.weeklyProjectionSource ?? "Imported"} Week ${player.weeklyProjectionWeek ?? "?"} projection: ${player.weeklyProjectedPoints.toFixed(1)} points`;
+  }
+
+  if (player.projectionSource === "season_projection" && player.seasonProjectedPoints !== null && player.seasonProjectedPoints !== undefined) {
+    const qualifier = player.seasonProjectionCoverage === "provider_approximation" ? "provider estimate" : "league-scored";
+    return `${player.seasonProjectionSource ?? "Imported"} ${player.seasonProjectionSeason ?? "season"} projection: ${player.seasonProjectedPoints.toFixed(1)} points (${qualifier})`;
   }
 
   if (player.projectionSource === "imported" && player.importedRank) {

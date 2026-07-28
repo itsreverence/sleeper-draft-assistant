@@ -17,6 +17,8 @@
 
   const rows: Array<{ category: LocalDataCategory; label: string; description: string; count: keyof StorageInventory }> = [
     { category: "rankings", label: "Draft rankings", description: "FantasyPros ranking imports saved by draft.", count: "rankingImports" },
+    { category: "season-projections", label: "Season projections", description: "FantasyPros season projections saved by draft.", count: "seasonProjectionImports" },
+    { category: "adp", label: "Draft ADP", description: "FantasyPros Sleeper ADP imports saved by draft.", count: "adpImports" },
     { category: "weekly-projections", label: "Weekly projections", description: "FantasyPros projection imports saved by league and week.", count: "weeklyProjectionImports" },
     { category: "decision-history", label: "Decision history", description: "Local recommendation snapshots used for review.", count: "decisionSnapshots" },
   ];

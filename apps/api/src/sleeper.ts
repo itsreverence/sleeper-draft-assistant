@@ -798,8 +798,17 @@ function buildDraftSettings(input: SleeperDraftStateInput, teams: number, rounds
     teams,
     rounds,
     scoring: getScoringLabel(input),
+    scoringSettings: getNumericScoringSettings(input.league?.scoring_settings),
     rosterSlots: getRosterSlots(input),
   };
+}
+
+function getNumericScoringSettings(settings: JsonRecord | null | undefined): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(settings ?? {})
+      .map(([key, value]) => [key, numberFrom(value)] as const)
+      .filter((entry): entry is [string, number] => entry[1] !== null),
+  );
 }
 
 function getScoringLabel(input: SleeperDraftStateInput): string {

@@ -3,7 +3,7 @@ import { z } from "zod";
 export const PositionSchema = z.enum(["QB", "RB", "WR", "TE", "K", "DEF"]);
 export type Position = z.infer<typeof PositionSchema>;
 
-export const PlayerSignalSourceSchema = z.enum(["mock", "sleeper_search_rank", "imported", "weekly_projection"]);
+export const PlayerSignalSourceSchema = z.enum(["mock", "sleeper_search_rank", "imported", "season_projection", "weekly_projection"]);
 export type PlayerSignalSource = z.infer<typeof PlayerSignalSourceSchema>;
 
 export const PlayerSchema = z.object({
@@ -22,6 +22,12 @@ export const PlayerSchema = z.object({
   importedSource: z.string().nullable().optional(),
   byeWeek: z.number().nullable().optional(),
   ecrVsAdp: z.number().nullable().optional(),
+  seasonProjectedPoints: z.number().nullable().optional(),
+  seasonProjectionSource: z.string().nullable().optional(),
+  seasonProjectionSeason: z.string().nullable().optional(),
+  seasonProjectionCoverage: z.enum(["league_scored", "provider_approximation"]).nullable().optional(),
+  adpSource: z.string().nullable().optional(),
+  realTimeAdp: z.number().nullable().optional(),
   weeklyProjectedPoints: z.number().nullable().optional(),
   weeklyProjectionSource: z.string().nullable().optional(),
   weeklyProjectionSeason: z.string().nullable().optional(),
@@ -32,8 +38,12 @@ export type Player = z.infer<typeof PlayerSchema>;
 export const RankingImportSourceSchema = z.enum(["fantasypros"]);
 export type RankingImportSource = z.infer<typeof RankingImportSourceSchema>;
 
+export const DraftScoringFormatSchema = z.enum(["PPR", "Half PPR", "Standard", "Custom", "Unknown"]);
+export type DraftScoringFormat = z.infer<typeof DraftScoringFormatSchema>;
+
 export const RankingImportRequestSchema = z.object({
   source: RankingImportSourceSchema.default("fantasypros"),
+  scoring: DraftScoringFormatSchema.default("Unknown"),
   csvText: z.string().min(1),
 });
 export type RankingImportRequest = z.infer<typeof RankingImportRequestSchema>;
@@ -80,9 +90,77 @@ export const RankingImportSummarySchema = z.object({
       candidates: z.array(z.string()),
     }),
   ),
+  scoring: DraftScoringFormatSchema.optional(),
   appliedAt: z.string(),
 });
 export type RankingImportSummary = z.infer<typeof RankingImportSummarySchema>;
+
+export const SeasonProjectionImportRequestSchema = z.object({
+  source: z.literal("fantasypros").default("fantasypros"),
+  season: z.string().trim().min(4),
+  files: z.array(z.object({
+    position: PositionSchema,
+    csvText: z.string().min(1),
+  })).min(1).max(6),
+});
+export type SeasonProjectionImportRequest = z.infer<typeof SeasonProjectionImportRequestSchema>;
+
+export const SeasonProjectionImportSummarySchema = z.object({
+  source: z.literal("fantasypros"),
+  season: z.string(),
+  scoring: z.string(),
+  positions: z.array(PositionSchema),
+  rowsParsed: z.number(),
+  matched: z.number(),
+  unmatched: z.array(z.object({
+    row: z.number(),
+    name: z.string(),
+    team: z.string().nullable(),
+    position: PositionSchema.nullable(),
+  })),
+  ambiguous: z.array(z.object({
+    row: z.number(),
+    name: z.string(),
+    team: z.string().nullable(),
+    position: PositionSchema.nullable(),
+    candidates: z.array(z.string()),
+  })),
+  approximatePositions: z.array(PositionSchema),
+  warnings: z.array(z.string()),
+  appliedAt: z.string(),
+});
+export type SeasonProjectionImportSummary = z.infer<typeof SeasonProjectionImportSummarySchema>;
+
+export const AdpImportRequestSchema = z.object({
+  source: z.literal("fantasypros").default("fantasypros"),
+  season: z.string().trim().min(4),
+  csvText: z.string().min(1),
+});
+export type AdpImportRequest = z.infer<typeof AdpImportRequestSchema>;
+
+export const AdpImportSummarySchema = z.object({
+  source: z.literal("fantasypros"),
+  market: z.literal("Sleeper"),
+  season: z.string(),
+  rowsParsed: z.number(),
+  matched: z.number(),
+  unmatched: z.array(z.object({
+    row: z.number(),
+    name: z.string(),
+    team: z.string().nullable(),
+    position: PositionSchema.nullable(),
+  })),
+  ambiguous: z.array(z.object({
+    row: z.number(),
+    name: z.string(),
+    team: z.string().nullable(),
+    position: PositionSchema.nullable(),
+    candidates: z.array(z.string()),
+  })),
+  includesRealTime: z.boolean(),
+  appliedAt: z.string(),
+});
+export type AdpImportSummary = z.infer<typeof AdpImportSummarySchema>;
 
 export const WeeklyProjectionImportSourceSchema = z.enum(["fantasypros"]);
 export type WeeklyProjectionImportSource = z.infer<typeof WeeklyProjectionImportSourceSchema>;
@@ -168,6 +246,7 @@ export const DraftSettingsSchema = z.object({
   teams: z.number(),
   rounds: z.number(),
   scoring: z.string(),
+  scoringSettings: z.record(z.string(), z.number()).optional(),
   rosterSlots: z.record(z.string(), z.number()),
 });
 export type DraftSettings = z.infer<typeof DraftSettingsSchema>;

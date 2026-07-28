@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
+import type { DraftScoringFormat, DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -153,7 +153,11 @@ function deserializeRankingImport(storedImport: SerializedRankingImport): Stored
   };
 }
 
-export function importFantasyProsCsv(state: DraftState, csvText: string): StoredRankingImport {
+export function importFantasyProsCsv(
+  state: DraftState,
+  csvText: string,
+  scoring: DraftScoringFormat = normalizeDraftScoringFormat(state.settings.scoring),
+): StoredRankingImport {
   const rows = parseFantasyProsRows(csvText);
   const playersById = new Map<string, ImportedPlayerValues>();
   const unmatched: RankingImportSummary["unmatched"] = [];
@@ -199,10 +203,25 @@ export function importFantasyProsCsv(state: DraftState, csvText: string): Stored
       matched: playersById.size,
       unmatched: unmatched.slice(0, 40),
       ambiguous: ambiguous.slice(0, 40),
+      scoring,
       appliedAt: new Date().toISOString(),
     },
     playersById,
   };
+}
+
+function normalizeDraftScoringFormat(scoring: string): DraftScoringFormat {
+  const normalized = scoring.trim().toLowerCase();
+  if (normalized === "ppr") {
+    return "PPR";
+  }
+  if (normalized === "half ppr" || normalized === "half-ppr") {
+    return "Half PPR";
+  }
+  if (normalized === "standard") {
+    return "Standard";
+  }
+  return normalized ? "Custom" : "Unknown";
 }
 
 export function applyImportedRankings(state: DraftState, storedImport: StoredRankingImport): DraftState {

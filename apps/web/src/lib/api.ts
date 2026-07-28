@@ -1,4 +1,4 @@
-import type { AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -17,7 +17,7 @@ if (packagedApiToken) {
   }
 }
 
-export type DraftAction = "state" | "events" | "ask" | "recommendations" | "rankings/import";
+export type DraftAction = "state" | "events" | "ask" | "recommendations" | "rankings/import" | "projections/season/import" | "adp/import";
 
 export function buildDraftUrl(draftId: string, action: DraftAction, userRosterId: string | null) {
   const query = new URLSearchParams();
@@ -250,11 +250,12 @@ export async function importRankingsRequest(
   draftId: string,
   userRosterId: string | null,
   csvText: string,
+  scoring: string,
 ): Promise<RankingImportPayload> {
   const response = await apiFetch(buildDraftUrl(draftId, "rankings/import", userRosterId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source: "fantasypros", csvText }),
+    body: JSON.stringify({ source: "fantasypros", scoring, csvText }),
   });
 
   if (!response.ok) {
@@ -262,6 +263,74 @@ export async function importRankingsRequest(
   }
 
   return (await response.json()) as RankingImportPayload;
+}
+
+export async function importSeasonProjectionsRequest(input: {
+  draftId: string;
+  userRosterId: string | null;
+  season: string;
+  files: Array<{ position: Position; csvText: string }>;
+}): Promise<SeasonProjectionImportPayload> {
+  const response = await apiFetch(buildDraftUrl(input.draftId, "projections/season/import", input.userRosterId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source: "fantasypros",
+      season: input.season,
+      files: input.files,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Season projection import failed."));
+  }
+  return (await response.json()) as SeasonProjectionImportPayload;
+}
+
+export async function clearSeasonProjectionsRequest(
+  draftId: string,
+  userRosterId: string | null,
+): Promise<DraftPayload> {
+  const response = await apiFetch(buildDraftUrl(draftId, "projections/season/import", userRosterId), {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not clear season projections."));
+  }
+  return (await response.json()) as DraftPayload;
+}
+
+export async function importAdpRequest(input: {
+  draftId: string;
+  userRosterId: string | null;
+  season: string;
+  csvText: string;
+}): Promise<AdpImportPayload> {
+  const response = await apiFetch(buildDraftUrl(input.draftId, "adp/import", input.userRosterId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source: "fantasypros",
+      season: input.season,
+      csvText: input.csvText,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Sleeper ADP import failed."));
+  }
+  return (await response.json()) as AdpImportPayload;
+}
+
+export async function clearAdpRequest(
+  draftId: string,
+  userRosterId: string | null,
+): Promise<DraftPayload> {
+  const response = await apiFetch(buildDraftUrl(draftId, "adp/import", userRosterId), {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not clear Sleeper ADP."));
+  }
+  return (await response.json()) as DraftPayload;
 }
 
 export async function clearRankingsRequest(draftId: string, userRosterId: string | null): Promise<DraftPayload> {
