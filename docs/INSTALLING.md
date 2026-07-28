@@ -38,7 +38,9 @@ Installed and portable builds normally keep their database under:
 
 This may contain settings, Sleeper identifiers, imported rankings and projections, and recommendation history. Uninstalling the executable may leave this data in place.
 
-To remove all local application data, close Sleeper Draft Assistant completely and delete its `data` directory. Back it up before deletion when you want to retain imports or history.
+Settings can clear ranking imports, weekly projections, or recommendation history independently. **Delete all local app data** resets settings and stored app data after typed confirmation.
+
+For manual removal, close Sleeper Draft Assistant completely and delete its `data` directory. Back it up before deletion when you want to retain imports or history.
 
 ## Updating and rollback
 
