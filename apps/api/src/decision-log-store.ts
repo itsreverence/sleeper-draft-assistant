@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
-import { readPrivateTextFile, writePrivateFile } from "./secure-file";
+import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
 export type DecisionSnapshotTrigger =
   | "state-load"
@@ -101,6 +101,18 @@ export class DecisionLogStore {
         this.save();
       }
     }
+    return deleted;
+  }
+
+  clearAll(): number {
+    const deleted = Array.from(this.snapshotsByDraft.values()).reduce((total, snapshots) => total + snapshots.length, 0);
+    this.snapshotsByDraft.clear();
+    if (this.database) {
+      this.database.clearAllDecisionSnapshots();
+    } else {
+      this.save();
+    }
+    removePrivateFile(this.filePath);
     return deleted;
   }
 

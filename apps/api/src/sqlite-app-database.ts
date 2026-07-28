@@ -87,6 +87,15 @@ export class SqliteAppDatabase {
     return deleted;
   }
 
+  clearJson(namespace: JsonNamespace): number {
+    this.db.run("DELETE FROM app_kv WHERE namespace = ?", [namespace]);
+    const deleted = this.db.getRowsModified();
+    if (deleted > 0) {
+      this.persist();
+    }
+    return deleted;
+  }
+
   insertDecisionSnapshot(input: { id: string; draftId: string; createdAt: string; trigger: string; value: unknown }): void {
     this.db.run(
       `INSERT OR REPLACE INTO decision_snapshots (id, draft_id, created_at, trigger, value_json)
@@ -157,6 +166,15 @@ export class SqliteAppDatabase {
     this.db.run("DELETE FROM decision_snapshots WHERE draft_id = ?", [draftId]);
     const deleted = this.db.getRowsModified() > 0;
     if (deleted) {
+      this.persist();
+    }
+    return deleted;
+  }
+
+  clearAllDecisionSnapshots(): number {
+    this.db.run("DELETE FROM decision_snapshots");
+    const deleted = this.db.getRowsModified();
+    if (deleted > 0) {
       this.persist();
     }
     return deleted;

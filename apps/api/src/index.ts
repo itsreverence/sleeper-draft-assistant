@@ -28,6 +28,7 @@ import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 import { requireApiToken } from "./api-auth";
 import { parseApiPort } from "./config";
+import { buildRedactedSupportReport, buildStorageInventory } from "./data-management";
 
 export const app = new Hono();
 const port = parseApiPort(process.env.PORT);
@@ -80,26 +81,62 @@ app.use(
 
 app.get("/health", (c) => c.json(createHealthPayload()));
 
-app.get("/diagnostics", (c) =>
-  c.json({
-    ...createHealthPayload(),
-    diagnosticsVersion: 1,
-    settings: redactSettings(settingsStore.get()),
-    storage: {
-      sqliteStorage: true,
-      settingsRecords: appDatabase.countJson("settings"),
-      rankingImportRecords: appDatabase.countJson("ranking_imports"),
-      weeklyProjectionImportRecords: appDatabase.countJson("weekly_projection_imports"),
-      decisionSnapshots: appDatabase.countDecisionSnapshots(),
-    },
-    runtime: {
-      node: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      packagedDataDir: Boolean(process.env.SLEEPER_AI_DATA_DIR),
-    },
-  }),
-);
+app.get("/diagnostics", (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json(createDiagnosticsPayload());
+});
+
+app.get("/data", (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json(buildStorageInventory(appDatabase));
+});
+
+app.get("/data/support-report", (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json(
+    buildRedactedSupportReport({
+      diagnostics: createDiagnosticsPayload(),
+      database: appDatabase,
+      settings: settingsStore.get(),
+    }),
+  );
+});
+
+app.delete("/data/:category", async (c) => {
+  try {
+    const category = c.req.param("category");
+    let deleted = 0;
+    if (category === "rankings") {
+      deleted = rankingImportStore.clearAll();
+    } else if (category === "weekly-projections") {
+      deleted = weeklyProjectionImportStore.clearAll();
+    } else if (category === "decision-history") {
+      deleted = decisionLogStore.clearAll();
+    } else {
+      return c.json({ error: "Unknown local data category." }, 404);
+    }
+    return c.json({ deleted, inventory: buildStorageInventory(appDatabase) });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/data/reset", async (c) => {
+  try {
+    const body = await c.req.json<{ confirmation?: string }>().catch(() => ({ confirmation: "" }));
+    if (body.confirmation !== "DELETE ALL LOCAL DATA") {
+      return c.json({ error: "Local data reset was not confirmed." }, 400);
+    }
+
+    rankingImportStore.clearAll();
+    weeklyProjectionImportStore.clearAll();
+    decisionLogStore.clearAll();
+    const settings = settingsStore.reset();
+    return c.json({ settings, inventory: buildStorageInventory(appDatabase) });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
 
 app.get("/settings", (c) => c.json(settingsStore.get()));
 
@@ -457,6 +494,27 @@ function createHealthPayload() {
       sqliteStorage: true,
     },
     now: new Date().toISOString(),
+  };
+}
+
+function createDiagnosticsPayload() {
+  return {
+    ...createHealthPayload(),
+    diagnosticsVersion: 1,
+    settings: redactSettings(settingsStore.get()),
+    storage: {
+      sqliteStorage: true,
+      settingsRecords: appDatabase.countJson("settings"),
+      rankingImportRecords: appDatabase.countJson("ranking_imports"),
+      weeklyProjectionImportRecords: appDatabase.countJson("weekly_projection_imports"),
+      decisionSnapshots: appDatabase.countDecisionSnapshots(),
+    },
+    runtime: {
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      packagedDataDir: Boolean(process.env.SLEEPER_AI_DATA_DIR),
+    },
   };
 }
 

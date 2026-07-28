@@ -356,6 +356,22 @@
     }
   }
 
+  function resetRendererData() {
+    try {
+      const keys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+        .filter((key): key is string => Boolean(key))
+        .filter((key) =>
+          key.startsWith("playerPreferences:") ||
+          ["lastDraftId", "lastUserRosterId", "lastLeagueId", "sleeperUsername", "sleeperSeason", "sleeperLeagueInput"].includes(key),
+        );
+      for (const key of keys) {
+        window.localStorage.removeItem(key);
+      }
+    } finally {
+      window.location.reload();
+    }
+  }
+
   async function findSleeperLeagues() {
     const username = usernameInput.trim();
     if (!username) {
@@ -1058,6 +1074,7 @@
       {diagnosticsStatus}
       onSave={saveSettings}
       onCopyDiagnostics={copyDiagnostics}
+      onResetComplete={resetRendererData}
     />
   {/if}
 

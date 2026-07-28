@@ -148,3 +148,18 @@ export type DiagnosticsPayload = {
     packagedDataDir: boolean;
   };
 };
+
+export type StorageInventory = {
+  location: "application-data" | "development-data";
+  sqliteStorage: true;
+  rankingImports: number;
+  weeklyProjectionImports: number;
+  decisionSnapshots: number;
+};
+
+export type LocalDataCategory = "rankings" | "weekly-projections" | "decision-history";
+
+export type DataMutationPayload = {
+  deleted: number;
+  inventory: StorageInventory;
+};

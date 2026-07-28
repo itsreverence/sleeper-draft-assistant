@@ -34,12 +34,16 @@ The local API capability token is generated for each launch and kept in process/
 
 ## Diagnostics
 
-The **Copy diagnostics** action excludes provider tokens and raw imported rankings. Diagnostics can still contain versions, provider names, storage counts, and other environment details. Review the JSON before sharing it, and redact anything you consider sensitive.
+The **Copy diagnostics** action excludes provider tokens and raw imported rankings. The downloadable support report adds redacted decision-event metadata such as timestamps, triggers, pick counts, confidence, and aggregate assumption/risk counts. It excludes draft, league, roster, team, snapshot, and player identifiers; names; recommendation text; imported values; configured executable paths; and provider credentials.
+
+Diagnostics and support reports can still contain versions, provider and model names, storage counts, and runtime details. Review the JSON before sharing it, and redact anything you consider sensitive.
 
 Never post unredacted database files, ranking exports, screenshots with league identifiers, or provider-auth material to public issues.
 
 ## Deleting data
 
-Close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
+Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then restarts the interface. The reset requires explicit typed confirmation.
+
+For manual removal, close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
 
 Deletion is local and immediate; the app has no cloud account to erase. It cannot delete data held independently by Sleeper, FantasyPros, OpenAI, or other providers.

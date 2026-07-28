@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import DataManagementPanel from "./DataManagementPanel.svelte";
   import type { AiProviderStatus, AppSettings } from "../types";
 
   let {
@@ -11,6 +12,7 @@
     diagnosticsStatus,
     onSave,
     onCopyDiagnostics,
+    onResetComplete,
   }: {
     settings: AppSettings | null;
     providerStatus: AiProviderStatus | null;
@@ -20,6 +22,7 @@
     diagnosticsStatus: string;
     onSave: (settings: AppSettings) => void;
     onCopyDiagnostics: () => void;
+    onResetComplete: () => void;
   } = $props();
 
   let aiProvider: AppSettings["aiProvider"] = $state("noop");
@@ -112,6 +115,8 @@
       <p class="settings-note">{diagnosticsStatus}</p>
     {/if}
   </form>
+
+  <DataManagementPanel {onResetComplete} />
 </section>
 
 <style>
@@ -146,6 +151,13 @@
   @media (max-width: 720px) {
     .provider-fields {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .settings-panel > .panel-heading {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 </style>
