@@ -38,13 +38,21 @@ describe("Codex app-server executable resolution", () => {
         "summary": "Best fit and value.",
         "reasons": ["Fills RB need"],
         "risks": [],
-        "nextPositionPriorities": ["WR"],
-        "strategyNote": "Look for WR next."
+        "plan": {
+          "updatedAtPick": 12,
+          "approach": "Build a balanced RB/WR core.",
+          "currentPickFocus": ["RB"],
+          "nextTurnPriorities": ["WR"],
+          "positionsThatCanWait": ["QB", "TE"],
+          "rosterGoals": ["Add a second starting receiver."],
+          "watchItems": ["Monitor the next WR tier."],
+          "changeSummary": "Initial plan created."
+        }
       }
     \`\`\``);
 
     expect(decision.recommendedPlayerId).toBe("player-1");
-    expect(decision.nextPositionPriorities).toEqual(["WR"]);
+    expect(decision.plan.nextTurnPriorities).toEqual(["WR"]);
     expect(() => parseAiDraftDecision('{"recommendedPlayerId":"player-1"}')).toThrow("invalid draft decision");
   });
 

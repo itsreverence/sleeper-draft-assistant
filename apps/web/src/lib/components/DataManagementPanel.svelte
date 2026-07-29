@@ -22,6 +22,7 @@
     { category: "ros-rankings", label: "ROS rankings", description: "FantasyPros rest-of-season rankings saved by league and season.", count: "rosRankingImports" },
     { category: "weekly-projections", label: "Weekly projections", description: "FantasyPros projection imports saved by league and week.", count: "weeklyProjectionImports" },
     { category: "decision-history", label: "Decision history", description: "Local recommendation snapshots used for review.", count: "decisionSnapshots" },
+    { category: "draft-plans", label: "AI draft plans", description: "Latest AI strategy remembered for each draft team.", count: "draftPlans" },
   ];
 
   onMount(() => {

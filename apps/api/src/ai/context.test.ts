@@ -52,6 +52,7 @@ describe("AI provider context", () => {
     const strategy = await new NoopAiProvider().strategizeDraft(context);
 
     expect(context.task).toBe("draft_strategy");
+    expect(context.previousPlan).toBeNull();
     expect(context.playerEvidence.length).toBeGreaterThan(0);
     expect(context.playerEvidence[0]).not.toHaveProperty("score");
     expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
@@ -60,6 +61,24 @@ describe("AI provider context", () => {
     expect(strategy.decision.basedOnPick).toBe(state.currentPick);
     expect(strategy.decision.recommendedPlayerId).toBe(context.playerEvidenceGroups.projectionLeaders[0]);
     expect(strategy.decision.alternativePlayerIds.length).toBeGreaterThan(0);
+    expect(strategy.decision.plan.updatedAtPick).toBe(state.currentPick);
+  });
+  it("carries a prior plan into the next neutral strategy packet", () => {
+    const state = createEightTeamTwoFlexState();
+    const previousPlan = {
+      updatedAtPick: 1,
+      approach: "Build an RB/WR foundation.",
+      currentPickFocus: ["RB" as const],
+      nextTurnPriorities: ["WR" as const],
+      positionsThatCanWait: ["QB" as const],
+      rosterGoals: ["Fill both flex spots with RB/WR depth."],
+      watchItems: ["Monitor the first WR tier."],
+      changeSummary: "Initial plan created.",
+    };
+
+    const context = buildDraftStrategyContext(state, undefined, undefined, previousPlan);
+
+    expect(context.previousPlan).toEqual(previousPlan);
   });
   it("reports raw open slots when one position has consumed direct and flex capacity", () => {
     const state = createEightTeamTwoFlexState();

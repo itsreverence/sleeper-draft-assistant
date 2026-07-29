@@ -21,6 +21,7 @@ import { buildDraftQuestionContext, buildDraftStrategyContext } from "./ai/conte
 import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
+import { DraftPlanStore } from "./draft-plan-store";
 import { draftPollDelayMs } from "./draft-refresh";
 import { createEventStreamChannel } from "./event-stream";
 import { createAiProvider } from "./ai/provider-factory";
@@ -48,6 +49,7 @@ const adpImportStore = new AdpImportStore(undefined, appDatabase);
 const rosRankingImportStore = new RosRankingImportStore(undefined, appDatabase);
 const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
+const draftPlanStore = new DraftPlanStore(appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
 let mockState = createMockDraftState(8);
 
@@ -130,6 +132,8 @@ app.delete("/data/:category", async (c) => {
       deleted = weeklyProjectionImportStore.clearAll();
     } else if (category === "decision-history") {
       deleted = decisionLogStore.clearAll();
+    } else if (category === "draft-plans") {
+      deleted = draftPlanStore.clearAll();
     } else {
       return c.json({ error: "Unknown local data category." }, 404);
     }
@@ -152,6 +156,7 @@ app.post("/data/reset", async (c) => {
     rosRankingImportStore.clearAll();
     weeklyProjectionImportStore.clearAll();
     decisionLogStore.clearAll();
+    draftPlanStore.clearAll();
     const settings = settingsStore.reset();
     return c.json({ settings, inventory: buildStorageInventory(appDatabase) });
   } catch (error) {
@@ -626,11 +631,15 @@ app.post("/drafts/:draftId/strategy", async (c) => {
     }
     const tools = createDraftStrategyTools(snapshot);
     const provider = createAiProvider(settingsStore.get());
+    const providerStatus = provider.status();
+    const storedPlan = draftPlanStore.get(draftId, state.userTeamId, providerStatus.id);
+    const previousPlan = storedPlan && storedPlan.updatedAtPick <= state.currentPick ? storedPlan : null;
     const strategy = await provider.strategizeDraft(
       buildDraftStrategyContext(
         state,
         normalizeUserPreferences(body.userPreferences),
         snapshot,
+        previousPlan,
       ),
       tools,
     );
@@ -648,6 +657,7 @@ app.post("/drafts/:draftId/strategy", async (c) => {
       : null;
     if (
       strategy.decision.basedOnPick !== state.currentPick ||
+      strategy.decision.plan.updatedAtPick !== state.currentPick ||
       !recommendedCandidate ||
       !isDraftChoiceRosterFeasible(state, recommendedCandidate.player.id)
     ) {
@@ -659,11 +669,25 @@ app.post("/drafts/:draftId/strategy", async (c) => {
       .map((playerId) => buildCandidateSignalForPlayer(state, playerId, { preferences: recommendationPreferences }))
       .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
       .slice(0, 4);
+    const currentPickFocus = Array.from(new Set([
+      recommendedCandidate.player.position,
+      ...strategy.decision.plan.currentPickFocus,
+    ])).slice(0, 3);
     const decision = {
       ...strategy.decision,
       headline: `Take ${recommendedCandidate.player.name}`,
       alternativePlayerIds: alternativeCandidates.map((candidate) => candidate.player.id),
+      plan: {
+        ...strategy.decision.plan,
+        currentPickFocus,
+        positionsThatCanWait: strategy.decision.plan.positionsThatCanWait.filter(
+          (position) => !currentPickFocus.includes(position),
+        ),
+      },
     };
+    if (strategy.provider.id !== "noop") {
+      draftPlanStore.set(draftId, state.userTeamId, strategy.provider.id, decision.plan);
+    }
 
     decisionLogStore.record({
       draftId,

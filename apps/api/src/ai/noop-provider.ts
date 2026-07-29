@@ -28,11 +28,21 @@ export class NoopAiProvider implements AiProvider {
         summary: `${top.name} leads the neutral evidence fallback while no AI provider is available.`,
         reasons: ["First available player from the strongest populated raw-evidence group."],
         risks: ["This is not an AI-generated strategy decision."],
-        nextPositionPriorities: (Object.entries(context.roster.openDirectStarterSlots) as Array<[keyof typeof context.roster.openDirectStarterSlots, number]>)
-          .filter(([, count]) => count > 0)
-          .map(([position]) => position)
-          .slice(0, 3),
-        strategyNote: "Connect an AI provider for a model-generated draft strategy.",
+        plan: {
+          updatedAtPick: context.draft.currentPick,
+          approach: "Use the strongest populated raw-evidence group while preserving required starter flexibility.",
+          currentPickFocus: [top.position],
+          nextTurnPriorities: (Object.entries(context.roster.openDirectStarterSlots) as Array<[keyof typeof context.roster.openDirectStarterSlots, number]>)
+            .filter(([, count]) => count > 0)
+            .map(([position]) => position)
+            .slice(0, 3),
+          positionsThatCanWait: [],
+          rosterGoals: ["Complete every required starter slot before the draft ends."],
+          watchItems: ["Connect an AI provider for board-aware strategy updates."],
+          changeSummary: context.previousPlan
+            ? "The local fallback refreshed its starter-slot priorities for the current pick."
+            : "Initial local fallback plan created.",
+        },
       },
     };
   }

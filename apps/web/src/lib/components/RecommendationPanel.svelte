@@ -204,10 +204,49 @@
             </ul>
           </details>
         {/if}
-        <small>
-          Next: {currentAiStrategy.decision.nextPositionPriorities.join(" / ") || "best available"}
-          - {currentAiStrategy.decision.strategyNote}
-        </small>
+        <div class="draft-plan">
+          <div class="draft-plan-heading">
+            <strong>Living draft plan</strong>
+            <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
+          </div>
+          <p class="plan-change">{currentAiStrategy.decision.plan.changeSummary}</p>
+          <div class="plan-priorities">
+            <div>
+              <span>This pick</span>
+              <strong>{currentAiStrategy.decision.plan.currentPickFocus.join(" / ") || "Best available"}</strong>
+            </div>
+            <div>
+              <span>Next turn</span>
+              <strong>{currentAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong>
+            </div>
+            <div>
+              <span>Can wait</span>
+              <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong>
+            </div>
+          </div>
+          <details>
+            <summary>View full plan</summary>
+            <p>{currentAiStrategy.decision.plan.approach}</p>
+            <div class="plan-detail">
+              <strong>Roster goals</strong>
+              <ul>
+                {#each currentAiStrategy.decision.plan.rosterGoals as goal}
+                  <li>{goal}</li>
+                {/each}
+              </ul>
+            </div>
+            {#if currentAiStrategy.decision.plan.watchItems.length > 0}
+              <div class="plan-detail">
+                <strong>Watching</strong>
+                <ul>
+                  {#each currentAiStrategy.decision.plan.watchItems as item}
+                    <li>{item}</li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          </details>
+        </div>
       </div>
     {:else if isLoadingAiStrategy}
       <div class="ai-strategy-pending" aria-live="polite">
@@ -414,12 +453,6 @@
     line-height: 1.55;
   }
 
-  .ai-strategy small {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-  }
-
   .ai-strategy details {
     color: var(--text-secondary);
     font-size: var(--text-xs);
@@ -428,6 +461,80 @@
   .ai-strategy summary {
     cursor: pointer;
     font-weight: 800;
+  }
+
+  .draft-plan {
+    display: grid;
+    gap: 9px;
+    border-top: 1px solid var(--accent-border);
+    padding-top: 11px;
+  }
+
+  .draft-plan-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .draft-plan-heading > span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .ai-strategy .plan-change {
+    color: var(--text-primary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .plan-priorities {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-block: 1px solid var(--accent-border);
+  }
+
+  .plan-priorities > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 10px;
+  }
+
+  .plan-priorities > div + div {
+    border-left: 1px solid var(--accent-border);
+  }
+
+  .plan-priorities span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .plan-priorities strong {
+    overflow-wrap: anywhere;
+    font-size: var(--text-sm);
+  }
+
+  .plan-detail {
+    margin-top: 9px;
+  }
+
+  .plan-detail > strong {
+    color: var(--text-primary);
+  }
+
+  @media (max-width: 680px) {
+    .plan-priorities {
+      grid-template-columns: 1fr;
+    }
+
+    .plan-priorities > div + div {
+      border-top: 1px solid var(--accent-border);
+      border-left: 0;
+    }
   }
 
   .callout > div {

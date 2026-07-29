@@ -21,6 +21,7 @@ The local SQLite database may contain:
 - imported ranking values and import summaries;
 - imported weekly projection values and import summaries;
 - recommendation and decision snapshots.
+- the latest AI draft plan for each draft team and provider.
 
 The packaged app writes beneath Electron's per-user application-data directory, in a `data` subdirectory. Development writes to repository `data/` unless `SLEEPER_AI_DATA_DIR` is set.
 

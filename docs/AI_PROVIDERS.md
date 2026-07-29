@@ -47,7 +47,9 @@ The Codex adapter exposes one provider-neutral, read-only dynamic tool:
 
 Dynamic tools are experimental in Codex app-server, so the protocol handling remains isolated inside the experimental adapter. Tool calls are limited to six per AI turn and twenty results per search.
 
-The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, and next-position priorities. The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, and lineup-infeasible choices. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local fallback while the model is working or unavailable.
+The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, next-position priorities, and a complete living draft plan. The plan records the current approach, current and next-turn positional focus, positions that can wait, roster goals, watch items, and the material change since the prior plan. The latest successful plan is stored locally by draft, team, and provider and supplied to the next AI turn as advisory strategy; the current Sleeper snapshot always remains authoritative.
+
+The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local fallback while the model is working or unavailable.
 
 AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
 

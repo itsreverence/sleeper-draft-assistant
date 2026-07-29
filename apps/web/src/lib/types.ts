@@ -218,9 +218,10 @@ export type StorageInventory = {
   rosRankingImports: number;
   weeklyProjectionImports: number;
   decisionSnapshots: number;
+  draftPlans: number;
 };
 
-export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history";
+export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history" | "draft-plans";
 
 export type DataMutationPayload = {
   deleted: number;

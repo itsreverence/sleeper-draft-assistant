@@ -69,6 +69,18 @@ export type AiProviderId = z.infer<typeof AiProviderIdSchema>;
 export const AutomaticAiAuditModeSchema = z.enum(["off", "on_turn", "on_deck"]);
 export type AutomaticAiAuditMode = z.infer<typeof AutomaticAiAuditModeSchema>;
 
+export const AiDraftPlanSchema = z.object({
+  updatedAtPick: z.number().int().positive(),
+  approach: z.string().min(1).max(400),
+  currentPickFocus: z.array(PositionSchema).max(3).default([]),
+  nextTurnPriorities: z.array(PositionSchema).max(3).default([]),
+  positionsThatCanWait: z.array(PositionSchema).max(6).default([]),
+  rosterGoals: z.array(z.string().min(1).max(200)).min(1).max(5),
+  watchItems: z.array(z.string().min(1).max(200)).max(5).default([]),
+  changeSummary: z.string().min(1).max(300),
+});
+export type AiDraftPlan = z.infer<typeof AiDraftPlanSchema>;
+
 export const AiDraftDecisionSchema = z.object({
   basedOnPick: z.number().int().positive(),
   recommendedPlayerId: z.string().min(1),
@@ -79,8 +91,7 @@ export const AiDraftDecisionSchema = z.object({
   summary: z.string().min(1).max(600),
   reasons: z.array(z.string().min(1).max(240)).min(1).max(5),
   risks: z.array(z.string().min(1).max(240)).max(4).default([]),
-  nextPositionPriorities: z.array(PositionSchema).max(3).default([]),
-  strategyNote: z.string().min(1).max(400),
+  plan: AiDraftPlanSchema,
 });
 export type AiDraftDecision = z.infer<typeof AiDraftDecisionSchema>;
 

@@ -1,4 +1,4 @@
-import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
+import type { AiDraftPlan, DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 
 import { buildGroupedPlayerEvidence, createDraftPlayerSnapshot, toDraftPlayerEvidence, type DraftPlayerSnapshot } from "./draft-tools";
 import type { AiConversationMessage, DraftQuestionContext, DraftStrategyContext, PlayerPreferenceSummary } from "./types";
@@ -7,6 +7,7 @@ export function buildDraftStrategyContext(
   state: DraftState,
   userPreferences: PlayerPreferenceSummary = { pinned: [], faded: [], excluded: [] },
   snapshot: DraftPlayerSnapshot = createDraftPlayerSnapshot(state, userPreferences),
+  previousPlan: AiDraftPlan | null = null,
 ): DraftStrategyContext {
   const playersById = new Map(state.players.map((player) => [player.id, player]));
   const teamsById = new Map(state.teams.map((team) => [team.id, team]));
@@ -24,6 +25,7 @@ export function buildDraftStrategyContext(
   return {
     task: "draft_strategy",
     objective: "Choose the best available player for the user's roster at the current pick.",
+    previousPlan,
     userPreferences,
     dataQuality: {
       availablePlayers: availablePlayers.length,

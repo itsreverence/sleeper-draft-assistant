@@ -1,4 +1,4 @@
-import type { AiDraftDecision, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, AiDraftPlan, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -97,6 +97,7 @@ export type DraftPlayerEvidenceGroups = {
 export type DraftStrategyContext = {
   task: "draft_strategy";
   objective: string;
+  previousPlan: AiDraftPlan | null;
   userPreferences: PlayerPreferenceSummary;
   dataQuality: {
     availablePlayers: number;
