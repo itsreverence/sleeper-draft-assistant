@@ -1,4 +1,4 @@
-import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftAiContext, DraftStrategyContext, TeamAiContext } from "./types";
+import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 
 export class NoopAiProvider implements AiProvider {
   status(): AiProviderStatus {
@@ -36,19 +36,19 @@ export class NoopAiProvider implements AiProvider {
     };
   }
 
-  async answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer> {
-    const top = context.recommendation.candidates[0];
-    const candidateText = top
-      ? `${top.name} is currently the top deterministic candidate (${top.position}, score ${top.score}). ${top.reasons.join(" ")}`
-      : "There are no available candidates in the current draft state.";
+  async answerDraftQuestion(context: DraftQuestionContext): Promise<AiAnswer> {
+    const player = context.focusPlayers[0] ?? context.initialPlayerPool[0];
+    const playerText = player
+      ? `${player.name} (${player.position}) is present in the neutral player evidence.`
+      : "There are no available players in the current draft snapshot.";
 
     return {
       provider: this.status(),
       answer: [
-        "AI provider is not connected yet, so this answer is using the deterministic draft context.",
+        "AI provider is not connected, so this fallback can only summarize the neutral draft evidence.",
         `Question: ${context.question}`,
-        candidateText,
-        context.recommendation.summary,
+        playerText,
+        "Connect an AI provider for an independent strategy assessment.",
       ].join("\n\n"),
     };
   }

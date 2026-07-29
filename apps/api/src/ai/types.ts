@@ -1,4 +1,4 @@
-import type { AiDraftDecision, DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -20,96 +20,6 @@ export type AiConversationMessage = {
   role: "user" | "assistant";
   content: string;
 };
-
-export type DraftAiContext = {
-  task: "draft_question";
-  question: string;
-  conversationHistory: AiConversationMessage[];
-  userPreferences: PlayerPreferenceSummary;
-  dataQuality: {
-    playerValueSource: string;
-    hasImportedRankings: boolean;
-    hasSeasonProjections: boolean;
-    usesSleeperPlaceholderRanks: boolean;
-    limitations: string[];
-  };
-  draftBrief: {
-    leagueFormat: string;
-    currentPick: string;
-    userRoster: string;
-    engineLean: string;
-    primaryDecisionGuidance: string[];
-    rosterPressure: string[];
-    candidateTradeoffs: string[];
-    dataWarnings: string[];
-    responseRules: string[];
-  };
-  draft: {
-    id: string;
-    name: string;
-    status: DraftState["status"];
-    currentPick: number;
-    updatedAt: string;
-  };
-  settings: DraftState["settings"];
-  rosterConstruction: {
-    rosterCounts: Record<Position, number>;
-    startingSlots: Record<string, number>;
-    flexSlots: number;
-    superFlexSlots: number;
-    draftedFlexEligible: number;
-    rbWrDemand: number;
-    rbWrRostered: number;
-    primaryNeeds: Position[];
-    pressureSignals: string[];
-    note: string;
-  };
-  userTeam: {
-    id: string;
-    name: string;
-    draftSlot: number;
-    roster: Array<{
-      id: string;
-      name: string;
-      team: string;
-      position: string;
-    }>;
-  } | null;
-  recentPicks: Array<{
-    pickNo: number;
-    round: number;
-    team: string;
-    player: string;
-  }>;
-  recommendation: {
-    headline: string;
-    confidence: DraftRecommendation["confidence"];
-    summary: string;
-    candidates: Array<{
-      playerId: string;
-      name: string;
-      team: string;
-      position: string;
-      score: number;
-      rosterFit: string;
-      value: string;
-      scarcity: string;
-      returnProbability: number;
-      reasons: string[];
-      source: string;
-      importedRank?: number | null;
-      seasonProjectedPoints?: number | null;
-      sleeperAdp?: number | null;
-      realTimeAdp?: number | null;
-      tier?: number | null;
-      byeWeek?: number | null;
-      riskTags: string[];
-    }>;
-    risks: string[];
-    assumptions: string[];
-  };
-};
-
 
 export type TeamAiContext = {
   task: "team_question";
@@ -234,6 +144,13 @@ export type DraftStrategyContext = {
   toolInstructions: string[];
 };
 
+export type DraftQuestionContext = Omit<DraftStrategyContext, "task" | "objective"> & {
+  task: "draft_question";
+  question: string;
+  conversationHistory: AiConversationMessage[];
+  focusPlayers: DraftPlayerEvidence[];
+};
+
 export type AiToolDefinition = {
   type: "function";
   name: string;
@@ -254,7 +171,7 @@ export type AiDraftStrategy = {
 export interface AiProvider {
   status(): AiProviderStatus;
   strategizeDraft(context: DraftStrategyContext, tools?: AiTool[]): Promise<AiDraftStrategy>;
-  answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer>;
+  answerDraftQuestion(context: DraftQuestionContext, tools?: AiTool[]): Promise<AiAnswer>;
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
 }
 

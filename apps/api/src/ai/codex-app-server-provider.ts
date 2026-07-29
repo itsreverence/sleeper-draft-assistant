@@ -5,7 +5,7 @@ import readline from "node:readline";
 
 import { AiDraftDecisionSchema, type AiDraftDecision } from "@sleeper-draft-assistant/shared";
 
-import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftAiContext, DraftStrategyContext, TeamAiContext } from "./types";
+import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
 
 type JsonRpcMessage = {
@@ -56,8 +56,8 @@ export class CodexAppServerProvider implements AiProvider {
     };
   }
 
-  async answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer> {
-    const result = await this.runPrompt(buildDraftManagerPrompt(context));
+  async answerDraftQuestion(context: DraftQuestionContext, tools: AiTool[] = []): Promise<AiAnswer> {
+    const result = await this.runPrompt(buildDraftManagerPrompt(context), tools);
     return {
       provider: this.status(),
       answer: result || "Codex completed without returning visible text.",

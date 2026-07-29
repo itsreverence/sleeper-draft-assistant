@@ -200,7 +200,7 @@ describe("draft recommendation routes", () => {
       expect(askResponse.status).toBe(200);
       const askPayload = (await askResponse.json()) as AskPayload;
       expect(askPayload.provider.id).toBe("noop");
-      expect(askPayload.answer).toContain("deterministic draft context");
+      expect(askPayload.answer).toContain("neutral draft evidence");
       expect(askPayload.recommendation.recommendedPlayerId).not.toBe(excludedId);
       expect(askPayload.recommendation.candidates.some((candidate) => candidate.player.id === excludedId)).toBe(false);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
@@ -227,10 +227,17 @@ describe("draft recommendation routes", () => {
         strategy.decision.alternativePlayerIds.includes(candidate.player.id)
       )).toBe(true);
 
-      const evaluationCandidate = askPayload.recommendation.candidates[0];
-      expect(evaluationCandidate).toBeTruthy();
+      const recommendationIds = new Set(askPayload.recommendation.candidates.map((candidate) => candidate.player.id));
+      const pickedIds = new Set(draftDataReload.state.picks.map((pick) => pick.playerId));
+      const evaluationPlayer = draftDataReload.state.players.find(
+        (player) =>
+          !pickedIds.has(player.id) &&
+          !recommendationIds.has(player.id) &&
+          player.id !== excludedId,
+      );
+      expect(evaluationPlayer).toBeTruthy();
       const evaluationResponse = await app.request(
-        `/drafts/mock-draft/candidates/${evaluationCandidate!.player.id}/evaluate`,
+        `/drafts/mock-draft/candidates/${evaluationPlayer!.id}/evaluate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -245,12 +252,12 @@ describe("draft recommendation routes", () => {
       expect(evaluationResponse.status).toBe(200);
       const evaluation = (await evaluationResponse.json()) as CandidateEvaluationPayload;
       expect(evaluation).toMatchObject({
-        playerId: evaluationCandidate!.player.id,
-        playerName: evaluationCandidate!.player.name,
+        playerId: evaluationPlayer!.id,
+        playerName: evaluationPlayer!.name,
         pickNumber: expect.any(Number),
         provider: { id: "noop" },
       });
-      expect(evaluation.answer).toContain("deterministic draft context");
+      expect(evaluation.answer).toContain("neutral draft evidence");
 
       const unavailableEvaluation = await app.request("/drafts/mock-draft/candidates/not-available/evaluate", {
         method: "POST",
@@ -259,7 +266,7 @@ describe("draft recommendation routes", () => {
       });
       expect(unavailableEvaluation.status).toBe(409);
       expect(await unavailableEvaluation.json()).toEqual({
-        error: "That player is no longer an available recommendation candidate.",
+        error: "That player is no longer available for this draft pick.",
       });
 
       const decisionResponse = await app.request("/drafts/mock-draft/decisions?limit=10");

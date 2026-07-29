@@ -17,7 +17,7 @@ import { cors } from "hono/cors";
 
 import { AdpImportRequestSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
-import { buildDraftAiContext, buildDraftStrategyContext } from "./ai/context";
+import { buildDraftQuestionContext, buildDraftStrategyContext } from "./ai/context";
 import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
@@ -706,10 +706,19 @@ app.post("/drafts/:draftId/ask", async (c) => {
     const conversationHistory = normalizeConversationHistory(body.conversationHistory);
     const userPreferences = normalizeUserPreferences(body.userPreferences);
     const draftId = c.req.param("draftId");
-    const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+    const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
+    const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
+    const snapshot = createDraftPlayerSnapshot(state, {
+      pinned: recommendationPreferences?.pinnedPlayerIds ?? userPreferences.pinned,
+      faded: recommendationPreferences?.fadedPlayerIds ?? userPreferences.faded,
+      excluded: recommendationPreferences?.excludedPlayerIds ?? userPreferences.excluded,
+    });
     decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
     const aiProvider = createAiProvider(settingsStore.get());
-    const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question, conversationHistory, userPreferences));
+    const aiAnswer = await aiProvider.answerDraftQuestion(
+      buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot),
+      createDraftStrategyTools(snapshot),
+    );
 
     return c.json({
       provider: aiAnswer.provider,
@@ -730,12 +739,19 @@ app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
     const body = (await c.req
       .json<{ recommendationPreferences?: DraftRecommendationOptions["preferences"] }>()
       .catch(() => ({}))) as { recommendationPreferences?: DraftRecommendationOptions["preferences"] };
-    const recommendation = buildDraftRecommendation(state, {
-      preferences: normalizeRecommendationPreferences(body.recommendationPreferences),
-    });
-    const candidate = recommendation.candidates.find((item) => item.player.id === playerId);
+    const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
+    const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
+    const userPreferences = {
+      pinned: recommendationPreferences?.pinnedPlayerIds ?? [],
+      faded: recommendationPreferences?.fadedPlayerIds ?? [],
+      excluded: recommendationPreferences?.excludedPlayerIds ?? [],
+    };
+    const snapshot = createDraftPlayerSnapshot(state, userPreferences);
+    const candidate = snapshot.players.find(
+      (player) => player.id === playerId && !snapshot.preferences.excluded.has(player.id),
+    );
     if (!candidate) {
-      return c.json({ error: "That player is no longer an available recommendation candidate." }, 409);
+      return c.json({ error: "That player is no longer available for this draft pick." }, 409);
     }
 
     decisionLogStore.record({
@@ -746,19 +762,26 @@ app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
       userRosterId: getUserRosterId(c),
     });
     const question = [
-      `Evaluate drafting ${candidate.player.name} (${candidate.player.position}, ${candidate.player.team}) at pick ${state.currentPick}.`,
+      `Evaluate drafting ${candidate.name} (${candidate.position}, ${candidate.team}) at pick ${state.currentPick}.`,
       "Give a direct verdict using Prefer, Reasonable, or Avoid.",
-      "Then provide 2-4 concise reasons, the strongest alternative from the listed candidates, and the next two positional priorities if this player is selected.",
-      "Explicitly say whether you disagree with the deterministic engine, audit positional saturation against direct and FLEX capacity, and identify important data limitations.",
+      "Then provide 2-4 concise reasons, search for the strongest credible alternative, and give the next two positional priorities if this player is selected.",
+      "Reason independently from the roster, board, settings, and raw player evidence; identify important data limitations.",
       "Do not claim access to news or information outside the supplied draft context.",
     ].join(" ");
     const aiProvider = createAiProvider(settingsStore.get());
-    const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question));
+    const aiAnswer = await aiProvider.answerDraftQuestion(
+      buildDraftQuestionContext(state, question, [], userPreferences, snapshot, [playerId]),
+      createDraftStrategyTools(snapshot),
+    );
+    const latestState = await loadDraftState(draftId, getUserRosterId(c));
+    if (latestState.currentPick !== state.currentPick) {
+      return c.json({ error: "The draft board changed while AI evaluation was running. Refreshing the recommendation." }, 409);
+    }
 
     return c.json({
       provider: aiAnswer.provider,
       playerId,
-      playerName: candidate.player.name,
+      playerName: candidate.name,
       pickNumber: state.currentPick,
       answer: aiAnswer.answer,
     });

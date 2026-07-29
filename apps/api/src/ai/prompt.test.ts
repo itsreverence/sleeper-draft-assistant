@@ -1,30 +1,31 @@
-import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
+import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it } from "vitest";
 
-import { buildDraftAiContext, buildDraftStrategyContext } from "./context";
+import { buildDraftQuestionContext, buildDraftStrategyContext } from "./context";
 import { buildDraftManagerInstructions, buildDraftManagerPrompt, buildDraftStrategyPrompt } from "./prompt";
 
 describe("draft manager prompt", () => {
-  it("puts the draft brief contract before the full context", () => {
+  it("gives draft questions neutral evidence and player search guidance", () => {
     const state = createMockDraftState(0);
-    const recommendation = buildDraftRecommendation(state);
-    const context = buildDraftAiContext(state, recommendation, "What roster need matters most?");
+    const context = buildDraftQuestionContext(state, "What roster need matters most?");
 
     const prompt = buildDraftManagerPrompt(context);
 
-    expect(prompt).toContain("Draft brief contract JSON:");
-    expect(prompt).toContain("Full draft context JSON:");
-    expect(prompt.indexOf("Draft brief contract JSON:")).toBeLessThan(prompt.indexOf("Full draft context JSON:"));
-    expect(prompt).toContain("draftBrief.primaryDecisionGuidance");
-    expect(prompt).toContain("RB/WR depth has extra importance because FLEX slots increase weekly starter demand.");
-    expect(prompt).toContain("Use imported rankings as ranks/tiers only; do not call them projections unless true projections are present.");
+    expect(prompt).toContain("Neutral draft evidence JSON:");
+    expect(prompt).toContain("search_available_players");
+    expect(prompt).toContain("initialPlayerPool");
+    expect(prompt).toContain("openDirectStarterSlots");
+    expect(prompt).not.toContain("engineLean");
+    expect(prompt).not.toContain("draftBrief");
+    expect(prompt).not.toContain('"score"');
   });
 
-  it("instructs providers to resolve conflicts instead of parroting the engine", () => {
+  it("instructs providers to reason independently from distinct evidence", () => {
     const instructions = buildDraftManagerInstructions();
 
-    expect(instructions).toContain("Use draftBrief first");
-    expect(instructions).toContain("explain the conflict plainly instead of forcing agreement");
+    expect(instructions).toContain("Independently answer");
+    expect(instructions).toContain("neutral retrieval sample");
+    expect(instructions).toContain("Use search_available_players");
     expect(instructions).toContain("Do not invent player projections");
   });
 

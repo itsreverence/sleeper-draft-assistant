@@ -45,22 +45,24 @@ The Codex adapter exposes one provider-neutral, read-only dynamic tool:
 
 - `search_available_players`: searches the immutable player pool captured at the current pick. It supports position, name, exact tier, result limit, and sorting by ECR, season projection, Sleeper ADP, or Real-Time ADP. Results contain raw evidence and user preference markers, not local recommendation scores.
 
-Dynamic tools are experimental in Codex app-server, so the protocol handling remains isolated inside the experimental adapter. Tool calls are limited to six per strategy turn and twenty results per search.
+Dynamic tools are experimental in Codex app-server, so the protocol handling remains isolated inside the experimental adapter. Tool calls are limited to six per AI turn and twenty results per search.
 
 The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, and next-position priorities. The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, and lineup-infeasible choices. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local fallback while the model is working or unavailable.
 
 AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
 
-## Candidate questions
+## Draft questions and candidate evaluation
 
-When Codex app-server is configured, the lead draft candidate exposes an **AI take** action. Other candidates expose the same action inside their Details view.
+Ask Manager, suggested questions, and each **AI take** action use the same neutral draft evidence and `search_available_players` tool as primary strategy. Conversation history is included only to resolve follow-up wording; the current draft snapshot remains authoritative.
 
-Candidate evaluation remains available for follow-up analysis and is:
+Candidate evaluation is:
 
 - on demand by default, so it does not add model latency to normal draft refreshes;
-- grounded in the current deterministic recommendation, roster construction, league settings, and imported-data limitations;
-- validated by the backend so unavailable or no-longer-recommended players cannot be evaluated from stale UI state;
+- grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations;
+- able to search the full immutable available-player snapshot for positional or named alternatives;
+- valid for any available, non-excluded player, even when the fallback engine did not place that player in its shortlist;
+- validated by the backend so unavailable or excluded players cannot be evaluated from stale UI state;
 - tied to the current pick number and marked stale when the board advances;
 - advisory and separate from the primary structured AI strategy.
 
-The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest listed alternative, next positional priorities, disagreement with the engine, and data limitations. It does not receive or claim live news outside the supplied draft context.
+The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest credible alternative, next positional priorities, and data limitations. The prompt does not include the fallback engine's lean, scores, labels, or reasons, and the model does not receive or claim live news outside the supplied draft context.
