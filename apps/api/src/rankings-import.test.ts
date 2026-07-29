@@ -6,7 +6,7 @@ import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-a
 import type { DraftState, Player } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
-import { RankingImportStore, applyImportedRankings, importFantasyProsCsv, isDraftRankingImportCompatible } from "./rankings-import";
+import { RankingImportStore, applyImportedRankings, importFantasyProsCsv, isDraftRankingImportCompatible, normalizeDraftScoringFormat } from "./rankings-import";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 const csv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
@@ -15,6 +15,12 @@ const csv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","S
 "3",1,"Unknown Player",FA,"WR1","6","Coach Upside rating","Coach Bust rating","4 out of 5 stars","-"`;
 
 describe("FantasyPros ranking import", () => {
+  it("normalizes Sleeper scoring identifiers", () => {
+    expect(normalizeDraftScoringFormat("std")).toBe("Standard");
+    expect(normalizeDraftScoringFormat("half_ppr")).toBe("Half PPR");
+    expect(normalizeDraftScoringFormat("ppr")).toBe("PPR");
+  });
+
   it("rejects scoring-specific rankings from a different league format", () => {
     const state = createMockDraftState(0);
     state.settings.scoring = "Standard";

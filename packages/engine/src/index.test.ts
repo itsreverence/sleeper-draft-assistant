@@ -151,6 +151,41 @@ describe("mock draft engine", () => {
     expect(recommendation.assumptions[0]).toContain("Sleeper does not provide fantasy projections");
     expect(recommendation.candidates[0]?.reasons[0]).toContain("Sleeper search rank 12");
   });
+  it("does not let unmatched placeholders outrank available imported players", () => {
+    const state = createMockDraftState(0);
+    state.players = [
+      {
+        ...state.players[0]!,
+        id: "retired-placeholder",
+        sleeperId: "retired-placeholder",
+        name: "Retired Placeholder",
+        team: "FA",
+        projectedPoints: 400,
+        projectionSource: "sleeper_search_rank",
+        adp: 1,
+      },
+      {
+        ...state.players[1]!,
+        id: "imported-player",
+        sleeperId: "imported-player",
+        name: "Imported Player",
+        projectedPoints: 250,
+        projectionSource: "season_projection",
+        importedRank: 10,
+        seasonProjectedPoints: 250,
+        seasonProjectionSource: "FantasyPros",
+        seasonProjectionSeason: "2026",
+        seasonProjectionCoverage: "league_scored",
+      },
+    ];
+    state.picks = [];
+
+    const recommendation = buildDraftRecommendation(state);
+
+    expect(recommendation.recommendedPlayerId).toBe("imported-player");
+    expect(recommendation.headline).toBe("Lean Imported Player");
+    expect(recommendation.candidates).toHaveLength(1);
+  });
   it("prioritizes RB/WR construction pressure in 8-team PPR leagues with two flex spots", () => {
     const state = createEightTeamTwoFlexState();
     const recommendation = buildDraftRecommendation(state);

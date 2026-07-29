@@ -833,12 +833,21 @@ export function buildCandidateSignals(state: DraftState, limit = 8, options: Dra
   const rosterCounts = countRosterPositions(userTeam, state.players);
   const preferenceSets = toPreferenceSets(options.preferences);
   const available = getAvailablePlayers(state).filter((player) => !preferenceSets.excluded.has(player.id));
+  const importedAvailable = available.filter(hasImportedDraftSignal);
+  const recommendationPool = importedAvailable.length > 0 ? importedAvailable : available;
   const replacementBaselines = getReplacementBaselines(state);
 
-  return available
+  return recommendationPool
     .map((player) => toCandidateSignal(player, state, rosterCounts, preferenceSets, replacementBaselines))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+}
+
+function hasImportedDraftSignal(player: Player): boolean {
+  return player.projectionSource !== "sleeper_search_rank"
+    || player.importedRank !== null && player.importedRank !== undefined
+    || player.seasonProjectedPoints !== null && player.seasonProjectedPoints !== undefined
+    || Boolean(player.adpSource);
 }
 
 export function buildDraftRecommendation(state: DraftState, options: DraftRecommendationOptions = {}): DraftRecommendation {

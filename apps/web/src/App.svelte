@@ -1016,8 +1016,8 @@
   function normalizeDraftScoring(scoring: string | null | undefined): DraftScoringFormat {
     const normalized = scoring?.trim().toLowerCase();
     if (normalized === "ppr") return "PPR";
-    if (normalized === "half ppr" || normalized === "half-ppr") return "Half PPR";
-    if (normalized === "standard") return "Standard";
+    if (normalized === "half ppr" || normalized === "half-ppr" || normalized === "half_ppr") return "Half PPR";
+    if (normalized === "standard" || normalized === "std") return "Standard";
     return normalized ? "Custom" : "Unknown";
   }
 
@@ -1503,7 +1503,7 @@
             {#if draftPhase !== "complete"}
               <RankingsImportPanel
                 hasDraft={true}
-                scoring={draftState.settings.scoring}
+                scoring={normalizeDraftScoring(draftState.settings.scoring)}
                 season={draftDataDefaultSeason}
                 {isImportingRankings}
                 {isClearingRankings}
@@ -1534,7 +1534,7 @@
             {:else if draftDataSignalCount > 0}
               <RankingsImportPanel
                 hasDraft={true}
-                scoring={draftState.settings.scoring}
+                scoring={normalizeDraftScoring(draftState.settings.scoring)}
                 season={draftDataDefaultSeason}
                 {isImportingRankings}
                 {isClearingRankings}

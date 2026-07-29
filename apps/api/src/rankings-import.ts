@@ -217,10 +217,10 @@ export function normalizeDraftScoringFormat(scoring: string): DraftScoringFormat
   if (normalized === "ppr") {
     return "PPR";
   }
-  if (normalized === "half ppr" || normalized === "half-ppr") {
+  if (normalized === "half ppr" || normalized === "half-ppr" || normalized === "half_ppr") {
     return "Half PPR";
   }
-  if (normalized === "standard") {
+  if (normalized === "standard" || normalized === "std") {
     return "Standard";
   }
   return normalized ? "Custom" : "Unknown";
