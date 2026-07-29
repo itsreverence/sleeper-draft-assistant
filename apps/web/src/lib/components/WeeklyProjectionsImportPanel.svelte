@@ -2,6 +2,7 @@
   import Icon from "./Icon.svelte";
   import type { Position, WeeklyProjectionImportSummary } from "../types";
   import { formatImportDate } from "../format";
+  import { getImportFreshness } from "../freshness";
 
   const positionOptions: Array<{ value: Position; label: string }> = [
     { value: "QB", label: "QB" },
@@ -76,6 +77,7 @@
   const viewingDifferentWeek = $derived(Boolean(currentWeek && week !== currentWeek));
   const totalUnmatched = $derived(summary?.positionResults.reduce((total, result) => total + result.unmatched, 0) ?? 0);
   const totalAmbiguous = $derived(summary?.positionResults.reduce((total, result) => total + result.ambiguous, 0) ?? 0);
+  const freshness = $derived(summary ? getImportFreshness(summary.appliedAt, 3) : null);
 
   async function readProjectionFiles(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
@@ -224,9 +226,9 @@
   </button>
 
   {#if summary}
-    <p class="import-status">
+    <p class="import-status" class:stale={freshness?.stale}>
       Active import: FantasyPros {summary.position ?? "multi-position"} projections for {summary.season} Week {summary.week},
-      saved {formatImportDate(summary)}.
+      saved {formatImportDate(summary)} ({freshness?.label}).
     </p>
     <div class="position-status" aria-label="Weekly projection position import status">
       {#each requiredPositions as requiredPosition}
@@ -344,6 +346,10 @@
     font-size: var(--text-xs);
     font-weight: 600;
     line-height: 1.45;
+  }
+
+  .import-status.stale {
+    color: var(--warning);
   }
 
   .position-status {

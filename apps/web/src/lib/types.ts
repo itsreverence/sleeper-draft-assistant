@@ -8,6 +8,33 @@ export type DraftPayload = {
   adpImportSummary: AdpImportSummary | null;
 };
 
+export type DecisionSnapshot = {
+  id: string;
+  trigger: "state-load" | "rankings-import" | "rankings-clear" | "manual-refresh" | "ai-question" | "pick-update";
+  createdAt: string;
+  currentPick: number;
+  picksMade: number;
+  recommendedPlayerId: string | null;
+  headline: string;
+  confidence: DraftRecommendation["confidence"];
+  context: {
+    topCandidates: Array<{
+      playerId: string;
+      name: string;
+      position: string;
+      team: string;
+      score: number;
+      reasons: string[];
+    }>;
+    assumptions: string[];
+    risks: string[];
+  };
+};
+
+export type DecisionHistoryPayload = {
+  snapshots: DecisionSnapshot[];
+};
+
 export type RankingImportPayload = DraftPayload & {
   summary: RankingImportSummary;
 };

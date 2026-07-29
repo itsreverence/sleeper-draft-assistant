@@ -22,6 +22,8 @@
   import RosRankingsImportPanel from "./lib/components/RosRankingsImportPanel.svelte";
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
+  import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
+  import DecisionHistoryPanel from "./lib/components/DecisionHistoryPanel.svelte";
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
@@ -37,6 +39,7 @@
     createDraftEventSource,
     fetchAiStatus,
     fetchDraftRecommendationRequest,
+    fetchDecisionHistory,
     fetchDraftState,
     fetchDiagnostics,
     fetchSettings,
@@ -66,6 +69,7 @@
     DraftRecommendation,
     DraftScoringFormat,
     DraftState,
+    DecisionSnapshot,
     AdpImportSummary,
     RankingImportSummary,
     RosRankingImportSummary,
@@ -151,6 +155,14 @@
   let isCopyingDiagnostics = $state(false);
   let diagnosticsStatus = $state("");
   let eventSource: EventSource | null = null;
+  let draftLastSuccessfulAt: number | null = $state(null);
+  let draftConsecutiveFailures = $state(0);
+  let draftNextRetryMs = $state(0);
+  let draftReconnecting = $state(false);
+  let decisionSnapshots: DecisionSnapshot[] = $state([]);
+  let decisionHistoryError = $state("");
+  let isLoadingDecisionHistory = $state(false);
+  let decisionHistoryRequestId = 0;
 
   function preferenceStorageKey(draftId: string): string {
     return `playerPreferences:${draftId}`;
@@ -253,6 +265,7 @@
         activeUserRosterId,
         recommendationPreferenceRequest(preferences),
       );
+      void loadDecisionHistory();
     } catch (error) {
       lastEvent = error instanceof Error ? `Preference refresh failed: ${error.message}` : "Preference refresh failed";
     }
@@ -514,6 +527,7 @@
 
   async function loadDraft(draftId: string, userRosterId: string | null, leagueId = "") {
     eventSource?.close();
+    resetDraftSyncTracking();
     isLoading = true;
     loadError = "";
     status = isMockDraft(draftId) ? "Loading demo draft" : "Loading Sleeper draft";
@@ -534,6 +548,7 @@
       applyDraftPayload(payload);
       activeDraftId = draftId;
       activeUserRosterId = userRosterId;
+      void loadDecisionHistory();
       void loadTeamManager(resolvedLeagueId, userRosterId);
       loadPlayerPreferences(draftId);
       if (hasPlayerPreferences()) {
@@ -574,6 +589,8 @@
       adpImportSummary = null;
       activeDraftId = "";
       activeUserRosterId = null;
+      decisionSnapshots = [];
+      decisionHistoryError = "";
       teamManagerState = null;
       teamDataReadiness = null;
       teamNeeds = null;
@@ -749,6 +766,49 @@
     if (hasPlayerPreferences()) {
       void refreshRecommendationWithPreferences();
     }
+    if (activeDraftId) {
+      void loadDecisionHistory();
+    }
+  }
+
+  async function loadDecisionHistory() {
+    if (!activeDraftId) {
+      decisionSnapshots = [];
+      return;
+    }
+
+    const requestId = ++decisionHistoryRequestId;
+    isLoadingDecisionHistory = decisionSnapshots.length === 0;
+    decisionHistoryError = "";
+    try {
+      const payload = await fetchDecisionHistory(activeDraftId, activeUserRosterId);
+      if (requestId === decisionHistoryRequestId) {
+        decisionSnapshots = payload.snapshots;
+      }
+    } catch (error) {
+      if (requestId === decisionHistoryRequestId) {
+        decisionHistoryError = error instanceof Error ? error.message : "Could not load recommendation history.";
+      }
+    } finally {
+      if (requestId === decisionHistoryRequestId) {
+        isLoadingDecisionHistory = false;
+      }
+    }
+  }
+
+  function resetDraftSyncTracking() {
+    draftLastSuccessfulAt = null;
+    draftConsecutiveFailures = 0;
+    draftNextRetryMs = 0;
+    draftReconnecting = false;
+  }
+
+  function markDraftSyncSuccessful(at?: string) {
+    const parsed = at ? new Date(at).getTime() : Date.now();
+    draftLastSuccessfulAt = Number.isFinite(parsed) ? parsed : Date.now();
+    draftConsecutiveFailures = 0;
+    draftNextRetryMs = 0;
+    draftReconnecting = false;
   }
 
   function formatPollTime(value: string | undefined): string {
@@ -769,6 +829,7 @@
       applyDraftPayload(payload);
       lastEvent = "Snapshot received";
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      markDraftSyncSuccessful();
     });
 
     eventSource.addEventListener("pick", (event) => {
@@ -776,11 +837,13 @@
       applyDraftPayload(payload);
       lastEvent = `Pick ${payload.state.currentPick - 1} recorded`;
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      markDraftSyncSuccessful();
     });
 
     eventSource.addEventListener("heartbeat", (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as { at?: string };
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      markDraftSyncSuccessful(payload.at);
       lastEvent = isMockDraft(draftId)
         ? `Demo stream checked ${formatPollTime(payload.at)}`
         : `Sleeper checked ${formatPollTime(payload.at)}; no new picks`;
@@ -790,13 +853,18 @@
       const payload = JSON.parse((event as MessageEvent).data) as {
         message?: string;
         consecutiveFailures?: number;
+        nextRetryMs?: number;
       };
       const failures = payload.consecutiveFailures ?? 1;
+      draftConsecutiveFailures = failures;
+      draftNextRetryMs = payload.nextRetryMs ?? 0;
+      draftReconnecting = false;
       status = failures >= 3 ? "Sleeper polling degraded" : "Sleeper polling retrying";
       lastEvent = payload.message ? `Poll failed (${failures}): ${payload.message}` : `Poll failed (${failures})`;
     });
 
     eventSource.onerror = () => {
+      draftReconnecting = true;
       status = isMockDraft(draftId) ? "Event stream reconnecting" : "Sleeper polling reconnecting";
     };
   }
@@ -1156,6 +1224,7 @@
       recommendationPreferenceRequest(),
     );
     recommendation = payload.recommendation;
+    void loadDecisionHistory();
     return payload.answer;
   }
 
@@ -1350,6 +1419,15 @@
         }}
       />
       <DraftSummaryStrip state={draftState} />
+      {#if workspaceMode === "draft"}
+        <DraftSyncStatus
+          lastSuccessfulAt={draftLastSuccessfulAt}
+          consecutiveFailures={draftConsecutiveFailures}
+          nextRetryMs={draftNextRetryMs}
+          reconnecting={draftReconnecting}
+          onReconnect={() => connectEvents(activeDraftId, activeUserRosterId)}
+        />
+      {/if}
       <FormatCompatibilityNotice
         compatibility={workspaceMode === "manage"
           ? teamManagerState?.league.formatCompatibility
@@ -1394,6 +1472,11 @@
                 showPlaceholderWarning={recommendationsUsePlaceholder}
                 {draftState}
                 {recommendation}
+              />
+              <DecisionHistoryPanel
+                snapshots={decisionSnapshots}
+                isLoading={isLoadingDecisionHistory}
+                error={decisionHistoryError}
               />
             {:else}
               <RosterPanel state={draftState} />

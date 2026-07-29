@@ -75,3 +75,5 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
 - **Weekly scoring warning:** weekly `FPTS` are used as FantasyPros provides them. Confirm the FantasyPros export scoring matches the Sleeper league.
 - **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.
+- **Sleeper draft refresh is degraded:** the last successful draft remains visible while the app retries automatically with bounded backoff. Use the reconnect control only when an immediate retry is useful.
+- **Imported data is marked old:** replace the export with a current FantasyPros download before relying on time-sensitive draft, waiver, or lineup advice.

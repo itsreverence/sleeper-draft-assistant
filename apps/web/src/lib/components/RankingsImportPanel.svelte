@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AdpImportSummary, Position, RankingImportSummary, SeasonProjectionImportSummary } from "../types";
   import { formatImportDate } from "../format";
+  import { getImportFreshness } from "../freshness";
   import Icon from "./Icon.svelte";
 
   let {
@@ -176,7 +177,10 @@
         {/if}
       </div>
       {#if rankingImportSummary}
-        <span class="source-meta">{rankingImportSummary.scoring ?? scoring} - imported {formatImportDate(rankingImportSummary)}</span>
+        <span class="source-meta" class:stale={getImportFreshness(rankingImportSummary.appliedAt, 14).stale}>
+          {rankingImportSummary.scoring ?? scoring} - imported {formatImportDate(rankingImportSummary)}
+          ({getImportFreshness(rankingImportSummary.appliedAt, 14).label})
+        </span>
       {/if}
       {#if rankingImportError}<p class="callout callout-danger"><Icon name="alert" size={15} />{rankingImportError}</p>{/if}
     </div>
@@ -216,8 +220,9 @@
         </div>
       {/if}
       {#if seasonProjectionImportSummary}
-        <span class="source-meta">
+        <span class="source-meta" class:stale={getImportFreshness(seasonProjectionImportSummary.appliedAt, 14).stale}>
           {seasonProjectionImportSummary.positions.join(", ")} - imported {formatImportDate(seasonProjectionImportSummary)}
+          ({getImportFreshness(seasonProjectionImportSummary.appliedAt, 14).label})
         </span>
       {/if}
       {#if selectionError}<p class="callout callout-warning"><Icon name="alert" size={15} />{selectionError}</p>{/if}
@@ -252,8 +257,9 @@
         {/if}
       </div>
       {#if adpImportSummary}
-        <span class="source-meta">
+        <span class="source-meta" class:stale={getImportFreshness(adpImportSummary.appliedAt, 14).stale}>
           Sleeper{adpImportSummary.includesRealTime ? " + Real-Time" : ""} - imported {formatImportDate(adpImportSummary)}
+          ({getImportFreshness(adpImportSummary.appliedAt, 14).label})
         </span>
       {/if}
       {#if adpImportError}<p class="callout callout-danger"><Icon name="alert" size={15} />{adpImportError}</p>{/if}
@@ -422,6 +428,10 @@
   .source-warning {
     margin: 0;
     line-height: 1.45;
+  }
+
+  .source-meta.stale {
+    color: var(--warning);
   }
 
   .callout {

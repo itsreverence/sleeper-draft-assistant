@@ -18,6 +18,7 @@ import { AdpImportRequestSchema, RankingImportRequestSchema, RosRankingImportReq
 import { buildDraftAiContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
+import { draftPollDelayMs } from "./draft-refresh";
 import { createEventStreamChannel } from "./event-stream";
 import { createAiProvider } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, isDraftRankingImportCompatible, RankingImportStore } from "./rankings-import";
@@ -940,7 +941,8 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
   let localState = await loadDraftState(draftId, userRosterId);
   let lastPickCount = localState.picks.length;
   let consecutiveFailures = 0;
-  let interval: ReturnType<typeof setInterval> | undefined;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let cancelled = false;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -949,21 +951,33 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
         ...toDraftPayload(localState, draftId),
       });
 
-      interval = setInterval(() => {
-        void refresh(controller);
-      }, 5000);
+      scheduleRefresh(controller);
     },
     cancel() {
+      cancelled = true;
       channel.close();
-      if (interval) {
-        clearInterval(interval);
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
       }
     },
   });
 
   return createEventStreamResponse(stream);
 
+  function scheduleRefresh(
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    delay = draftPollDelayMs(consecutiveFailures),
+  ) {
+    if (cancelled) {
+      return;
+    }
+    refreshTimer = setTimeout(() => {
+      void refresh(controller);
+    }, delay);
+  }
+
   async function refresh(controller: ReadableStreamDefaultController<Uint8Array>) {
+    let sent = false;
     try {
       const nextState = await loadDraftState(draftId, userRosterId);
       consecutiveFailures = 0;
@@ -972,29 +986,38 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
       lastPickCount = nextState.picks.length;
 
       if (nextState.picks.length > previousPickCount) {
-        channel.send(controller, "pick", {
+        sent = channel.send(controller, "pick", {
           type: "pick",
           pick: nextState.picks[nextState.picks.length - 1],
           ...toDraftPayload(nextState, draftId, { recordTrigger: "pick-update", userRosterId }),
         });
-        return;
+      } else {
+        sent = channel.send(controller, "heartbeat", {
+          type: "heartbeat",
+          at: new Date().toISOString(),
+        });
       }
-
-      channel.send(controller, "heartbeat", {
-        type: "heartbeat",
-        at: new Date().toISOString(),
-      });
     } catch (error) {
       consecutiveFailures += 1;
-      const message = error instanceof Error ? error.message : "Sleeper polling failed.";
-      channel.send(controller, "stream-error", {
+      logRouteErrorMessage("draft event refresh", error);
+      sent = channel.send(controller, "stream-error", {
         type: "stream-error",
         at: new Date().toISOString(),
-        message,
+        message: "Sleeper is temporarily unavailable. Automatic retry will continue.",
         consecutiveFailures,
+        nextRetryMs: draftPollDelayMs(consecutiveFailures),
       });
+    } finally {
+      if (sent) {
+        scheduleRefresh(controller);
+      }
     }
   }
+}
+
+function logRouteErrorMessage(context: string, error: unknown) {
+  const message = redactErrorMessage(error instanceof Error ? error.message : String(error));
+  console.error(`[api] ${context} failed: ${message}`);
 }
 
 function createEventStreamResponse(stream: ReadableStream<Uint8Array>): Response {

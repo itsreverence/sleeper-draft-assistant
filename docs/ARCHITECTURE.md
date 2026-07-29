@@ -48,10 +48,11 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
 11. The deterministic engine evaluates import coverage, matching quality, and format compatibility before assigning confidence.
 12. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
-13. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-14. Optional AI providers receive a compact context packet rather than the full player universe.
-15. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
-16. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
+13. Draft SSE polling keeps the last valid state visible during transient Sleeper failures. Repeated failures use bounded backoff from 5 to 30 seconds, and renderer events expose only a generic upstream-safe error plus sync age.
+14. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
+15. Optional AI providers receive a compact context packet rather than the full player universe.
+16. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
+17. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
 
 ## Persistence
 

@@ -15,6 +15,9 @@ This is a direction document, not a promise or release schedule.
 - optional local Codex app-server analysis
 - local SQLite persistence and Electron packaging
 - explicit format compatibility warnings for custom scoring, TE premium, IDP, and auction leagues
+- draft sync age, bounded retry backoff, and last-valid-state messaging
+- recent recommendation-change review backed by persisted decision snapshots
+- age warnings for imported draft, rest-of-season, and weekly data
 
 ## Before the first published alpha installer
 

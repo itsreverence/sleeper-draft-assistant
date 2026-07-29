@@ -1,4 +1,4 @@
-import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -17,7 +17,7 @@ if (packagedApiToken) {
   }
 }
 
-export type DraftAction = "state" | "events" | "ask" | "recommendations" | "rankings/import" | "projections/season/import" | "adp/import";
+export type DraftAction = "state" | "events" | "ask" | "recommendations" | "decisions" | "rankings/import" | "projections/season/import" | "adp/import";
 
 export function buildDraftUrl(draftId: string, action: DraftAction, userRosterId: string | null) {
   const query = new URLSearchParams();
@@ -407,6 +407,21 @@ export async function fetchDraftRecommendationRequest(
 
   return (await response.json()) as DraftRecommendation;
 }
+
+export async function fetchDecisionHistory(
+  draftId: string,
+  userRosterId: string | null,
+  limit = 12,
+): Promise<DecisionHistoryPayload> {
+  const url = new URL(buildDraftUrl(draftId, "decisions", userRosterId), window.location.href);
+  url.searchParams.set("limit", String(limit));
+  const response = await apiFetch(url);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not load recommendation history."));
+  }
+  return (await response.json()) as DecisionHistoryPayload;
+}
+
 export async function askManagerRequest(
   draftId: string,
   userRosterId: string | null,

@@ -11,6 +11,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 
 - Connects to Sleeper's tokenless, read-only API by username, league, or draft.
 - Tracks live and completed draft boards.
+- Preserves the last valid draft during transient Sleeper failures, with visible sync age and bounded automatic retries.
 - Produces deterministic recommendations from roster construction, scarcity, availability, ADP, tiers, and other explainable signals.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
@@ -18,6 +19,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Offers an optional local Codex app-server provider for conversational analysis.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
+- Shows a compact recent-decision review so recommendation changes can be traced to picks, imports, refreshes, or AI questions.
 
 Sleeper is currently the only supported fantasy platform. Sleeper search rank is a low-confidence fallback; import current draft data before relying on real-draft recommendations.
 
