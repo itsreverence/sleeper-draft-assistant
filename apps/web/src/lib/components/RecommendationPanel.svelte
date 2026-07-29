@@ -58,17 +58,23 @@
   let lastAiStrategyKey = $state("");
   let aiStrategyRequestId = 0;
   const currentAiStrategy = $derived(currentAiDraftStrategy(aiStrategy, currentPick));
-  const displayedCandidates = $derived.by(() => {
-    const strategyCandidates = currentAiStrategy
-      ? [currentAiStrategy.recommendedCandidate, ...currentAiStrategy.alternativeCandidates]
-      : [];
-    const deterministicCandidates = recommendation?.candidates ?? [];
+  const aiCandidates = $derived.by(() => {
+    const strategy = currentAiStrategy;
+    if (!strategy) {
+      return [];
+    }
     return Array.from(
-      new Map([...strategyCandidates, ...deterministicCandidates].map((candidate) => [candidate.player.id, candidate])).values(),
+      new Map(
+        [strategy.recommendedCandidate, ...strategy.alternativeCandidates]
+          .map((candidate) => [candidate.player.id, candidate]),
+      ).values(),
     );
   });
-  const primaryCandidates = $derived(displayedCandidates.slice(0, 3));
-  const additionalCandidates = $derived(displayedCandidates.slice(3));
+  const primaryAiCandidates = $derived(aiCandidates.slice(0, 3));
+  const additionalAiCandidates = $derived(aiCandidates.slice(3));
+  const localCandidates = $derived(recommendation?.candidates ?? []);
+  const primaryLocalCandidates = $derived(localCandidates.slice(0, 3));
+  const additionalLocalCandidates = $derived(localCandidates.slice(3));
   const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? recommendation?.headline ?? "Waiting for board context");
   const activeSummary = $derived(currentAiStrategy?.decision.summary ?? recommendation?.summary ?? "");
   const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? recommendation?.confidence ?? null);
@@ -81,10 +87,13 @@
   let latestEvaluationPlayerId = $state("");
   const latestEvaluation = $derived(evaluations[latestEvaluationPlayerId] ?? null);
   const latestEvaluationStillListed = $derived(
-    Boolean(latestEvaluation && recommendation?.candidates.some((candidate) => candidate.player.id === latestEvaluation.playerId)),
+    Boolean(
+      latestEvaluation &&
+        [...aiCandidates, ...localCandidates].some((candidate) => candidate.player.id === latestEvaluation.playerId),
+    ),
   );
   const detachedEvaluationError = $derived(
-    latestEvaluationPlayerId && !recommendation?.candidates.some((candidate) => candidate.player.id === latestEvaluationPlayerId)
+    latestEvaluationPlayerId && ![...aiCandidates, ...localCandidates].some((candidate) => candidate.player.id === latestEvaluationPlayerId)
       ? evaluationErrors[latestEvaluationPlayerId] ?? ""
       : "",
   );
@@ -279,55 +288,81 @@
       <div class="callout callout-warning" aria-live="polite">{detachedEvaluationError}</div>
     {/if}
 
-    {#if recommendation.assumptions.length > 0}
-      <details class="disclosure">
-        <summary>Key assumptions ({recommendation.assumptions.length})</summary>
-        <ul class="note-list">
-          {#each recommendation.assumptions as assumption}
-            <li>{assumption}</li>
-          {/each}
-        </ul>
-      </details>
-    {/if}
+    {#if currentAiStrategy}
+      <div class="candidate-section-heading">
+        <strong>AI player options</strong>
+        <span>Ordered by the current AI strategy. Imported values remain visible as evidence, not as the ordering score.</span>
+      </div>
+      <div class="candidate-list">
+        {#each primaryAiCandidates as candidate, index (candidate.player.id)}
+          <CandidateCard
+            {candidate}
+            rank={index + 1}
+            featured={index === 0}
+            presentation={index === 0 ? "ai-pick" : "ai-alternative"}
+            aiReason={index === 0 ? currentAiStrategy.decision.reasons[0] ?? "" : ""}
+            {currentPick}
+            evaluation={evaluations[candidate.player.id] ?? null}
+            evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+            isEvaluating={evaluatingPlayerId === candidate.player.id}
+            preference={playerPreferences[candidate.player.id] ?? null}
+            {onSetPreference}
+            onEvaluate={evaluateCandidate}
+          />
+        {/each}
+      </div>
+      {#if additionalAiCandidates.length > 0}
+        <details class="more-candidates">
+          <summary>Show {additionalAiCandidates.length} more AI alternative{additionalAiCandidates.length === 1 ? "" : "s"}</summary>
+          <div class="candidate-list">
+            {#each additionalAiCandidates as candidate, index (candidate.player.id)}
+              <CandidateCard
+                {candidate}
+                rank={index + primaryAiCandidates.length + 1}
+                presentation="ai-alternative"
+                {currentPick}
+                evaluation={evaluations[candidate.player.id] ?? null}
+                evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+                isEvaluating={evaluatingPlayerId === candidate.player.id}
+                preference={playerPreferences[candidate.player.id] ?? null}
+                {onSetPreference}
+                onEvaluate={evaluateCandidate}
+              />
+            {/each}
+          </div>
+        </details>
+      {/if}
 
-    {#if recommendation.risks.length > 0}
-      <details class="disclosure">
-        <summary>Risks to consider ({recommendation.risks.length})</summary>
-        <ul class="note-list note-list-risk">
-          {#each recommendation.risks as risk}
-            <li>{risk}</li>
-          {/each}
-        </ul>
-      </details>
-    {/if}
-
-    <div class="candidate-list">
-      {#each primaryCandidates as candidate, index (candidate.player.id)}
-        <CandidateCard
-          {candidate}
-          rank={index + 1}
-          featured={index === 0}
-          {currentPick}
-          aiEnabled={aiEnabled && !currentAiStrategy}
-          evaluation={evaluations[candidate.player.id] ?? null}
-          evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-          isEvaluating={evaluatingPlayerId === candidate.player.id}
-          preference={playerPreferences[candidate.player.id] ?? null}
-          {onSetPreference}
-          onEvaluate={evaluateCandidate}
-        />
-      {/each}
-    </div>
-    {#if additionalCandidates.length > 0}
-      <details class="more-candidates">
-        <summary>Show {additionalCandidates.length} more candidate{additionalCandidates.length === 1 ? "" : "s"}</summary>
-        <div class="candidate-list">
-          {#each additionalCandidates as candidate, index (candidate.player.id)}
+      <details class="fallback-board">
+        <summary>Local fallback board ({localCandidates.length})</summary>
+        <p>Independent offline shortlist used while AI is unavailable. Its scores and ordering do not drive the AI strategy above.</p>
+        {#if recommendation.assumptions.length > 0}
+          <div class="local-note-group">
+            <strong>Local data assumptions</strong>
+            <ul>
+              {#each recommendation.assumptions as assumption}
+                <li>{assumption}</li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        {#if recommendation.risks.length > 0}
+          <div class="local-note-group">
+            <strong>Local risk checks</strong>
+            <ul>
+              {#each recommendation.risks as risk}
+                <li>{risk}</li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        <div class="candidate-list fallback-candidates">
+          {#each localCandidates as candidate, index (candidate.player.id)}
             <CandidateCard
               {candidate}
-              rank={index + primaryCandidates.length + 1}
+              rank={index + 1}
+              featured={index === 0}
               {currentPick}
-              aiEnabled={aiEnabled && !currentAiStrategy}
               evaluation={evaluations[candidate.player.id] ?? null}
               evaluationError={evaluationErrors[candidate.player.id] ?? ""}
               isEvaluating={evaluatingPlayerId === candidate.player.id}
@@ -338,6 +373,71 @@
           {/each}
         </div>
       </details>
+    {:else}
+      {#if recommendation.assumptions.length > 0}
+        <details class="disclosure">
+          <summary>Local data assumptions ({recommendation.assumptions.length})</summary>
+          <ul class="note-list">
+            {#each recommendation.assumptions as assumption}
+              <li>{assumption}</li>
+            {/each}
+          </ul>
+        </details>
+      {/if}
+
+      {#if recommendation.risks.length > 0}
+        <details class="disclosure">
+          <summary>Local risk checks ({recommendation.risks.length})</summary>
+          <ul class="note-list note-list-risk">
+            {#each recommendation.risks as risk}
+              <li>{risk}</li>
+            {/each}
+          </ul>
+        </details>
+      {/if}
+
+      <div class="candidate-section-heading">
+        <strong>Local fallback board</strong>
+        <span>Immediate offline shortlist based on imported values and roster constraints.</span>
+      </div>
+      <div class="candidate-list">
+        {#each primaryLocalCandidates as candidate, index (candidate.player.id)}
+          <CandidateCard
+            {candidate}
+            rank={index + 1}
+            featured={index === 0}
+            {currentPick}
+            aiEnabled={aiEnabled}
+            evaluation={evaluations[candidate.player.id] ?? null}
+            evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+            isEvaluating={evaluatingPlayerId === candidate.player.id}
+            preference={playerPreferences[candidate.player.id] ?? null}
+            {onSetPreference}
+            onEvaluate={evaluateCandidate}
+          />
+        {/each}
+      </div>
+      {#if additionalLocalCandidates.length > 0}
+        <details class="more-candidates">
+          <summary>Show {additionalLocalCandidates.length} more local candidate{additionalLocalCandidates.length === 1 ? "" : "s"}</summary>
+          <div class="candidate-list">
+            {#each additionalLocalCandidates as candidate, index (candidate.player.id)}
+              <CandidateCard
+                {candidate}
+                rank={index + primaryLocalCandidates.length + 1}
+                {currentPick}
+                aiEnabled={aiEnabled}
+                evaluation={evaluations[candidate.player.id] ?? null}
+                evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+                isEvaluating={evaluatingPlayerId === candidate.player.id}
+                preference={playerPreferences[candidate.player.id] ?? null}
+                {onSetPreference}
+                onEvaluate={evaluateCandidate}
+              />
+            {/each}
+          </div>
+        </details>
+      {/if}
     {/if}
   {:else}
     <p class="summary">The engine is preparing candidate signals.</p>
@@ -615,9 +715,63 @@
     color: var(--warning);
   }
 
+  .candidate-section-heading {
+    display: grid;
+    gap: 3px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .candidate-section-heading strong {
+    font-size: var(--text-sm);
+  }
+
+  .candidate-section-heading span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+  }
+
   .candidate-list {
     display: grid;
     gap: 12px;
+  }
+
+  .fallback-board {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .fallback-board > summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+
+  .fallback-board > p {
+    margin: 9px 0 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+  }
+
+  .local-note-group {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+  }
+
+  .local-note-group ul {
+    margin: 0;
+    padding-left: 18px;
+    line-height: 1.5;
+  }
+
+  .fallback-candidates {
+    margin-top: 12px;
   }
 
   .more-candidates {

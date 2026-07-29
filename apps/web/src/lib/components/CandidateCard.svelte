@@ -7,6 +7,8 @@
   let {
     candidate,
     rank,
+    presentation = "local",
+    aiReason = "",
     preference = null,
     featured = false,
     currentPick,
@@ -19,6 +21,8 @@
   }: {
     candidate: CandidateSignal;
     rank: number;
+    presentation?: "local" | "ai-pick" | "ai-alternative";
+    aiReason?: string;
     preference?: PlayerPreferenceLevel | null;
     featured?: boolean;
     currentPick: number;
@@ -33,8 +37,15 @@
   let detailsOpen = $state(false);
 
   const returnPct = $derived(Math.round(candidate.returnProbability * 100));
-  const primaryReason = $derived(candidate.reasons[0] ?? rosterFitLabel(candidate.rosterFit));
-  const extraReasons = $derived(candidate.reasons.slice(1));
+  const isAiCandidate = $derived(presentation !== "local");
+  const primaryReason = $derived(
+    presentation === "ai-pick"
+      ? aiReason || "Primary choice from the current AI strategy."
+      : presentation === "ai-alternative"
+        ? "Alternative selected by the current AI strategy."
+        : candidate.reasons[0] ?? rosterFitLabel(candidate.rosterFit),
+  );
+  const detailReasons = $derived(isAiCandidate ? candidate.reasons : candidate.reasons.slice(1));
   const evaluationStale = $derived(Boolean(evaluation && evaluation.pickNumber !== currentPick));
 
   function togglePreference(nextPreference: PlayerPreferenceLevel) {
@@ -61,11 +72,19 @@
     <div class="candidate-copy">
       <div class="name-row">
         <h3>{candidate.player.name}</h3>
+        {#if presentation === "ai-pick"}
+          <span class="strategy-badge strategy-pick">AI pick</span>
+        {:else if presentation === "ai-alternative"}
+          <span class="strategy-badge">AI alternative</span>
+        {/if}
         {#if preference}
           <span class="preference-badge preference-{preference}">{preference === "pin" ? "shortlisted" : preference}</span>
         {/if}
       </div>
-      <p>{candidate.player.team} - {candidate.player.position} - {rosterFitLabel(candidate.rosterFit)}</p>
+      <p>
+        {candidate.player.team} - {candidate.player.position}
+        {#if !isAiCandidate} - {rosterFitLabel(candidate.rosterFit)}{/if}
+      </p>
       <p class="reason">{primaryReason}</p>
       {#if candidate.player.importedRank}
         <p class="import-meta">
@@ -75,7 +94,9 @@
         <p class="import-meta">{sourceLabel(candidate)}</p>
       {/if}
     </div>
-    <strong class="score">{candidate.score.toFixed(1)}</strong>
+    {#if !isAiCandidate}
+      <strong class="score">{candidate.score.toFixed(1)}</strong>
+    {/if}
   </div>
 
   <div class="actions">
@@ -100,20 +121,21 @@
       </button>
     {/if}
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
-      {detailsOpen ? "Less" : "Details"}
+      {detailsOpen ? "Less" : isAiCandidate ? "Local evidence" : "Details"}
     </button>
   </div>
 
   {#if detailsOpen}
     <div class="details">
       <div class="signal-row">
+        {#if isAiCandidate}<span>Local score {candidate.score.toFixed(1)}</span>{/if}
         <span>{candidate.valueLabel}</span>
         <span>{candidate.scarcityLabel}</span>
         <span>{returnPct}% return</span>
       </div>
-      {#if extraReasons.length > 0}
+      {#if detailReasons.length > 0}
         <ul>
-          {#each extraReasons as reason}
+          {#each detailReasons as reason}
             <li>{reason}</li>
           {/each}
         </ul>
@@ -266,6 +288,24 @@
     letter-spacing: 0.04em;
     line-height: 1;
     text-transform: uppercase;
+  }
+
+  .strategy-badge {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    padding: 3px 7px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .strategy-pick {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 
   .preference-pin {
