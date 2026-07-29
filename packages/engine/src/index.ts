@@ -247,9 +247,14 @@ function buildLineupLimitations(rosterPlayers: Player[]): string[] {
 
 function buildWaiverLimitations(players: Player[]): string[] {
   const hasWeeklyProjections = players.some((player) => player.projectionSource === "weekly_projection");
+  const hasRosRankings = players.some((player) => player.rosRank !== null && player.rosRank !== undefined);
   return [
-    hasWeeklyProjections
-      ? "Waiver candidates use imported weekly projections when matched, plus Sleeper availability and roster metadata."
+    hasWeeklyProjections && hasRosRankings
+      ? "Waiver candidates combine imported weekly projections with rest-of-season ECR, Sleeper availability, and roster needs."
+      : hasWeeklyProjections
+        ? "Waiver candidates use imported weekly projections when matched, plus Sleeper availability and roster metadata."
+        : hasRosRankings
+          ? "Waiver candidates use rest-of-season ECR, Sleeper availability, and roster needs without current-week projections."
       : "Waiver candidates use available Sleeper player metadata and imported rankings when present, not real-time projections or news.",
     "Availability is inferred from players not currently present on Sleeper league rosters.",
     "Drop suggestions are deterministic roster-shape signals and should be reviewed before making real moves.",
@@ -323,6 +328,8 @@ function buildLineupDecision(slot: TeamManagerState["roster"]["starters"][number
 
   if (recommendedPlayer?.projectionSource === "weekly_projection" && recommendedPlayer.weeklyProjectedPoints !== null && recommendedPlayer.weeklyProjectedPoints !== undefined) {
     reasons.push(`Recommended option has FantasyPros Week ${recommendedPlayer.weeklyProjectionWeek ?? "?"} projection of ${recommendedPlayer.weeklyProjectedPoints.toFixed(1)} points.`);
+  } else if (recommendedPlayer?.rosRank) {
+    reasons.push(`Recommended option has FantasyPros ROS rank ${recommendedPlayer.rosRank}.`);
   } else if (recommendedPlayer?.importedRank) {
     reasons.push(`Recommended option has imported rank ${recommendedPlayer.importedRank}${recommendedPlayer.tier ? `, tier ${recommendedPlayer.tier}` : ""}.`);
   }
@@ -434,7 +441,7 @@ function getPlayerSignalConfidence(player: Player): TeamLineupSummary["confidenc
   if (getWeeklyProjectedPoints(player) !== null) {
     return "high";
   }
-  if (player.projectionSource === "imported" || player.importedRank) {
+  if (player.rosRank || player.projectionSource === "imported" || player.importedRank) {
     return "medium";
   }
   return "low";
@@ -458,9 +465,11 @@ function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, roste
   const beatsRosterBest = rosterBestAtPosition ? comparePlayersForLineup(player, rosterBestAtPosition) < 0 : true;
   const reasons: string[] = [];
   let rosterFit: TeamWaiverSummary["candidates"][number]["rosterFit"] = "stash";
-  let score = player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
-    ? player.weeklyProjectedPoints * 12
-    : Math.max(0, 260 - rank);
+  const weeklyPoints = getWeeklyProjectedPoints(player);
+  const longTermValue = Math.max(0, 260 - rank);
+  let score = weeklyPoints !== null
+    ? weeklyPoints * 10 + longTermValue * 0.45
+    : longTermValue;
 
   if (need?.status === "open_starter") {
     rosterFit = "starter_need";
@@ -478,11 +487,17 @@ function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, roste
     reasons.push(`Profiles as a bench stash at ${player.position}.`);
   }
 
-  if (player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined) {
-    reasons.push(`FantasyPros Week ${player.weeklyProjectionWeek ?? "?"} projection: ${player.weeklyProjectedPoints.toFixed(1)} points.`);
-  } else if (player.importedRank) {
+  if (weeklyPoints !== null) {
+    reasons.push(`FantasyPros Week ${player.weeklyProjectionWeek ?? "?"} projection: ${weeklyPoints.toFixed(1)} points.`);
+  }
+  if (player.rosRank) {
+    const range = player.rosBestRank && player.rosWorstRank
+      ? ` (expert range ${player.rosBestRank}-${player.rosWorstRank})`
+      : "";
+    reasons.push(`FantasyPros ${player.rosScoring ?? ""} ROS rank ${player.rosRank}${range}.`);
+  } else if (!weeklyPoints && player.importedRank) {
     reasons.push(`FantasyPros import rank ${player.importedRank}${player.tier ? `, tier ${player.tier}` : ""}.`);
-  } else {
+  } else if (!weeklyPoints) {
     reasons.push("No imported rank matched; using Sleeper metadata fallback.");
   }
 
@@ -503,9 +518,13 @@ function buildWaiverCandidate(player: Player, teamNeeds: TeamNeedsSummary, roste
     player,
     score: Math.round(score * 10) / 10,
     rosterFit,
-    valueLabel: player.projectionSource === "weekly_projection" && player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
-      ? `${player.weeklyProjectedPoints.toFixed(1)} weekly pts`
-      : player.importedRank ? `Rank ${player.importedRank}` : "Sleeper fallback",
+    valueLabel: weeklyPoints !== null && player.rosRank
+      ? `${weeklyPoints.toFixed(1)} weekly pts - ROS ${player.rosRank}`
+      : weeklyPoints !== null
+        ? `${weeklyPoints.toFixed(1)} weekly pts`
+        : player.rosRank
+          ? `ROS rank ${player.rosRank}`
+          : player.importedRank ? `Rank ${player.importedRank}` : "Sleeper fallback",
     suggestedDrop,
     reasons,
   };
@@ -532,6 +551,9 @@ function buildDropCandidates(state: TeamManagerState, rosterPlayers: Player[]): 
       if (player.riskTags.length > 0) {
         score += 15;
         reasons.push(`Risk tags: ${player.riskTags.join(", ")}.`);
+      }
+      if (player.rosRank) {
+        reasons.push(`FantasyPros ROS rank ${player.rosRank}.`);
       }
       if (reasons.length === 0) {
         reasons.push("Bench player with the weakest deterministic value signal.");
@@ -563,7 +585,11 @@ function buildWaiverFacts(
 }
 
 function getPlayerRank(player: Player): number {
-  return player.importedRank ?? player.adp ?? Math.max(1, Math.round(400 - player.projectedPoints));
+  return player.rosAverageRank
+    ?? player.rosRank
+    ?? player.importedRank
+    ?? player.adp
+    ?? Math.max(1, Math.round(400 - player.projectedPoints));
 }
 
 function isFantasyStarterPosition(position: Position): boolean {
@@ -610,8 +636,8 @@ function takeBestEligiblePlayer(remaining: Map<string, Player>, eligiblePosition
 }
 
 function comparePlayersForLineup(a: Player, b: Player): number {
-  const aRank = a.importedRank ?? a.adp ?? Number.MAX_SAFE_INTEGER;
-  const bRank = b.importedRank ?? b.adp ?? Number.MAX_SAFE_INTEGER;
+  const aRank = getPlayerRank(a);
+  const bRank = getPlayerRank(b);
   const aHasWeeklyProjection = a.projectionSource === "weekly_projection" && a.weeklyProjectedPoints !== null && a.weeklyProjectedPoints !== undefined;
   const bHasWeeklyProjection = b.projectionSource === "weekly_projection" && b.weeklyProjectedPoints !== null && b.weeklyProjectedPoints !== undefined;
   if (aHasWeeklyProjection && bHasWeeklyProjection && a.weeklyProjectedPoints !== b.weeklyProjectedPoints) {

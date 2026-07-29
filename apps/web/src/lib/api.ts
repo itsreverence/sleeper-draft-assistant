@@ -1,4 +1,4 @@
-import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -175,6 +175,51 @@ export async function fetchWeeklyProjectionStatus(leagueId: string, season: stri
   }
 
   return (await response.json()) as WeeklyProjectionStatusPayload;
+}
+
+export async function importRosRankingsRequest(input: {
+  leagueId: string;
+  season: string;
+  scoring: DraftScoringFormat;
+  csvText: string;
+  userRosterId?: string | null;
+  draftId?: string | null;
+  week?: number | null;
+}): Promise<RosRankingImportPayload> {
+  const params = new URLSearchParams();
+  if (input.userRosterId) params.set("userRosterId", input.userRosterId);
+  if (input.draftId) params.set("draftId", input.draftId);
+  if (input.week) params.set("week", String(input.week));
+  const query = params.toString();
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(input.leagueId)}/rankings/ros/import${query ? `?${query}` : ""}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source: "fantasypros",
+      season: input.season,
+      scoring: input.scoring,
+      csvText: input.csvText,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not import rest-of-season rankings."));
+  }
+  return (await response.json()) as RosRankingImportPayload;
+}
+
+export async function clearRosRankingsRequest(
+  leagueId: string,
+  season: string,
+  scoring: DraftScoringFormat,
+): Promise<{ deleted: boolean }> {
+  const params = new URLSearchParams({ season, scoring });
+  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/rankings/ros?${params.toString()}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not clear rest-of-season rankings."));
+  }
+  return (await response.json()) as { deleted: boolean };
 }
 
 export async function importWeeklyProjectionsRequest(input: {

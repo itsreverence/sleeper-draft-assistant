@@ -1,4 +1,4 @@
-import type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -83,6 +83,7 @@ export type TeamPayload = {
   weekContext: TeamWeekContext | null;
   waiverSummary: TeamWaiverSummary;
   activitySummary: TeamActivitySummary;
+  rosRankingSummary: RosRankingImportSummary | null;
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null;
 };
 export type TeamAskAnswerPayload = TeamPayload & {
@@ -90,6 +91,9 @@ export type TeamAskAnswerPayload = TeamPayload & {
 };
 export type WeeklyProjectionImportPayload = TeamPayload & {
   summary: WeeklyProjectionImportSummary;
+};
+export type RosRankingImportPayload = TeamPayload & {
+  summary: RosRankingImportSummary;
 };
 
 export type WeeklyProjectionStatusPayload = {
@@ -118,7 +122,7 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftState, Player, Position, RankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
+export type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 
 
 
@@ -150,6 +154,7 @@ export type DiagnosticsPayload = {
     rankingImportRecords: number;
     seasonProjectionImportRecords: number;
     adpImportRecords: number;
+    rosRankingImportRecords: number;
     weeklyProjectionImportRecords: number;
     decisionSnapshots: number;
   };
@@ -167,11 +172,12 @@ export type StorageInventory = {
   rankingImports: number;
   seasonProjectionImports: number;
   adpImports: number;
+  rosRankingImports: number;
   weeklyProjectionImports: number;
   decisionSnapshots: number;
 };
 
-export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "weekly-projections" | "decision-history";
+export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history";
 
 export type DataMutationPayload = {
   deleted: number;

@@ -13,7 +13,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Tracks live and completed draft boards.
 - Produces deterministic recommendations from roster construction, scarcity, availability, ADP, tiers, and other explainable signals.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
-- Imports user-downloaded FantasyPros weekly projection CSVs by position for lineup and waiver analysis.
+- Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
 - Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Offers an optional local Codex app-server provider for conversational analysis.
@@ -42,8 +42,9 @@ Open `http://127.0.0.1:5173`, then choose **Load demo draft**. The demo uses syn
 4. Export rankings for your scoring format from FantasyPros and import the CSV as the ECR and tier signal.
 5. Export the season projection files for QB, RB, WR, TE, K, and DST and import them together. The FLX file is not needed because it duplicates players from RB, WR, and TE.
 6. Export FantasyPros Overall ADP and import it for the Sleeper and Real-Time market columns. A separate Real-Time ADP download is not required.
-7. During the season, export the six weekly projection files for QB, RB, WR, TE, K, and DST, then import them together from Team Manager.
-8. Review the recommendation evidence before making a pick.
+7. During the season, export the overall rest-of-season rankings for your scoring format and import the single CSV from Team Manager.
+8. Export the six weekly projection files for QB, RB, WR, TE, K, and DST, then import them together from Team Manager.
+9. Review the recommendation evidence before making a pick or changing your team.
 
 The app reads Sleeper data but does not submit picks, change lineups, or modify your Sleeper account.
 
@@ -69,7 +70,7 @@ See [Installing on Windows](docs/INSTALLING.md) for artifact choices, checksum v
 
 ## Local data and privacy
 
-The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported rankings, season and weekly projections, ADP, settings, and recommendation history.
+The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported draft and rest-of-season rankings, season and weekly projections, ADP, settings, and recommendation history.
 
 Settings shows aggregate local-data counts, can download a redacted support report, and provides controls to clear imports, recommendation history, or all local app data.
 

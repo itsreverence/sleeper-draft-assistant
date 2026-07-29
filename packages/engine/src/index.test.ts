@@ -417,6 +417,37 @@ describe("team needs engine", () => {
     expect(summary.candidates[0]?.player.id).toBe("fa-weekly");
     expect(summary.candidates[0]?.valueLabel).toBe("24.0 weekly pts");
   });
+  it("balances weekly projections with rest-of-season value for waivers", () => {
+    const state = createTeamManagerState();
+    const streamer = {
+      ...teamPlayer("fa-streamer", "One Week Streamer", "RB", 18, 180),
+      ...weeklyProjectionFields(18),
+      rosRank: 200,
+      rosAverageRank: 200,
+      rosBestRank: 170,
+      rosWorstRank: 230,
+      rosSource: "FantasyPros",
+      rosSeason: "2026",
+      rosScoring: "PPR" as const,
+    };
+    const longTerm = {
+      ...teamPlayer("fa-long-term", "Long Term Starter", "RB", 16, 20),
+      ...weeklyProjectionFields(16),
+      rosRank: 20,
+      rosAverageRank: 20,
+      rosBestRank: 15,
+      rosWorstRank: 26,
+      rosSource: "FantasyPros",
+      rosSeason: "2026",
+      rosScoring: "PPR" as const,
+    };
+
+    const summary = buildTeamWaiverSummary(state, [streamer, longTerm]);
+
+    expect(summary.candidates[0]?.player.id).toBe("fa-long-term");
+    expect(summary.candidates[0]?.valueLabel).toBe("16.0 weekly pts - ROS 20");
+    expect(summary.candidates[0]?.reasons.some((reason) => reason.includes("expert range 15-26"))).toBe(true);
+  });
   it("summarizes available add and drop candidates", () => {
     const state = createTeamManagerState({
       bench: [teamPlayer("bench-k", "Bench K", "K", 100, 260)],

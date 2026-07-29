@@ -43,6 +43,7 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
   );
   const benchPlayers = state.roster.bench.map((player) => `${player.name} (${player.team} ${player.position})`);
   const hasWeeklyProjections = teamHasWeeklyProjections(state) || waiverSummary.candidates.some((candidate) => candidate.player.projectionSource === "weekly_projection");
+  const hasRosRankings = teamHasRosRankings(state) || waiverSummary.candidates.some((candidate) => Boolean(candidate.player.rosRank));
 
   return {
     leagueFormat: `${state.league.teams}-team ${state.league.scoring}, slots ${formatRosterSlots(state.league.rosterSlots)}`,
@@ -78,6 +79,9 @@ function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, we
         : "Do not invent projections, injuries, waiver-wire availability, or player news.",
       "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
       "For start/sit and lineup optimization questions, use lineupSummary and lineupDecisions before general roster-shape advice.",
+      hasRosRankings
+        ? "For adds, drops, and stashes, use rest-of-season rank as the long-term value signal and weekly projections as the immediate-week signal."
+        : "For adds, drops, and stashes, state that current rest-of-season rankings are unavailable.",
       "Use dataReadinessFacts to qualify confidence; never present incomplete or mismatched projection data as current.",
       "For add/drop questions, use waiverSummary, activitySummary, topWaiverCandidates, and trendingAdds before general roster-shape advice.",
       "If a starter slot is open, prioritize filling that slot before bench-upgrade advice.",
@@ -94,6 +98,15 @@ function teamHasWeeklyProjections(state: TeamManagerState): boolean {
     ...state.roster.injuredReserve,
     ...state.roster.taxi,
   ].some((player) => player?.projectionSource === "weekly_projection");
+}
+
+function teamHasRosRankings(state: TeamManagerState): boolean {
+  return [
+    ...state.roster.starters.map((slot) => slot.player),
+    ...state.roster.bench,
+    ...state.roster.injuredReserve,
+    ...state.roster.taxi,
+  ].some((player) => Boolean(player?.rosRank));
 }
 
 function formatRosterCounts(state: TeamManagerState): string {

@@ -68,5 +68,7 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Recommendations warn about placeholder values:** import the scoring-specific ECR CSV first, then season projections and Overall ADP for full draft context.
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
+- **Team Manager needs two data sources:** import one scoring-specific overall rest-of-season rankings CSV for long-term value, then the six weekly projection files for current-week points.
+- **Rest-of-season rankings are inactive:** confirm the import season and scoring format match the connected league. Historical imports remain stored but do not affect current advice.
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
 - **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.
