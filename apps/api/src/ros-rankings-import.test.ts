@@ -9,6 +9,7 @@ import {
   RosRankingImportStore,
   applyRosRankingsToPlayers,
   importFantasyProsRosRankings,
+  isRosScoringCompatible,
 } from "./ros-rankings-import";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
@@ -17,6 +18,12 @@ const rosCsv = `"RK","PLAYER NAME",TEAM,"POS","BEST","WORST","AVG.","STD.DEV","E
 "2","Josh Allen",BUF,"QB1","20","30","25.0","3.2","-"`;
 
 describe("FantasyPros rest-of-season ranking imports", () => {
+  it("requires the imported scoring format to match the league", () => {
+    expect(isRosScoringCompatible("PPR", "PPR")).toBe(true);
+    expect(isRosScoringCompatible("PPR", "Half PPR")).toBe(false);
+    expect(isRosScoringCompatible("Custom", "PPR")).toBe(false);
+  });
+
   it("imports overall ranks and expert disagreement", () => {
     const players = createMockDraftState(0).players;
     const storedImport = importFantasyProsRosRankings({

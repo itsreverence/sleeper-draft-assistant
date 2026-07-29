@@ -92,7 +92,9 @@ export class RankingImportStore {
 
   apply(draftId: string, state: DraftState): DraftState {
     const storedImport = this.get(draftId);
-    return storedImport ? applyImportedRankings(state, storedImport) : state;
+    return storedImport && isDraftRankingImportCompatible(state, storedImport)
+      ? applyImportedRankings(state, storedImport)
+      : state;
   }
 
   private load() {
@@ -210,7 +212,7 @@ export function importFantasyProsCsv(
   };
 }
 
-function normalizeDraftScoringFormat(scoring: string): DraftScoringFormat {
+export function normalizeDraftScoringFormat(scoring: string): DraftScoringFormat {
   const normalized = scoring.trim().toLowerCase();
   if (normalized === "ppr") {
     return "PPR";
@@ -222,6 +224,17 @@ function normalizeDraftScoringFormat(scoring: string): DraftScoringFormat {
     return "Standard";
   }
   return normalized ? "Custom" : "Unknown";
+}
+
+export function isDraftRankingImportCompatible(
+  state: Pick<DraftState, "settings">,
+  storedImport: Pick<StoredRankingImport, "summary">,
+): boolean {
+  const imported = storedImport.summary.scoring;
+  if (!imported || imported === "Unknown") {
+    return true;
+  }
+  return imported === normalizeDraftScoringFormat(state.settings.scoring);
 }
 
 export function applyImportedRankings(state: DraftState, storedImport: StoredRankingImport): DraftState {

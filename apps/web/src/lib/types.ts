@@ -1,4 +1,4 @@
-import type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -122,7 +122,7 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
+export type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 
 
 

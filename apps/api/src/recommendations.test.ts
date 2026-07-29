@@ -35,6 +35,23 @@ const fantasyProsAdpCsv = `Rank,Player (Bye),POS,Sleeper,RTSports,AVG,Real-Time
 2,Josh Allen BUF (7),QB1,18,-,18.0,16`;
 
 describe("draft recommendation routes", () => {
+  it("rejects rankings for a different scoring format", async () => {
+    const response = await app.request("/drafts/mock-draft/rankings/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "fantasypros",
+        scoring: "Standard",
+        csvText: fantasyProsCsv,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "The Standard rankings do not match this PPR league.",
+    });
+  });
+
   it("applies preference ids to mock draft recommendations", async () => {
     const baselineResponse = await app.request("/drafts/mock/recommendations");
     expect(baselineResponse.status).toBe(200);

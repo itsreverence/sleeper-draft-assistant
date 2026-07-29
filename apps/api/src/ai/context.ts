@@ -20,7 +20,10 @@ export function buildDraftAiContext(
     hasImportedRankings: recommendation.candidates.some((candidate) => candidate.player.importedRank !== null && candidate.player.importedRank !== undefined),
     hasSeasonProjections: candidateSources.has("season_projection"),
     usesSleeperPlaceholderRanks: candidateSources.has("sleeper_search_rank"),
-    limitations: getDataLimitations(candidateSources),
+    limitations: [
+      ...getDataLimitations(candidateSources),
+      ...(state.settings.formatCompatibility?.warnings ?? []),
+    ],
   };
   const rosterConstruction = buildRosterConstruction(state, userTeam, playersById);
   const userTeamSummary: DraftAiContext["userTeam"] = userTeam

@@ -6,7 +6,7 @@ import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-a
 import type { DraftState, Player } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
-import { RankingImportStore, applyImportedRankings, importFantasyProsCsv } from "./rankings-import";
+import { RankingImportStore, applyImportedRankings, importFantasyProsCsv, isDraftRankingImportCompatible } from "./rankings-import";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 const csv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
@@ -15,6 +15,14 @@ const csv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","S
 "3",1,"Unknown Player",FA,"WR1","6","Coach Upside rating","Coach Bust rating","4 out of 5 stars","-"`;
 
 describe("FantasyPros ranking import", () => {
+  it("rejects scoring-specific rankings from a different league format", () => {
+    const state = createMockDraftState(0);
+    state.settings.scoring = "Standard";
+    const storedImport = importFantasyProsCsv(state, csv, "PPR");
+
+    expect(isDraftRankingImportCompatible(state, storedImport)).toBe(false);
+  });
+
   it("matches FantasyPros rows to draft players and applies imported rank metadata", () => {
     const state = createMockDraftState(0);
     const storedImport = importFantasyProsCsv(state, csv);

@@ -9,6 +9,13 @@ export type PlayerSignalSource = z.infer<typeof PlayerSignalSourceSchema>;
 export const DraftScoringFormatSchema = z.enum(["PPR", "Half PPR", "Standard", "Custom", "Unknown"]);
 export type DraftScoringFormat = z.infer<typeof DraftScoringFormatSchema>;
 
+export const FormatCompatibilitySchema = z.object({
+  level: z.enum(["supported", "caution", "unsupported"]),
+  features: z.array(z.enum(["superflex", "te_premium", "custom_scoring", "idp", "auction"])),
+  warnings: z.array(z.string()),
+});
+export type FormatCompatibility = z.infer<typeof FormatCompatibilitySchema>;
+
 export const PlayerSchema = z.object({
   id: z.string(),
   sleeperId: z.string(),
@@ -288,6 +295,7 @@ export const DraftSettingsSchema = z.object({
   scoring: z.string(),
   scoringSettings: z.record(z.string(), z.number()).optional(),
   rosterSlots: z.record(z.string(), z.number()),
+  formatCompatibility: FormatCompatibilitySchema.optional(),
 });
 export type DraftSettings = z.infer<typeof DraftSettingsSchema>;
 
@@ -323,6 +331,7 @@ export const TeamManagerStateSchema = z.object({
     teams: z.number(),
     scoring: z.string(),
     rosterSlots: z.record(z.string(), z.number()),
+    formatCompatibility: FormatCompatibilitySchema.optional(),
   }),
   userTeam: z.object({
     rosterId: z.string(),

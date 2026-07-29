@@ -22,6 +22,7 @@
   import RosRankingsImportPanel from "./lib/components/RosRankingsImportPanel.svelte";
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
+  import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
@@ -1349,6 +1350,11 @@
         }}
       />
       <DraftSummaryStrip state={draftState} />
+      <FormatCompatibilityNotice
+        compatibility={workspaceMode === "manage"
+          ? teamManagerState?.league.formatCompatibility
+          : draftState.settings.formatCompatibility}
+      />
 
       {#if workspaceMode === "draft"}
         <DraftRoomPanel state={draftState} />

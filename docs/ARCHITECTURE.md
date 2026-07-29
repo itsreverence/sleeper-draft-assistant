@@ -38,19 +38,20 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 
 1. The user identifies a Sleeper account, league, or draft.
 2. The API reads tokenless data from Sleeper and normalizes it into shared models.
-3. A user-supplied FantasyPros draft rankings CSV adds scoring-specific ECR, tiers, bye weeks, and expert-versus-market context.
-4. User-supplied FantasyPros season projection files for QB, RB, WR, TE, K, and DST are normalized and, where the export exposes the required statistics, rescored with the connected Sleeper league settings. K and DST retain provider points when exact league scoring cannot be reproduced.
-5. A user-supplied FantasyPros Overall ADP CSV adds Sleeper ADP and Real-Time ADP. Sleeper ADP drives platform-specific value; the more aggressive of Sleeper and Real-Time ADP informs pick-return risk.
-6. These draft signals remain separate in the model and persistence layer. The repository does not ship ranking, projection, or ADP data.
-7. A user-supplied FantasyPros overall rest-of-season rankings CSV adds scoring-specific ECR and expert disagreement to Team Manager. One overall export is used instead of separate position exports.
-8. User-supplied weekly projection files add week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
-9. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data is visible but cannot influence current advice.
-10. The deterministic engine evaluates import coverage and matching quality before assigning lineup confidence.
-11. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
-12. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-13. Optional AI providers receive a compact context packet rather than the full player universe.
-14. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
-15. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
+3. Normalization produces one format-compatibility assessment for draft and team workflows. Conventional standard, half-PPR, PPR, FLEX, and superflex leagues are supported; custom scoring and TE premium produce cautions; IDP and auction formats are marked unsupported.
+4. A user-supplied FantasyPros draft rankings CSV adds scoring-specific ECR, tiers, bye weeks, and expert-versus-market context. Known scoring mismatches are rejected.
+5. User-supplied FantasyPros season projection files for QB, RB, WR, TE, K, and DST are normalized and, where the export exposes the required statistics, rescored with the connected Sleeper league settings. K and DST retain provider points when exact league scoring cannot be reproduced.
+6. A user-supplied FantasyPros Overall ADP CSV adds Sleeper ADP and Real-Time ADP. Sleeper ADP drives platform-specific value; the more aggressive of Sleeper and Real-Time ADP informs pick-return risk.
+7. These draft signals remain separate in the model and persistence layer. The repository does not ship ranking, projection, or ADP data.
+8. A user-supplied FantasyPros overall rest-of-season rankings CSV adds scoring-specific ECR and expert disagreement to Team Manager. One overall export is used instead of separate position exports, and known scoring mismatches are rejected.
+9. User-supplied weekly projection files add provider-scored week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
+10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
+11. The deterministic engine evaluates import coverage, matching quality, and format compatibility before assigning confidence.
+12. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
+13. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
+14. Optional AI providers receive a compact context packet rather than the full player universe.
+15. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`.
+16. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
 
 ## Persistence
 
@@ -73,5 +74,7 @@ Executable configuration is limited to commands or paths ending in `codex`, `cod
 - The API is local single-user software; it is not designed for LAN or multi-user hosting.
 - Signed installers are not implemented.
 - Draft, rest-of-season, and weekly values require user-downloaded CSV exports; there is no automatic FantasyPros feed.
+- IDP player values, auction budgets, and nomination strategy are not modeled.
+- Custom scoring and TE-premium accuracy depends on importing values produced for the same format.
 - Exact kicker and defense rescoring is unavailable when exports omit field-goal distance and points-allowed distributions.
 - The capability token is not an IPC replacement and does not defend against same-user malware.

@@ -21,6 +21,19 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 
 Sleeper is currently the only supported fantasy platform. Sleeper search rank is a low-confidence fallback; import current draft data before relying on real-draft recommendations.
 
+## League format support
+
+| Format | Alpha support |
+| --- | --- |
+| Standard, half-PPR, and PPR redraft | Supported |
+| FLEX and superflex roster construction | Supported |
+| Custom scoring and TE premium | Limited; the app warns when imported values may not match |
+| IDP | Unsupported; defensive players are excluded from recommendations |
+| Auction/salary drafts | Unsupported; budgets and nomination strategy are not modeled |
+| Dynasty and keeper valuation | Not yet modeled as a dedicated strategy |
+
+Roster slots, team count, rounds, and supported scoring settings come from Sleeper. FantasyPros ECR and rest-of-season imports must match the league scoring format. Weekly `FPTS` are provider-scored, so users must export FantasyPros projections using the same scoring format as their Sleeper league.
+
 ## Try the demo in about a minute
 
 Requires Node.js 22.12 or later and npm.

@@ -120,6 +120,7 @@ export function buildTeamDataReadiness(
     warnings.push("No weekly projection import is loaded for this team view.");
   } else {
     facts.push(`FantasyPros ${weeklyProjectionSummary.season} Week ${weeklyProjectionSummary.week} was imported ${weeklyProjectionSummary.appliedAt}.`);
+    warnings.push("Weekly FPTS are provider-scored; confirm the FantasyPros export uses this league's scoring format.");
     if (state.league.season && weeklyProjectionSummary.season !== state.league.season) {
       warnings.push(`Imported projections are for ${weeklyProjectionSummary.season}, but this league is ${state.league.season}.`);
     }
@@ -862,14 +863,21 @@ export function buildDraftRecommendation(state: DraftState, options: DraftRecomm
     .join(" or ");
 
   const isPlaceholder = top.player.projectionSource === "sleeper_search_rank";
+  const formatLevel = state.settings.formatCompatibility?.level ?? "supported";
+  const signalConfidence = isPlaceholder ? "low" : top.score > 80 ? "high" : top.score > 66 ? "medium" : "low";
+  const confidence = formatLevel === "unsupported"
+    ? "low"
+    : formatLevel === "caution" && signalConfidence === "high"
+      ? "medium"
+      : signalConfidence;
 
   return {
     headline: isPlaceholder ? `Placeholder lean: ${top.player.name}` : `Lean ${top.player.name}`,
     recommendedPlayerId: top.player.id,
-    confidence: isPlaceholder ? "low" : top.score > 80 ? "high" : top.score > 66 ? "medium" : "low",
+    confidence,
     candidates,
     summary: getRecommendationSummary(top, alternatives),
-    risks: collectRisks(top),
+    risks: [...collectRisks(top), ...(state.settings.formatCompatibility?.warnings ?? [])],
     assumptions: [...getRecommendationAssumptions(top.player.projectionSource), ...getPreferenceAssumptions(state, options.preferences)],
   };
 }

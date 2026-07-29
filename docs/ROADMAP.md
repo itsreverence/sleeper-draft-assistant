@@ -14,6 +14,7 @@ This is a direction document, not a promise or release schedule.
 - roster, lineup, waiver, week, and activity views
 - optional local Codex app-server analysis
 - local SQLite persistence and Electron packaging
+- explicit format compatibility warnings for custom scoring, TE premium, IDP, and auction leagues
 
 ## Before the first published alpha installer
 
@@ -31,6 +32,7 @@ This is a direction document, not a promise or release schedule.
 - stronger accessibility and keyboard-navigation coverage
 - release signing when sustainable
 - more deterministic engine fixtures and explanation tests
+- dedicated dynasty, keeper, auction, and IDP models if demand justifies their separate complexity
 
 ## Non-goals for now
 

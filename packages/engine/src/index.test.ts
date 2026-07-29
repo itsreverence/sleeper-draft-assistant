@@ -160,6 +160,24 @@ describe("mock draft engine", () => {
     expect(recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
   });
 
+  it("caps recommendation confidence when league settings need caution", () => {
+    const state = createEightTeamTwoFlexState();
+    state.settings.formatCompatibility = {
+      level: "caution",
+      features: ["te_premium"],
+      warnings: ["TE-premium values require a matching import."],
+    };
+    state.players = state.players.map((player) => ({
+      ...player,
+      projectionSource: "season_projection",
+    }));
+
+    const recommendation = buildDraftRecommendation(state);
+
+    expect(recommendation.confidence).not.toBe("high");
+    expect(recommendation.risks).toContain("TE-premium values require a matching import.");
+  });
+
   it("does not let imported season signals saturate a shallow one-QB board", () => {
     const state = createEightTeamTwoFlexState();
     const importedRanks = new Map([

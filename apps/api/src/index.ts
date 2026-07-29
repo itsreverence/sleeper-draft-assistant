@@ -20,9 +20,9 @@ import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { createEventStreamChannel } from "./event-stream";
 import { createAiProvider } from "./ai/provider-factory";
-import { applyImportedPlayerValues, importFantasyProsCsv, RankingImportStore } from "./rankings-import";
+import { applyImportedPlayerValues, importFantasyProsCsv, isDraftRankingImportCompatible, RankingImportStore } from "./rankings-import";
 import { AdpImportStore, SeasonProjectionImportStore, applyAdpValue, applySeasonProjectionValue, importFantasyProsAdpCsv, importFantasyProsSeasonProjectionCsvs } from "./draft-value-import";
-import { RosRankingImportStore, applyRosRankingsToPlayers, applyRosRankingsToTeamState, importFantasyProsRosRankings, isRosRankingImportActive, normalizeScoringFormat } from "./ros-rankings-import";
+import { RosRankingImportStore, applyRosRankingsToPlayers, applyRosRankingsToTeamState, importFantasyProsRosRankings, isRosRankingImportActive, isRosScoringCompatible, normalizeScoringFormat } from "./ros-rankings-import";
 import { WeeklyProjectionImportStore, applyWeeklyProjectionsToPlayers, applyWeeklyProjectionsToTeamState, importFantasyProsWeeklyProjectionCsv, isWeeklyProjectionImportActive, mergeWeeklyProjectionImports } from "./weekly-projections-import";
 import { getSleeperConnectOptions } from "./sleeper-connect";
 import { SleeperApiError, SleeperClient } from "./sleeper";
@@ -306,6 +306,11 @@ app.post("/leagues/:leagueId/rankings/ros/import", async (c) => {
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
       sleeperClient.getProjectionImportPlayers(),
     ]);
+    if (!isRosScoringCompatible(body.scoring, state.league.scoring)) {
+      return c.json({
+        error: `The ${body.scoring} ROS rankings do not match this ${state.league.scoring} league.`,
+      }, 400);
+    }
     const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...importPlayers]);
     const storedImport = importFantasyProsRosRankings({
       players: playerPool,
@@ -469,6 +474,11 @@ app.post("/drafts/:draftId/rankings/import", async (c) => {
     const state = await loadDraftState(draftId, getUserRosterId(c));
     const body = RankingImportRequestSchema.parse(await c.req.json());
     const storedImport = importFantasyProsCsv(state, body.csvText, body.scoring);
+    if (!isDraftRankingImportCompatible(state, storedImport)) {
+      return c.json({
+        error: `The ${body.scoring} rankings do not match this ${state.settings.scoring} league.`,
+      }, 400);
+    }
     rankingImportStore.set(draftId, storedImport);
     const importedState = applyDraftData(draftId, state);
 

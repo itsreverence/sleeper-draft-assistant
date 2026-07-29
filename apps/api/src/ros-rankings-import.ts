@@ -252,7 +252,7 @@ export function isRosRankingImportActive(
     return false;
   }
   return storedImport.summary.season === state.league.season
-    && scoringMatches(storedImport.summary.scoring, state.league.scoring);
+    && isRosScoringCompatible(storedImport.summary.scoring, state.league.scoring);
 }
 
 export function normalizeScoringFormat(value: string): DraftScoringFormat {
@@ -267,9 +267,8 @@ export function toRosImportKey(key: RosRankingImportKey): string {
   return `${key.leagueId}:${key.season}:${key.scoring}`;
 }
 
-function scoringMatches(imported: DraftScoringFormat, leagueScoring: string): boolean {
-  const league = normalizeScoringFormat(leagueScoring);
-  return imported === league || imported === "Custom" || league === "Custom";
+export function isRosScoringCompatible(imported: DraftScoringFormat, leagueScoring: string): boolean {
+  return imported === normalizeScoringFormat(leagueScoring);
 }
 
 function parseRosRows(csvText: string): RosRow[] {

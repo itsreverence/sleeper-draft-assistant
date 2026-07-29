@@ -1,5 +1,7 @@
 import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
 
+import { assessFormatCompatibility } from "./format-compatibility";
+
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
 const playerCacheTtlMs = 24 * 60 * 60 * 1000;
 const playerPoolLimit = 700;
@@ -549,6 +551,10 @@ export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateI
     .map((playerId) => playerById.get(playerId))
     .filter(isPresent)
     .filter((player) => !assignedStarterIds.has(player.id) && !reserveIds.has(player.id) && !taxiIds.has(player.id));
+  const scoring = getLeagueScoringLabel(input.league);
+  const rosterSlots = getLeagueRosterSlots(input.league);
+  const scoringSettings = getNumericScoringSettings(input.league.scoring_settings);
+  const formatCompatibility = assessFormatCompatibility({ scoring, scoringSettings, rosterSlots });
 
   return {
     league: {
@@ -557,8 +563,9 @@ export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateI
       season: input.league.season ?? null,
       status: input.league.status ?? "unknown",
       teams: input.league.total_rosters ?? input.rosters.length,
-      scoring: getLeagueScoringLabel(input.league),
-      rosterSlots: getLeagueRosterSlots(input.league),
+      scoring,
+      rosterSlots,
+      formatCompatibility,
     },
     userTeam: {
       rosterId: String(userRoster.roster_id),
@@ -579,6 +586,7 @@ export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateI
       limitations: [
         "Sleeper roster data does not include full fantasy projections.",
         "Starter slots reflect Sleeper starter IDs when available and roster settings otherwise.",
+        ...formatCompatibility.warnings,
       ],
     },
   };
@@ -794,12 +802,21 @@ function buildDraftName(input: SleeperDraftStateInput): string {
 }
 
 function buildDraftSettings(input: SleeperDraftStateInput, teams: number, rounds: number): DraftSettings {
+  const scoring = getScoringLabel(input);
+  const scoringSettings = getNumericScoringSettings(input.league?.scoring_settings);
+  const rosterSlots = getRosterSlots(input);
   return {
     teams,
     rounds,
-    scoring: getScoringLabel(input),
-    scoringSettings: getNumericScoringSettings(input.league?.scoring_settings),
-    rosterSlots: getRosterSlots(input),
+    scoring,
+    scoringSettings,
+    rosterSlots,
+    formatCompatibility: assessFormatCompatibility({
+      scoring,
+      scoringSettings,
+      rosterSlots,
+      draftType: input.draft.type,
+    }),
   };
 }
 
