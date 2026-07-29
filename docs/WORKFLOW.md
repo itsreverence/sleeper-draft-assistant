@@ -64,6 +64,7 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Port already in use:** close the prior development or desktop process; the app intentionally refuses to attach to an API that cannot prove possession of its token.
 - **Web requests return 401:** use the root `npm run dev` launcher so renderer and API receive the same token.
 - **Codex cannot start:** verify the configured executable is `codex`, `codex.exe`, or `codex.cmd`, then run `codex login` separately.
+- **Windows Codex launcher:** prefer the default `codex` setting. The backend resolves the npm launcher without invoking `cmd.exe`; explicit non-npm `.cmd` wrappers are unsupported.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
 - **Recommendations warn about placeholder values:** import the scoring-specific ECR CSV first, then season projections and Overall ADP for full draft context.
 - **League format warning:** standard, half-PPR, PPR, FLEX, and superflex are supported. Custom scoring and TE premium require matching imports; IDP and auction advice is unsupported.

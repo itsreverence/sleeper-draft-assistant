@@ -17,6 +17,8 @@ The supported optional provider runs a user-installed Codex CLI as a local subpr
 
 The executable setting accepts `codex`, `codex.exe`, `codex.cmd`, or a full path ending in one of those names. Arbitrary subprocess commands are rejected.
 
+On Windows, a bare `codex` or npm `codex.cmd` launcher is resolved to the installed npm Codex JavaScript entry point and an explicit `node.exe`. The backend does not enable shell execution. A configured Microsoft Store `codex.exe` path remains usable when Windows permits direct subprocess execution.
+
 Development defaults are optional:
 
 ```bash
@@ -32,3 +34,17 @@ Codex installation, login state, model availability, subscription requirements, 
 ## Provider boundary
 
 Renderer code never stores provider credentials or contacts an AI provider directly. `AiProvider` adapters live in the local API and receive a focused context packet rather than the entire player database. Provider failures must be returned as bounded, redacted application errors.
+
+## Candidate evaluation
+
+When Codex app-server is configured, the lead draft candidate exposes an **AI take** action. Other candidates expose the same action inside their Details view.
+
+Candidate evaluation is:
+
+- on demand; it does not add model latency to normal draft refreshes;
+- grounded in the current deterministic recommendation, roster construction, league settings, and imported-data limitations;
+- validated by the backend so unavailable or no-longer-recommended players cannot be evaluated from stale UI state;
+- tied to the current pick number and marked stale when the board advances;
+- advisory only and never replaces deterministic candidate ordering or evidence.
+
+The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest listed alternative, next positional priorities, disagreement with the engine, and data limitations. It does not receive or claim live news outside the supplied draft context.

@@ -1,4 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import readline from "node:readline";
 
 import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
@@ -102,7 +104,8 @@ class CodexJsonRpcClient {
   ) {}
 
   static async start(codexBin: string, timeoutMs: number): Promise<CodexJsonRpcClient> {
-    const proc = spawn(codexBin, ["app-server"], {
+    const launch = resolveCodexLaunch(codexBin);
+    const proc = spawn(launch.command, [...launch.args, "app-server"], {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -257,6 +260,75 @@ class CodexJsonRpcClient {
     }
     this.pending.clear();
     this.turnFailed?.(error);
+  }
+}
+
+export type CodexLaunch = {
+  command: string;
+  args: string[];
+};
+
+export function resolveCodexLaunch(
+  codexBin: string,
+  platform = process.platform,
+  findWindowsLaunch: () => CodexLaunch = findCodexLaunchOnWindows,
+): CodexLaunch {
+  if (platform !== "win32" || path.extname(codexBin).toLowerCase() === ".exe") {
+    return { command: codexBin, args: [] };
+  }
+
+  const normalized = codexBin.trim().toLowerCase();
+  if (normalized === "codex" || normalized === "codex.cmd") {
+    return findWindowsLaunch();
+  }
+
+  if (normalized.endsWith(".cmd")) {
+    return resolveNpmCodexLauncher(codexBin);
+  }
+
+  return { command: codexBin, args: [] };
+}
+
+function findCodexLaunchOnWindows(): CodexLaunch {
+  const cmdLauncher = findFirstWindowsCommand("codex.cmd");
+  if (cmdLauncher) {
+    return resolveNpmCodexLauncher(cmdLauncher);
+  }
+
+  const executable = findFirstWindowsCommand("codex.exe");
+  if (executable) {
+    return { command: executable, args: [] };
+  }
+  throw new Error("Windows could not locate the Codex CLI. Configure its full path in Settings.");
+}
+
+function resolveNpmCodexLauncher(cmdLauncher: string): CodexLaunch {
+  const codexScript = path.join(path.dirname(cmdLauncher), "node_modules", "@openai", "codex", "bin", "codex.js");
+  if (!existsSync(codexScript)) {
+    throw new Error("The configured codex.cmd is not an npm Codex launcher. Configure codex.exe instead.");
+  }
+  const nodeExecutable = findFirstWindowsCommand("node.exe");
+  if (!nodeExecutable) {
+    throw new Error("Windows could not locate node.exe required by the npm Codex launcher.");
+  }
+  return {
+    command: nodeExecutable,
+    args: [codexScript],
+  };
+}
+
+function findFirstWindowsCommand(command: string): string | null {
+  try {
+    const output = execFileSync("where.exe", [command], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    return output
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .find(Boolean) ?? null;
+  } catch {
+    return null;
   }
 }
 

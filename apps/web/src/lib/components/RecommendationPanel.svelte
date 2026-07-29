@@ -1,7 +1,8 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
-  import type { DraftRecommendation, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import ResponseMarkdown from "./ResponseMarkdown.svelte";
+  import type { CandidateEvaluationPayload, DraftRecommendation, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
     recommendation,
@@ -10,6 +11,9 @@
     onSetPreference,
     onClearPreferences,
     onOpenRankings,
+    currentPick,
+    aiEnabled = false,
+    onEvaluateCandidate,
   }: {
     recommendation: DraftRecommendation | null;
     showPlaceholderWarning?: boolean;
@@ -17,6 +21,9 @@
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
     onClearPreferences?: () => void;
     onOpenRankings?: () => void;
+    currentPick: number;
+    aiEnabled?: boolean;
+    onEvaluateCandidate?: (playerId: string) => Promise<CandidateEvaluationPayload>;
   } = $props();
 
   const confidenceTone = $derived(
@@ -41,6 +48,39 @@
   );
   const primaryCandidates = $derived(recommendation?.candidates.slice(0, 3) ?? []);
   const additionalCandidates = $derived(recommendation?.candidates.slice(3) ?? []);
+  let evaluations: Record<string, CandidateEvaluationPayload> = $state({});
+  let evaluationErrors: Record<string, string> = $state({});
+  let evaluatingPlayerId = $state("");
+  let latestEvaluationPlayerId = $state("");
+  const latestEvaluation = $derived(evaluations[latestEvaluationPlayerId] ?? null);
+  const latestEvaluationStillListed = $derived(
+    Boolean(latestEvaluation && recommendation?.candidates.some((candidate) => candidate.player.id === latestEvaluation.playerId)),
+  );
+  const detachedEvaluationError = $derived(
+    latestEvaluationPlayerId && !recommendation?.candidates.some((candidate) => candidate.player.id === latestEvaluationPlayerId)
+      ? evaluationErrors[latestEvaluationPlayerId] ?? ""
+      : "",
+  );
+
+  async function evaluateCandidate(playerId: string) {
+    if (!onEvaluateCandidate || evaluatingPlayerId) {
+      return;
+    }
+    latestEvaluationPlayerId = playerId;
+    evaluatingPlayerId = playerId;
+    evaluationErrors = { ...evaluationErrors, [playerId]: "" };
+    try {
+      const evaluation = await onEvaluateCandidate(playerId);
+      evaluations = { ...evaluations, [playerId]: evaluation };
+    } catch (error) {
+      evaluationErrors = {
+        ...evaluationErrors,
+        [playerId]: error instanceof Error ? error.message : "Could not evaluate this pick.",
+      };
+    } finally {
+      evaluatingPlayerId = "";
+    }
+  }
 </script>
 
 <article class="panel recommendation-panel">
@@ -81,6 +121,18 @@
   {#if recommendation}
     <p class="summary">{recommendation.summary}</p>
 
+    {#if latestEvaluation && !latestEvaluationStillListed}
+      <div class="detached-evaluation callout callout-warning" aria-live="polite">
+        <div>
+          <strong>AI take for {latestEvaluation.playerName} · stale after pick {latestEvaluation.pickNumber}</strong>
+          <ResponseMarkdown content={latestEvaluation.answer} />
+          <small>This player is no longer a current recommendation candidate. Re-evaluate an available player before acting.</small>
+        </div>
+      </div>
+    {:else if detachedEvaluationError}
+      <div class="callout callout-warning" aria-live="polite">{detachedEvaluationError}</div>
+    {/if}
+
     {#if recommendation.assumptions.length > 0}
       <details class="disclosure">
         <summary>Key assumptions ({recommendation.assumptions.length})</summary>
@@ -109,8 +161,14 @@
           {candidate}
           rank={index + 1}
           featured={index === 0}
+          {currentPick}
+          {aiEnabled}
+          evaluation={evaluations[candidate.player.id] ?? null}
+          evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+          isEvaluating={evaluatingPlayerId === candidate.player.id}
           preference={playerPreferences[candidate.player.id] ?? null}
           {onSetPreference}
+          onEvaluate={evaluateCandidate}
         />
       {/each}
     </div>
@@ -122,8 +180,14 @@
             <CandidateCard
               {candidate}
               rank={index + primaryCandidates.length + 1}
+              {currentPick}
+              {aiEnabled}
+              evaluation={evaluations[candidate.player.id] ?? null}
+              evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+              isEvaluating={evaluatingPlayerId === candidate.player.id}
               preference={playerPreferences[candidate.player.id] ?? null}
               {onSetPreference}
+              onEvaluate={evaluateCandidate}
             />
           {/each}
         </div>
@@ -216,6 +280,22 @@
   .placeholder-warning .btn {
     justify-self: start;
     margin-top: 2px;
+  }
+
+  .detached-evaluation {
+    align-items: flex-start;
+  }
+
+  .detached-evaluation > div {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .detached-evaluation small {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
   }
 
   .disclosure {

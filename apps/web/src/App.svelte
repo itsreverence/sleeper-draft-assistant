@@ -40,6 +40,7 @@
     fetchAiStatus,
     fetchDraftRecommendationRequest,
     fetchDecisionHistory,
+    evaluateDraftCandidateRequest,
     fetchDraftState,
     fetchDiagnostics,
     fetchSettings,
@@ -70,6 +71,7 @@
     DraftScoringFormat,
     DraftState,
     DecisionSnapshot,
+    CandidateEvaluationPayload,
     AdpImportSummary,
     RankingImportSummary,
     RosRankingImportSummary,
@@ -1228,6 +1230,17 @@
     return payload.answer;
   }
 
+  async function evaluateDraftCandidate(playerId: string): Promise<CandidateEvaluationPayload> {
+    const payload = await evaluateDraftCandidateRequest(
+      activeDraftId,
+      activeUserRosterId,
+      playerId,
+      recommendationPreferenceRequest(),
+    );
+    void loadDecisionHistory();
+    return payload;
+  }
+
   const userTeam = $derived(getUserTeam(draftState));
   const activeSourceLabel = $derived(draftState ? (isMockDraft(activeDraftId) ? "Demo draft" : "Sleeper draft") : "No draft loaded");
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
@@ -1459,6 +1472,9 @@
             {#if draftPhase !== "complete"}
               <RecommendationPanel
                 {recommendation}
+                currentPick={draftState.currentPick}
+                aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+                onEvaluateCandidate={evaluateDraftCandidate}
                 playerPreferences={playerPreferences}
                 showPlaceholderWarning={recommendationsUsePlaceholder}
                 onSetPreference={setPlayerPreference}

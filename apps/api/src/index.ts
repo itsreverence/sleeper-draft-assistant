@@ -630,6 +630,51 @@ app.post("/drafts/:draftId/ask", async (c) => {
   }
 });
 
+app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const playerId = c.req.param("playerId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = (await c.req
+      .json<{ recommendationPreferences?: DraftRecommendationOptions["preferences"] }>()
+      .catch(() => ({}))) as { recommendationPreferences?: DraftRecommendationOptions["preferences"] };
+    const recommendation = buildDraftRecommendation(state, {
+      preferences: normalizeRecommendationPreferences(body.recommendationPreferences),
+    });
+    const candidate = recommendation.candidates.find((item) => item.player.id === playerId);
+    if (!candidate) {
+      return c.json({ error: "That player is no longer an available recommendation candidate." }, 409);
+    }
+
+    decisionLogStore.record({
+      draftId,
+      state,
+      recommendation,
+      trigger: "candidate-evaluation",
+      userRosterId: getUserRosterId(c),
+    });
+    const question = [
+      `Evaluate drafting ${candidate.player.name} (${candidate.player.position}, ${candidate.player.team}) at pick ${state.currentPick}.`,
+      "Give a direct verdict using Prefer, Reasonable, or Avoid.",
+      "Then provide 2-4 concise reasons, the strongest alternative from the listed candidates, and the next two positional priorities if this player is selected.",
+      "Explicitly say whether you disagree with the deterministic engine and identify important data limitations.",
+      "Do not claim access to news or information outside the supplied draft context.",
+    ].join(" ");
+    const aiProvider = createAiProvider(settingsStore.get());
+    const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question));
+
+    return c.json({
+      provider: aiAnswer.provider,
+      playerId,
+      playerName: candidate.player.name,
+      pickNumber: state.currentPick,
+      answer: aiAnswer.answer,
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
 app.get("/drafts/:draftId/decisions", (c) => {
   const limit = Number(c.req.query("limit") ?? 50);
   return c.json({ snapshots: decisionLogStore.list(c.req.param("draftId"), Number.isFinite(limit) ? limit : 50) });

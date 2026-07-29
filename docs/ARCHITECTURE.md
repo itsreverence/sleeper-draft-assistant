@@ -50,7 +50,7 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 12. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
 13. Draft SSE polling keeps the last valid state visible during transient Sleeper failures. Repeated failures use bounded backoff from 5 to 30 seconds, and renderer events expose only a generic upstream-safe error plus sync age.
 14. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-15. Optional AI providers receive a compact context packet rather than the full player universe.
+15. Optional AI providers receive a compact context packet rather than the full player universe. Candidate evaluation is a dedicated authenticated backend route: it validates the player against the current recommendation, records a decision snapshot, and returns an answer tagged with the current pick number for renderer-side staleness handling.
 16. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
 17. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
 
@@ -68,6 +68,7 @@ The renderer can clear draft rankings, season projections, draft ADP, rest-of-se
 - `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
 
 Executable configuration is limited to commands or paths ending in `codex`, `codex.exe`, or `codex.cmd`.
+On Windows, npm launchers are resolved to their known `@openai/codex/bin/codex.js` entry point and `node.exe`; arbitrary shell execution is not enabled.
 
 ## Known architectural limits
 

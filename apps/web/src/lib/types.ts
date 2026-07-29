@@ -10,7 +10,7 @@ export type DraftPayload = {
 
 export type DecisionSnapshot = {
   id: string;
-  trigger: "state-load" | "rankings-import" | "rankings-clear" | "manual-refresh" | "ai-question" | "pick-update";
+  trigger: "state-load" | "rankings-import" | "rankings-clear" | "manual-refresh" | "ai-question" | "candidate-evaluation" | "pick-update";
   createdAt: string;
   currentPick: number;
   picksMade: number;
@@ -130,6 +130,14 @@ export type WeeklyProjectionStatusPayload = {
 export type AskAnswerPayload = {
   answer: string;
   recommendation: DraftRecommendation;
+};
+
+export type CandidateEvaluationPayload = {
+  provider: AiProviderStatus;
+  playerId: string;
+  playerName: string;
+  pickNumber: number;
+  answer: string;
 };
 
 export type Tone = "ready" | "warning" | "blocked" | "neutral";

@@ -26,6 +26,7 @@
       "rankings-clear": "rankings cleared",
       "manual-refresh": "recommendation refreshed",
       "ai-question": "manager asked",
+      "candidate-evaluation": "candidate evaluated",
       "pick-update": "pick recorded",
     };
     return labels[trigger];

@@ -1,19 +1,33 @@
 <script lang="ts">
-  import type { CandidateSignal, PlayerPreferenceLevel } from "../types";
+  import type { CandidateEvaluationPayload, CandidateSignal, PlayerPreferenceLevel } from "../types";
   import { rosterFitLabel, sourceLabel } from "../format";
+  import Icon from "./Icon.svelte";
+  import ResponseMarkdown from "./ResponseMarkdown.svelte";
 
   let {
     candidate,
     rank,
     preference = null,
     featured = false,
+    currentPick,
+    aiEnabled = false,
+    evaluation = null,
+    evaluationError = "",
+    isEvaluating = false,
     onSetPreference,
+    onEvaluate,
   }: {
     candidate: CandidateSignal;
     rank: number;
     preference?: PlayerPreferenceLevel | null;
     featured?: boolean;
+    currentPick: number;
+    aiEnabled?: boolean;
+    evaluation?: CandidateEvaluationPayload | null;
+    evaluationError?: string;
+    isEvaluating?: boolean;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
+    onEvaluate?: (playerId: string) => void | Promise<void>;
   } = $props();
 
   let detailsOpen = $state(false);
@@ -21,9 +35,18 @@
   const returnPct = $derived(Math.round(candidate.returnProbability * 100));
   const primaryReason = $derived(candidate.reasons[0] ?? rosterFitLabel(candidate.rosterFit));
   const extraReasons = $derived(candidate.reasons.slice(1));
+  const evaluationStale = $derived(Boolean(evaluation && evaluation.pickNumber !== currentPick));
 
   function togglePreference(nextPreference: PlayerPreferenceLevel) {
     onSetPreference?.(candidate.player.id, preference === nextPreference ? null : nextPreference);
+  }
+
+  function evaluateCandidate() {
+    if (!onEvaluate || isEvaluating) {
+      return;
+    }
+    detailsOpen = true;
+    void onEvaluate(candidate.player.id);
   }
 </script>
 
@@ -64,6 +87,18 @@
     >
       {preference === "pin" ? "Shortlisted" : "Shortlist"}
     </button>
+    {#if aiEnabled && featured}
+      <button
+        class="ai-action"
+        type="button"
+        title={`Ask AI whether to draft ${candidate.player.name}`}
+        disabled={isEvaluating}
+        onclick={evaluateCandidate}
+      >
+        <Icon name="message" size={13} />
+        {isEvaluating ? "Thinking" : evaluation ? "Refresh AI take" : "AI take"}
+      </button>
+    {/if}
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
       {detailsOpen ? "Less" : "Details"}
     </button>
@@ -100,7 +135,36 @@
         >
           {preference === "exclude" ? "Excluded" : "Exclude"}
         </button>
+        {#if aiEnabled && !featured}
+          <button
+            class="ai-secondary"
+            type="button"
+            title={`Ask AI whether to draft ${candidate.player.name}`}
+            disabled={isEvaluating}
+            onclick={evaluateCandidate}
+          >
+            <Icon name="message" size={13} />
+            {isEvaluating ? "Thinking" : evaluation ? "Refresh AI take" : "AI take"}
+          </button>
+        {/if}
       </div>
+    </div>
+  {/if}
+
+  {#if evaluation || evaluationError || isEvaluating}
+    <div class="evaluation" class:stale={evaluationStale} aria-live="polite">
+      <div class="evaluation-heading">
+        <strong>AI take</strong>
+        {#if evaluationStale}<span>Board changed · refresh</span>{/if}
+      </div>
+      {#if isEvaluating}
+        <p>Evaluating {candidate.player.name} against the current board...</p>
+      {:else if evaluationError}
+        <p class="evaluation-error">{evaluationError}</p>
+      {:else if evaluation}
+        <ResponseMarkdown content={evaluation.answer} />
+        <small>Evaluated at pick {evaluation.pickNumber}. Verify model analysis against the deterministic evidence above.</small>
+      {/if}
     </div>
   {/if}
 </section>
@@ -239,6 +303,9 @@
   }
 
   .actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--surface-raised);
@@ -247,6 +314,12 @@
     font-size: var(--text-xs);
     font-weight: 700;
     padding: 7px 10px;
+  }
+
+  .actions button:disabled,
+  .secondary-actions button:disabled {
+    cursor: wait;
+    opacity: 0.6;
   }
 
   .actions button:hover,
@@ -301,6 +374,9 @@
   }
 
   .secondary-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     border: 0;
     background: transparent;
     padding: 4px 0;
@@ -308,6 +384,54 @@
     cursor: pointer;
     font-size: var(--text-xs);
     font-weight: 700;
+  }
+
+  .ai-secondary {
+    margin-left: auto;
+  }
+
+  .evaluation {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--info-border);
+    border-radius: var(--radius-md);
+    background: var(--info-soft);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+
+  .evaluation.stale {
+    border-color: var(--warning-border);
+    background: var(--warning-soft);
+  }
+
+  .evaluation-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .evaluation-heading strong {
+    color: var(--text-primary);
+  }
+
+  .evaluation-heading span,
+  .evaluation small {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .evaluation p {
+    margin: 0;
+  }
+
+  .evaluation-error {
+    color: var(--danger);
   }
 
   .secondary-actions button + button {

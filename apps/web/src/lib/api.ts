@@ -1,4 +1,4 @@
-import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, CandidateEvaluationPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -420,6 +420,31 @@ export async function fetchDecisionHistory(
     throw new Error(await readErrorMessage(response, "Could not load recommendation history."));
   }
   return (await response.json()) as DecisionHistoryPayload;
+}
+
+export async function evaluateDraftCandidateRequest(
+  draftId: string,
+  userRosterId: string | null,
+  playerId: string,
+  recommendationPreferences: RecommendationPreferenceRequest,
+): Promise<CandidateEvaluationPayload> {
+  const query = new URLSearchParams();
+  if (userRosterId) {
+    query.set("userRosterId", userRosterId);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await apiFetch(
+    `${apiBase}/drafts/${encodeURIComponent(draftId)}/candidates/${encodeURIComponent(playerId)}/evaluate${suffix}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recommendationPreferences }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Could not evaluate this candidate."));
+  }
+  return (await response.json()) as CandidateEvaluationPayload;
 }
 
 export async function askManagerRequest(

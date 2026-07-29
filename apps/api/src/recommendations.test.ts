@@ -24,6 +24,14 @@ type AskPayload = {
   provider: { id: string; label: string; configured: boolean };
 };
 
+type CandidateEvaluationPayload = {
+  answer: string;
+  playerId: string;
+  playerName: string;
+  pickNumber: number;
+  provider: { id: string };
+};
+
 const fantasyProsCsv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
 "1",1,"Josh Allen",BUF,"QB1","7","","","4 out of 5 stars","+8"
 "2",1,"Jahmyr Gibbs",DET,"RB1","6","","","5 out of 5 stars","0"
@@ -188,11 +196,47 @@ describe("draft recommendation routes", () => {
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
 
+      const evaluationCandidate = askPayload.recommendation.candidates[0];
+      expect(evaluationCandidate).toBeTruthy();
+      const evaluationResponse = await app.request(
+        `/drafts/mock-draft/candidates/${evaluationCandidate!.player.id}/evaluate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recommendationPreferences: {
+              excludedPlayerIds: excludedId ? [excludedId] : [],
+              fadedPlayerIds: fadedId ? [fadedId] : [],
+            },
+          }),
+        },
+      );
+      expect(evaluationResponse.status).toBe(200);
+      const evaluation = (await evaluationResponse.json()) as CandidateEvaluationPayload;
+      expect(evaluation).toMatchObject({
+        playerId: evaluationCandidate!.player.id,
+        playerName: evaluationCandidate!.player.name,
+        pickNumber: expect.any(Number),
+        provider: { id: "noop" },
+      });
+      expect(evaluation.answer).toContain("deterministic draft context");
+
+      const unavailableEvaluation = await app.request("/drafts/mock-draft/candidates/not-available/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(unavailableEvaluation.status).toBe(409);
+      expect(await unavailableEvaluation.json()).toEqual({
+        error: "That player is no longer an available recommendation candidate.",
+      });
+
       const decisionResponse = await app.request("/drafts/mock-draft/decisions?limit=10");
       expect(decisionResponse.status).toBe(200);
       const decisions = (await decisionResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "candidate-evaluation")).toBe(true);
     } finally {
       await app.request("/drafts/mock-draft/rankings/import", { method: "DELETE" });
       await app.request("/drafts/mock-draft/projections/season/import", { method: "DELETE" });
