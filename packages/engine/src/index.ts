@@ -825,12 +825,23 @@ export function buildCandidateSignals(state: DraftState, limit = 8, options: Dra
   const rosterCounts = countRosterPositions(userTeam, state.players);
   const preferenceSets = toPreferenceSets(options.preferences);
   const available = getAvailablePlayers(state).filter((player) => !preferenceSets.excluded.has(player.id));
-  const importedAvailable = available.filter(hasImportedDraftSignal);
-  const recommendationPool = importedAvailable.length > 0 ? importedAvailable : available;
+  const mandatoryPositions = getMandatoryCompletionPositions(state, rosterCounts);
+  const eligibleAvailable = mandatoryPositions.size > 0
+    ? available.filter((player) => mandatoryPositions.has(player.position))
+    : available;
+  const importedAvailable = eligibleAvailable.filter(hasImportedDraftSignal);
+  const recommendationPool = importedAvailable.length > 0 ? importedAvailable : eligibleAvailable;
   const replacementBaselines = getReplacementBaselines(state);
+  const urgentCompletion = mandatoryPositions.size > 0 && countRemainingUserPicks(state) <= 2;
 
   return recommendationPool
     .map((player) => toCandidateSignal(player, state, rosterCounts, preferenceSets, replacementBaselines))
+    .map((candidate) => urgentCompletion && mandatoryPositions.has(candidate.player.position)
+      ? {
+          ...candidate,
+          reasons: [...candidate.reasons, `${candidate.player.position} is required to complete the starting lineup`],
+        }
+      : candidate)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
@@ -871,13 +882,20 @@ export function buildDraftRecommendation(state: DraftState, options: DraftRecomm
     : formatLevel === "caution" && signalConfidence === "high"
       ? "medium"
       : signalConfidence;
+  const mustCompleteLineup = top.reasons.some((reason) => reason.includes("required to complete the starting lineup"));
 
   return {
-    headline: isPlaceholder ? `Placeholder lean: ${top.player.name}` : `Lean ${top.player.name}`,
+    headline: mustCompleteLineup
+      ? `Fill ${top.player.position}: ${top.player.name}`
+      : isPlaceholder
+        ? `Placeholder lean: ${top.player.name}`
+        : `Lean ${top.player.name}`,
     recommendedPlayerId: top.player.id,
     confidence,
     candidates,
-    summary: getRecommendationSummary(top, alternatives),
+    summary: mustCompleteLineup
+      ? `${top.player.position} must be filled now to complete the starting lineup with the remaining selections.`
+      : getRecommendationSummary(top, alternatives),
     risks: [...collectRisks(top), ...(state.settings.formatCompatibility?.warnings ?? [])],
     assumptions: [...getRecommendationAssumptions(top.player.projectionSource), ...getPreferenceAssumptions(state, options.preferences)],
   };
@@ -1135,6 +1153,45 @@ function getRosterCompletionBoost(
   }
 
   return 0;
+}
+
+function getMandatoryCompletionPositions(
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): Set<Position> {
+  const directGaps = getDirectStarterGaps(state, rosterCounts);
+  const flexGap = getFlexibleStarterGap(state, rosterCounts);
+  const requiredPositions = (Object.entries(directGaps) as Array<[Position, number]>)
+    .filter(([, gap]) => gap > 0)
+    .map(([position]) => position);
+  if (flexGap > 0) {
+    requiredPositions.push("RB", "WR", "TE");
+  }
+
+  if (requiredPositions.length === 0) {
+    return new Set();
+  }
+
+  const totalRequiredGaps = Object.values(directGaps).reduce((total, gap) => total + gap, flexGap);
+  return countRemainingUserPicks(state) <= totalRequiredGaps
+    ? new Set(requiredPositions)
+    : new Set();
+}
+
+function getFlexibleStarterGap(
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): number {
+  const slots = state.settings.rosterSlots;
+  const flexSlots = getDraftFlexSlotCount(slots);
+  if (flexSlots <= 0) {
+    return 0;
+  }
+
+  const surplusRb = Math.max(0, rosterCounts.RB - (slots.RB ?? 0));
+  const surplusWr = Math.max(0, rosterCounts.WR - (slots.WR ?? 0));
+  const surplusTe = Math.max(0, rosterCounts.TE - (slots.TE ?? 0));
+  return Math.max(0, flexSlots - surplusRb - surplusWr - surplusTe);
 }
 
 function getDirectStarterGaps(

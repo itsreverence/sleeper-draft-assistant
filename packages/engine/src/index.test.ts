@@ -398,6 +398,119 @@ function formatPlayer(
 }
 
 describe("full draft simulations", () => {
+  it("hard-requires K and DEF when only two roster selections remain", () => {
+    const teams = Array.from({ length: 8 }, (_, index) => ({
+      id: `endgame-team-${index + 1}`,
+      name: `Team ${index + 1}`,
+      draftSlot: index + 1,
+      roster: [] as string[],
+    }));
+    const userTeam = teams[4]!;
+    const rosterPositions: Position[] = ["QB", "RB", "RB", "RB", "RB", "WR", "WR", "WR", "WR", "WR", "TE", "TE", "TE"];
+    const rosterPlayers = rosterPositions.map((position, index) =>
+      formatPlayer(`endgame-${position.toLowerCase()}-${index + 1}`, `Roster ${position} ${index + 1}`, "SIM", position, 250 - index, index + 1, 1),
+    );
+    userTeam.roster = rosterPlayers.map((player) => player.id);
+    const state: DraftState = {
+      id: "endgame-draft",
+      name: "Endgame Draft",
+      status: "drafting",
+      currentPick: 108,
+      userTeamId: userTeam.id,
+      settings: {
+        teams: 8,
+        rounds: 15,
+        scoring: "PPR",
+        rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, BN: 5, K: 1, DEF: 1 },
+      },
+      teams,
+      players: [
+        ...rosterPlayers,
+        formatPlayer("endgame-elite-wr", "Elite Bench WR", "SIM", "WR", 400, 1, 1),
+        formatPlayer("endgame-k", "Available Kicker", "SIM", "K", 1, 250, 20),
+        formatPlayer("endgame-def", "Available Defense", "SIM", "DEF", 1, 251, 20),
+      ],
+      picks: rosterPlayers.map((player, index) => ({
+        pickNo: index + 1,
+        round: Math.floor(index / 8) + 1,
+        draftSlot: userTeam.draftSlot,
+        teamId: userTeam.id,
+        playerId: player.id,
+      })),
+      updatedAt: "2026-07-29T00:00:00.000Z",
+    };
+
+    const firstRecommendation = buildDraftRecommendation(state);
+    expect(firstRecommendation.candidates.map((candidate) => candidate.player.position).sort()).toEqual(["DEF", "K"]);
+    expect(firstRecommendation.headline).toMatch(/^Fill (K|DEF):/);
+    expect(firstRecommendation.summary).toContain("must be filled now");
+
+    const selected = firstRecommendation.candidates[0]!.player;
+    userTeam.roster.push(selected.id);
+    state.picks.push({
+      pickNo: 108,
+      round: 14,
+      draftSlot: userTeam.draftSlot,
+      teamId: userTeam.id,
+      playerId: selected.id,
+    });
+    state.currentPick = 117;
+
+    const finalRecommendation = buildDraftRecommendation(state);
+    const remainingPosition = selected.position === "K" ? "DEF" : "K";
+    expect(finalRecommendation.candidates).toHaveLength(1);
+    expect(finalRecommendation.candidates[0]?.player.position).toBe(remainingPosition);
+    expect(finalRecommendation.headline).toMatch(new RegExp(`^Fill ${remainingPosition}:`));
+  });
+
+  it("hard-requires a flex-eligible player when the final starter slot is open", () => {
+    const userTeam = {
+      id: "flex-team",
+      name: "Your Team",
+      draftSlot: 1,
+      roster: [] as string[],
+    };
+    const roster = [
+      formatPlayer("flex-qb", "Roster QB", "SIM", "QB", 300, 1, 1),
+      formatPlayer("flex-rb", "Roster RB", "SIM", "RB", 250, 2, 1),
+      formatPlayer("flex-wr", "Roster WR", "SIM", "WR", 240, 3, 1),
+      formatPlayer("flex-te", "Roster TE", "SIM", "TE", 180, 4, 1),
+      formatPlayer("flex-backup-qb", "Elite Backup QB", "SIM", "QB", 500, 5, 1),
+    ];
+    userTeam.roster = roster.map((player) => player.id);
+    const state: DraftState = {
+      id: "flex-endgame-draft",
+      name: "Flex Endgame",
+      status: "drafting",
+      currentPick: 6,
+      userTeamId: userTeam.id,
+      settings: {
+        teams: 1,
+        rounds: 6,
+        scoring: "PPR",
+        rosterSlots: { QB: 1, RB: 1, WR: 1, TE: 1, FLEX: 1, BN: 1 },
+      },
+      teams: [userTeam],
+      players: [
+        ...roster,
+        formatPlayer("flex-option", "Available Flex", "SIM", "WR", 1, 200, 20),
+        formatPlayer("flex-qb-option", "Available QB", "SIM", "QB", 600, 6, 1),
+      ],
+      picks: roster.map((player, index) => ({
+        pickNo: index + 1,
+        round: index + 1,
+        draftSlot: userTeam.draftSlot,
+        teamId: userTeam.id,
+        playerId: player.id,
+      })),
+      updatedAt: "2026-07-29T00:00:00.000Z",
+    };
+
+    const recommendation = buildDraftRecommendation(state);
+    expect(recommendation.candidates).toHaveLength(1);
+    expect(recommendation.candidates[0]?.player.id).toBe("flex-option");
+  });
+
   it("finishes an 8-team PPR draft with every required starter position", () => {
     const state = simulateRecommendationDraft({
       QB: 1,
@@ -838,5 +951,3 @@ function simulatedUserPositionCounts(state: DraftState): Record<Position, number
   }
   return counts;
 }
-
-
