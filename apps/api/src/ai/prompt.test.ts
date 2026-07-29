@@ -13,7 +13,8 @@ describe("draft manager prompt", () => {
 
     expect(prompt).toContain("Neutral draft evidence JSON:");
     expect(prompt).toContain("search_available_players");
-    expect(prompt).toContain("initialPlayerPool");
+    expect(prompt).toContain("playerEvidenceGroups");
+    expect(prompt).toContain("playerEvidence");
     expect(prompt).toContain("openDirectStarterSlots");
     expect(prompt).not.toContain("engineLean");
     expect(prompt).not.toContain("draftBrief");
@@ -24,7 +25,7 @@ describe("draft manager prompt", () => {
     const instructions = buildDraftManagerInstructions();
 
     expect(instructions).toContain("Independently answer");
-    expect(instructions).toContain("neutral retrieval sample");
+    expect(instructions).toContain("neutral catalog");
     expect(instructions).toContain("Use search_available_players");
     expect(instructions).toContain("Do not invent player projections");
   });
@@ -32,7 +33,8 @@ describe("draft manager prompt", () => {
   it("gives the primary strategist neutral evidence and player search instead of an engine lean", () => {
     const prompt = buildDraftStrategyPrompt(buildDraftStrategyContext(createMockDraftState(8)));
 
-    expect(prompt).toContain("initialPlayerPool is a neutral retrieval sample");
+    expect(prompt).toContain("playerEvidence is an alphabetically ordered catalog");
+    expect(prompt).toContain("separate pinned, ECR, projection, ADP, Sleeper search-rank fallback, and position-coverage retrievals");
     expect(prompt).toContain("Use search_available_players proactively");
     expect(prompt).toContain("openDirectStarterSlots");
     expect(prompt).not.toContain("engineLean");

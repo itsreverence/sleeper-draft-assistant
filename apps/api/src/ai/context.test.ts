@@ -25,7 +25,8 @@ describe("AI provider context", () => {
     expect(context.board.recentPicks).toHaveLength(3);
     expect(context.conversationHistory).toHaveLength(8);
     expect(context.focusPlayers[0]?.playerId).toBe(focusPlayer?.id);
-    expect(context.initialPlayerPool[0]).not.toHaveProperty("score");
+    expect(context.playerEvidence[0]).not.toHaveProperty("score");
+    expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
     expect(context).not.toHaveProperty("recommendation");
     expect(context).not.toHaveProperty("draftBrief");
   });
@@ -39,7 +40,10 @@ describe("AI provider context", () => {
 
     expect(answer.provider.id).toBe("noop");
     expect(answer.answer).toContain("AI provider is not connected");
-    expect(answer.answer).toContain(context.initialPlayerPool[0]?.name);
+    const projectionLeader = context.playerEvidence.find(
+      (player) => player.playerId === context.playerEvidenceGroups.projectionLeaders[0],
+    );
+    expect(answer.answer).toContain(projectionLeader?.name);
   });
   it("builds a structured strategy packet with a broad grounded shortlist", async () => {
     const state = createEightTeamTwoFlexState();
@@ -47,12 +51,13 @@ describe("AI provider context", () => {
     const strategy = await new NoopAiProvider().strategizeDraft(context);
 
     expect(context.task).toBe("draft_strategy");
-    expect(context.initialPlayerPool.length).toBeGreaterThan(0);
-    expect(context.initialPlayerPool[0]).not.toHaveProperty("score");
+    expect(context.playerEvidence.length).toBeGreaterThan(0);
+    expect(context.playerEvidence[0]).not.toHaveProperty("score");
+    expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
     expect(context.roster.openDirectStarterSlots.K).toBe(0);
     expect(context.roster.openSuperFlexSlots).toBe(0);
     expect(strategy.decision.basedOnPick).toBe(state.currentPick);
-    expect(strategy.decision.recommendedPlayerId).toBe(context.initialPlayerPool[0]?.playerId);
+    expect(strategy.decision.recommendedPlayerId).toBe(context.playerEvidenceGroups.projectionLeaders[0]);
     expect(strategy.decision.alternativePlayerIds.length).toBeGreaterThan(0);
   });
   it("reports raw open slots when one position has consumed direct and flex capacity", () => {

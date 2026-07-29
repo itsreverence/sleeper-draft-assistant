@@ -1,6 +1,6 @@
 import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 
-import { buildNeutralInitialPlayerPool, createDraftPlayerSnapshot, toDraftPlayerEvidence, type DraftPlayerSnapshot } from "./draft-tools";
+import { buildGroupedPlayerEvidence, createDraftPlayerSnapshot, toDraftPlayerEvidence, type DraftPlayerSnapshot } from "./draft-tools";
 import type { AiConversationMessage, DraftQuestionContext, DraftStrategyContext, PlayerPreferenceSummary } from "./types";
 
 export function buildDraftStrategyContext(
@@ -19,6 +19,7 @@ export function buildDraftStrategyContext(
   const nextUserPick = findNextUserPick(state);
   const recentPicks = [...state.picks].reverse().slice(0, 12);
   const availablePlayers = snapshot.players.filter((player) => !snapshot.preferences.excluded.has(player.id));
+  const groupedPlayerEvidence = buildGroupedPlayerEvidence(snapshot, openDirectStarterSlots);
 
   return {
     task: "draft_strategy",
@@ -76,12 +77,14 @@ export function buildDraftStrategyContext(
       availableByPosition: countPlayerPositions(availablePlayers),
       teamsSelectingBeforeNextTurn: getTeamsSelectingBeforeNextTurn(state, nextUserPick, playersById),
     },
-    initialPlayerPool: buildNeutralInitialPlayerPool(snapshot, openDirectStarterSlots),
+    ...groupedPlayerEvidence,
     toolInstructions: [
-      "The initial player pool is a neutral union of raw ECR, projection, ADP, open-position, and pinned-player results; its order is not a recommendation.",
+      "playerEvidence is an alphabetically ordered catalog. Its order is not a recommendation.",
+      "playerEvidenceGroups contains player IDs grouped by why they were retrieved. Ordering inside each signal-specific group follows only that named raw signal.",
+      "positionCoverage uses the first populated source in this order: ECR, season projection, Sleeper ADP, then Sleeper search-rank placeholder.",
       "Use search_available_players whenever another position, tier, or named player could materially change the decision.",
       "Tool results are from the immutable player pool captured at draft.currentPick.",
-      "Treat imported rank, season projection, Sleeper ADP, and Real-Time ADP as separate evidence.",
+      "Treat imported rank, season projection, Sleeper ADP, Real-Time ADP, and Sleeper search-rank placeholder as separate evidence.",
     ],
   };
 }

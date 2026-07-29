@@ -37,13 +37,13 @@ Renderer code never stores provider credentials or contacts an AI provider direc
 
 ## AI-first draft strategy
 
-When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and a neutral initial player pool. The primary strategy packet does not include the fallback engine's lean, composite score, confidence, qualitative value labels, return-probability estimate, or engine-authored reasons.
+When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and grouped player evidence. The primary strategy packet does not include the fallback engine's lean, composite score, confidence, qualitative value labels, return-probability estimate, or engine-authored reasons.
 
-The initial pool is a union of raw ECR, season projection, Sleeper ADP, open-position, and pinned-player retrieval. Its order is explicitly not a recommendation.
+The prompt contains one alphabetically ordered, deduplicated player catalog plus separate ID groups for pinned targets, ECR leaders, season-projection leaders, Sleeper ADP leaders, Real-Time ADP leaders, Sleeper search-rank placeholders, and position coverage. A signal group contains only players with that signal. Ordering within a signal group reflects only that raw signal; catalog order is explicitly not a recommendation.
 
 The Codex adapter exposes one provider-neutral, read-only dynamic tool:
 
-- `search_available_players`: searches the immutable player pool captured at the current pick. It supports position, name, exact tier, result limit, and sorting by ECR, season projection, Sleeper ADP, or Real-Time ADP. Results contain raw evidence and user preference markers, not local recommendation scores.
+- `search_available_players`: searches the immutable player pool captured at the current pick. It supports position, name, exact tier, result limit, and sorting by ECR, season projection, Sleeper ADP, Real-Time ADP, or Sleeper search-rank placeholder. Results contain raw evidence and user preference markers, not local recommendation scores.
 
 Dynamic tools are experimental in Codex app-server, so the protocol handling remains isolated inside the experimental adapter. Tool calls are limited to six per AI turn and twenty results per search.
 

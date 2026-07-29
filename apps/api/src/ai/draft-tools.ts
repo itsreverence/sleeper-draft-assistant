@@ -3,10 +3,10 @@ import { z } from "zod";
 import { getAvailablePlayers } from "@sleeper-draft-assistant/engine";
 import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 
-import type { AiTool, DraftPlayerEvidence, PlayerPreferenceSummary } from "./types";
+import type { AiTool, DraftPlayerEvidence, DraftPlayerEvidenceGroups, PlayerPreferenceSummary } from "./types";
 
 const positions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
-const sortOptions = ["ecr", "projection", "sleeper_adp", "realtime_adp"] as const;
+const sortOptions = ["ecr", "projection", "sleeper_adp", "realtime_adp", "sleeper_search_rank"] as const;
 
 const SearchPlayersInputSchema = z.object({
   positions: z.array(z.enum(positions as [Position, ...Position[]])).max(6).optional(),
@@ -56,7 +56,7 @@ export function createDraftStrategyTools(snapshot: DraftPlayerSnapshot): AiTool[
         type: "function",
         name: "search_available_players",
         description:
-          "Search the immutable pool of players available at the current pick. Use this whenever the initial player pool does not cover a position, tier, or player you want to investigate. Results contain raw imported evidence, not a recommendation score.",
+          "Search the immutable pool of players available at the current pick. Use this whenever the supplied evidence groups do not cover a position, tier, or player you want to investigate. Results contain raw imported evidence, not a recommendation score.",
         inputSchema: {
           type: "object",
           additionalProperties: false,
@@ -121,33 +121,69 @@ export function createDraftStrategyTools(snapshot: DraftPlayerSnapshot): AiTool[
   ];
 }
 
-export function buildNeutralInitialPlayerPool(
+export function buildGroupedPlayerEvidence(
   snapshot: DraftPlayerSnapshot,
   openDirectStarterSlots: Record<Position, number>,
-): DraftPlayerEvidence[] {
+): {
+  playerEvidence: DraftPlayerEvidence[];
+  playerEvidenceGroups: DraftPlayerEvidenceGroups;
+} {
   const eligible = snapshot.players.filter((player) => !snapshot.preferences.excluded.has(player.id));
-  const selected = new Map<string, Player>();
-  const addTop = (players: Player[], count: number, sortBy: typeof sortOptions[number]) => {
-    for (const player of [...players].sort((left, right) => comparePlayers(left, right, sortBy)).slice(0, count)) {
-      selected.set(player.id, player);
-    }
+  const selectTopIds = (players: Player[], count: number, sortBy: typeof sortOptions[number]) =>
+    [...players]
+      .filter((player) => getSortValue(player, sortBy) !== null)
+      .sort((left, right) => comparePlayers(left, right, sortBy))
+      .slice(0, count)
+      .map((player) => player.id);
+  const groups: DraftPlayerEvidenceGroups = {
+    pinnedTargets: eligible
+      .filter((player) => snapshot.preferences.pinned.has(player.id))
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((player) => player.id),
+    ecrLeaders: selectTopIds(eligible, 10, "ecr"),
+    projectionLeaders: selectTopIds(eligible, 8, "projection"),
+    sleeperAdpLeaders: selectTopIds(eligible, 8, "sleeper_adp"),
+    realTimeAdpLeaders: selectTopIds(eligible, 8, "realtime_adp"),
+    sleeperSearchRankLeaders: selectTopIds(eligible, 10, "sleeper_search_rank"),
+    positionCoverage: {
+      QB: [],
+      RB: [],
+      WR: [],
+      TE: [],
+      K: [],
+      DEF: [],
+    },
   };
-
-  addTop(eligible, 10, "ecr");
-  addTop(eligible, 8, "projection");
-  addTop(eligible, 8, "sleeper_adp");
   for (const position of positions) {
     if (openDirectStarterSlots[position] > 0 || position === "RB" || position === "WR") {
-      addTop(eligible.filter((player) => player.position === position), 2, "ecr");
+      const positionPlayers = eligible.filter((player) => player.position === position);
+      for (const sortBy of ["ecr", "projection", "sleeper_adp", "sleeper_search_rank"] as const) {
+        const candidates = selectTopIds(positionPlayers, 2, sortBy);
+        if (candidates.length > 0) {
+          groups.positionCoverage[position] = candidates;
+          break;
+        }
+      }
     }
   }
-  for (const player of eligible.filter((candidate) => snapshot.preferences.pinned.has(candidate.id))) {
-    selected.set(player.id, player);
-  }
-
-  return [...selected.values()]
-    .slice(0, 36)
+  const selectedIds = new Set([
+    ...groups.pinnedTargets,
+    ...groups.ecrLeaders,
+    ...groups.projectionLeaders,
+    ...groups.sleeperAdpLeaders,
+    ...groups.realTimeAdpLeaders,
+    ...groups.sleeperSearchRankLeaders,
+    ...Object.values(groups.positionCoverage).flat(),
+  ]);
+  const playerEvidence = eligible
+    .filter((player) => selectedIds.has(player.id))
+    .sort((left, right) => left.name.localeCompare(right.name))
     .map((player) => toDraftPlayerEvidence(player, snapshot));
+
+  return {
+    playerEvidence,
+    playerEvidenceGroups: groups,
+  };
 }
 
 export function toDraftPlayerEvidence(
@@ -165,6 +201,7 @@ export function toDraftPlayerEvidence(
     seasonProjectedPoints: player.seasonProjectedPoints ?? (
       player.projectionSource === "season_projection" ? player.projectedPoints : null
     ),
+    sleeperSearchRank: player.projectionSource === "sleeper_search_rank" ? player.projectedPoints : null,
     sleeperAdp: player.adpSource ? player.adp : null,
     realTimeAdp: player.realTimeAdp ?? null,
     tier: player.tier ?? null,
@@ -213,7 +250,10 @@ function getSortValue(player: Player, sortBy: typeof sortOptions[number]): numbe
   if (sortBy === "sleeper_adp") {
     return player.adpSource ? player.adp : null;
   }
-  return player.realTimeAdp ?? null;
+  if (sortBy === "realtime_adp") {
+    return player.realTimeAdp ?? null;
+  }
+  return player.projectionSource === "sleeper_search_rank" ? player.projectedPoints : null;
 }
 
 function normalizeSearchText(value: string): string {

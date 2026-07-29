@@ -2,7 +2,7 @@ import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it } from "vitest";
 
 import {
-  buildNeutralInitialPlayerPool,
+  buildGroupedPlayerEvidence,
   createDraftPlayerSnapshot,
   createDraftStrategyTools,
 } from "./draft-tools";
@@ -44,10 +44,10 @@ describe("draft AI tools", () => {
     expect(result.players.find((player) => player.playerId === "p-laporta")?.preference).toBe("faded");
   });
 
-  it("seeds open K and DEF positions without assigning a recommendation score", () => {
+  it("separates raw retrieval signals and position coverage without assigning recommendation scores", () => {
     const state = createMockDraftState(8);
-    const snapshot = createDraftPlayerSnapshot(state, { pinned: [], faded: [], excluded: [] });
-    const pool = buildNeutralInitialPlayerPool(snapshot, {
+    const snapshot = createDraftPlayerSnapshot(state, { pinned: ["p-laporta"], faded: [], excluded: [] });
+    const evidence = buildGroupedPlayerEvidence(snapshot, {
       QB: 1,
       RB: 2,
       WR: 1,
@@ -56,9 +56,15 @@ describe("draft AI tools", () => {
       DEF: 1,
     });
 
-    expect(pool.some((player) => player.position === "K")).toBe(true);
-    expect(pool.some((player) => player.position === "DEF")).toBe(true);
-    expect(pool[0]).not.toHaveProperty("score");
-    expect(pool[0]).not.toHaveProperty("reasons");
+    expect(evidence.playerEvidenceGroups.positionCoverage.K).toEqual(["p-tucker"]);
+    expect(evidence.playerEvidenceGroups.positionCoverage.DEF).toEqual(["p-ravens"]);
+    expect(evidence.playerEvidenceGroups.pinnedTargets).toEqual(["p-laporta"]);
+    expect(evidence.playerEvidenceGroups.realTimeAdpLeaders).toEqual([]);
+    expect(evidence.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
+    expect(evidence.playerEvidence.map((player) => player.name)).toEqual(
+      [...evidence.playerEvidence.map((player) => player.name)].sort((left, right) => left.localeCompare(right)),
+    );
+    expect(evidence.playerEvidence[0]).not.toHaveProperty("score");
+    expect(evidence.playerEvidence[0]).not.toHaveProperty("reasons");
   });
 });

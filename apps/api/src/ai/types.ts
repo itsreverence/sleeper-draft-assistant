@@ -75,12 +75,23 @@ export type DraftPlayerEvidence = {
   importedRank: number | null;
   importedPositionRank: number | null;
   seasonProjectedPoints: number | null;
+  sleeperSearchRank: number | null;
   sleeperAdp: number | null;
   realTimeAdp: number | null;
   tier: number | null;
   byeWeek: number | null;
   riskTags: string[];
   preference: "pinned" | "faded" | null;
+};
+
+export type DraftPlayerEvidenceGroups = {
+  pinnedTargets: string[];
+  ecrLeaders: string[];
+  projectionLeaders: string[];
+  sleeperAdpLeaders: string[];
+  realTimeAdpLeaders: string[];
+  sleeperSearchRankLeaders: string[];
+  positionCoverage: Record<Position, string[]>;
 };
 
 export type DraftStrategyContext = {
@@ -140,7 +151,8 @@ export type DraftStrategyContext = {
       positionCounts: Record<Position, number>;
     }>;
   };
-  initialPlayerPool: DraftPlayerEvidence[];
+  playerEvidence: DraftPlayerEvidence[];
+  playerEvidenceGroups: DraftPlayerEvidenceGroups;
   toolInstructions: string[];
 };
 

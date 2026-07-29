@@ -11,7 +11,8 @@ export class NoopAiProvider implements AiProvider {
   }
 
   async strategizeDraft(context: DraftStrategyContext): Promise<AiDraftStrategy> {
-    const top = context.initialPlayerPool[0];
+    const fallbackPlayers = getFallbackPlayers(context);
+    const top = fallbackPlayers[0];
     if (!top) {
       throw new Error("No draft candidates are available.");
     }
@@ -20,12 +21,12 @@ export class NoopAiProvider implements AiProvider {
       decision: {
         basedOnPick: context.draft.currentPick,
         recommendedPlayerId: top.playerId,
-        alternativePlayerIds: context.initialPlayerPool.slice(1, 5).map((candidate) => candidate.playerId),
+        alternativePlayerIds: fallbackPlayers.slice(1, 5).map((candidate) => candidate.playerId),
         verdict: "reasonable",
         confidence: "low",
         headline: `Fallback: ${top.name}`,
-        summary: `${top.name} leads the neutral fallback pool while no AI provider is available.`,
-        reasons: ["Highest available player in the neutral fallback evidence pool."],
+        summary: `${top.name} leads the neutral evidence fallback while no AI provider is available.`,
+        reasons: ["First available player from the strongest populated raw-evidence group."],
         risks: ["This is not an AI-generated strategy decision."],
         nextPositionPriorities: (Object.entries(context.roster.openDirectStarterSlots) as Array<[keyof typeof context.roster.openDirectStarterSlots, number]>)
           .filter(([, count]) => count > 0)
@@ -37,7 +38,7 @@ export class NoopAiProvider implements AiProvider {
   }
 
   async answerDraftQuestion(context: DraftQuestionContext): Promise<AiAnswer> {
-    const player = context.focusPlayers[0] ?? context.initialPlayerPool[0];
+    const player = context.focusPlayers[0] ?? getFallbackPlayers(context)[0];
     const playerText = player
       ? `${player.name} (${player.position}) is present in the neutral player evidence.`
       : "There are no available players in the current draft snapshot.";
@@ -67,4 +68,24 @@ export class NoopAiProvider implements AiProvider {
       ].join("\n\n"),
     };
   }
+}
+
+function getFallbackPlayers(
+  context: Pick<DraftStrategyContext, "playerEvidence" | "playerEvidenceGroups">,
+) {
+  const playersById = new Map(context.playerEvidence.map((player) => [player.playerId, player]));
+  const orderedIds = [
+    ...context.playerEvidenceGroups.ecrLeaders,
+    ...context.playerEvidenceGroups.projectionLeaders,
+    ...context.playerEvidenceGroups.sleeperAdpLeaders,
+    ...context.playerEvidenceGroups.realTimeAdpLeaders,
+    ...context.playerEvidenceGroups.sleeperSearchRankLeaders,
+    ...Object.values(context.playerEvidenceGroups.positionCoverage).flat(),
+    ...context.playerEvidenceGroups.pinnedTargets,
+  ];
+
+  return Array.from(new Set(orderedIds)).flatMap((playerId) => {
+    const player = playersById.get(playerId);
+    return player ? [player] : [];
+  });
 }
