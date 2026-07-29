@@ -69,6 +69,21 @@ export type AiProviderId = z.infer<typeof AiProviderIdSchema>;
 export const AutomaticAiAuditModeSchema = z.enum(["off", "on_turn", "on_deck"]);
 export type AutomaticAiAuditMode = z.infer<typeof AutomaticAiAuditModeSchema>;
 
+export const AiDraftDecisionSchema = z.object({
+  basedOnPick: z.number().int().positive(),
+  recommendedPlayerId: z.string().min(1),
+  alternativePlayerIds: z.array(z.string().min(1)).max(4).default([]),
+  verdict: z.enum(["strong", "reasonable", "avoid"]),
+  confidence: z.enum(["high", "medium", "low"]),
+  headline: z.string().min(1).max(120),
+  summary: z.string().min(1).max(600),
+  reasons: z.array(z.string().min(1).max(240)).min(1).max(5),
+  risks: z.array(z.string().min(1).max(240)).max(4).default([]),
+  nextPositionPriorities: z.array(PositionSchema).max(3).default([]),
+  strategyNote: z.string().min(1).max(400),
+});
+export type AiDraftDecision = z.infer<typeof AiDraftDecisionSchema>;
+
 export function isCodexExecutableReference(value: string): boolean {
   const executableName = value.trim().split(/[\\/]/).pop()?.toLowerCase();
   return executableName === "codex" || executableName === "codex.exe" || executableName === "codex.cmd";

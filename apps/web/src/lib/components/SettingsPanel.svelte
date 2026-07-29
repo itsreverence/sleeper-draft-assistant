@@ -29,7 +29,6 @@
   let codexBin = $state("codex");
   let codexModel = $state("gpt-5.4");
   let codexTimeoutMs = $state(60000);
-  let automaticAiAudit: AppSettings["automaticAiAudit"] = $state("off");
 
   $effect(() => {
     if (!settings) {
@@ -40,7 +39,6 @@
     codexBin = settings.codexBin;
     codexModel = settings.codexModel;
     codexTimeoutMs = settings.codexTimeoutMs;
-    automaticAiAudit = settings.automaticAiAudit;
   });
 
   function submit(event: SubmitEvent) {
@@ -50,7 +48,7 @@
       codexBin: codexBin.trim() || "codex",
       codexModel: codexModel.trim() || "gpt-5.4",
       codexTimeoutMs: Number(codexTimeoutMs),
-      automaticAiAudit,
+      automaticAiAudit: settings?.automaticAiAudit ?? "off",
     });
   }
 </script>
@@ -92,15 +90,7 @@
         </label>
       </div>
       <p class="settings-note">Requires the Codex CLI to be installed and signed in on this machine. Provider auth stays in the backend.</p>
-      <label class="field">
-        <span>Automatic draft audit</span>
-        <select class="input" bind:value={automaticAiAudit}>
-          <option value="off">Off</option>
-          <option value="on_turn">When I am on the clock</option>
-          <option value="on_deck">When I am within one pick</option>
-        </select>
-      </label>
-      <p class="settings-note">Runs once per board state in the background. Deterministic recommendations remain available immediately.</p>
+      <p class="settings-note">AI-first draft strategy starts automatically near your turn. The local shortlist remains available during model latency or provider failure.</p>
     {:else}
       <p class="settings-note">Uses deterministic draft signals only. No external AI provider is called.</p>
     {/if}

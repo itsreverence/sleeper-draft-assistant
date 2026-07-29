@@ -41,6 +41,7 @@
     fetchDraftRecommendationRequest,
     fetchDecisionHistory,
     evaluateDraftCandidateRequest,
+    fetchAiDraftStrategyRequest,
     fetchDraftState,
     fetchDiagnostics,
     fetchSettings,
@@ -59,7 +60,7 @@
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
-  import { shouldRunAutomaticDraftAudit } from "./lib/ai-panel";
+  import { shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
@@ -73,6 +74,7 @@
     DraftState,
     DecisionSnapshot,
     CandidateEvaluationPayload,
+    AiDraftStrategyPayload,
     AdpImportSummary,
     RankingImportSummary,
     RosRankingImportSummary,
@@ -1271,10 +1273,24 @@
     return payload;
   }
 
+  async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
+    const payload = await fetchAiDraftStrategyRequest(
+      activeDraftId,
+      activeDraftTeamRef,
+      playerPreferenceSummary(),
+      recommendationPreferenceRequest(),
+    );
+    void loadDecisionHistory();
+    return payload;
+  }
+
   const userTeam = $derived(getUserTeam(draftState));
   const picksUntilTurn = $derived(picksUntilUserTurn(draftState));
-  const automaticAiAuditActive = $derived(
-    shouldRunAutomaticDraftAudit(draftState, appSettings, aiProviderStatus, picksUntilTurn),
+  const shouldRequestAiStrategy = $derived(
+    shouldRequestAiDraftStrategy(draftState, aiProviderStatus, picksUntilTurn),
+  );
+  const aiDraftStrategyEnabled = $derived(
+    shouldRequestAiDraftStrategy(draftState, aiProviderStatus, 0),
   );
   const activeSourceLabel = $derived(draftState ? (isMockDraft(activeDraftId) ? "Demo draft" : "Sleeper draft") : "No draft loaded");
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
@@ -1510,7 +1526,10 @@
                 {recommendation}
                 currentPick={draftState.currentPick}
                 aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
-                automaticAiAudit={automaticAiAuditActive}
+                aiStrategyEnabled={aiDraftStrategyEnabled}
+                shouldRequestAiStrategy={shouldRequestAiStrategy}
+                strategyRequestKey={JSON.stringify(playerPreferences)}
+                onRequestAiStrategy={requestAiDraftStrategy}
                 onEvaluateCandidate={evaluateDraftCandidate}
                 playerPreferences={playerPreferences}
                 showPlaceholderWarning={recommendationsUsePlaceholder}

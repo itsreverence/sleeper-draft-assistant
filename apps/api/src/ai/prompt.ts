@@ -39,6 +39,40 @@ export function buildDraftManagerPrompt(context: DraftAiContext): string {
   ].join("\n");
 }
 
+export function buildDraftStrategyPrompt(context: DraftAiContext): string {
+  return [
+    "Act as the primary fantasy football draft strategist. Choose from recommendation.candidates only.",
+    "The deterministic order is evidence, not authority. Independently reason about roster construction, league format, tiers, ADP, return probability, risk concentration, and remaining starter requirements.",
+    "Never invent or return a player id that is not present in recommendation.candidates.",
+    "Return JSON only, with no markdown fence or surrounding prose.",
+    "Required JSON shape:",
+    JSON.stringify({
+      basedOnPick: context.draft.currentPick,
+      recommendedPlayerId: "candidate playerId",
+      alternativePlayerIds: ["up to four candidate playerIds"],
+      verdict: "strong | reasonable | avoid",
+      confidence: "high | medium | low",
+      headline: "short recommendation headline",
+      summary: "concise explanation for the live pick clock",
+      reasons: ["1-5 grounded reasons"],
+      risks: ["0-4 grounded risks"],
+      nextPositionPriorities: ["up to three of QB, RB, WR, TE, K, DEF"],
+      strategyNote: "how this pick affects the next rounds",
+    }, null, 2),
+    "",
+    "Rules:",
+    "- Complete required starters before the user's remaining selections run out.",
+    "- Do not keep adding a position after its direct and FLEX capacity is saturated unless a clearly exceptional supplied tier/value justifies a bench selection.",
+    "- In one-QB leagues, require exceptional value before prioritizing extra quarterbacks. In superflex, account for elevated QB demand.",
+    "- Treat imported ranks, projections, and ADP as separate signals and state limitations honestly.",
+    "- Respect pinned, faded, and excluded preferences in the supplied context.",
+    "- Keep every string concise.",
+    "",
+    "Draft context JSON:",
+    JSON.stringify(context, null, 2),
+  ].join("\n");
+}
+
 
 
 export function buildTeamManagerInstructions(): string {

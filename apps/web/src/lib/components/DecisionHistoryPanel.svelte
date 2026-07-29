@@ -26,6 +26,7 @@
       "rankings-clear": "rankings cleared",
       "manual-refresh": "recommendation refreshed",
       "ai-question": "manager asked",
+      "ai-strategy": "AI strategy generated",
       "candidate-evaluation": "candidate evaluated",
       "pick-update": "pick recorded",
     };

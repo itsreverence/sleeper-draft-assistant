@@ -1,10 +1,10 @@
 # AI providers
 
-AI is optional. Draft and team recommendations always begin with deterministic application state and evidence.
+AI is optional. Draft strategy is AI-first when Codex is configured, but every model decision is grounded in locally computed Sleeper state and imported evidence.
 
 ## Deterministic fallback
 
-This is the default. It makes no external AI request and requires no account, API key, or model installation. Use it for demo mode, offline use, testing, and any workflow where explainable local signals are sufficient.
+This is the default when no provider is configured. It makes no external AI request and requires no account, API key, or model installation. It supplies an immediate shortlist and remains the live fallback if Codex is slow or unavailable.
 
 ## Local Codex app-server
 
@@ -35,22 +35,24 @@ Codex installation, login state, model availability, subscription requirements, 
 
 Renderer code never stores provider credentials or contacts an AI provider directly. `AiProvider` adapters live in the local API and receive a focused context packet rather than the entire player database. Provider failures must be returned as bounded, redacted application errors.
 
-## Candidate evaluation
+## AI-first draft strategy
+
+When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives current roster construction, league settings, recent picks, user preferences, data limitations, and up to 20 validated candidates with separate projection, ECR, ADP, tier, risk, and return-probability signals.
+
+The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, and next-position priorities. The backend rejects stale pick numbers and unknown or unavailable player IDs. The renderer discards responses after the board advances and shows the local shortlist while the model is working or unavailable.
+
+AI strategy cannot submit a Sleeper pick. It chooses only from the supplied candidate universe, while hard lineup-feasibility checks remain local.
+
+## Candidate questions
 
 When Codex app-server is configured, the lead draft candidate exposes an **AI take** action. Other candidates expose the same action inside their Details view.
 
-Candidate evaluation is:
+Candidate evaluation remains available for follow-up analysis and is:
 
 - on demand by default, so it does not add model latency to normal draft refreshes;
 - grounded in the current deterministic recommendation, roster construction, league settings, and imported-data limitations;
 - validated by the backend so unavailable or no-longer-recommended players cannot be evaluated from stale UI state;
 - tied to the current pick number and marked stale when the board advances;
-- advisory only and never replaces deterministic candidate ordering or evidence.
+- advisory and separate from the primary structured AI strategy.
 
 The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest listed alternative, next positional priorities, disagreement with the engine, and data limitations. It does not receive or claim live news outside the supplied draft context.
-
-### Automatic strategy audit
-
-Settings can optionally run the same candidate evaluation automatically when the user is on the clock or within one pick. Automatic auditing is off by default, runs asynchronously once per board state and lead candidate, and leaves the deterministic recommendation immediately usable while the model responds.
-
-The automatic audit is a strategy check, not a second ranking engine. It is prompted to challenge positional saturation, incomplete starting requirements, format mismatches, and weak imported-data coverage. Its verdict is displayed alongside the deterministic evidence and never changes candidate scores or submits a Sleeper pick.

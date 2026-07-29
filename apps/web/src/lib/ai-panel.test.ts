@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { Player } from "@sleeper-draft-assistant/shared";
 import type {
   AiProviderStatus,
-  AppSettings,
   DraftRecommendation,
   DraftState,
   Position,
@@ -10,7 +9,8 @@ import type {
 import {
   buildAiPanelContextSummary,
   buildSuggestedQuestions,
-  shouldRunAutomaticDraftAudit,
+  currentAiDraftStrategy,
+  shouldRequestAiDraftStrategy,
 } from "./ai-panel";
 
 const state = createState();
@@ -36,47 +36,40 @@ describe("AI panel helpers", () => {
     expect(summary.note).toContain("imported rankings");
   });
 
-  it("runs automatic audits only at the configured turn distance", () => {
+  it("requests AI-first strategy near the turn and rejects stale results", () => {
     const draftingState = { ...state, status: "drafting" as const };
     const providerStatus: AiProviderStatus = {
       id: "codex-app-server",
       configured: true,
       label: "Codex app server",
     };
-    const settings: AppSettings = {
-      aiProvider: "codex-app-server",
-      codexBin: "codex",
-      codexModel: "gpt-5.4",
-      codexTimeoutMs: 60000,
-      automaticAiAudit: "on_turn",
-    };
 
-    expect(shouldRunAutomaticDraftAudit(draftingState, settings, providerStatus, 0)).toBe(true);
-    expect(shouldRunAutomaticDraftAudit(draftingState, settings, providerStatus, 1)).toBe(false);
-    expect(
-      shouldRunAutomaticDraftAudit(
-        draftingState,
-        { ...settings, automaticAiAudit: "on_deck" },
-        providerStatus,
-        1,
-      ),
-    ).toBe(true);
-    expect(
-      shouldRunAutomaticDraftAudit(
-        { ...draftingState, status: "pre_draft" },
-        settings,
-        providerStatus,
-        0,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRunAutomaticDraftAudit(
-        draftingState,
-        settings,
-        { ...providerStatus, configured: false },
-        0,
-      ),
-    ).toBe(false);
+    expect(shouldRequestAiDraftStrategy(draftingState, providerStatus, 2)).toBe(true);
+    expect(shouldRequestAiDraftStrategy(draftingState, providerStatus, 3)).toBe(false);
+    expect(shouldRequestAiDraftStrategy({ ...draftingState, status: "pre_draft" }, providerStatus, null)).toBe(true);
+    expect(shouldRequestAiDraftStrategy({ ...draftingState, status: "complete" }, providerStatus, 0)).toBe(false);
+
+    const strategy = {
+      provider: providerStatus,
+      pickNumber: 12,
+      decision: {
+        basedOnPick: 12,
+        recommendedPlayerId: "rb-1",
+        alternativePlayerIds: [],
+        verdict: "strong" as const,
+        confidence: "high" as const,
+        headline: "Take Gibbs",
+        summary: "Best fit.",
+        reasons: ["Fills RB"],
+        risks: [],
+        nextPositionPriorities: ["WR" as const],
+        strategyNote: "Target WR next.",
+      },
+      recommendedCandidate: recommendation.candidates[0]!,
+      alternativeCandidates: [],
+    };
+    expect(currentAiDraftStrategy(strategy, 12)).toBe(strategy);
+    expect(currentAiDraftStrategy(strategy, 13)).toBeNull();
   });
 });
 

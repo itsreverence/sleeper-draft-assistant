@@ -1,4 +1,4 @@
-import type { AdpImportPayload, AiConversationMessage, AiProviderStatus, AppSettings, AskAnswerPayload, CandidateEvaluationPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AdpImportPayload, AiConversationMessage, AiDraftStrategyPayload, AiProviderStatus, AppSettings, AskAnswerPayload, CandidateEvaluationPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -17,7 +17,7 @@ if (packagedApiToken) {
   }
 }
 
-export type DraftAction = "state" | "events" | "ask" | "recommendations" | "decisions" | "rankings/import" | "projections/season/import" | "adp/import";
+export type DraftAction = "state" | "events" | "ask" | "strategy" | "recommendations" | "decisions" | "rankings/import" | "projections/season/import" | "adp/import";
 
 export function buildDraftUrl(draftId: string, action: DraftAction, userRosterId: string | null) {
   const query = new URLSearchParams();
@@ -453,6 +453,23 @@ export async function evaluateDraftCandidateRequest(
     throw new Error(await readErrorMessage(response, "Could not evaluate this candidate."));
   }
   return (await response.json()) as CandidateEvaluationPayload;
+}
+
+export async function fetchAiDraftStrategyRequest(
+  draftId: string,
+  userRosterId: string | null,
+  userPreferences: PlayerPreferenceSummary,
+  recommendationPreferences: RecommendationPreferenceRequest,
+): Promise<AiDraftStrategyPayload> {
+  const response = await apiFetch(buildDraftUrl(draftId, "strategy", userRosterId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userPreferences, recommendationPreferences }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "The AI strategist could not evaluate this board."));
+  }
+  return (await response.json()) as AiDraftStrategyPayload;
 }
 
 export async function askManagerRequest(

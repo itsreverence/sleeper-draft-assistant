@@ -15,7 +15,7 @@ import { cors } from "hono/cors";
 
 import { AdpImportRequestSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
-import { buildDraftAiContext } from "./ai/context";
+import { buildDraftAiContext, buildDraftStrategyContext } from "./ai/context";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { draftPollDelayMs } from "./draft-refresh";
@@ -596,6 +596,76 @@ app.post("/drafts/:draftId/recommendations", async (c) => {
     const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
     decisionLogStore.record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
     return c.json(recommendation);
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/drafts/:draftId/strategy", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = await c.req
+      .json<{
+        userPreferences?: { pinned?: string[]; faded?: string[]; excluded?: string[] };
+        recommendationPreferences?: DraftRecommendationOptions["preferences"];
+      }>()
+      .catch(() => ({ userPreferences: undefined, recommendationPreferences: undefined }));
+    const recommendation = buildDraftRecommendation(state, {
+      preferences: normalizeRecommendationPreferences(body.recommendationPreferences),
+      candidateLimit: 20,
+    });
+    if (recommendation.candidates.length === 0) {
+      return c.json({ error: "No available players can be evaluated for this pick." }, 409);
+    }
+
+    const provider = createAiProvider(settingsStore.get());
+    const strategy = await provider.strategizeDraft(
+      buildDraftStrategyContext(
+        state,
+        recommendation,
+        normalizeUserPreferences(body.userPreferences),
+      ),
+    );
+    const candidatesById = new Map(recommendation.candidates.map((candidate) => [candidate.player.id, candidate]));
+    const recommendedCandidate = candidatesById.get(strategy.decision.recommendedPlayerId);
+    if (strategy.decision.basedOnPick !== state.currentPick || !recommendedCandidate) {
+      return c.json({ error: "The AI strategy did not match the current draft board." }, 502);
+    }
+    const alternativeCandidates = Array.from(new Set(strategy.decision.alternativePlayerIds))
+      .filter((playerId) => playerId !== recommendedCandidate.player.id)
+      .map((playerId) => candidatesById.get(playerId))
+      .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+      .slice(0, 4);
+    const decision = {
+      ...strategy.decision,
+      headline: `Take ${recommendedCandidate.player.name}`,
+      alternativePlayerIds: alternativeCandidates.map((candidate) => candidate.player.id),
+    };
+
+    decisionLogStore.record({
+      draftId,
+      state,
+      recommendation: {
+        ...recommendation,
+        headline: decision.headline,
+        recommendedPlayerId: recommendedCandidate.player.id,
+        confidence: decision.confidence,
+        summary: decision.summary,
+        risks: decision.risks,
+        candidates: [recommendedCandidate, ...alternativeCandidates],
+      },
+      trigger: "ai-strategy",
+      userRosterId: getUserRosterId(c),
+    });
+
+    return c.json({
+      provider: strategy.provider,
+      pickNumber: state.currentPick,
+      decision,
+      recommendedCandidate,
+      alternativeCandidates,
+    });
   } catch (error) {
     return handleRouteError(c, error);
   }

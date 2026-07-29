@@ -93,6 +93,23 @@ export function buildDraftAiContext(
   };
 }
 
+export function buildDraftStrategyContext(
+  state: DraftState,
+  recommendation: DraftRecommendation,
+  userPreferences: PlayerPreferenceSummary = { pinned: [], faded: [], excluded: [] },
+): DraftAiContext {
+  return {
+    ...buildDraftAiContext(
+      state,
+      recommendation,
+      "Choose the best player for this roster at the current pick and produce the required structured strategy decision.",
+      [],
+      userPreferences,
+    ),
+    task: "draft_strategy",
+  };
+}
+
 function buildDraftBrief(
   state: DraftState,
   userTeam: DraftAiContext["userTeam"],

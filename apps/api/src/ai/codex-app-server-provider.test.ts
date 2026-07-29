@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveCodexLaunch } from "./codex-app-server-provider";
+import { parseAiDraftDecision, resolveCodexLaunch } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -24,5 +24,27 @@ describe("Codex app-server executable resolution", () => {
       command: "/usr/local/bin/codex",
       args: [],
     });
+  });
+
+  it("parses a structured strategy response and rejects unknown shapes", () => {
+    const decision = parseAiDraftDecision(`\`\`\`json
+      {
+        "basedOnPick": 12,
+        "recommendedPlayerId": "player-1",
+        "alternativePlayerIds": ["player-2"],
+        "verdict": "strong",
+        "confidence": "high",
+        "headline": "Take Player One",
+        "summary": "Best fit and value.",
+        "reasons": ["Fills RB need"],
+        "risks": [],
+        "nextPositionPriorities": ["WR"],
+        "strategyNote": "Look for WR next."
+      }
+    \`\`\``);
+
+    expect(decision.recommendedPlayerId).toBe("player-1");
+    expect(decision.nextPositionPriorities).toEqual(["WR"]);
+    expect(() => parseAiDraftDecision('{"recommendedPlayerId":"player-1"}')).toThrow("invalid draft decision");
   });
 });

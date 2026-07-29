@@ -2,7 +2,7 @@ import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-a
 import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
-import { buildDraftAiContext } from "./context";
+import { buildDraftAiContext, buildDraftStrategyContext } from "./context";
 import { NoopAiProvider } from "./noop-provider";
 
 describe("AI provider context", () => {
@@ -55,6 +55,17 @@ describe("AI provider context", () => {
     expect(context.draftBrief.primaryDecisionGuidance).toContain("RB/WR depth has extra importance because FLEX slots increase weekly starter demand.");
     expect(context.draftBrief.primaryDecisionGuidance).toContain("QB replacement pressure is lower because this is not a superflex format.");
     expect(context.draftBrief.rosterPressure).toContain("This format has 2 RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.");
+  });
+  it("builds a structured strategy packet with a broad grounded shortlist", async () => {
+    const state = createEightTeamTwoFlexState();
+    const recommendation = buildDraftRecommendation(state, { candidateLimit: 20 });
+    const context = buildDraftStrategyContext(state, recommendation);
+    const strategy = await new NoopAiProvider().strategizeDraft(context);
+
+    expect(context.task).toBe("draft_strategy");
+    expect(strategy.decision.basedOnPick).toBe(state.currentPick);
+    expect(strategy.decision.recommendedPlayerId).toBe(recommendation.candidates[0]?.player.id);
+    expect(strategy.decision.alternativePlayerIds.length).toBeGreaterThan(0);
   });
   it("warns AI when one position has consumed every direct and flex starting spot", () => {
     const state = createEightTeamTwoFlexState();

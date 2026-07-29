@@ -1,4 +1,4 @@
-import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
+import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
 
 export class NoopAiProvider implements AiProvider {
   status(): AiProviderStatus {
@@ -7,6 +7,29 @@ export class NoopAiProvider implements AiProvider {
       label: "Deterministic fallback",
       configured: true,
       detail: "No external AI provider is configured.",
+    };
+  }
+
+  async strategizeDraft(context: DraftAiContext): Promise<AiDraftStrategy> {
+    const top = context.recommendation.candidates[0];
+    if (!top) {
+      throw new Error("No draft candidates are available.");
+    }
+    return {
+      provider: this.status(),
+      decision: {
+        basedOnPick: context.draft.currentPick,
+        recommendedPlayerId: top.playerId,
+        alternativePlayerIds: context.recommendation.candidates.slice(1, 5).map((candidate) => candidate.playerId),
+        verdict: "reasonable",
+        confidence: context.recommendation.confidence,
+        headline: `Fallback: ${top.name}`,
+        summary: context.recommendation.summary,
+        reasons: top.reasons.slice(0, 5),
+        risks: context.recommendation.risks.slice(0, 4),
+        nextPositionPriorities: context.rosterConstruction.primaryNeeds.slice(0, 3),
+        strategyNote: "Connect an AI provider for a model-generated draft strategy.",
+      },
     };
   }
 

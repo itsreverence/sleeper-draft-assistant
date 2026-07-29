@@ -1,6 +1,6 @@
 import type {
   AiProviderStatus,
-  AppSettings,
+  AiDraftStrategyPayload,
   CandidateSignal,
   DraftRecommendation,
   DraftState,
@@ -12,27 +12,27 @@ export type AiPanelContextSummary = {
   note: string | null;
 };
 
-export function shouldRunAutomaticDraftAudit(
+export function currentAiDraftStrategy(
+  strategy: AiDraftStrategyPayload | null,
+  currentPick: number,
+): AiDraftStrategyPayload | null {
+  return strategy?.pickNumber === currentPick ? strategy : null;
+}
+
+export function shouldRequestAiDraftStrategy(
   state: DraftState | null,
-  settings: AppSettings | null,
   providerStatus: AiProviderStatus | null,
   picksUntilTurn: number | null,
 ): boolean {
   if (
-    state?.status !== "drafting" ||
+    state?.status === "complete" ||
     providerStatus?.id !== "codex-app-server" ||
     !providerStatus.configured
   ) {
     return false;
   }
-
-  if (settings?.automaticAiAudit === "on_turn") {
-    return picksUntilTurn === 0;
-  }
-
-  return settings?.automaticAiAudit === "on_deck" &&
-    picksUntilTurn !== null &&
-    picksUntilTurn <= 1;
+  return state?.status === "pre_draft" ||
+    (state?.status === "drafting" && picksUntilTurn !== null && picksUntilTurn <= 2);
 }
 
 export function buildSuggestedQuestions(

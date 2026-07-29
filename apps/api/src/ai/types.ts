@@ -1,4 +1,4 @@
-import type { DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, DraftRecommendation, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -22,7 +22,7 @@ export type AiConversationMessage = {
 };
 
 export type DraftAiContext = {
-  task: "draft_question";
+  task: "draft_question" | "draft_strategy";
   question: string;
   conversationHistory: AiConversationMessage[];
   userPreferences: PlayerPreferenceSummary;
@@ -156,8 +156,14 @@ export type AiAnswer = {
   answer: string;
 };
 
+export type AiDraftStrategy = {
+  provider: AiProviderStatus;
+  decision: AiDraftDecision;
+};
+
 export interface AiProvider {
   status(): AiProviderStatus;
+  strategizeDraft(context: DraftAiContext): Promise<AiDraftStrategy>;
   answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer>;
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
 }

@@ -3,8 +3,10 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-import type { AiAnswer, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
-import { buildDraftManagerPrompt, buildTeamManagerPrompt } from "./prompt";
+import { AiDraftDecisionSchema, type AiDraftDecision } from "@sleeper-draft-assistant/shared";
+
+import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
+import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
 
 type JsonRpcMessage = {
   id?: number;
@@ -46,7 +48,31 @@ export class CodexAppServerProvider implements AiProvider {
     };
   }
 
+  async strategizeDraft(context: DraftAiContext): Promise<AiDraftStrategy> {
+    const result = await this.runPrompt(buildDraftStrategyPrompt(context));
+    return {
+      provider: this.status(),
+      decision: parseAiDraftDecision(result),
+    };
+  }
+
   async answerDraftQuestion(context: DraftAiContext): Promise<AiAnswer> {
+    const result = await this.runPrompt(buildDraftManagerPrompt(context));
+    return {
+      provider: this.status(),
+      answer: result || "Codex completed without returning visible text.",
+    };
+  }
+
+  async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
+    const result = await this.runPrompt(buildTeamManagerPrompt(context));
+    return {
+      provider: this.status(),
+      answer: result || "Codex completed without returning visible text.",
+    };
+  }
+
+  private async runPrompt(prompt: string): Promise<string> {
     const client = await CodexJsonRpcClient.start(this.codexBin, this.timeoutMs);
     try {
       await client.initialize();
@@ -58,37 +84,33 @@ export class CodexAppServerProvider implements AiProvider {
         throw new Error("Codex app-server did not return a thread id.");
       }
 
-      const result = await client.runTurn(threadId, buildDraftManagerPrompt(context));
-      return {
-        provider: this.status(),
-        answer: result || "Codex completed without returning visible text.",
-      };
+      return await client.runTurn(threadId, prompt);
     } finally {
       client.close();
     }
   }
+}
 
-  async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
-    const client = await CodexJsonRpcClient.start(this.codexBin, this.timeoutMs);
-    try {
-      await client.initialize();
-      const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
-        model: this.model,
-      });
-      const threadId = thread.thread?.id;
-      if (!threadId) {
-        throw new Error("Codex app-server did not return a thread id.");
-      }
+export function parseAiDraftDecision(raw: string): AiDraftDecision {
+  const trimmed = raw.trim();
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start < 0 || end <= start) {
+    throw new Error("Codex did not return a structured draft decision.");
+  }
 
-      const result = await client.runTurn(threadId, buildTeamManagerPrompt(context));
-      return {
-        provider: this.status(),
-        answer: result || "Codex completed without returning visible text.",
-      };
-    } finally {
-      client.close();
-    }
-  }}
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed.slice(start, end + 1));
+  } catch {
+    throw new Error("Codex returned malformed draft decision JSON.");
+  }
+  const result = AiDraftDecisionSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error("Codex returned an invalid draft decision.");
+  }
+  return result.data;
+}
 
 class CodexJsonRpcClient {
   private nextId = 1;

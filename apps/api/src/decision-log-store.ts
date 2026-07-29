@@ -14,6 +14,7 @@ export type DecisionSnapshotTrigger =
   | "rankings-clear"
   | "manual-refresh"
   | "ai-question"
+  | "ai-strategy"
   | "candidate-evaluation"
   | "pick-update";
 

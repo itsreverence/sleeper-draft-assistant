@@ -1,6 +1,8 @@
 import type {
   AdpImportSummary,
   AppSettings,
+  AiDraftDecision,
+  CandidateSignal,
   DraftRecommendation,
   DraftState,
   RankingImportSummary,
@@ -30,6 +32,14 @@ type CandidateEvaluationPayload = {
   playerName: string;
   pickNumber: number;
   provider: { id: string };
+};
+
+type StrategyPayload = {
+  provider: { id: string };
+  pickNumber: number;
+  decision: AiDraftDecision;
+  recommendedCandidate: CandidateSignal;
+  alternativeCandidates: CandidateSignal[];
 };
 
 const fantasyProsCsv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
@@ -196,6 +206,27 @@ describe("draft recommendation routes", () => {
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
 
+      const strategyResponse = await app.request("/drafts/mock-draft/strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendationPreferences: {
+            excludedPlayerIds: excludedId ? [excludedId] : [],
+            fadedPlayerIds: fadedId ? [fadedId] : [],
+          },
+        }),
+      });
+      expect(strategyResponse.status).toBe(200);
+      const strategy = (await strategyResponse.json()) as StrategyPayload;
+      expect(strategy.provider.id).toBe("noop");
+      expect(strategy.decision.basedOnPick).toBe(strategy.pickNumber);
+      expect(strategy.decision.recommendedPlayerId).toBe(strategy.recommendedCandidate.player.id);
+      expect(strategy.decision.headline).toBe(`Take ${strategy.recommendedCandidate.player.name}`);
+      expect(strategy.recommendedCandidate.player.id).not.toBe(excludedId);
+      expect(strategy.alternativeCandidates.every((candidate) =>
+        strategy.decision.alternativePlayerIds.includes(candidate.player.id)
+      )).toBe(true);
+
       const evaluationCandidate = askPayload.recommendation.candidates[0];
       expect(evaluationCandidate).toBeTruthy();
       const evaluationResponse = await app.request(
@@ -236,6 +267,7 @@ describe("draft recommendation routes", () => {
       const decisions = (await decisionResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-strategy")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "candidate-evaluation")).toBe(true);
     } finally {
       await app.request("/drafts/mock-draft/rankings/import", { method: "DELETE" });

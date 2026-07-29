@@ -33,6 +33,7 @@ export type DraftRecommendationPreferences = {
 
 export type DraftRecommendationOptions = {
   preferences?: DraftRecommendationPreferences;
+  candidateLimit?: number;
 };
 
 
@@ -854,7 +855,7 @@ function hasImportedDraftSignal(player: Player): boolean {
 }
 
 export function buildDraftRecommendation(state: DraftState, options: DraftRecommendationOptions = {}): DraftRecommendation {
-  const candidates = buildCandidateSignals(state, 5, options);
+  const candidates = buildCandidateSignals(state, options.candidateLimit ?? 5, options);
   const top = candidates[0];
 
   if (!top) {

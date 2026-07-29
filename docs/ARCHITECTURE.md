@@ -13,7 +13,7 @@ Svelte renderer
        ├─ Sleeper read-only API client
        ├─ ranking CSV importer
        ├─ weekly projection CSV importer
-       ├─ deterministic recommendation engine
+       ├─ grounded candidate and safety engine
        ├─ optional local Codex app-server adapter
        └─ sql.js SQLite persistence
 ```
@@ -23,7 +23,7 @@ Svelte renderer
 - `apps/desktop`: Electron lifecycle, process startup, window containment, packaging.
 - `apps/web`: Svelte UI and authenticated local API client.
 - `apps/api`: Hono routes, Sleeper normalization, persistence, provider adapters, SSE.
-- `packages/engine`: deterministic draft and roster analysis with no network or persistence dependency.
+- `packages/engine`: grounded candidate generation, roster feasibility, fallback draft analysis, and team-management calculations with no network or persistence dependency.
 - `packages/shared`: Zod schemas and shared TypeScript types.
 
 ## Trust boundary
@@ -46,12 +46,12 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 8. A user-supplied FantasyPros overall rest-of-season rankings CSV adds scoring-specific ECR and expert disagreement to Team Manager. One overall export is used instead of separate position exports, and known scoring mismatches are rejected.
 9. User-supplied weekly projection files add provider-scored week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
 10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
-11. The deterministic engine evaluates import coverage, matching quality, and format compatibility before assigning confidence.
-12. A configured AI provider may audit the lead candidate on demand or, when explicitly enabled, near the user's turn. The audit is nonblocking and cannot change deterministic ordering or submit a pick.
+11. The local engine evaluates import coverage, matching quality, format compatibility, player availability, and lineup feasibility, then supplies a broad grounded shortlist.
+12. When Codex is configured, the AI strategist independently reranks that shortlist near the user's turn and returns a structured recommendation, alternatives, risks, and next-position plan. The backend validates the pick number and every returned player ID before exposing the decision.
 12. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
 13. Draft SSE polling checks the lightweight Sleeper picks endpoint every 2 seconds while drafting, every 5 seconds before the draft, and every 15 seconds after completion. A full state rebuild runs only when the pick count changes. Transient failures preserve the last valid state and use bounded backoff from 5 to 30 seconds; renderer events expose only a generic upstream-safe error plus sync age.
 14. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-15. Optional AI providers receive a compact context packet rather than the full player universe. Candidate evaluation is a dedicated authenticated backend route: it validates the player against the current recommendation, records a decision snapshot, and returns an answer tagged with the current pick number for renderer-side staleness handling.
+15. Optional AI providers receive a compact context packet rather than the full player universe. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and local fallback remains immediately available during provider latency or failure.
 16. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
 17. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
 
@@ -63,9 +63,9 @@ The renderer can clear draft rankings, season projections, draft ADP, rest-of-se
 
 ## Provider boundary
 
-`AiProvider` keeps provider-specific behavior out of route and renderer code:
+`AiProvider` keeps provider-specific behavior out of route and renderer code. Its draft strategy method returns a validated structured decision rather than prose:
 
-- `noop`: deterministic response; default and offline-safe.
+- `noop`: local fallback response; default and offline-safe.
 - `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
 
 Executable configuration is limited to commands or paths ending in `codex`, `codex.exe`, or `codex.cmd`.

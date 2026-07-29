@@ -2,7 +2,8 @@
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
-  import type { CandidateEvaluationPayload, DraftRecommendation, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import { currentAiDraftStrategy } from "../ai-panel";
+  import type { AiDraftStrategyPayload, CandidateEvaluationPayload, DraftRecommendation, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
     recommendation,
@@ -13,8 +14,11 @@
     onOpenRankings,
     currentPick,
     aiEnabled = false,
-    automaticAiAudit = false,
+    aiStrategyEnabled = false,
+    shouldRequestAiStrategy = false,
+    strategyRequestKey = "",
     onEvaluateCandidate,
+    onRequestAiStrategy,
   }: {
     recommendation: DraftRecommendation | null;
     showPlaceholderWarning?: boolean;
@@ -24,13 +28,13 @@
     onOpenRankings?: () => void;
     currentPick: number;
     aiEnabled?: boolean;
-    automaticAiAudit?: boolean;
+    aiStrategyEnabled?: boolean;
+    shouldRequestAiStrategy?: boolean;
+    strategyRequestKey?: string;
     onEvaluateCandidate?: (playerId: string) => Promise<CandidateEvaluationPayload>;
+    onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
   } = $props();
 
-  const confidenceTone = $derived(
-    recommendation?.confidence === "high" ? "ready" : recommendation?.confidence === "medium" ? "info" : "warning",
-  );
   const preferenceCounts = $derived.by(() => {
     const counts = { pin: 0, fade: 0, exclude: 0 };
     for (const preference of Object.values(playerPreferences)) {
@@ -48,13 +52,33 @@
       .filter(Boolean)
       .join(" / "),
   );
-  const primaryCandidates = $derived(recommendation?.candidates.slice(0, 3) ?? []);
-  const additionalCandidates = $derived(recommendation?.candidates.slice(3) ?? []);
+  let aiStrategy: AiDraftStrategyPayload | null = $state(null);
+  let aiStrategyError = $state("");
+  let isLoadingAiStrategy = $state(false);
+  let lastAiStrategyKey = $state("");
+  let aiStrategyRequestId = 0;
+  const currentAiStrategy = $derived(currentAiDraftStrategy(aiStrategy, currentPick));
+  const displayedCandidates = $derived.by(() => {
+    const strategyCandidates = currentAiStrategy
+      ? [currentAiStrategy.recommendedCandidate, ...currentAiStrategy.alternativeCandidates]
+      : [];
+    const deterministicCandidates = recommendation?.candidates ?? [];
+    return Array.from(
+      new Map([...strategyCandidates, ...deterministicCandidates].map((candidate) => [candidate.player.id, candidate])).values(),
+    );
+  });
+  const primaryCandidates = $derived(displayedCandidates.slice(0, 3));
+  const additionalCandidates = $derived(displayedCandidates.slice(3));
+  const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? recommendation?.headline ?? "Waiting for board context");
+  const activeSummary = $derived(currentAiStrategy?.decision.summary ?? recommendation?.summary ?? "");
+  const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? recommendation?.confidence ?? null);
+  const confidenceTone = $derived(
+    activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
+  );
   let evaluations: Record<string, CandidateEvaluationPayload> = $state({});
   let evaluationErrors: Record<string, string> = $state({});
   let evaluatingPlayerId = $state("");
   let latestEvaluationPlayerId = $state("");
-  let lastAutomaticAuditKey = $state("");
   const latestEvaluation = $derived(evaluations[latestEvaluationPlayerId] ?? null);
   const latestEvaluationStillListed = $derived(
     Boolean(latestEvaluation && recommendation?.candidates.some((candidate) => candidate.player.id === latestEvaluation.playerId)),
@@ -85,18 +109,39 @@
     }
   }
 
+  function retryAiStrategy() {
+    aiStrategyError = "";
+    lastAiStrategyKey = "";
+  }
+
   $effect(() => {
-    const playerId = recommendation?.candidates[0]?.player.id;
-    const auditKey = playerId ? `${currentPick}:${playerId}` : "";
+    const requestKey = `${currentPick}:${strategyRequestKey}`;
     if (
-      automaticAiAudit &&
-      aiEnabled &&
-      playerId &&
-      auditKey !== lastAutomaticAuditKey &&
-      !evaluatingPlayerId
+      aiStrategyEnabled &&
+      shouldRequestAiStrategy &&
+      onRequestAiStrategy &&
+      requestKey !== lastAiStrategyKey
     ) {
-      lastAutomaticAuditKey = auditKey;
-      void evaluateCandidate(playerId);
+      lastAiStrategyKey = requestKey;
+      const requestId = ++aiStrategyRequestId;
+      isLoadingAiStrategy = true;
+      aiStrategyError = "";
+      void onRequestAiStrategy()
+        .then((payload) => {
+          if (requestId === aiStrategyRequestId && payload.pickNumber === currentPick) {
+            aiStrategy = payload;
+          }
+        })
+        .catch((error) => {
+          if (requestId === aiStrategyRequestId) {
+            aiStrategyError = error instanceof Error ? error.message : "The AI strategist could not evaluate this board.";
+          }
+        })
+        .finally(() => {
+          if (requestId === aiStrategyRequestId) {
+            isLoadingAiStrategy = false;
+          }
+        });
     }
   });
 </script>
@@ -104,10 +149,10 @@
 <article class="panel recommendation-panel">
   <div class="panel-heading">
     <div>
-      <h2><Icon name="target" size={18} /> {recommendation?.headline ?? "Waiting for board context"}</h2>
+      <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
     </div>
-    {#if recommendation}
-      <span class="pill pill-{confidenceTone}">{recommendation.confidence} confidence</span>
+    {#if activeConfidence}
+      <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
     {/if}
   </div>
 
@@ -137,7 +182,51 @@
   {/if}
 
   {#if recommendation}
-    <p class="summary">{recommendation.summary}</p>
+    {#if currentAiStrategy}
+      <div class="ai-strategy" aria-live="polite">
+        <div class="ai-strategy-heading">
+          <strong>AI draft strategy</strong>
+          <span>{currentAiStrategy.decision.verdict}</span>
+        </div>
+        <p>{activeSummary}</p>
+        <ul>
+          {#each currentAiStrategy.decision.reasons as reason}
+            <li>{reason}</li>
+          {/each}
+        </ul>
+        {#if currentAiStrategy.decision.risks.length > 0}
+          <details>
+            <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
+            <ul>
+              {#each currentAiStrategy.decision.risks as risk}
+                <li>{risk}</li>
+              {/each}
+            </ul>
+          </details>
+        {/if}
+        <small>
+          Next: {currentAiStrategy.decision.nextPositionPriorities.join(" / ") || "best available"}
+          - {currentAiStrategy.decision.strategyNote}
+        </small>
+      </div>
+    {:else if isLoadingAiStrategy}
+      <div class="ai-strategy-pending" aria-live="polite">
+        <strong>AI strategist is reviewing this board.</strong>
+        <span>Showing the immediate deterministic shortlist while Codex reasons over roster construction and value.</span>
+      </div>
+      <p class="summary">{activeSummary}</p>
+    {:else if aiStrategyEnabled && aiStrategyError}
+      <div class="callout callout-warning" aria-live="polite">
+        <div>
+          <strong>AI strategy unavailable</strong>
+          <span>{aiStrategyError} Showing the deterministic fallback.</span>
+          <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry AI strategy</button>
+        </div>
+      </div>
+      <p class="summary">{activeSummary}</p>
+    {:else}
+      <p class="summary">{activeSummary}</p>
+    {/if}
 
     {#if latestEvaluation && !latestEvaluationStillListed}
       <div class="detached-evaluation callout callout-warning" aria-live="polite">
@@ -180,7 +269,7 @@
           rank={index + 1}
           featured={index === 0}
           {currentPick}
-          {aiEnabled}
+          aiEnabled={aiEnabled && !currentAiStrategy}
           evaluation={evaluations[candidate.player.id] ?? null}
           evaluationError={evaluationErrors[candidate.player.id] ?? ""}
           isEvaluating={evaluatingPlayerId === candidate.player.id}
@@ -199,7 +288,7 @@
               {candidate}
               rank={index + primaryCandidates.length + 1}
               {currentPick}
-              {aiEnabled}
+              aiEnabled={aiEnabled && !currentAiStrategy}
               evaluation={evaluations[candidate.player.id] ?? null}
               evaluationError={evaluationErrors[candidate.player.id] ?? ""}
               isEvaluating={evaluatingPlayerId === candidate.player.id}
@@ -280,6 +369,74 @@
   .summary {
     color: var(--text-secondary);
     line-height: 1.55;
+  }
+
+  .ai-strategy,
+  .ai-strategy-pending {
+    display: grid;
+    gap: 9px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-md);
+    background: var(--accent-soft);
+    padding: 14px;
+  }
+
+  .ai-strategy-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .ai-strategy-heading strong {
+    font-size: var(--text-sm);
+  }
+
+  .ai-strategy-heading span {
+    color: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .ai-strategy p,
+  .ai-strategy-pending span {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+
+  .ai-strategy ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+  }
+
+  .ai-strategy small {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+  }
+
+  .ai-strategy details {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+  }
+
+  .ai-strategy summary {
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .callout > div {
+    display: grid;
+    gap: 7px;
+  }
+
+  .callout .btn {
+    justify-self: start;
   }
 
   .placeholder-warning {
