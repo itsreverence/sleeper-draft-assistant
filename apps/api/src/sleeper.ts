@@ -258,9 +258,21 @@ export class SleeperClient {
     });
   }
 
-  async getDraftState(draftId: string, userRosterId?: string | null): Promise<DraftState> {
+  async getDraftState(
+    draftId: string,
+    userRosterId?: string | null,
+    userIdentifier?: string | null,
+  ): Promise<DraftState> {
     const draft = await this.getDraft(draftId);
     const leagueId = draft.league_id ?? null;
+    let resolvedUserTeamRef = userRosterId;
+    if (!resolvedUserTeamRef && userIdentifier) {
+      let userId = userIdentifier;
+      if (!draft.draft_order?.[userId]) {
+        userId = (await this.getUser(userIdentifier)).user_id;
+      }
+      resolvedUserTeamRef = getDraftUserTeamReference(draft, userId);
+    }
 
     const [picks, players, leagueBundle] = await Promise.all([
       this.getDraftPicks(draftId),
@@ -275,7 +287,7 @@ export class SleeperClient {
       league: leagueBundle.league,
       rosters: leagueBundle.rosters,
       users: leagueBundle.users,
-      userRosterId,
+      userRosterId: resolvedUserTeamRef,
     });
   }
 
@@ -1144,6 +1156,12 @@ function getUserTeamId(teams: Team[], userRosterId: string | null | undefined): 
     return teams[0]?.id ?? "slot-1";
   }
 
+  if (requested.startsWith("slot-")) {
+    const requestedSlot = numberFrom(requested.replace("slot-", ""));
+    const slotTeam = requestedSlot ? teams.find((team) => team.draftSlot === requestedSlot) : undefined;
+    return slotTeam?.id ?? teams[0]?.id ?? "slot-1";
+  }
+
   const requestedRosterId = requested.startsWith("roster-") ? requested.replace("roster-", "") : requested;
   const rosterTeam = teams.find((team) => team.id === toRosterTeamId(requestedRosterId));
   if (rosterTeam) {
@@ -1153,6 +1171,11 @@ function getUserTeamId(teams: Team[], userRosterId: string | null | undefined): 
   const requestedSlot = numberFrom(requested);
   const slotTeam = requestedSlot ? teams.find((team) => team.draftSlot === requestedSlot) : undefined;
   return slotTeam?.id ?? teams[0]?.id ?? "slot-1";
+}
+
+export function getDraftUserTeamReference(draft: SleeperDraft, userId: string): string | null {
+  const draftSlot = numberFrom(draft.draft_order?.[userId]);
+  return draftSlot ? `slot-${draftSlot}` : null;
 }
 
 function toRosterTeamId(rosterId: string): string {

@@ -148,6 +148,11 @@ function getRecommendedDraftId(drafts: SleeperConnectDraft[]): string | null {
 }
 
 function getUserDraftSlot(draft: SleeperDraft, userId: string, userRosterId: string | null): number | null {
+  const assignedDraftSlot = numberFrom(draft.draft_order?.[userId]);
+  if (assignedDraftSlot !== null) {
+    return assignedDraftSlot;
+  }
+
   if (userRosterId && draft.slot_to_roster_id) {
     for (const [slot, rosterId] of Object.entries(draft.slot_to_roster_id)) {
       if (String(rosterId) === userRosterId) {
@@ -156,8 +161,7 @@ function getUserDraftSlot(draft: SleeperDraft, userId: string, userRosterId: str
     }
   }
 
-  const draftSlot = draft.draft_order?.[userId];
-  return numberFrom(draftSlot);
+  return null;
 }
 
 function getScoringLabel(league: SleeperLeague): string {

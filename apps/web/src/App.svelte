@@ -53,7 +53,7 @@
     importSeasonProjectionsRequest,
     updateSettings,
   } from "./lib/api";
-  import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
+  import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
   import {
     shouldRefreshTeamManager,
     TEAM_REFRESH_INTERVAL_MS,
@@ -106,6 +106,7 @@
   let selectedLeagueId = $state("");
   let selectedDraftId = $state("");
   let activeDraftId = $state("");
+  let activeDraftTeamRef: string | null = $state(null);
   let activeUserRosterId: string | null = $state(null);
   let loadError = $state("");
   let rankingImportSummary: RankingImportSummary | null = $state(null);
@@ -264,7 +265,7 @@
     try {
       recommendation = await fetchDraftRecommendationRequest(
         activeDraftId,
-        activeUserRosterId,
+        activeDraftTeamRef,
         recommendationPreferenceRequest(preferences),
       );
       void loadDecisionHistory();
@@ -310,12 +311,14 @@
     seasonInput = window.localStorage.getItem("sleeperSeason") ?? "";
     leagueInput = window.localStorage.getItem("sleeperLeagueInput") ?? "";
     const lastDraftId = window.localStorage.getItem("lastDraftId") ?? "";
+    const lastDraftTeamRef = window.localStorage.getItem("lastDraftTeamRef");
     const lastUserRosterId = window.localStorage.getItem("lastUserRosterId");
     const lastLeagueId = window.localStorage.getItem("lastLeagueId") ?? "";
     if (lastDraftId && !isMockDraft(lastDraftId)) {
-      await loadDraft(lastDraftId, lastUserRosterId, lastLeagueId);
+      await loadDraft(lastDraftId, lastDraftTeamRef ?? lastUserRosterId, lastLeagueId, lastUserRosterId);
     } else if (lastDraftId && isMockDraft(lastDraftId)) {
       window.localStorage.removeItem("lastDraftId");
+      window.localStorage.removeItem("lastDraftTeamRef");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
     }
@@ -471,8 +474,8 @@
       return;
     }
 
-    const userRosterId = selectedLeague.userRosterId ?? draftSlotToRosterFallback(selectedDraft);
-    await loadDraft(selectedDraft.draftId, userRosterId, selectedLeague.leagueId);
+    const draftTeamRef = draftTeamReference(selectedDraft, selectedLeague.userRosterId);
+    await loadDraft(selectedDraft.draftId, draftTeamRef, selectedLeague.leagueId, selectedLeague.userRosterId);
   }
 
   async function connectSleeperDraft() {
@@ -482,7 +485,14 @@
       return;
     }
 
-    await loadDraft(draftId, userRosterIdInput.trim() || null, "");
+    const explicitRosterId = userRosterIdInput.trim() || null;
+    await loadDraft(
+      draftId,
+      explicitRosterId,
+      "",
+      explicitRosterId,
+      connectPayload?.user.userId ?? (usernameInput.trim() || null),
+    );
   }
 
   async function loadMockDraft() {
@@ -500,6 +510,7 @@
     seasonProjectionImportSummary = null;
     adpImportSummary = null;
     activeDraftId = "";
+    activeDraftTeamRef = null;
     activeUserRosterId = null;
     teamManagerState = null;
     teamDataReadiness = null;
@@ -523,11 +534,18 @@
     userPickedMode = false;
     phaseSyncKey = "";
     window.localStorage.removeItem("lastDraftId");
+    window.localStorage.removeItem("lastDraftTeamRef");
     window.localStorage.removeItem("lastUserRosterId");
     window.localStorage.removeItem("lastLeagueId");
   }
 
-  async function loadDraft(draftId: string, userRosterId: string | null, leagueId = "") {
+  async function loadDraft(
+    draftId: string,
+    draftTeamRef: string | null,
+    leagueId = "",
+    userRosterId: string | null = draftTeamRef,
+    userIdentifier: string | null = null,
+  ) {
     eventSource?.close();
     resetDraftSyncTracking();
     isLoading = true;
@@ -536,7 +554,9 @@
     lastEvent = "Waiting for event stream";
 
     try {
-      const payload = await fetchDraftState(draftId, userRosterId);
+      const payload = await fetchDraftState(draftId, draftTeamRef, userIdentifier);
+      const resolvedDraftTeamRef = draftTeamRef
+        ?? `slot-${payload.state.teams.find((team) => team.id === payload.state.userTeamId)?.draftSlot ?? 1}`;
       const resolvedLeagueId = leagueId || payload.state.leagueId || "";
       if (teamManagerState?.league.id !== resolvedLeagueId) {
         resetTeamRefreshTracking();
@@ -549,6 +569,7 @@
       }
       applyDraftPayload(payload);
       activeDraftId = draftId;
+      activeDraftTeamRef = resolvedDraftTeamRef;
       activeUserRosterId = userRosterId;
       void loadDecisionHistory();
       void loadTeamManager(resolvedLeagueId, userRosterId);
@@ -564,10 +585,16 @@
       );
       if (isMockDraft(draftId)) {
         window.localStorage.removeItem("lastDraftId");
+        window.localStorage.removeItem("lastDraftTeamRef");
         window.localStorage.removeItem("lastUserRosterId");
         window.localStorage.removeItem("lastLeagueId");
       } else {
         window.localStorage.setItem("lastDraftId", draftId);
+        if (resolvedDraftTeamRef) {
+          window.localStorage.setItem("lastDraftTeamRef", resolvedDraftTeamRef);
+        } else {
+          window.localStorage.removeItem("lastDraftTeamRef");
+        }
         if (userRosterId) {
           window.localStorage.setItem("lastUserRosterId", userRosterId);
         } else {
@@ -580,7 +607,7 @@
         }
       }
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
-      connectEvents(draftId, userRosterId);
+      connectEvents(draftId, resolvedDraftTeamRef);
     } catch (error) {
       loadError = error instanceof Error ? error.message : "Draft load failed.";
       status = "Draft unavailable";
@@ -590,6 +617,7 @@
       seasonProjectionImportSummary = null;
       adpImportSummary = null;
       activeDraftId = "";
+      activeDraftTeamRef = null;
       activeUserRosterId = null;
       decisionSnapshots = [];
       decisionHistoryError = "";
@@ -616,6 +644,7 @@
       userPickedMode = false;
       phaseSyncKey = "";
       window.localStorage.removeItem("lastDraftId");
+      window.localStorage.removeItem("lastDraftTeamRef");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
     } finally {
@@ -783,7 +812,7 @@
     isLoadingDecisionHistory = decisionSnapshots.length === 0;
     decisionHistoryError = "";
     try {
-      const payload = await fetchDecisionHistory(activeDraftId, activeUserRosterId);
+      const payload = await fetchDecisionHistory(activeDraftId, activeDraftTeamRef);
       if (requestId === decisionHistoryRequestId) {
         decisionSnapshots = payload.snapshots;
       }
@@ -883,7 +912,7 @@
     try {
       const payload = await importRankingsRequest(
         activeDraftId,
-        activeUserRosterId,
+        activeDraftTeamRef,
         csvText,
         normalizeDraftScoring(draftState?.settings.scoring),
       );
@@ -910,7 +939,7 @@
     rankingImportError = "";
 
     try {
-      const payload = await clearRankingsRequest(activeDraftId, activeUserRosterId);
+      const payload = await clearRankingsRequest(activeDraftId, activeDraftTeamRef);
       applyDraftPayload(payload);
       rankingsExpanded = true;
       if (teamManagerState) {
@@ -940,7 +969,7 @@
     try {
       const payload = await importSeasonProjectionsRequest({
         draftId: activeDraftId,
-        userRosterId: activeUserRosterId,
+        userRosterId: activeDraftTeamRef,
         season: input.season,
         files: input.files,
       });
@@ -964,7 +993,7 @@
     isClearingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
-      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeUserRosterId));
+      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeDraftTeamRef));
       status = "Season projections cleared";
     } catch (error) {
       seasonProjectionImportError = error instanceof Error ? error.message : "Could not clear season projections.";
@@ -983,7 +1012,7 @@
     try {
       const payload = await importAdpRequest({
         draftId: activeDraftId,
-        userRosterId: activeUserRosterId,
+        userRosterId: activeDraftTeamRef,
         season,
         csvText,
       });
@@ -1004,7 +1033,7 @@
     isClearingAdp = true;
     adpImportError = "";
     try {
-      applyDraftPayload(await clearAdpRequest(activeDraftId, activeUserRosterId));
+      applyDraftPayload(await clearAdpRequest(activeDraftId, activeDraftTeamRef));
       status = "Sleeper ADP cleared";
     } catch (error) {
       adpImportError = error instanceof Error ? error.message : "Could not clear Sleeper ADP.";
@@ -1219,7 +1248,7 @@
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
     const payload = await askManagerRequest(
       activeDraftId,
-      activeUserRosterId,
+      activeDraftTeamRef,
       question,
       conversationHistory,
       playerPreferenceSummary(),
@@ -1233,7 +1262,7 @@
   async function evaluateDraftCandidate(playerId: string): Promise<CandidateEvaluationPayload> {
     const payload = await evaluateDraftCandidateRequest(
       activeDraftId,
-      activeUserRosterId,
+      activeDraftTeamRef,
       playerId,
       recommendationPreferenceRequest(),
     );
@@ -1290,6 +1319,8 @@
       label: "Your team",
       value: activeUserRosterId
         ? `Roster ${activeUserRosterId}`
+        : activeDraftTeamRef?.startsWith("slot-")
+          ? `Draft slot ${activeDraftTeamRef.replace("slot-", "")}`
         : selectedLeague?.userRosterId
           ? `Roster ${selectedLeague.userRosterId}`
           : draftState
@@ -1302,7 +1333,7 @@
           : draftState
             ? "Recommendations may miss roster needs"
             : "Matched after draft selection",
-      tone: activeUserRosterId || selectedLeague?.userRosterId ? "ready" : isRealDraftActive ? "warning" : "neutral",
+      tone: activeUserRosterId || activeDraftTeamRef || selectedLeague?.userRosterId ? "ready" : isRealDraftActive ? "warning" : "neutral",
     },
     {
       label: "Player values",
@@ -1410,7 +1441,7 @@
         {loadError}
         {activeSourceLabel}
         {activeDraftId}
-        {activeUserRosterId}
+        activeUserRosterId={activeUserRosterId ?? activeDraftTeamRef}
         onFindLeagues={findSleeperLeagues}
         onSelectLeague={selectLeague}
         onSelectDraft={selectDraft}
@@ -1438,7 +1469,7 @@
           consecutiveFailures={draftConsecutiveFailures}
           nextRetryMs={draftNextRetryMs}
           reconnecting={draftReconnecting}
-          onReconnect={() => connectEvents(activeDraftId, activeUserRosterId)}
+          onReconnect={() => connectEvents(activeDraftId, activeDraftTeamRef)}
         />
       {/if}
       <FormatCompatibilityNotice

@@ -282,8 +282,16 @@ export async function clearWeeklyProjectionsRequest(leagueId: string, season: st
   return (await response.json()) as { deleted: boolean };
 }
 
-export async function fetchDraftState(draftId: string, userRosterId: string | null): Promise<DraftPayload> {
-  const response = await apiFetch(buildDraftUrl(draftId, "state", userRosterId));
+export async function fetchDraftState(
+  draftId: string,
+  userRosterId: string | null,
+  userIdentifier: string | null = null,
+): Promise<DraftPayload> {
+  const url = new URL(buildDraftUrl(draftId, "state", userRosterId), window.location.origin);
+  if (userIdentifier) {
+    url.searchParams.set("userIdentifier", userIdentifier);
+  }
+  const response = await apiFetch(url);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Draft load failed."));
   }

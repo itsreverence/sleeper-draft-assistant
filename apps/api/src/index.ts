@@ -461,7 +461,7 @@ app.delete("/leagues/:leagueId/projections/weekly", async (c) => {
 });
 app.get("/drafts/:draftId/state", async (c) => {
   try {
-    const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
+    const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c), c.req.query("userIdentifier"));
     const draftId = c.req.param("draftId");
     return c.json(toDraftPayload(state, draftId, { recordTrigger: "state-load", userRosterId: getUserRosterId(c) }));
   } catch (error) {
@@ -695,12 +695,16 @@ app.get("/drafts/:draftId/events", async (c) => {
   }
 });
 
-async function loadDraftState(draftId: string, userRosterId?: string | null): Promise<DraftState> {
+async function loadDraftState(
+  draftId: string,
+  userRosterId?: string | null,
+  userIdentifier?: string | null,
+): Promise<DraftState> {
   if (isMockDraft(draftId)) {
     return applyDraftData(draftId, mockState);
   }
 
-  const state = await sleeperClient.getDraftState(draftId, userRosterId);
+  const state = await sleeperClient.getDraftState(draftId, userRosterId, userIdentifier);
   return applyDraftData(draftId, state);
 }
 

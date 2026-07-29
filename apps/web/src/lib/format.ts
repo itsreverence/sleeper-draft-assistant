@@ -4,8 +4,8 @@ export function isMockDraft(draftId: string) {
   return draftId === "mock" || draftId === "mock-draft";
 }
 
-export function draftSlotToRosterFallback(draft: ConnectDraft) {
-  return draft.userDraftSlot ? String(draft.userDraftSlot) : null;
+export function draftTeamReference(draft: ConnectDraft, userRosterId: string | null) {
+  return draft.userDraftSlot ? `slot-${draft.userDraftSlot}` : userRosterId;
 }
 
 const ROSTER_SLOT_ORDER = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "BN", "K", "DEF"];

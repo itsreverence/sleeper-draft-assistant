@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { DraftState } from "./types";
-import { draftSlotForPick, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode } from "./format";
+import { draftSlotForPick, draftTeamReference, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode } from "./format";
+
+describe("draft team identity", () => {
+  it("prefers the draft-specific slot over the league roster ID", () => {
+    expect(draftTeamReference({
+      draftId: "draft-1",
+      name: "Mock",
+      status: "drafting",
+      type: "snake",
+      season: "2026",
+      teams: 8,
+      rounds: 15,
+      userDraftSlot: 5,
+    }, "1")).toBe("slot-5");
+  });
+});
 
 describe("draft turn helpers", () => {
   it("computes snake draft slots", () => {
