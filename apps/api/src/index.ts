@@ -1015,7 +1015,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
 
   function scheduleRefresh(
     controller: ReadableStreamDefaultController<Uint8Array>,
-    delay = draftPollDelayMs(consecutiveFailures),
+    delay = draftPollDelayMs(consecutiveFailures, localState.status),
   ) {
     if (cancelled) {
       return;
@@ -1028,13 +1028,14 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
   async function refresh(controller: ReadableStreamDefaultController<Uint8Array>) {
     let sent = false;
     try {
-      const nextState = await loadDraftState(draftId, userRosterId);
+      const picks = await sleeperClient.getDraftPicks(draftId);
       consecutiveFailures = 0;
       const previousPickCount = lastPickCount;
-      localState = nextState;
-      lastPickCount = nextState.picks.length;
 
-      if (nextState.picks.length > previousPickCount) {
+      if (picks.length !== previousPickCount) {
+        const nextState = await loadDraftState(draftId, userRosterId);
+        localState = nextState;
+        lastPickCount = nextState.picks.length;
         sent = channel.send(controller, "pick", {
           type: "pick",
           pick: nextState.picks[nextState.picks.length - 1],
@@ -1054,7 +1055,7 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
         at: new Date().toISOString(),
         message: "Sleeper is temporarily unavailable. Automatic retry will continue.",
         consecutiveFailures,
-        nextRetryMs: draftPollDelayMs(consecutiveFailures),
+        nextRetryMs: draftPollDelayMs(consecutiveFailures, localState.status),
       });
     } finally {
       if (sent) {

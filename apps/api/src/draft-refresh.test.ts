@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import { draftPollDelayMs } from "./draft-refresh";
 
 describe("draft polling backoff", () => {
-  it("uses the normal cadence when Sleeper is healthy", () => {
-    expect(draftPollDelayMs(0)).toBe(5_000);
+  it("polls active drafts quickly and idle states less often", () => {
+    expect(draftPollDelayMs(0, "drafting")).toBe(2_000);
+    expect(draftPollDelayMs(0, "pre_draft")).toBe(5_000);
+    expect(draftPollDelayMs(0, "complete")).toBe(15_000);
   });
 
   it("backs off repeated failures and caps the delay", () => {
@@ -15,4 +17,3 @@ describe("draft polling backoff", () => {
     expect(draftPollDelayMs(20)).toBe(30_000);
   });
 });
-

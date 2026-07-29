@@ -11,7 +11,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 
 - Connects to Sleeper's tokenless, read-only API by username, league, or draft.
 - Tracks live and completed draft boards.
-- Preserves the last valid draft during transient Sleeper failures, with visible sync age and bounded automatic retries.
+- Tracks active Sleeper drafts with lightweight two-second pick checks, while preserving the last valid board during transient failures with visible sync age and bounded retries.
 - Produces deterministic recommendations from roster construction, scarcity, availability, ADP, tiers, and other explainable signals.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
