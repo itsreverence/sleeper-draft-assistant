@@ -56,6 +56,21 @@ describe("AI provider context", () => {
     expect(context.draftBrief.primaryDecisionGuidance).toContain("QB replacement pressure is lower because this is not a superflex format.");
     expect(context.draftBrief.rosterPressure).toContain("This format has 2 RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.");
   });
+  it("warns AI when one position has consumed every direct and flex starting spot", () => {
+    const state = createEightTeamTwoFlexState();
+    const receivers = Array.from({ length: 4 }, (_, index) =>
+      contextPlayer(`context-rostered-wr-${index}`, `Rostered WR ${index}`, "SEA", "WR", 250, index + 1, 1),
+    );
+    state.players.push(...receivers);
+    state.teams[0]!.roster = receivers.map((player) => player.id);
+
+    const context = buildDraftAiContext(state, buildDraftRecommendation(state), "Should I draft another WR?");
+
+    expect(context.rosterConstruction.primaryNeeds).toContain("RB");
+    expect(context.rosterConstruction.pressureSignals).toContain(
+      "WR has filled all 4 possible direct/FLEX starting spots while RB still has 2 open direct starter spot(s).",
+    );
+  });
 });
 function createEightTeamTwoFlexState(): DraftState {
   const teams = Array.from({ length: 8 }, (_, index) => ({

@@ -194,6 +194,52 @@ describe("mock draft engine", () => {
     expect(recommendation.recommendedPlayerId).not.toBe("format-qb-allen");
     expect(recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
   });
+  it("stops recommending WR after WR has filled every starting and flex slot", () => {
+    const state = createEightTeamTwoFlexState();
+    const rosteredReceivers = Array.from({ length: 4 }, (_, index) =>
+      formatPlayer(`rostered-wr-${index + 1}`, `Rostered WR ${index + 1}`, "SEA", "WR", 260 - index, index + 1, 1),
+    );
+    state.players = [...state.players, ...rosteredReceivers];
+    state.teams[0]!.roster = rosteredReceivers.map((player) => player.id);
+    state.picks = rosteredReceivers.map((player, index) => ({
+      pickNo: index + 1,
+      round: index + 1,
+      draftSlot: 1,
+      teamId: state.userTeamId,
+      playerId: player.id,
+    }));
+    state.currentPick = 5;
+
+    const recommendation = buildDraftRecommendation(state);
+    const chase = buildCandidateSignals(state, state.players.length)
+      .find((candidate) => candidate.player.id === "format-wr-chase");
+
+    expect(recommendation.candidates[0]?.player.position).toBe("RB");
+    expect(chase?.rosterFit).toBe("depth");
+    expect(chase?.reasons).toContain("WR starting and flex capacity is already covered");
+    expect(chase?.score).toBeLessThan(recommendation.candidates[0]?.score ?? 0);
+  });
+  it("prioritizes an empty RB room after both direct WR starters are filled", () => {
+    const state = createEightTeamTwoFlexState();
+    const rosteredReceivers = Array.from({ length: 2 }, (_, index) =>
+      formatPlayer(`starter-wr-${index + 1}`, `Starter WR ${index + 1}`, "SEA", "WR", 270 - index, index + 1, 1),
+    );
+    state.players = [...state.players, ...rosteredReceivers];
+    state.teams[0]!.roster = rosteredReceivers.map((player) => player.id);
+    state.picks = rosteredReceivers.map((player, index) => ({
+      pickNo: index + 1,
+      round: index + 1,
+      draftSlot: 1,
+      teamId: state.userTeamId,
+      playerId: player.id,
+    }));
+    state.currentPick = 3;
+
+    const recommendation = buildDraftRecommendation(state);
+
+    expect(recommendation.candidates[0]?.player.position).toBe("RB");
+    expect(recommendation.candidates[0]?.reasons).toContain("fills a RB roster need");
+  });
 
   it("caps recommendation confidence when league settings need caution", () => {
     const state = createEightTeamTwoFlexState();

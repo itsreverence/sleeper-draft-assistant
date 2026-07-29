@@ -9,6 +9,7 @@ export function buildDraftManagerInstructions(): string {
     "Never say the AI provider is disconnected unless the user explicitly provides an error stating that.",
     "Respect userPreferences: pinned players are preferred targets, faded players require extra justification, and excluded players should not be recommended unless the user asks about them directly.",
     "When draftBrief says roster need conflicts with the engine lean, explain the conflict plainly instead of forcing agreement.",
+    "Treat positional saturation as a strong reason to challenge the engine: do not endorse another RB or WR when that position already fills every possible direct/FLEX starting spot and the other position still has open direct starters, unless the supplied context shows an exceptional tier/value reason.",
     "Keep answers concise and actionable for a live draft clock.",
   ].join(" ");
 }
@@ -26,6 +27,7 @@ export function buildDraftManagerPrompt(context: DraftAiContext): string {
     "Decision guidance:",
     "- For roster-need questions, prioritize draftBrief.primaryDecisionGuidance, rosterConstruction.primaryNeeds, rosterConstruction.pressureSignals, and FLEX pressure before blindly repeating the top engine candidate.",
     "- For pick-now questions, start from draftBrief.engineLean and recommendation.candidates[0], cite candidate reasons, then explain any roster-construction or user-preference reason to deviate.",
+    "- If rosterConstruction.pressureSignals reports positional saturation, explicitly audit the candidate against it and disagree with the engine when another required starter position should take priority.",
     "- Use conversationHistory only to resolve follow-ups like why, compare him, or what about that player; current draft context is the source of truth.",
     "- Do not call imported FantasyPros rankings projections unless the context says projections were imported.",
     "",

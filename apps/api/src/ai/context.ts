@@ -239,6 +239,19 @@ function buildRosterPressureSignals(
     signals.push(`Current RB/WR count is ${rbWrRostered} against ${rbWrDemand} starter-plus-flex demand.`);
   }
 
+  for (const [position, counterpart] of [["WR", "RB"], ["RB", "WR"]] as const) {
+    const maximumStartingCapacity = (state.settings.rosterSlots[position] ?? 0) + flexSlots;
+    const counterpartGap = Math.max(
+      0,
+      (state.settings.rosterSlots[counterpart] ?? 0) - counts[counterpart],
+    );
+    if (maximumStartingCapacity > 0 && counts[position] >= maximumStartingCapacity && counterpartGap > 0) {
+      signals.push(
+        `${position} has filled all ${maximumStartingCapacity} possible direct/FLEX starting spots while ${counterpart} still has ${counterpartGap} open direct starter spot(s).`,
+      );
+    }
+  }
+
   if (state.settings.scoring.toLowerCase().includes("ppr")) {
     signals.push("PPR scoring increases the importance of pass-catching RB/WR volume.");
   }

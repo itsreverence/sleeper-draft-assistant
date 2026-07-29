@@ -25,14 +25,6 @@ const defaultPositionBaselines: Record<Position, number> = {
   DEF: 110,
 };
 
-const targetRosterCounts: Record<Position, number> = {
-  QB: 1,
-  RB: 4,
-  WR: 5,
-  TE: 1,
-  K: 0,
-  DEF: 0,
-};
 export type DraftRecommendationPreferences = {
   pinnedPlayerIds?: string[];
   fadedPlayerIds?: string[];
@@ -960,12 +952,12 @@ function toCandidateSignal(
 ): CandidateSignal {
   const baseline = replacementBaselines[player.position];
   const projectedEdge = Number((player.projectedPoints - baseline).toFixed(1));
-  const rosterFit = getRosterFit(player.position, rosterCounts);
+  const rosterFit = getRosterFit(player.position, state, rosterCounts);
   const scarcityBoost = getScarcityBoost(player.position, state, baseline);
   const constructionBoost = getRosterConstructionBoost(player.position, state, rosterCounts);
   const adpValue = player.adp === null ? 0 : player.adp - state.currentPick;
   const returnProbability = estimateReturnProbability(player, state);
-  const fitBoost = rosterFit === "need" ? 9 : rosterFit === "depth" ? 4 : -4;
+  const fitBoost = rosterFit === "need" ? 9 : rosterFit === "depth" ? 2 : -12;
   const tierBoost = player.tier === null ? 0 : Math.max(0, 8 - player.tier);
   const importedRankBoost = player.importedRank
     ? clamp(12 - player.importedRank / 4, -8, 12)
@@ -983,7 +975,7 @@ function toCandidateSignal(
       projectionBoost +
       fitBoost +
       scarcityBoost +
-      clamp(constructionBoost, -10, 12) +
+      clamp(constructionBoost, -24, 12) +
       marketBoost +
       tierBoost +
       importedRankBoost +
@@ -1005,13 +997,27 @@ function toCandidateSignal(
   };
 }
 
-function getRosterFit(position: Position, rosterCounts: Record<Position, number>): CandidateSignal["rosterFit"] {
-  if (rosterCounts[position] < targetRosterCounts[position]) {
+function getRosterFit(
+  position: Position,
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): CandidateSignal["rosterFit"] {
+  const slots = state.settings.rosterSlots;
+  const directDemand = slots[position] ?? 0;
+  if (rosterCounts[position] < directDemand) {
     return "need";
   }
 
   if (position === "RB" || position === "WR") {
-    return rosterCounts[position] < targetRosterCounts[position] + 2 ? "depth" : "luxury";
+    const flexSlots = getDraftFlexSlotCount(slots);
+    const flexEligibleRostered = rosterCounts.RB + rosterCounts.WR + rosterCounts.TE;
+    const flexEligibleDemand = (slots.RB ?? 0) + (slots.WR ?? 0) + (slots.TE ?? 0) + flexSlots;
+    const maximumStartingCapacity = directDemand + flexSlots;
+    if (flexEligibleRostered < flexEligibleDemand && rosterCounts[position] < maximumStartingCapacity) {
+      return "need";
+    }
+
+    return rosterCounts[position] < maximumStartingCapacity + 2 ? "depth" : "luxury";
   }
 
   return "luxury";
@@ -1027,17 +1033,31 @@ function getRosterConstructionBoost(
   rosterCounts: Record<Position, number>,
 ): number {
   const slots = state.settings.rosterSlots;
-  const flexSlots = (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
+  const flexSlots = getDraftFlexSlotCount(slots);
   const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
-  const rbWrDemand = (slots.RB ?? 0) + (slots.WR ?? 0) + flexSlots;
-  const rbWrRostered = rosterCounts.RB + rosterCounts.WR;
 
   if (position === "RB" || position === "WR") {
-    const flexPressure = Math.min(10, flexSlots * 4);
-    const starterPressure = rosterCounts[position] < (slots[position] ?? 0) ? 4 : 0;
-    const depthPressure = rbWrRostered < rbWrDemand ? 4 : 0;
-    const pprPressure = state.settings.scoring.toLowerCase().includes("ppr") ? 2 : 0;
-    return flexPressure + starterPressure + depthPressure + pprPressure;
+    const directDemand = slots[position] ?? 0;
+    const otherPosition: Position = position === "RB" ? "WR" : "RB";
+    const otherDirectGap = Math.max(0, (slots[otherPosition] ?? 0) - rosterCounts[otherPosition]);
+    const maximumStartingCapacity = directDemand + flexSlots;
+    const flexEligibleRostered = rosterCounts.RB + rosterCounts.WR + rosterCounts.TE;
+    const flexEligibleDemand = (slots.RB ?? 0) + (slots.WR ?? 0) + (slots.TE ?? 0) + flexSlots;
+
+    if (rosterCounts[position] < directDemand) {
+      return 10;
+    }
+
+    if (rosterCounts[position] >= maximumStartingCapacity) {
+      const benchDepth = rosterCounts[position] - maximumStartingCapacity;
+      return -10 - benchDepth * 4 - (otherDirectGap > 0 ? 10 : 0);
+    }
+
+    if (flexEligibleRostered < flexEligibleDemand) {
+      return otherDirectGap > 0 ? 1 : 5;
+    }
+
+    return -4;
   }
 
   if (position === "QB") {
@@ -1053,6 +1073,10 @@ function getRosterConstructionBoost(
   }
 
   return -10;
+}
+
+function getDraftFlexSlotCount(slots: Record<string, number>): number {
+  return (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
 }
 function getScarcityBoost(position: Position, state: DraftState, baseline: number): number {
   const availableAtPosition = getAvailablePlayers(state).filter((player) => player.position === position);
@@ -1255,6 +1279,10 @@ function getReasons(
 
   if (constructionBoost >= 10 && (player.position === "RB" || player.position === "WR")) {
     reasons.push("matches RB/WR flex demand");
+  }
+
+  if (constructionBoost <= -10 && (player.position === "RB" || player.position === "WR")) {
+    reasons.push(`${player.position} starting and flex capacity is already covered`);
   }
 
   if (constructionBoost < 0 && (player.position === "QB" || player.position === "TE")) {

@@ -657,7 +657,7 @@ app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
       `Evaluate drafting ${candidate.player.name} (${candidate.player.position}, ${candidate.player.team}) at pick ${state.currentPick}.`,
       "Give a direct verdict using Prefer, Reasonable, or Avoid.",
       "Then provide 2-4 concise reasons, the strongest alternative from the listed candidates, and the next two positional priorities if this player is selected.",
-      "Explicitly say whether you disagree with the deterministic engine and identify important data limitations.",
+      "Explicitly say whether you disagree with the deterministic engine, audit positional saturation against direct and FLEX capacity, and identify important data limitations.",
       "Do not claim access to news or information outside the supplied draft context.",
     ].join(" ");
     const aiProvider = createAiProvider(settingsStore.get());
