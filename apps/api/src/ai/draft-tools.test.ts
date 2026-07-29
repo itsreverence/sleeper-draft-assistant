@@ -13,6 +13,10 @@ describe("draft AI tools", () => {
     const snapshot = createDraftPlayerSnapshot(state, { pinned: [], faded: [], excluded: [] });
     const [search] = createDraftStrategyTools(snapshot);
 
+    expect(search!.definition.description).toContain("captured pick number");
+    expect(search!.definition.description).toContain("total matches");
+    expect(search!.definition.description).toContain("without recommendation scores");
+
     const result = await search!.execute({
       positions: ["K", "DEF"],
       sortBy: "projection",

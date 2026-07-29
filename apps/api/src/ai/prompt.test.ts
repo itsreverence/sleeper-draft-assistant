@@ -18,27 +18,31 @@ describe("draft manager prompt", () => {
     expect(prompt).toContain("openDirectStarterSlots");
     expect(prompt).not.toContain("engineLean");
     expect(prompt).not.toContain("draftBrief");
+    expect(prompt).not.toContain("toolInstructions");
     expect(prompt).not.toContain('"score"');
+    expect(prompt.match(/search_available_players/g)).toHaveLength(1);
   });
 
-  it("instructs providers to reason independently from distinct evidence", () => {
+  it("keeps reusable draft instructions concise and focused on hard boundaries", () => {
     const instructions = buildDraftManagerInstructions();
 
-    expect(instructions).toContain("Independently answer");
-    expect(instructions).toContain("neutral catalog");
-    expect(instructions).toContain("Use search_available_players");
-    expect(instructions).toContain("Do not invent player projections");
+    expect(instructions).toContain("independent fantasy football draft manager");
+    expect(instructions).toContain("separate raw signals");
+    expect(instructions).toContain("never recommend an unavailable or excluded player");
+    expect(instructions).not.toContain("search_available_players");
   });
 
   it("gives the primary strategist neutral evidence and player search instead of an engine lean", () => {
     const prompt = buildDraftStrategyPrompt(buildDraftStrategyContext(createMockDraftState(8)));
 
-    expect(prompt).toContain("playerEvidence is an alphabetically ordered catalog");
-    expect(prompt).toContain("separate pinned, ECR, projection, ADP, Sleeper search-rank fallback, and position-coverage retrievals");
-    expect(prompt).toContain("Use search_available_players proactively");
+    expect(prompt).toContain("evidence groups are separate raw signals");
+    expect(prompt).toContain("Use search_available_players when");
     expect(prompt).toContain("openDirectStarterSlots");
     expect(prompt).not.toContain("engineLean");
+    expect(prompt).not.toContain("toolInstructions");
+    expect(prompt).not.toContain("The backend will reject");
     expect(prompt).not.toContain('"score"');
     expect(prompt).not.toContain("deterministic order");
+    expect(prompt.match(/search_available_players/g)).toHaveLength(1);
   });
 });

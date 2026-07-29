@@ -78,14 +78,6 @@ export function buildDraftStrategyContext(
       teamsSelectingBeforeNextTurn: getTeamsSelectingBeforeNextTurn(state, nextUserPick, playersById),
     },
     ...groupedPlayerEvidence,
-    toolInstructions: [
-      "playerEvidence is an alphabetically ordered catalog. Its order is not a recommendation.",
-      "playerEvidenceGroups contains player IDs grouped by why they were retrieved. Ordering inside each signal-specific group follows only that named raw signal.",
-      "positionCoverage uses the first populated source in this order: ECR, season projection, Sleeper ADP, then Sleeper search-rank placeholder.",
-      "Use search_available_players whenever another position, tier, or named player could materially change the decision.",
-      "Tool results are from the immutable player pool captured at draft.currentPick.",
-      "Treat imported rank, season projection, Sleeper ADP, Real-Time ADP, and Sleeper search-rank placeholder as separate evidence.",
-    ],
   };
 }
 

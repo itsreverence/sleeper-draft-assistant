@@ -29,6 +29,7 @@ describe("AI provider context", () => {
     expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
     expect(context).not.toHaveProperty("recommendation");
     expect(context).not.toHaveProperty("draftBrief");
+    expect(context).not.toHaveProperty("toolInstructions");
   });
 
   it("answers through the neutral fallback provider", async () => {

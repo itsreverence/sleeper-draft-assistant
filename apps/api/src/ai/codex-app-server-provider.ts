@@ -83,7 +83,7 @@ export class CodexAppServerProvider implements AiProvider {
         sandbox: "read-only",
         serviceName: "sleeper_draft_assistant",
         baseInstructions:
-          "You are the reasoning provider for a local fantasy football assistant. Use only facts supplied in the user turn and its read-only fantasy tools. Do not inspect files, run shell commands, browse the web, modify anything, or invent unavailable facts.",
+          "You are the reasoning provider for a local, read-only Sleeper fantasy football assistant. Use only facts supplied in the user turn and its fantasy tools. Do not inspect files, run shell commands, browse the web, modify anything, or invent unavailable facts.",
         ...(tools.length > 0 ? { dynamicTools: toDynamicToolDefinitions(tools) } : {}),
       });
       const threadId = thread.thread?.id;

@@ -56,7 +56,7 @@ export function createDraftStrategyTools(snapshot: DraftPlayerSnapshot): AiTool[
         type: "function",
         name: "search_available_players",
         description:
-          "Search the immutable pool of players available at the current pick. Use this whenever the supplied evidence groups do not cover a position, tier, or player you want to investigate. Results contain raw imported evidence, not a recommendation score.",
+          "Search players available in the immutable current-pick snapshot when the supplied evidence groups do not cover a material position, tier, or named alternative. Returns the captured pick number, raw sort field, total matches, and player evidence without recommendation scores.",
         inputSchema: {
           type: "object",
           additionalProperties: false,

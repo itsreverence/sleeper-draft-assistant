@@ -153,7 +153,6 @@ export type DraftStrategyContext = {
   };
   playerEvidence: DraftPlayerEvidence[];
   playerEvidenceGroups: DraftPlayerEvidenceGroups;
-  toolInstructions: string[];
 };
 
 export type DraftQuestionContext = Omit<DraftStrategyContext, "task" | "objective"> & {
