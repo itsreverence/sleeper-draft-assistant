@@ -1,9 +1,39 @@
-import type { CandidateSignal, DraftRecommendation, DraftState, Position } from "./types";
+import type {
+  AiProviderStatus,
+  AppSettings,
+  CandidateSignal,
+  DraftRecommendation,
+  DraftState,
+  Position,
+} from "./types";
 
 export type AiPanelContextSummary = {
   chips: string[];
   note: string | null;
 };
+
+export function shouldRunAutomaticDraftAudit(
+  state: DraftState | null,
+  settings: AppSettings | null,
+  providerStatus: AiProviderStatus | null,
+  picksUntilTurn: number | null,
+): boolean {
+  if (
+    state?.status !== "drafting" ||
+    providerStatus?.id !== "codex-app-server" ||
+    !providerStatus.configured
+  ) {
+    return false;
+  }
+
+  if (settings?.automaticAiAudit === "on_turn") {
+    return picksUntilTurn === 0;
+  }
+
+  return settings?.automaticAiAudit === "on_deck" &&
+    picksUntilTurn !== null &&
+    picksUntilTurn <= 1;
+}
 
 export function buildSuggestedQuestions(
   state: DraftState | null,

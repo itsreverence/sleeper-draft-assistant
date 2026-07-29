@@ -47,6 +47,7 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 9. User-supplied weekly projection files add provider-scored week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
 10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
 11. The deterministic engine evaluates import coverage, matching quality, and format compatibility before assigning confidence.
+12. A configured AI provider may audit the lead candidate on demand or, when explicitly enabled, near the user's turn. The audit is nonblocking and cannot change deterministic ordering or submit a pick.
 12. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
 13. Draft SSE polling keeps the last valid state visible during transient Sleeper failures. Repeated failures use bounded backoff from 5 to 30 seconds, and renderer events expose only a generic upstream-safe error plus sync age.
 14. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.

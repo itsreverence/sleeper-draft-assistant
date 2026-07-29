@@ -66,6 +66,8 @@ export type RankingImportRequest = z.infer<typeof RankingImportRequestSchema>;
 
 export const AiProviderIdSchema = z.enum(["noop", "codex-app-server"]);
 export type AiProviderId = z.infer<typeof AiProviderIdSchema>;
+export const AutomaticAiAuditModeSchema = z.enum(["off", "on_turn", "on_deck"]);
+export type AutomaticAiAuditMode = z.infer<typeof AutomaticAiAuditModeSchema>;
 
 export function isCodexExecutableReference(value: string): boolean {
   const executableName = value.trim().split(/[\\/]/).pop()?.toLowerCase();
@@ -79,6 +81,7 @@ export const AppSettingsSchema = z.object({
   }).default("codex"),
   codexModel: z.string().trim().min(1).default("gpt-5.4"),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
+  automaticAiAudit: AutomaticAiAuditModeSchema.default("off"),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

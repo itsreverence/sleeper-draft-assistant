@@ -53,12 +53,13 @@
     importSeasonProjectionsRequest,
     updateSettings,
   } from "./lib/api";
-  import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
+  import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
   import {
     shouldRefreshTeamManager,
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
+  import { shouldRunAutomaticDraftAudit } from "./lib/ai-panel";
   import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
@@ -1271,6 +1272,10 @@
   }
 
   const userTeam = $derived(getUserTeam(draftState));
+  const picksUntilTurn = $derived(picksUntilUserTurn(draftState));
+  const automaticAiAuditActive = $derived(
+    shouldRunAutomaticDraftAudit(draftState, appSettings, aiProviderStatus, picksUntilTurn),
+  );
   const activeSourceLabel = $derived(draftState ? (isMockDraft(activeDraftId) ? "Demo draft" : "Sleeper draft") : "No draft loaded");
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
   const isRealDraftActive = $derived(Boolean(draftState && !isMockDraft(activeDraftId)));
@@ -1505,6 +1510,7 @@
                 {recommendation}
                 currentPick={draftState.currentPick}
                 aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+                automaticAiAudit={automaticAiAuditActive}
                 onEvaluateCandidate={evaluateDraftCandidate}
                 playerPreferences={playerPreferences}
                 showPlaceholderWarning={recommendationsUsePlaceholder}

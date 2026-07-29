@@ -41,10 +41,16 @@ When Codex app-server is configured, the lead draft candidate exposes an **AI ta
 
 Candidate evaluation is:
 
-- on demand; it does not add model latency to normal draft refreshes;
+- on demand by default, so it does not add model latency to normal draft refreshes;
 - grounded in the current deterministic recommendation, roster construction, league settings, and imported-data limitations;
 - validated by the backend so unavailable or no-longer-recommended players cannot be evaluated from stale UI state;
 - tied to the current pick number and marked stale when the board advances;
 - advisory only and never replaces deterministic candidate ordering or evidence.
 
 The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest listed alternative, next positional priorities, disagreement with the engine, and data limitations. It does not receive or claim live news outside the supplied draft context.
+
+### Automatic strategy audit
+
+Settings can optionally run the same candidate evaluation automatically when the user is on the clock or within one pick. Automatic auditing is off by default, runs asynchronously once per board state and lead candidate, and leaves the deterministic recommendation immediately usable while the model responds.
+
+The automatic audit is a strategy check, not a second ranking engine. It is prompted to challenge positional saturation, incomplete starting requirements, format mismatches, and weak imported-data coverage. Its verdict is displayed alongside the deterministic evidence and never changes candidate scores or submits a Sleeper pick.

@@ -13,6 +13,7 @@
     onOpenRankings,
     currentPick,
     aiEnabled = false,
+    automaticAiAudit = false,
     onEvaluateCandidate,
   }: {
     recommendation: DraftRecommendation | null;
@@ -23,6 +24,7 @@
     onOpenRankings?: () => void;
     currentPick: number;
     aiEnabled?: boolean;
+    automaticAiAudit?: boolean;
     onEvaluateCandidate?: (playerId: string) => Promise<CandidateEvaluationPayload>;
   } = $props();
 
@@ -52,6 +54,7 @@
   let evaluationErrors: Record<string, string> = $state({});
   let evaluatingPlayerId = $state("");
   let latestEvaluationPlayerId = $state("");
+  let lastAutomaticAuditKey = $state("");
   const latestEvaluation = $derived(evaluations[latestEvaluationPlayerId] ?? null);
   const latestEvaluationStillListed = $derived(
     Boolean(latestEvaluation && recommendation?.candidates.some((candidate) => candidate.player.id === latestEvaluation.playerId)),
@@ -81,6 +84,21 @@
       evaluatingPlayerId = "";
     }
   }
+
+  $effect(() => {
+    const playerId = recommendation?.candidates[0]?.player.id;
+    const auditKey = playerId ? `${currentPick}:${playerId}` : "";
+    if (
+      automaticAiAudit &&
+      aiEnabled &&
+      playerId &&
+      auditKey !== lastAutomaticAuditKey &&
+      !evaluatingPlayerId
+    ) {
+      lastAutomaticAuditKey = auditKey;
+      void evaluateCandidate(playerId);
+    }
+  });
 </script>
 
 <article class="panel recommendation-panel">

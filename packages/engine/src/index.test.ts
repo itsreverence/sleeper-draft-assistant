@@ -305,6 +305,25 @@ describe("mock draft engine", () => {
     expect(signal?.returnProbability).toBe(0.08);
     expect(signal?.reasons).toContain("real-time market is 24.0 picks earlier than Sleeper ADP");
   });
+  it("rewards players who fall past ADP and penalizes reaches", () => {
+    const state = createEightTeamTwoFlexState();
+    const falling = formatPlayer("falling-wr", "Falling WR", "SEA", "WR", 280, 5, 2);
+    const reach = formatPlayer("reach-wr", "Reach WR", "SEA", "WR", 280, 45, 2);
+    falling.projectionSource = "season_projection";
+    reach.projectionSource = "season_projection";
+    falling.adpSource = "FantasyPros Sleeper ADP";
+    reach.adpSource = "FantasyPros Sleeper ADP";
+    state.players = [falling, reach];
+    state.currentPick = 25;
+
+    const signals = buildCandidateSignals(state, 2);
+    const fallingSignal = signals.find((candidate) => candidate.player.id === falling.id);
+    const reachSignal = signals.find((candidate) => candidate.player.id === reach.id);
+
+    expect(fallingSignal?.valueLabel).toBe("major Sleeper ADP discount");
+    expect(reachSignal?.valueLabel).toBe("ahead of Sleeper ADP");
+    expect(fallingSignal?.score).toBeGreaterThan(reachSignal?.score ?? 0);
+  });
 
   it("explains shallow-league QB replacement pressure in small one-QB formats", () => {
     const state = createEightTeamTwoFlexState();
@@ -378,6 +397,50 @@ function formatPlayer(
   };
 }
 
+describe("full draft simulations", () => {
+  it("finishes an 8-team PPR draft with every required starter position", () => {
+    const state = simulateRecommendationDraft({
+      QB: 1,
+      RB: 2,
+      WR: 2,
+      TE: 1,
+      FLEX: 2,
+      BN: 5,
+      K: 1,
+      DEF: 1,
+    });
+    const counts = simulatedUserPositionCounts(state);
+
+    expect(counts.QB).toBeGreaterThanOrEqual(1);
+    expect(counts.RB).toBeGreaterThanOrEqual(2);
+    expect(counts.WR).toBeGreaterThanOrEqual(2);
+    expect(counts.TE).toBeGreaterThanOrEqual(1);
+    expect(counts.K).toBe(1);
+    expect(counts.DEF).toBe(1);
+    expect(counts.QB).toBeLessThanOrEqual(2);
+    expect(counts.TE).toBeLessThanOrEqual(2);
+    expect(counts.RB + counts.WR + counts.TE).toBeGreaterThanOrEqual(7);
+    expect(state.teams.find((team) => team.id === state.userTeamId)?.roster).toHaveLength(15);
+  });
+
+  it("drafts a second starting QB in an 8-team superflex room", () => {
+    const state = simulateRecommendationDraft({
+      QB: 1,
+      RB: 2,
+      WR: 2,
+      TE: 1,
+      FLEX: 1,
+      SUPER_FLEX: 1,
+      BN: 7,
+    });
+    const counts = simulatedUserPositionCounts(state);
+
+    expect(counts.QB).toBeGreaterThanOrEqual(2);
+    expect(counts.RB).toBeGreaterThanOrEqual(2);
+    expect(counts.WR).toBeGreaterThanOrEqual(2);
+    expect(counts.TE).toBeGreaterThanOrEqual(1);
+  });
+});
 
 describe("team needs engine", () => {
   it("summarizes open starters, thin depth, and flex pressure", () => {
@@ -675,6 +738,105 @@ function weeklyImportSummary(positions: Position[]): WeeklyProjectionImportSumma
   };
 }
 
+function simulateRecommendationDraft(rosterSlots: Record<string, number>): DraftState {
+  const teams = Array.from({ length: 8 }, (_, index) => ({
+    id: `simulation-team-${index + 1}`,
+    name: index === 4 ? "Your Team" : `Team ${index + 1}`,
+    draftSlot: index + 1,
+    roster: [] as string[],
+  }));
+  const rounds = Object.values(rosterSlots).reduce((total, count) => total + count, 0);
+  const state: DraftState = {
+    id: "simulation-draft",
+    name: "Simulation Draft",
+    status: "drafting",
+    currentPick: 1,
+    userTeamId: "simulation-team-5",
+    settings: {
+      teams: teams.length,
+      rounds,
+      scoring: "PPR",
+      rosterSlots,
+    },
+    teams,
+    players: createSimulationPlayerPool(),
+    picks: [],
+    updatedAt: "2026-07-29T00:00:00.000Z",
+  };
 
+  const totalPicks = teams.length * rounds;
+  for (let pickNo = 1; pickNo <= totalPicks; pickNo += 1) {
+    state.currentPick = pickNo;
+    const round = Math.ceil(pickNo / teams.length);
+    const pickInRound = ((pickNo - 1) % teams.length) + 1;
+    const draftSlot = round % 2 === 1 ? pickInRound : teams.length + 1 - pickInRound;
+    const team = state.teams.find((candidate) => candidate.draftSlot === draftSlot)!;
+    const available = getAvailablePlayers(state);
+    const player = team.id === state.userTeamId
+      ? buildDraftRecommendation(state).candidates[0]?.player
+      : [...available].sort((left, right) => (left.adp ?? 9999) - (right.adp ?? 9999))[0];
+    if (!player) {
+      throw new Error(`Simulation player pool exhausted at pick ${pickNo}.`);
+    }
+
+    state.picks.push({
+      pickNo,
+      round,
+      draftSlot,
+      teamId: team.id,
+      playerId: player.id,
+    });
+    team.roster.push(player.id);
+  }
+  state.currentPick = totalPicks;
+  state.status = "complete";
+  return state;
+}
+
+function createSimulationPlayerPool(): Player[] {
+  const earlyPattern: Position[] = ["RB", "WR", "RB", "WR", "WR", "RB", "QB", "TE", "WR", "RB", "QB", "WR"];
+  const positions: Position[] = Array.from({ length: 180 }, (_, index) => earlyPattern[index % earlyPattern.length]!);
+  positions.push(...Array.from({ length: 20 }, (_, index) => index % 2 === 0 ? "K" as const : "DEF" as const));
+  const positionIndexes: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };
+  const projectionBase: Record<Position, number> = { QB: 390, RB: 330, WR: 320, TE: 260, K: 140, DEF: 135 };
+  const projectionStep: Record<Position, number> = { QB: 7, RB: 4, WR: 3.5, TE: 5, K: 2, DEF: 2 };
+
+  return positions.map((position, index) => {
+    const positionIndex = ++positionIndexes[position];
+    const rank = index + 1;
+    const projectedPoints = Math.max(40, projectionBase[position] - projectionStep[position] * positionIndex);
+    return {
+      id: `simulation-${position.toLowerCase()}-${positionIndex}`,
+      sleeperId: `simulation-${position.toLowerCase()}-${positionIndex}`,
+      name: `${position} Player ${positionIndex}`,
+      team: "SIM",
+      position,
+      projectedPoints,
+      projectionSource: "season_projection",
+      adp: rank,
+      tier: Math.ceil(positionIndex / 8),
+      riskTags: [],
+      importedRank: rank,
+      seasonProjectedPoints: projectedPoints,
+      seasonProjectionSource: "Simulation",
+      seasonProjectionSeason: "2026",
+      seasonProjectionCoverage: "league_scored",
+      adpSource: "Simulation ADP",
+    };
+  });
+}
+
+function simulatedUserPositionCounts(state: DraftState): Record<Position, number> {
+  const userTeam = state.teams.find((team) => team.id === state.userTeamId)!;
+  const playersById = new Map(state.players.map((player) => [player.id, player]));
+  const counts: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };
+  for (const playerId of userTeam.roster) {
+    const player = playersById.get(playerId);
+    if (player) {
+      counts[player.position] += 1;
+    }
+  }
+  return counts;
+}
 
 

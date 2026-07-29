@@ -19,6 +19,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Offers an optional local Codex app-server provider for conversational analysis.
 - Lets configured AI providers evaluate an individual draft candidate against the current board while keeping deterministic rankings authoritative.
+- Optionally audits the lead candidate near your turn without blocking or replacing the deterministic recommendation.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
 - Shows a compact recent-decision review so recommendation changes can be traced to picks, imports, refreshes, or AI questions.
 

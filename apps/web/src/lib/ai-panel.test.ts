@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { Player } from "@sleeper-draft-assistant/shared";
-import type { DraftRecommendation, DraftState, Position } from "./types";
-import { buildAiPanelContextSummary, buildSuggestedQuestions } from "./ai-panel";
+import type {
+  AiProviderStatus,
+  AppSettings,
+  DraftRecommendation,
+  DraftState,
+  Position,
+} from "./types";
+import {
+  buildAiPanelContextSummary,
+  buildSuggestedQuestions,
+  shouldRunAutomaticDraftAudit,
+} from "./ai-panel";
 
 const state = createState();
 const recommendation = createRecommendation();
@@ -24,6 +34,49 @@ describe("AI panel helpers", () => {
     expect(summary.chips).toContain("RB/WR flex pressure");
     expect(summary.chips).toContain("Lower QB pressure");
     expect(summary.note).toContain("imported rankings");
+  });
+
+  it("runs automatic audits only at the configured turn distance", () => {
+    const draftingState = { ...state, status: "drafting" as const };
+    const providerStatus: AiProviderStatus = {
+      id: "codex-app-server",
+      configured: true,
+      label: "Codex app server",
+    };
+    const settings: AppSettings = {
+      aiProvider: "codex-app-server",
+      codexBin: "codex",
+      codexModel: "gpt-5.4",
+      codexTimeoutMs: 60000,
+      automaticAiAudit: "on_turn",
+    };
+
+    expect(shouldRunAutomaticDraftAudit(draftingState, settings, providerStatus, 0)).toBe(true);
+    expect(shouldRunAutomaticDraftAudit(draftingState, settings, providerStatus, 1)).toBe(false);
+    expect(
+      shouldRunAutomaticDraftAudit(
+        draftingState,
+        { ...settings, automaticAiAudit: "on_deck" },
+        providerStatus,
+        1,
+      ),
+    ).toBe(true);
+    expect(
+      shouldRunAutomaticDraftAudit(
+        { ...draftingState, status: "pre_draft" },
+        settings,
+        providerStatus,
+        0,
+      ),
+    ).toBe(false);
+    expect(
+      shouldRunAutomaticDraftAudit(
+        draftingState,
+        settings,
+        { ...providerStatus, configured: false },
+        0,
+      ),
+    ).toBe(false);
   });
 });
 

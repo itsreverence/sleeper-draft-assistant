@@ -955,7 +955,8 @@ function toCandidateSignal(
   const rosterFit = getRosterFit(player.position, state, rosterCounts);
   const scarcityBoost = getScarcityBoost(player.position, state, baseline);
   const constructionBoost = getRosterConstructionBoost(player.position, state, rosterCounts);
-  const adpValue = player.adp === null ? 0 : player.adp - state.currentPick;
+  const completionBoost = getRosterCompletionBoost(player.position, state, rosterCounts);
+  const adpValue = player.adp === null ? 0 : state.currentPick - player.adp;
   const returnProbability = estimateReturnProbability(player, state);
   const fitBoost = rosterFit === "need" ? 9 : rosterFit === "depth" ? 2 : -12;
   const tierBoost = player.tier === null ? 0 : Math.max(0, 8 - player.tier);
@@ -976,6 +977,7 @@ function toCandidateSignal(
       fitBoost +
       scarcityBoost +
       clamp(constructionBoost, -24, 12) +
+      clamp(completionBoost, -20, 24) +
       marketBoost +
       tierBoost +
       importedRankBoost +
@@ -993,7 +995,16 @@ function toCandidateSignal(
     valueLabel: getValueLabel(player, adpValue),
     scarcityLabel: getScarcityLabel(scarcityBoost),
     returnProbability,
-    reasons: getReasons(player, projectedEdge, rosterFit, adpValue, returnProbability, preferences, constructionBoost),
+    reasons: getReasons(
+      player,
+      projectedEdge,
+      rosterFit,
+      adpValue,
+      returnProbability,
+      preferences,
+      constructionBoost,
+      completionBoost,
+    ),
   };
 }
 
@@ -1003,7 +1014,8 @@ function getRosterFit(
   rosterCounts: Record<Position, number>,
 ): CandidateSignal["rosterFit"] {
   const slots = state.settings.rosterSlots;
-  const directDemand = slots[position] ?? 0;
+  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
+  const directDemand = (slots[position] ?? 0) + (position === "QB" ? superFlexSlots : 0);
   if (rosterCounts[position] < directDemand) {
     return "need";
   }
@@ -1061,14 +1073,22 @@ function getRosterConstructionBoost(
   }
 
   if (position === "QB") {
-    if (superFlexSlots > 0) {
+    const qbStarterDemand = (slots.QB ?? 0) + superFlexSlots;
+    if (rosterCounts.QB < qbStarterDemand && superFlexSlots > 0) {
       return 10;
+    }
+    if (rosterCounts.QB >= qbStarterDemand) {
+      return -10 - Math.max(0, rosterCounts.QB - qbStarterDemand) * 6;
     }
 
     return state.settings.teams <= 10 ? -8 : -4;
   }
 
   if (position === "TE") {
+    const teStarterDemand = slots.TE ?? 0;
+    if (rosterCounts.TE >= teStarterDemand) {
+      return -10 - Math.max(0, rosterCounts.TE - teStarterDemand) * 6;
+    }
     return state.settings.teams <= 10 ? -4 : 0;
   }
 
@@ -1077,6 +1097,75 @@ function getRosterConstructionBoost(
 
 function getDraftFlexSlotCount(slots: Record<string, number>): number {
   return (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
+}
+
+function getRosterCompletionBoost(
+  position: Position,
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): number {
+  const directGaps = getDirectStarterGaps(state, rosterCounts);
+  const positionGap = directGaps[position];
+  const remainingPicks = countRemainingUserPicks(state);
+  const totalRequiredGaps = Object.values(directGaps).reduce((total, gap) => total + gap, 0);
+  const slackPicks = remainingPicks - totalRequiredGaps;
+  const currentRound = Math.ceil(state.currentPick / Math.max(1, state.settings.teams));
+
+  if (positionGap <= 0) {
+    return position === "K" || position === "DEF" ? -12 : 0;
+  }
+
+  if (slackPicks <= 0) {
+    return 24;
+  }
+  if (slackPicks === 1) {
+    return 18;
+  }
+
+  if (position === "K" || position === "DEF") {
+    return currentRound >= state.settings.rounds - 2 ? 10 : -18;
+  }
+
+  const draftProgress = currentRound / Math.max(1, state.settings.rounds);
+  if (draftProgress >= 0.75) {
+    return 12;
+  }
+  if (draftProgress >= 0.55) {
+    return 6;
+  }
+
+  return 0;
+}
+
+function getDirectStarterGaps(
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): Record<Position, number> {
+  const slots = state.settings.rosterSlots;
+  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
+  return {
+    QB: Math.max(0, (slots.QB ?? 0) + superFlexSlots - rosterCounts.QB),
+    RB: Math.max(0, (slots.RB ?? 0) - rosterCounts.RB),
+    WR: Math.max(0, (slots.WR ?? 0) - rosterCounts.WR),
+    TE: Math.max(0, (slots.TE ?? 0) - rosterCounts.TE),
+    K: Math.max(0, (slots.K ?? 0) - rosterCounts.K),
+    DEF: Math.max(0, (slots.DEF ?? 0) - rosterCounts.DEF),
+  };
+}
+
+function countRemainingUserPicks(state: DraftState): number {
+  const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot ?? 1;
+  const totalPicks = state.settings.teams * state.settings.rounds;
+  let remaining = 0;
+  for (let pickNo = state.currentPick; pickNo <= totalPicks; pickNo += 1) {
+    const round = Math.ceil(pickNo / state.settings.teams);
+    const pickInRound = ((pickNo - 1) % state.settings.teams) + 1;
+    const draftSlot = round % 2 === 1 ? pickInRound : state.settings.teams + 1 - pickInRound;
+    if (draftSlot === userSlot) {
+      remaining += 1;
+    }
+  }
+  return remaining;
 }
 function getScarcityBoost(position: Position, state: DraftState, baseline: number): number {
   const availableAtPosition = getAvailablePlayers(state).filter((player) => player.position === position);
@@ -1154,15 +1243,15 @@ function getValueLabel(player: Player, adpValue: number): string {
     }
 
     if (adpValue >= 12) {
-      return "later-ranked by Sleeper";
+      return "well past Sleeper rank";
     }
 
     if (adpValue >= 4) {
-      return "Sleeper rank cushion";
+      return "Sleeper rank value";
     }
 
     if (adpValue <= -10) {
-      return "ahead of Sleeper rank";
+      return "later-ranked by Sleeper";
     }
 
     return "near Sleeper rank";
@@ -1270,6 +1359,7 @@ function getReasons(
   returnProbability: number,
   preferences: NormalizedRecommendationPreferences,
   constructionBoost: number,
+  completionBoost: number,
 ): string[] {
   const reasons = [
     getPrimarySignalReason(player, projectedEdge),
@@ -1287,6 +1377,12 @@ function getReasons(
 
   if (constructionBoost < 0 && (player.position === "QB" || player.position === "TE")) {
     reasons.push("shallow league reduces replacement pressure");
+  }
+
+  if (completionBoost >= 18) {
+    reasons.push(`${player.position} is urgent with limited roster picks remaining`);
+  } else if (completionBoost >= 10) {
+    reasons.push(`${player.position} starter still needs to be filled`);
   }
 
   if (preferences.pinned.has(player.id)) {
