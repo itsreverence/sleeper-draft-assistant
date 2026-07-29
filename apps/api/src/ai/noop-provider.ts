@@ -1,4 +1,4 @@
-import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
+import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftAiContext, DraftStrategyContext, TeamAiContext } from "./types";
 
 export class NoopAiProvider implements AiProvider {
   status(): AiProviderStatus {
@@ -10,8 +10,8 @@ export class NoopAiProvider implements AiProvider {
     };
   }
 
-  async strategizeDraft(context: DraftAiContext): Promise<AiDraftStrategy> {
-    const top = context.recommendation.candidates[0];
+  async strategizeDraft(context: DraftStrategyContext): Promise<AiDraftStrategy> {
+    const top = context.initialPlayerPool[0];
     if (!top) {
       throw new Error("No draft candidates are available.");
     }
@@ -20,14 +20,17 @@ export class NoopAiProvider implements AiProvider {
       decision: {
         basedOnPick: context.draft.currentPick,
         recommendedPlayerId: top.playerId,
-        alternativePlayerIds: context.recommendation.candidates.slice(1, 5).map((candidate) => candidate.playerId),
+        alternativePlayerIds: context.initialPlayerPool.slice(1, 5).map((candidate) => candidate.playerId),
         verdict: "reasonable",
-        confidence: context.recommendation.confidence,
+        confidence: "low",
         headline: `Fallback: ${top.name}`,
-        summary: context.recommendation.summary,
-        reasons: top.reasons.slice(0, 5),
-        risks: context.recommendation.risks.slice(0, 4),
-        nextPositionPriorities: context.rosterConstruction.primaryNeeds.slice(0, 3),
+        summary: `${top.name} leads the neutral fallback pool while no AI provider is available.`,
+        reasons: ["Highest available player in the neutral fallback evidence pool."],
+        risks: ["This is not an AI-generated strategy decision."],
+        nextPositionPriorities: (Object.entries(context.roster.openDirectStarterSlots) as Array<[keyof typeof context.roster.openDirectStarterSlots, number]>)
+          .filter(([, count]) => count > 0)
+          .map(([position]) => position)
+          .slice(0, 3),
         strategyNote: "Connect an AI provider for a model-generated draft strategy.",
       },
     };

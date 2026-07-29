@@ -1,4 +1,4 @@
-import type { DraftAiContext, TeamAiContext } from "./types";
+import type { DraftAiContext, DraftStrategyContext, TeamAiContext } from "./types";
 
 export function buildDraftManagerInstructions(): string {
   return [
@@ -39,11 +39,13 @@ export function buildDraftManagerPrompt(context: DraftAiContext): string {
   ].join("\n");
 }
 
-export function buildDraftStrategyPrompt(context: DraftAiContext): string {
+export function buildDraftStrategyPrompt(context: DraftStrategyContext): string {
   return [
-    "Act as the primary fantasy football draft strategist. Choose from recommendation.candidates only.",
-    "The deterministic order is evidence, not authority. Independently reason about roster construction, league format, tiers, ADP, return probability, risk concentration, and remaining starter requirements.",
-    "Never invent or return a player id that is not present in recommendation.candidates.",
+    "Act as the primary fantasy football draft strategist.",
+    "Independently reason from the supplied league rules, roster, draft board, user preferences, and raw player evidence.",
+    "The initialPlayerPool is a neutral retrieval sample, not a ranking or recommendation. You may recommend any player returned there or by search_available_players.",
+    "Use search_available_players proactively when another position, tier, or named player could materially change the decision. In particular, search positions missing from the initial pool before assuming no useful option exists.",
+    "Never invent a player, player id, projection, ranking, ADP, injury, role, or news item.",
     "Return JSON only, with no markdown fence or surrounding prose.",
     "Required JSON shape:",
     JSON.stringify({
@@ -61,11 +63,11 @@ export function buildDraftStrategyPrompt(context: DraftAiContext): string {
     }, null, 2),
     "",
     "Rules:",
-    "- Complete required starters before the user's remaining selections run out.",
-    "- Do not keep adding a position after its direct and FLEX capacity is saturated unless a clearly exceptional supplied tier/value justifies a bench selection.",
-    "- In one-QB leagues, require exceptional value before prioritizing extra quarterbacks. In superflex, account for elevated QB demand.",
-    "- Treat imported ranks, projections, and ADP as separate signals and state limitations honestly.",
+    "- Treat roster.openDirectStarterSlots, roster.openFlexSlots, remaining selections, and league settings as facts; decide their strategic importance yourself.",
+    "- Do not recommend a choice that makes completing required starter slots mathematically impossible.",
+    "- Treat imported ranks, season projections, Sleeper ADP, and Real-Time ADP as separate evidence and state limitations honestly.",
     "- Respect pinned, faded, and excluded preferences in the supplied context.",
+    "- The backend will reject stale picks, unavailable players, excluded players, and invalid player ids.",
     "- Keep every string concise.",
     "",
     "Draft context JSON:",

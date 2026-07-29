@@ -11,6 +11,7 @@ import {
   buildTeamWaiverSummary,
   createMockDraftState,
   getAvailablePlayers,
+  isDraftChoiceRosterFeasible,
 } from "./index";
 
 describe("mock draft engine", () => {
@@ -441,6 +442,9 @@ describe("full draft simulations", () => {
     };
 
     const firstRecommendation = buildDraftRecommendation(state);
+    expect(isDraftChoiceRosterFeasible(state, "endgame-elite-wr")).toBe(false);
+    expect(isDraftChoiceRosterFeasible(state, "endgame-k")).toBe(true);
+    expect(isDraftChoiceRosterFeasible(state, "endgame-def")).toBe(true);
     expect(firstRecommendation.candidates.map((candidate) => candidate.player.position).sort()).toEqual(["DEF", "K"]);
     expect(firstRecommendation.headline).toMatch(/^Fill (K|DEF):/);
     expect(firstRecommendation.summary).toContain("must be filled now");

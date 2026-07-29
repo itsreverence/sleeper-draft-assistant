@@ -847,6 +847,72 @@ export function buildCandidateSignals(state: DraftState, limit = 8, options: Dra
     .slice(0, limit);
 }
 
+export function buildCandidateSignalForPlayer(
+  state: DraftState,
+  playerId: string,
+  options: DraftRecommendationOptions = {},
+): CandidateSignal | null {
+  const userTeam = state.teams.find((team) => team.id === state.userTeamId);
+  const player = getAvailablePlayers(state).find((candidate) => candidate.id === playerId);
+  if (!userTeam || !player) {
+    return null;
+  }
+  const preferenceSets = toPreferenceSets(options.preferences);
+  if (preferenceSets.excluded.has(player.id)) {
+    return null;
+  }
+  return toCandidateSignal(
+    player,
+    state,
+    countRosterPositions(userTeam, state.players),
+    preferenceSets,
+    getReplacementBaselines(state),
+  );
+}
+
+export function isDraftChoiceRosterFeasible(state: DraftState, playerId: string): boolean {
+  const userTeam = state.teams.find((team) => team.id === state.userTeamId);
+  const player = getAvailablePlayers(state).find((candidate) => candidate.id === playerId);
+  if (!userTeam || !player) {
+    return false;
+  }
+  const counts = countRosterPositions(userTeam, state.players);
+  const requiredBeforeChoice = getHardRequiredStarterGapCount(state, counts);
+  const remainingBeforeChoice = countRemainingUserPicks(state);
+  counts[player.position] += 1;
+  const requiredAfterChoice = getHardRequiredStarterGapCount(state, counts);
+  return requiredBeforeChoice >= remainingBeforeChoice
+    ? requiredAfterChoice < requiredBeforeChoice
+    : requiredAfterChoice <= Math.max(0, remainingBeforeChoice - 1);
+}
+
+function getHardRequiredStarterGapCount(
+  state: DraftState,
+  rosterCounts: Record<Position, number>,
+): number {
+  const slots = state.settings.rosterSlots;
+  const directGaps =
+    Math.max(0, (slots.QB ?? 0) - rosterCounts.QB) +
+    Math.max(0, (slots.RB ?? 0) - rosterCounts.RB) +
+    Math.max(0, (slots.WR ?? 0) - rosterCounts.WR) +
+    Math.max(0, (slots.TE ?? 0) - rosterCounts.TE) +
+    Math.max(0, (slots.K ?? 0) - rosterCounts.K) +
+    Math.max(0, (slots.DEF ?? 0) - rosterCounts.DEF);
+  const regularFlexSlots = getDraftFlexSlotCount(slots);
+  const rbWrTeSurplus =
+    Math.max(0, rosterCounts.RB - (slots.RB ?? 0)) +
+    Math.max(0, rosterCounts.WR - (slots.WR ?? 0)) +
+    Math.max(0, rosterCounts.TE - (slots.TE ?? 0));
+  const flexGap = Math.max(0, regularFlexSlots - rbWrTeSurplus);
+  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
+  const qbSurplus = Math.max(0, rosterCounts.QB - (slots.QB ?? 0));
+  const superFlexGap = Math.max(
+    0,
+    superFlexSlots - qbSurplus - Math.max(0, rbWrTeSurplus - regularFlexSlots),
+  );
+  return directGaps + flexGap + superFlexGap;
+}
+
 function hasImportedDraftSignal(player: Player): boolean {
   return player.projectionSource !== "sleeper_search_rank"
     || player.importedRank !== null && player.importedRank !== undefined

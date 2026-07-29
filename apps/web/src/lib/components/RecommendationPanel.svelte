@@ -160,7 +160,7 @@
     <div class="preference-summary">
       <div>
         <strong>{preferenceSummary}</strong>
-        <span>Applied to the recommendation engine for this draft.</span>
+        <span>Applied to AI strategy and the local fallback for this draft.</span>
       </div>
       {#if onClearPreferences}
         <button type="button" onclick={onClearPreferences}>Clear</button>
@@ -212,7 +212,7 @@
     {:else if isLoadingAiStrategy}
       <div class="ai-strategy-pending" aria-live="polite">
         <strong>AI strategist is reviewing this board.</strong>
-        <span>Showing the immediate deterministic shortlist while Codex reasons over roster construction and value.</span>
+        <span>Showing the immediate local fallback while Codex searches the available player pool and evaluates the draft.</span>
       </div>
       <p class="summary">{activeSummary}</p>
     {:else if aiStrategyEnabled && aiStrategyError}

@@ -1,12 +1,14 @@
 import { serve } from "@hono/node-server";
 import {
   advanceMockDraftState,
+  buildCandidateSignalForPlayer,
   buildDraftRecommendation,
   buildTeamDataReadiness,
   buildTeamLineupSummary,
   buildTeamNeedsSummary,
   buildTeamWaiverSummary,
   createMockDraftState,
+  isDraftChoiceRosterFeasible,
   type DraftRecommendationOptions,
 } from "@sleeper-draft-assistant/engine";
 import { Hono } from "hono";
@@ -16,6 +18,7 @@ import { cors } from "hono/cors";
 import { AdpImportRequestSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftAiContext, buildDraftStrategyContext } from "./ai/context";
+import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { draftPollDelayMs } from "./draft-refresh";
@@ -611,30 +614,49 @@ app.post("/drafts/:draftId/strategy", async (c) => {
         recommendationPreferences?: DraftRecommendationOptions["preferences"];
       }>()
       .catch(() => ({ userPreferences: undefined, recommendationPreferences: undefined }));
-    const recommendation = buildDraftRecommendation(state, {
-      preferences: normalizeRecommendationPreferences(body.recommendationPreferences),
-      candidateLimit: 20,
+    const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
+    const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
+    const snapshot = createDraftPlayerSnapshot(state, {
+      pinned: recommendationPreferences?.pinnedPlayerIds ?? [],
+      faded: recommendationPreferences?.fadedPlayerIds ?? [],
+      excluded: recommendationPreferences?.excludedPlayerIds ?? [],
     });
-    if (recommendation.candidates.length === 0) {
+    if (snapshot.players.every((player) => snapshot.preferences.excluded.has(player.id))) {
       return c.json({ error: "No available players can be evaluated for this pick." }, 409);
     }
-
+    const tools = createDraftStrategyTools(snapshot);
     const provider = createAiProvider(settingsStore.get());
     const strategy = await provider.strategizeDraft(
       buildDraftStrategyContext(
         state,
-        recommendation,
         normalizeUserPreferences(body.userPreferences),
+        snapshot,
       ),
+      tools,
     );
-    const candidatesById = new Map(recommendation.candidates.map((candidate) => [candidate.player.id, candidate]));
-    const recommendedCandidate = candidatesById.get(strategy.decision.recommendedPlayerId);
-    if (strategy.decision.basedOnPick !== state.currentPick || !recommendedCandidate) {
+    const latestState = await loadDraftState(draftId, getUserRosterId(c));
+    if (latestState.currentPick !== state.currentPick) {
+      return c.json({ error: "The draft board changed while AI strategy was running. Refreshing the recommendation." }, 409);
+    }
+    const availableIds = new Set(
+      snapshot.players
+        .filter((player) => !snapshot.preferences.excluded.has(player.id))
+        .map((player) => player.id),
+    );
+    const recommendedCandidate = availableIds.has(strategy.decision.recommendedPlayerId)
+      ? buildCandidateSignalForPlayer(state, strategy.decision.recommendedPlayerId, { preferences: recommendationPreferences })
+      : null;
+    if (
+      strategy.decision.basedOnPick !== state.currentPick ||
+      !recommendedCandidate ||
+      !isDraftChoiceRosterFeasible(state, recommendedCandidate.player.id)
+    ) {
       return c.json({ error: "The AI strategy did not match the current draft board." }, 502);
     }
     const alternativeCandidates = Array.from(new Set(strategy.decision.alternativePlayerIds))
       .filter((playerId) => playerId !== recommendedCandidate.player.id)
-      .map((playerId) => candidatesById.get(playerId))
+      .filter((playerId) => availableIds.has(playerId) && isDraftChoiceRosterFeasible(state, playerId))
+      .map((playerId) => buildCandidateSignalForPlayer(state, playerId, { preferences: recommendationPreferences }))
       .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
       .slice(0, 4);
     const decision = {

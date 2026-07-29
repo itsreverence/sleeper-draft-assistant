@@ -5,11 +5,11 @@ import readline from "node:readline";
 
 import { AiDraftDecisionSchema, type AiDraftDecision } from "@sleeper-draft-assistant/shared";
 
-import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, DraftAiContext, TeamAiContext } from "./types";
+import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftAiContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
 
 type JsonRpcMessage = {
-  id?: number;
+  id?: number | string;
   method?: string;
   params?: unknown;
   result?: unknown;
@@ -48,8 +48,8 @@ export class CodexAppServerProvider implements AiProvider {
     };
   }
 
-  async strategizeDraft(context: DraftAiContext): Promise<AiDraftStrategy> {
-    const result = await this.runPrompt(buildDraftStrategyPrompt(context));
+  async strategizeDraft(context: DraftStrategyContext, tools: AiTool[] = []): Promise<AiDraftStrategy> {
+    const result = await this.runPrompt(buildDraftStrategyPrompt(context), tools);
     return {
       provider: this.status(),
       decision: parseAiDraftDecision(result),
@@ -72,12 +72,19 @@ export class CodexAppServerProvider implements AiProvider {
     };
   }
 
-  private async runPrompt(prompt: string): Promise<string> {
-    const client = await CodexJsonRpcClient.start(this.codexBin, this.timeoutMs);
+  private async runPrompt(prompt: string, tools: AiTool[] = []): Promise<string> {
+    const client = await CodexJsonRpcClient.start(this.codexBin, this.timeoutMs, tools);
     try {
-      await client.initialize();
+      await client.initialize(tools.length > 0);
       const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
         model: this.model,
+        ephemeral: true,
+        approvalPolicy: "never",
+        sandbox: "read-only",
+        serviceName: "sleeper_draft_assistant",
+        baseInstructions:
+          "You are the reasoning provider for a local fantasy football assistant. Use only facts supplied in the user turn and its read-only fantasy tools. Do not inspect files, run shell commands, browse the web, modify anything, or invent unavailable facts.",
+        ...(tools.length > 0 ? { dynamicTools: toDynamicToolDefinitions(tools) } : {}),
       });
       const threadId = thread.thread?.id;
       if (!threadId) {
@@ -119,24 +126,26 @@ class CodexJsonRpcClient {
   private readonly deltas: string[] = [];
   private turnComplete: ((value: string) => void) | null = null;
   private turnFailed: ((error: Error) => void) | null = null;
+  private toolCallCount = 0;
 
   private constructor(
     private readonly proc: ChildProcessWithoutNullStreams,
     private readonly timeoutMs: number,
+    private readonly tools: Map<string, AiTool>,
   ) {}
 
-  static async start(codexBin: string, timeoutMs: number): Promise<CodexJsonRpcClient> {
+  static async start(codexBin: string, timeoutMs: number, tools: AiTool[] = []): Promise<CodexJsonRpcClient> {
     const launch = resolveCodexLaunch(codexBin);
     const proc = spawn(launch.command, [...launch.args, "app-server"], {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
-    const client = new CodexJsonRpcClient(proc, timeoutMs);
+    const client = new CodexJsonRpcClient(proc, timeoutMs, new Map(tools.map((tool) => [tool.definition.name, tool])));
     client.attach();
     return client;
   }
 
-  async initialize() {
+  async initialize(experimentalApi = false) {
     if (this.initialized) {
       return;
     }
@@ -147,6 +156,7 @@ class CodexJsonRpcClient {
         title: "Sleeper Draft Assistant",
         version: "0.1.0-alpha.1",
       },
+      ...(experimentalApi ? { capabilities: { experimentalApi: true } } : {}),
     });
     this.notify("initialized", {});
     this.initialized = true;
@@ -163,12 +173,7 @@ class CodexJsonRpcClient {
 
   async runTurn(threadId: string, prompt: string): Promise<string> {
     this.deltas.length = 0;
-    await this.request("turn/start", {
-      threadId,
-      input: [{ type: "text", text: prompt }],
-    });
-
-    return await new Promise<string>((resolve, reject) => {
+    const completion = new Promise<string>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.turnComplete = null;
         this.turnFailed = null;
@@ -188,6 +193,15 @@ class CodexJsonRpcClient {
         reject(error);
       };
     });
+    try {
+      await this.request("turn/start", {
+        threadId,
+        input: [{ type: "text", text: prompt }],
+      });
+    } catch (error) {
+      this.turnFailed?.(error instanceof Error ? error : new Error(String(error)));
+    }
+    return await completion;
   }
 
   notify(method: string, params: unknown) {
@@ -229,7 +243,7 @@ class CodexJsonRpcClient {
 
   private attach() {
     const lines = readline.createInterface({ input: this.proc.stdout });
-    lines.on("line", (line) => this.handleLine(line));
+    lines.on("line", (line) => void this.handleLine(line));
 
     this.proc.once("error", (error) => this.rejectAll(error instanceof Error ? error : new Error(String(error))));
     this.proc.once("exit", (code, signal) => {
@@ -237,7 +251,7 @@ class CodexJsonRpcClient {
     });
   }
 
-  private handleLine(line: string) {
+  private async handleLine(line: string) {
     if (!line.trim()) {
       return;
     }
@@ -246,6 +260,11 @@ class CodexJsonRpcClient {
     try {
       message = JSON.parse(line) as JsonRpcMessage;
     } catch {
+      return;
+    }
+
+    if ((typeof message.id === "number" || typeof message.id === "string") && message.method === "item/tool/call") {
+      await this.handleDynamicToolCall(message.id, message.params);
       return;
     }
 
@@ -276,6 +295,26 @@ class CodexJsonRpcClient {
     }
   }
 
+  private async handleDynamicToolCall(id: number | string, params: unknown) {
+    this.toolCallCount += 1;
+    if (this.toolCallCount > 6) {
+      this.write({
+        id,
+        result: dynamicToolError("Draft tool-call limit reached. Finish the recommendation using existing evidence."),
+      });
+      return;
+    }
+
+    this.write({
+      id,
+      result: await executeDynamicToolCall(
+        this.tools,
+        getNestedString(params, ["tool"]),
+        getNestedValue(params, ["arguments"]),
+      ),
+    });
+  }
+
   private rejectAll(error: Error) {
     for (const pending of this.pending.values()) {
       pending.reject(error);
@@ -283,6 +322,37 @@ class CodexJsonRpcClient {
     this.pending.clear();
     this.turnFailed?.(error);
   }
+}
+
+export function toDynamicToolDefinitions(tools: AiTool[]): AiToolDefinition[] {
+  return tools.map((tool) => tool.definition);
+}
+
+export async function executeDynamicToolCall(
+  tools: Map<string, AiTool>,
+  toolName: string | null,
+  argumentsValue: unknown,
+) {
+  const tool = toolName ? tools.get(toolName) : null;
+  if (!tool) {
+    return dynamicToolError("Unknown or unavailable draft tool.");
+  }
+  try {
+    const result = await tool.execute(argumentsValue);
+    return {
+      success: true,
+      contentItems: [{ type: "inputText" as const, text: JSON.stringify(result) }],
+    };
+  } catch {
+    return dynamicToolError("The draft tool rejected those arguments.");
+  }
+}
+
+function dynamicToolError(message: string) {
+  return {
+    success: false,
+    contentItems: [{ type: "inputText", text: JSON.stringify({ error: message }) }],
+  };
 }
 
 export type CodexLaunch = {
@@ -363,6 +433,17 @@ function getNestedString(value: unknown, path: string[]): string | null {
     current = (current as Record<string, unknown>)[key];
   }
   return typeof current === "string" ? current : null;
+}
+
+function getNestedValue(value: unknown, path: string[]): unknown {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || !(key in current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
 }
 
 

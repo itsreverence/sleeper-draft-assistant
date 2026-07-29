@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { parseAiDraftDecision, resolveCodexLaunch } from "./codex-app-server-provider";
+import { executeDynamicToolCall, parseAiDraftDecision, resolveCodexLaunch, toDynamicToolDefinitions } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -46,5 +46,54 @@ describe("Codex app-server executable resolution", () => {
     expect(decision.recommendedPlayerId).toBe("player-1");
     expect(decision.nextPositionPriorities).toEqual(["WR"]);
     expect(() => parseAiDraftDecision('{"recommendedPlayerId":"player-1"}')).toThrow("invalid draft decision");
+  });
+
+  it("passes provider-neutral tool definitions through to app-server", () => {
+    const definitions = toDynamicToolDefinitions([
+      {
+        definition: {
+          type: "function",
+          name: "search_available_players",
+          description: "Search players.",
+          inputSchema: { type: "object" },
+        },
+        execute: vi.fn(),
+      },
+    ]);
+
+    expect(definitions).toEqual([
+      {
+        type: "function",
+        name: "search_available_players",
+        description: "Search players.",
+        inputSchema: { type: "object" },
+      },
+    ]);
+  });
+
+  it("returns dynamic tool results as app-server input text", async () => {
+    const tool = {
+      definition: {
+        type: "function" as const,
+        name: "search_available_players",
+        description: "Search players.",
+        inputSchema: { type: "object" },
+      },
+      execute: vi.fn(async () => ({ basedOnPick: 12, players: [{ playerId: "k-1" }] })),
+    };
+
+    const result = await executeDynamicToolCall(
+      new Map([[tool.definition.name, tool]]),
+      "search_available_players",
+      { positions: ["K"] },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.contentItems[0]?.type).toBe("inputText");
+    expect(JSON.parse(result.contentItems[0]!.text)).toMatchObject({
+      basedOnPick: 12,
+      players: [{ playerId: "k-1" }],
+    });
+    expect(tool.execute).toHaveBeenCalledWith({ positions: ["K"] });
   });
 });

@@ -46,14 +46,16 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 8. A user-supplied FantasyPros overall rest-of-season rankings CSV adds scoring-specific ECR and expert disagreement to Team Manager. One overall export is used instead of separate position exports, and known scoring mismatches are rejected.
 9. User-supplied weekly projection files add provider-scored week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
 10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
-11. The local engine evaluates import coverage, matching quality, format compatibility, player availability, and lineup feasibility, then supplies a broad grounded shortlist.
-12. When Codex is configured, the AI strategist independently reranks that shortlist near the user's turn and returns a structured recommendation, alternatives, risks, and next-position plan. The backend validates the pick number and every returned player ID before exposing the decision.
-12. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
-13. Draft SSE polling checks the lightweight Sleeper picks endpoint every 2 seconds while drafting, every 5 seconds before the draft, and every 15 seconds after completion. A full state rebuild runs only when the pick count changes. Transient failures preserve the last valid state and use bounded backoff from 5 to 30 seconds; renderer events expose only a generic upstream-safe error plus sync age.
-14. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-15. Optional AI providers receive a compact context packet rather than the full player universe. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and local fallback remains immediately available during provider latency or failure.
-16. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
-17. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
+11. The local engine evaluates import coverage, matching quality, format compatibility, player availability, and lineup feasibility for immediate offline fallback behavior.
+12. When Codex is configured, the AI strategist receives neutral league, roster, board, and raw player evidence rather than the fallback engine's lean or composite scores.
+13. The provider can call a backend-owned `search_available_players` tool against an immutable current-pick snapshot. The tool searches the complete available pool by position, name, tier, ECR, season projection, Sleeper ADP, or Real-Time ADP without applying recommendation-engine filtering.
+14. The backend validates the response pick, availability, exclusions, and player IDs; it also rejects choices that worsen a critical starter deficit or make an otherwise feasible required lineup impossible to complete.
+15. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
+16. Draft SSE polling checks the lightweight Sleeper picks endpoint every 2 seconds while drafting, every 5 seconds before the draft, and every 15 seconds after completion. A full state rebuild runs only when the pick count changes. Transient failures preserve the last valid state and use bounded backoff from 5 to 30 seconds; renderer events expose only a generic upstream-safe error plus sync age.
+17. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
+18. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and local fallback remains immediately available during provider latency or failure.
+19. Settings, imports, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
+20. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
 
 ## Persistence
 
@@ -67,6 +69,8 @@ The renderer can clear draft rankings, season projections, draft ADP, rest-of-se
 
 - `noop`: local fallback response; default and offline-safe.
 - `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
+
+The provider-neutral `AiTool` boundary keeps draft search logic in the API domain layer. The Codex adapter maps those definitions to experimental app-server dynamic tools; future providers can expose the same read-only tools through their own function-calling protocol.
 
 Executable configuration is limited to commands or paths ending in `codex`, `codex.exe`, or `codex.cmd`.
 On Windows, npm launchers are resolved to their known `@openai/codex/bin/codex.js` entry point and `node.exe`; arbitrary shell execution is not enabled.

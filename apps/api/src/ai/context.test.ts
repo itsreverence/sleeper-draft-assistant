@@ -58,13 +58,16 @@ describe("AI provider context", () => {
   });
   it("builds a structured strategy packet with a broad grounded shortlist", async () => {
     const state = createEightTeamTwoFlexState();
-    const recommendation = buildDraftRecommendation(state, { candidateLimit: 20 });
-    const context = buildDraftStrategyContext(state, recommendation);
+    const context = buildDraftStrategyContext(state);
     const strategy = await new NoopAiProvider().strategizeDraft(context);
 
     expect(context.task).toBe("draft_strategy");
+    expect(context.initialPlayerPool.length).toBeGreaterThan(0);
+    expect(context.initialPlayerPool[0]).not.toHaveProperty("score");
+    expect(context.roster.openDirectStarterSlots.K).toBe(0);
+    expect(context.roster.openSuperFlexSlots).toBe(0);
     expect(strategy.decision.basedOnPick).toBe(state.currentPick);
-    expect(strategy.decision.recommendedPlayerId).toBe(recommendation.candidates[0]?.player.id);
+    expect(strategy.decision.recommendedPlayerId).toBe(context.initialPlayerPool[0]?.playerId);
     expect(strategy.decision.alternativePlayerIds.length).toBeGreaterThan(0);
   });
   it("warns AI when one position has consumed every direct and flex starting spot", () => {

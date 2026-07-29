@@ -37,11 +37,19 @@ Renderer code never stores provider credentials or contacts an AI provider direc
 
 ## AI-first draft strategy
 
-When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives current roster construction, league settings, recent picks, user preferences, data limitations, and up to 20 validated candidates with separate projection, ECR, ADP, tier, risk, and return-probability signals.
+When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and a neutral initial player pool. The primary strategy packet does not include the fallback engine's lean, composite score, confidence, qualitative value labels, return-probability estimate, or engine-authored reasons.
 
-The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, and next-position priorities. The backend rejects stale pick numbers and unknown or unavailable player IDs. The renderer discards responses after the board advances and shows the local shortlist while the model is working or unavailable.
+The initial pool is a union of raw ECR, season projection, Sleeper ADP, open-position, and pinned-player retrieval. Its order is explicitly not a recommendation.
 
-AI strategy cannot submit a Sleeper pick. It chooses only from the supplied candidate universe, while hard lineup-feasibility checks remain local.
+The Codex adapter exposes one provider-neutral, read-only dynamic tool:
+
+- `search_available_players`: searches the immutable player pool captured at the current pick. It supports position, name, exact tier, result limit, and sorting by ECR, season projection, Sleeper ADP, or Real-Time ADP. Results contain raw evidence and user preference markers, not local recommendation scores.
+
+Dynamic tools are experimental in Codex app-server, so the protocol handling remains isolated inside the experimental adapter. Tool calls are limited to six per strategy turn and twenty results per search.
+
+The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, and next-position priorities. The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, and lineup-infeasible choices. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local fallback while the model is working or unavailable.
+
+AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
 
 ## Candidate questions
 

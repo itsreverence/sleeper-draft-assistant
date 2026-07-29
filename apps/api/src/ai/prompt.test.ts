@@ -1,8 +1,8 @@
 import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it } from "vitest";
 
-import { buildDraftAiContext } from "./context";
-import { buildDraftManagerInstructions, buildDraftManagerPrompt } from "./prompt";
+import { buildDraftAiContext, buildDraftStrategyContext } from "./context";
+import { buildDraftManagerInstructions, buildDraftManagerPrompt, buildDraftStrategyPrompt } from "./prompt";
 
 describe("draft manager prompt", () => {
   it("puts the draft brief contract before the full context", () => {
@@ -26,5 +26,16 @@ describe("draft manager prompt", () => {
     expect(instructions).toContain("Use draftBrief first");
     expect(instructions).toContain("explain the conflict plainly instead of forcing agreement");
     expect(instructions).toContain("Do not invent player projections");
+  });
+
+  it("gives the primary strategist neutral evidence and player search instead of an engine lean", () => {
+    const prompt = buildDraftStrategyPrompt(buildDraftStrategyContext(createMockDraftState(8)));
+
+    expect(prompt).toContain("initialPlayerPool is a neutral retrieval sample");
+    expect(prompt).toContain("Use search_available_players proactively");
+    expect(prompt).toContain("openDirectStarterSlots");
+    expect(prompt).not.toContain("engineLean");
+    expect(prompt).not.toContain('"score"');
+    expect(prompt).not.toContain("deterministic order");
   });
 });
