@@ -275,7 +275,10 @@ export function applyWeeklyProjectionsToTeamState(state: TeamManagerState, store
     dataQuality: {
       ...state.dataQuality,
       playerValueSource: `FantasyPros weekly projections for ${storedImport.summary.season} Week ${storedImport.summary.week}`,
-      limitations: state.dataQuality.limitations.filter((item) => !item.toLowerCase().includes("weekly projections")),
+      limitations: [
+        ...state.dataQuality.limitations.filter((item) => !item.toLowerCase().includes("weekly projections")),
+        "Weekly FPTS are provider-scored; the FantasyPros export scoring must match the Sleeper league.",
+      ],
     },
   };
 

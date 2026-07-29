@@ -17,9 +17,13 @@ export function buildDraftAiContext(
   const candidateSources = new Set(recommendation.candidates.map((candidate) => candidate.player.projectionSource));
   const dataQuality: DraftAiContext["dataQuality"] = {
     playerValueSource: describePlayerValueSource(candidateSources),
-    hasImportedRankings: candidateSources.has("imported"),
+    hasImportedRankings: recommendation.candidates.some((candidate) => candidate.player.importedRank !== null && candidate.player.importedRank !== undefined),
+    hasSeasonProjections: candidateSources.has("season_projection"),
     usesSleeperPlaceholderRanks: candidateSources.has("sleeper_search_rank"),
-    limitations: getDataLimitations(candidateSources),
+    limitations: [
+      ...getDataLimitations(candidateSources),
+      ...(state.settings.formatCompatibility?.warnings ?? []),
+    ],
   };
   const rosterConstruction = buildRosterConstruction(state, userTeam, playersById);
   const userTeamSummary: DraftAiContext["userTeam"] = userTeam
@@ -56,6 +60,9 @@ export function buildDraftAiContext(
       reasons: candidate.reasons,
       source: candidate.player.projectionSource,
       importedRank: candidate.player.importedRank ?? null,
+      seasonProjectedPoints: candidate.player.seasonProjectedPoints ?? null,
+      sleeperAdp: candidate.player.adpSource ? candidate.player.adp : null,
+      realTimeAdp: candidate.player.realTimeAdp ?? null,
       tier: candidate.player.tier,
       byeWeek: candidate.player.byeWeek ?? null,
       riskTags: candidate.player.riskTags,
@@ -153,7 +160,9 @@ function buildPrimaryDecisionGuidance(
     guidance.push("QB replacement pressure is lower because this is not a superflex format.");
   }
 
-  if (dataQuality.hasImportedRankings) {
+  if (dataQuality.hasSeasonProjections) {
+    guidance.push("Season projections provide the primary point and replacement-value signal; imported rankings remain a separate expert-opinion signal.");
+  } else if (dataQuality.hasImportedRankings) {
     guidance.push("Imported rankings can support board value and tier decisions, but they are not a full projection model.");
   } else if (dataQuality.usesSleeperPlaceholderRanks) {
     guidance.push("Sleeper placeholder ranks are scaffolding only, so avoid overconfident advice.");
@@ -264,6 +273,10 @@ function countRosterPositions(
 }
 
 function describePlayerValueSource(sources: Set<Player["projectionSource"]>): string {
+  if (sources.has("season_projection")) {
+    return "FantasyPros season projections are scored against the connected Sleeper format; ECR and Sleeper ADP remain separate expert and market signals.";
+  }
+
   if (sources.has("imported")) {
     return "Imported rankings are the primary player-value signal. Treat them as rankings/scaffolding unless true projections are imported later.";
   }
@@ -287,6 +300,13 @@ function getDataLimitations(sources: Set<Player["projectionSource"]>): string[] 
     return [
       "Imported FantasyPros ranks provide draft ordering and tiers, but not a full live projection model.",
       "Do not claim the AI provider is disconnected unless an explicit error says so.",
+    ];
+  }
+
+  if (sources.has("season_projection")) {
+    return [
+      "Season projections cover expected volume, not injuries, depth-chart changes, or live news.",
+      "Kicker and defense scoring may be approximate when exports lack field-goal distance or per-game points-allowed detail.",
     ];
   }
 

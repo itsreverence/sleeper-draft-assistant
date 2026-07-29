@@ -19,14 +19,19 @@
   import TeamLineupPanel from "./lib/components/TeamLineupPanel.svelte";
   import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
   import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
+  import RosRankingsImportPanel from "./lib/components/RosRankingsImportPanel.svelte";
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
+  import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
 
   import {
     askManagerRequest,
     askTeamManagerRequest,
+    clearAdpRequest,
+    clearRosRankingsRequest,
+    clearSeasonProjectionsRequest,
     clearWeeklyProjectionsRequest,
     clearRankingsRequest,
     createDraftEventSource,
@@ -38,7 +43,10 @@
     fetchSleeperConnect,
     fetchTeamManagerState,
     importWeeklyProjectionFilesRequest,
+    importAdpRequest,
     importRankingsRequest,
+    importRosRankingsRequest,
+    importSeasonProjectionsRequest,
     updateSettings,
   } from "./lib/api";
   import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
@@ -56,8 +64,12 @@
     ConnectPayload,
     DraftPayload,
     DraftRecommendation,
+    DraftScoringFormat,
     DraftState,
+    AdpImportSummary,
     RankingImportSummary,
+    RosRankingImportSummary,
+    SeasonProjectionImportSummary,
     TeamActivitySummary,
     TeamDataReadiness,
     TeamLineupSummary,
@@ -91,6 +103,8 @@
   let activeUserRosterId: string | null = $state(null);
   let loadError = $state("");
   let rankingImportSummary: RankingImportSummary | null = $state(null);
+  let seasonProjectionImportSummary: SeasonProjectionImportSummary | null = $state(null);
+  let adpImportSummary: AdpImportSummary | null = $state(null);
   let teamManagerState: TeamManagerState | null = $state(null);
   let teamDataReadiness: TeamDataReadiness | null = $state(null);
   let teamNeeds: TeamNeedsSummary | null = $state(null);
@@ -99,11 +113,15 @@
   let teamWaiverSummary: TeamWaiverSummary | null = $state(null);
   let teamActivitySummary: TeamActivitySummary | null = $state(null);
   let weeklyProjectionSummary: WeeklyProjectionImportSummary | null = $state(null);
+  let rosRankingSummary: RosRankingImportSummary | null = $state(null);
   let teamProjectionSeason = $state("");
   let teamProjectionWeek = $state(0);
   let weeklyProjectionError = $state("");
+  let rosRankingError = $state("");
   let isImportingWeeklyProjections = $state(false);
   let isClearingWeeklyProjections = $state(false);
+  let isImportingRosRankings = $state(false);
+  let isClearingRosRankings = $state(false);
   let teamManagerError = $state("");
   let isLoadingTeamManager = $state(false);
   let isRefreshingTeamManager = $state(false);
@@ -115,8 +133,14 @@
   let teamRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let playerPreferences: PlayerPreferences = $state({});
   let rankingImportError = $state("");
+  let seasonProjectionImportError = $state("");
+  let adpImportError = $state("");
   let isImportingRankings = $state(false);
   let isClearingRankings = $state(false);
+  let isImportingSeasonProjections = $state(false);
+  let isClearingSeasonProjections = $state(false);
+  let isImportingAdp = $state(false);
+  let isClearingAdp = $state(false);
   let isLoading = $state(false);
   let isConnecting = $state(false);
   let isSavingSettings = $state(false);
@@ -458,6 +482,8 @@
     draftState = null;
     recommendation = null;
     rankingImportSummary = null;
+    seasonProjectionImportSummary = null;
+    adpImportSummary = null;
     activeDraftId = "";
     activeUserRosterId = null;
     teamManagerState = null;
@@ -468,9 +494,13 @@
     teamWaiverSummary = null;
     teamActivitySummary = null;
     weeklyProjectionSummary = null;
+    rosRankingSummary = null;
     teamProjectionSeason = "";
     teamProjectionWeek = 0;
     weeklyProjectionError = "";
+    rosRankingError = "";
+    seasonProjectionImportError = "";
+    adpImportError = "";
     teamManagerError = "";
     connectExpanded = true;
     rankingsExpanded = false;
@@ -497,7 +527,9 @@
         teamProjectionSeason = "";
         teamProjectionWeek = 0;
         weeklyProjectionSummary = null;
+        rosRankingSummary = null;
         weeklyProjectionError = "";
+        rosRankingError = "";
       }
       applyDraftPayload(payload);
       activeDraftId = draftId;
@@ -508,7 +540,11 @@
         void refreshRecommendationWithPreferences();
       }
       connectExpanded = false;
-      rankingsExpanded = !isMockDraft(draftId) && !payload.rankingImportSummary;
+      rankingsExpanded = !isMockDraft(draftId) && (
+        !payload.rankingImportSummary ||
+        !payload.seasonProjectionImportSummary ||
+        !payload.adpImportSummary
+      );
       if (isMockDraft(draftId)) {
         window.localStorage.removeItem("lastDraftId");
         window.localStorage.removeItem("lastUserRosterId");
@@ -534,6 +570,8 @@
       draftState = null;
       recommendation = null;
       rankingImportSummary = null;
+      seasonProjectionImportSummary = null;
+      adpImportSummary = null;
       activeDraftId = "";
       activeUserRosterId = null;
       teamManagerState = null;
@@ -544,9 +582,13 @@
       teamWaiverSummary = null;
       teamActivitySummary = null;
       weeklyProjectionSummary = null;
+      rosRankingSummary = null;
       teamProjectionSeason = "";
       teamProjectionWeek = 0;
       weeklyProjectionError = "";
+      rosRankingError = "";
+      seasonProjectionImportError = "";
+      adpImportError = "";
       teamManagerError = "";
       resetTeamRefreshTracking();
       connectExpanded = true;
@@ -579,7 +621,9 @@
       teamWaiverSummary = null;
       teamActivitySummary = null;
       weeklyProjectionSummary = null;
+      rosRankingSummary = null;
       weeklyProjectionError = "";
+      rosRankingError = "";
       teamManagerError = "";
       isLoadingTeamManager = false;
       return;
@@ -634,6 +678,7 @@
         teamWaiverSummary = null;
         teamActivitySummary = null;
         weeklyProjectionSummary = null;
+        rosRankingSummary = null;
         teamManagerError = message;
       }
     } finally {
@@ -685,6 +730,7 @@
     teamWeekContext = payload.weekContext;
     teamWaiverSummary = payload.waiverSummary;
     teamActivitySummary = payload.activitySummary;
+    rosRankingSummary = payload.rosRankingSummary;
     weeklyProjectionSummary = payload.weeklyProjectionSummary;
     if (!teamProjectionSeason) {
       teamProjectionSeason = payload.state.league.season ?? "";
@@ -698,6 +744,8 @@
     draftState = payload.state;
     recommendation = payload.recommendation;
     rankingImportSummary = payload.rankingImportSummary;
+    seasonProjectionImportSummary = payload.seasonProjectionImportSummary;
+    adpImportSummary = payload.adpImportSummary;
     if (hasPlayerPreferences()) {
       void refreshRecommendationWithPreferences();
     }
@@ -763,11 +811,13 @@
     rankingImportError = "";
 
     try {
-      const payload = await importRankingsRequest(activeDraftId, activeUserRosterId, csvText);
-      rankingImportSummary = payload.summary;
-      draftState = payload.state;
-      recommendation = payload.recommendation;
-      rankingsExpanded = false;
+      const payload = await importRankingsRequest(
+        activeDraftId,
+        activeUserRosterId,
+        csvText,
+        normalizeDraftScoring(draftState?.settings.scoring),
+      );
+      applyDraftPayload(payload);
       if (teamManagerState) {
         void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
       }
@@ -797,7 +847,9 @@
         void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
       }
       status = "FantasyPros rankings cleared";
-      lastEvent = "Recommendations returned to Sleeper placeholder values";
+      lastEvent = seasonProjectionImportSummary
+        ? "Expert ranks cleared; season projections remain active"
+        : "Recommendations returned to Sleeper placeholder values";
     } catch (error) {
       rankingImportError = error instanceof Error ? error.message : "Could not clear imported rankings.";
     } finally {
@@ -805,8 +857,116 @@
     }
   }
 
+  async function importSeasonProjections(input: {
+    season: string;
+    files: Array<{ position: Position; csvText: string }>;
+  }) {
+    if (!activeDraftId || !input.season || input.files.length === 0) {
+      seasonProjectionImportError = "Select a draft, season, and at least one projection CSV.";
+      return;
+    }
+    isImportingSeasonProjections = true;
+    seasonProjectionImportError = "";
+    try {
+      const payload = await importSeasonProjectionsRequest({
+        draftId: activeDraftId,
+        userRosterId: activeUserRosterId,
+        season: input.season,
+        files: input.files,
+      });
+      applyDraftPayload(payload);
+      if (teamManagerState) {
+        void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
+      }
+      status = "FantasyPros season projections imported";
+      lastEvent = `${payload.summary.matched} projection rows matched`;
+    } catch (error) {
+      seasonProjectionImportError = error instanceof Error ? error.message : "Season projection import failed.";
+    } finally {
+      isImportingSeasonProjections = false;
+    }
+  }
+
+  async function clearSeasonProjections() {
+    if (!activeDraftId) {
+      return;
+    }
+    isClearingSeasonProjections = true;
+    seasonProjectionImportError = "";
+    try {
+      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeUserRosterId));
+      status = "Season projections cleared";
+    } catch (error) {
+      seasonProjectionImportError = error instanceof Error ? error.message : "Could not clear season projections.";
+    } finally {
+      isClearingSeasonProjections = false;
+    }
+  }
+
+  async function importAdp(csvText: string, season: string) {
+    if (!activeDraftId || !season || !csvText) {
+      adpImportError = "Select a draft and upload the FantasyPros overall ADP CSV.";
+      return;
+    }
+    isImportingAdp = true;
+    adpImportError = "";
+    try {
+      const payload = await importAdpRequest({
+        draftId: activeDraftId,
+        userRosterId: activeUserRosterId,
+        season,
+        csvText,
+      });
+      applyDraftPayload(payload);
+      status = "FantasyPros Sleeper ADP imported";
+      lastEvent = `${payload.summary.matched} ADP rows matched`;
+    } catch (error) {
+      adpImportError = error instanceof Error ? error.message : "Sleeper ADP import failed.";
+    } finally {
+      isImportingAdp = false;
+    }
+  }
+
+  async function clearAdp() {
+    if (!activeDraftId) {
+      return;
+    }
+    isClearingAdp = true;
+    adpImportError = "";
+    try {
+      applyDraftPayload(await clearAdpRequest(activeDraftId, activeUserRosterId));
+      status = "Sleeper ADP cleared";
+    } catch (error) {
+      adpImportError = error instanceof Error ? error.message : "Could not clear Sleeper ADP.";
+    } finally {
+      isClearingAdp = false;
+    }
+  }
+
+  function normalizeDraftScoring(scoring: string | null | undefined): DraftScoringFormat {
+    const normalized = scoring?.trim().toLowerCase();
+    if (normalized === "ppr") return "PPR";
+    if (normalized === "half ppr" || normalized === "half-ppr") return "Half PPR";
+    if (normalized === "standard") return "Standard";
+    return normalized ? "Custom" : "Unknown";
+  }
+
   function openFantasyProsRankings() {
-    window.open("https://www.fantasypros.com/nfl/rankings/consensus-cheatsheets.php", "_blank", "noopener,noreferrer");
+    const scoring = normalizeDraftScoring(draftState?.settings.scoring);
+    const page = scoring === "PPR"
+      ? "ppr-cheatsheets.php"
+      : scoring === "Half PPR"
+        ? "half-point-ppr-cheatsheets.php"
+        : "consensus-cheatsheets.php";
+    window.open(`https://www.fantasypros.com/nfl/rankings/${page}`, "_blank", "noopener,noreferrer");
+  }
+
+  function openFantasyProsSeasonProjections() {
+    window.open("https://www.fantasypros.com/nfl/projections/qb.php?week=draft", "_blank", "noopener,noreferrer");
+  }
+
+  function openFantasyProsAdp() {
+    window.open("https://www.fantasypros.com/nfl/adp/overall.php", "_blank", "noopener,noreferrer");
   }
 
   function openFantasyProsWeeklyProjections(position: Position, week: number) {
@@ -817,6 +977,69 @@
     }
     const suffix = params.size > 0 ? `?${params.toString()}` : "";
     window.open(`https://www.fantasypros.com/nfl/projections/${fantasyProsPosition}.php${suffix}`, "_blank", "noopener,noreferrer");
+  }
+
+  function openFantasyProsRosRankings() {
+    const scoring = normalizeDraftScoring(teamManagerState?.league.scoring);
+    const page = scoring === "PPR"
+      ? "ros-ppr-overall.php"
+      : scoring === "Half PPR"
+        ? "ros-half-point-ppr-overall.php"
+        : "ros-overall.php";
+    window.open(`https://www.fantasypros.com/nfl/rankings/${page}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function importRosRankings(input: {
+    season: string;
+    scoring: DraftScoringFormat;
+    csvText: string;
+  }) {
+    if (!teamManagerState || !input.season || !input.csvText.trim()) {
+      rosRankingError = "Open a team, enter the season, and choose the Overall ROS rankings CSV.";
+      return;
+    }
+    isImportingRosRankings = true;
+    rosRankingError = "";
+    try {
+      const payload = await importRosRankingsRequest({
+        leagueId: teamManagerState.league.id,
+        season: input.season,
+        scoring: input.scoring,
+        csvText: input.csvText,
+        userRosterId: activeUserRosterId,
+        draftId: activeDraftId,
+        week: teamProjectionWeek || teamManagerState.week,
+      });
+      applyTeamPayload(payload);
+      status = "FantasyPros rest-of-season rankings imported";
+      lastEvent = `${payload.summary.matched} ROS ranking rows matched`;
+    } catch (error) {
+      rosRankingError = error instanceof Error ? error.message : "Rest-of-season ranking import failed.";
+    } finally {
+      isImportingRosRankings = false;
+    }
+  }
+
+  async function clearRosRankings(input: { season: string; scoring: DraftScoringFormat }) {
+    if (!teamManagerState) {
+      return;
+    }
+    isClearingRosRankings = true;
+    rosRankingError = "";
+    try {
+      await clearRosRankingsRequest(teamManagerState.league.id, input.season, input.scoring);
+      await loadTeamManager(
+        teamManagerState.league.id,
+        activeUserRosterId,
+        teamProjectionSeason || null,
+        teamProjectionWeek || null,
+      );
+      status = "Rest-of-season rankings cleared";
+    } catch (error) {
+      rosRankingError = error instanceof Error ? error.message : "Could not clear rest-of-season rankings.";
+    } finally {
+      isClearingRosRankings = false;
+    }
   }
 
   async function importWeeklyProjections(input: {
@@ -941,13 +1164,11 @@
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
   const isRealDraftActive = $derived(Boolean(draftState && !isMockDraft(activeDraftId)));
   const hasImportedRankings = $derived(Boolean(rankingImportSummary));
-  const importMatchRate = $derived.by(() => {
-    const summary = rankingImportSummary;
-    if (!summary || !summary.rowsParsed) {
-      return null;
-    }
-    return Math.round((summary.matched / summary.rowsParsed) * 100);
-  });
+  const hasSeasonProjections = $derived(Boolean(seasonProjectionImportSummary));
+  const hasImportedAdp = $derived(Boolean(adpImportSummary));
+  const draftDataSignalCount = $derived(
+    Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
+  );
   const recommendationsUsePlaceholder = $derived.by(() => {
     const currentRecommendation = recommendation;
     return Boolean(
@@ -1003,15 +1224,17 @@
     },
     {
       label: "Player values",
-      value: hasImportedRankings ? "Imported" : draftState ? "Import needed" : "Pending",
-      detail: hasImportedRankings
-        ? `${rankingImportSummary?.matched ?? 0} players matched${importMatchRate === null ? "" : ` (${importMatchRate}%)`}`
+      value: draftDataSignalCount === 3 ? "Complete" : draftState ? `${draftDataSignalCount}/3 sources` : "Pending",
+      detail: draftDataSignalCount === 3
+        ? "ECR, season projections, and Sleeper ADP loaded"
+        : hasImportedRankings
+          ? "Add season projections and Sleeper ADP for full-quality advice"
         : isRealDraftActive
           ? "FantasyPros CSV required for real advice"
           : isDemoDraftActive
             ? "Demo projections active"
             : "Available after draft selection",
-      tone: hasImportedRankings || isDemoDraftActive ? (rankingImportSummary && (rankingImportSummary.unmatched.length > 0 || rankingImportSummary.ambiguous.length > 0) ? "warning" : "ready") : isRealDraftActive ? "warning" : "neutral",
+      tone: draftDataSignalCount === 3 || isDemoDraftActive ? "ready" : isRealDraftActive ? "warning" : "neutral",
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
@@ -1020,6 +1243,13 @@
   const weeklyProjectionDefaultSeason = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
     return teamProjectionSeason || state?.league.season || seasonInput.trim() || "";
+  });
+  const draftDataDefaultSeason = $derived.by(() => {
+    return selectedDraft?.season
+      || teamManagerState?.league.season
+      || connectPayload?.season
+      || seasonInput.trim()
+      || String(new Date().getFullYear());
   });
   const weeklyProjectionDefaultWeek = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
@@ -1120,6 +1350,11 @@
         }}
       />
       <DraftSummaryStrip state={draftState} />
+      <FormatCompatibilityNotice
+        compatibility={workspaceMode === "manage"
+          ? teamManagerState?.league.formatCompatibility
+          : draftState.settings.formatCompatibility}
+      />
 
       {#if workspaceMode === "draft"}
         <DraftRoomPanel state={draftState} />
@@ -1169,30 +1404,60 @@
             {#if draftPhase !== "complete"}
               <RankingsImportPanel
                 hasDraft={true}
-                {hasImportedRankings}
+                scoring={draftState.settings.scoring}
+                season={draftDataDefaultSeason}
                 {isImportingRankings}
                 {isClearingRankings}
+                {isImportingSeasonProjections}
+                {isClearingSeasonProjections}
+                {isImportingAdp}
+                {isClearingAdp}
                 {rankingImportSummary}
+                {seasonProjectionImportSummary}
+                {adpImportSummary}
                 {rankingImportError}
-                onImport={importRankings}
-                onClear={clearRankings}
-                onOpenFantasyPros={openFantasyProsRankings}
+                {seasonProjectionImportError}
+                {adpImportError}
+                onImportRankings={importRankings}
+                onImportSeasonProjections={importSeasonProjections}
+                onImportAdp={importAdp}
+                onClearRankings={clearRankings}
+                onClearSeasonProjections={clearSeasonProjections}
+                onClearAdp={clearAdp}
+                onOpenRankings={openFantasyProsRankings}
+                onOpenSeasonProjections={openFantasyProsSeasonProjections}
+                onOpenAdp={openFantasyProsAdp}
                 bind:expanded={rankingsExpanded}
               />
               {#if (userTeam?.roster.length ?? 0) > 0}
                 <RosterPanel state={draftState} />
               {/if}
-            {:else if hasImportedRankings}
+            {:else if draftDataSignalCount > 0}
               <RankingsImportPanel
                 hasDraft={true}
-                {hasImportedRankings}
+                scoring={draftState.settings.scoring}
+                season={draftDataDefaultSeason}
                 {isImportingRankings}
                 {isClearingRankings}
+                {isImportingSeasonProjections}
+                {isClearingSeasonProjections}
+                {isImportingAdp}
+                {isClearingAdp}
                 {rankingImportSummary}
+                {seasonProjectionImportSummary}
+                {adpImportSummary}
                 {rankingImportError}
-                onImport={importRankings}
-                onClear={clearRankings}
-                onOpenFantasyPros={openFantasyProsRankings}
+                {seasonProjectionImportError}
+                {adpImportError}
+                onImportRankings={importRankings}
+                onImportSeasonProjections={importSeasonProjections}
+                onImportAdp={importAdp}
+                onClearRankings={clearRankings}
+                onClearSeasonProjections={clearSeasonProjections}
+                onClearAdp={clearAdp}
+                onOpenRankings={openFantasyProsRankings}
+                onOpenSeasonProjections={openFantasyProsSeasonProjections}
+                onOpenAdp={openFantasyProsAdp}
                 bind:expanded={rankingsExpanded}
               />
             {/if}
@@ -1216,6 +1481,20 @@
           <div class="side-column">
             <TeamDataReadinessPanel readiness={teamDataReadiness} isLoading={isLoadingTeamManager} />
             <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
+            <RosRankingsImportPanel
+              hasTeam={Boolean(teamManagerState)}
+              defaultSeason={weeklyProjectionDefaultSeason}
+              leagueSeason={teamManagerState?.league.season ?? ""}
+              scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
+              summary={rosRankingSummary}
+              weeklyLoaded={Boolean(weeklyProjectionSummary)}
+              error={rosRankingError}
+              isImporting={isImportingRosRankings}
+              isClearing={isClearingRosRankings}
+              onImport={importRosRankings}
+              onClear={clearRosRankings}
+              onOpenFantasyPros={openFantasyProsRosRankings}
+            />
             <WeeklyProjectionsImportPanel
               hasTeam={Boolean(teamManagerState)}
               defaultSeason={weeklyProjectionDefaultSeason}
@@ -1223,6 +1502,7 @@
               leagueSeason={teamManagerState?.league.season ?? ""}
               currentWeek={teamManagerState?.week ?? 0}
               summary={weeklyProjectionSummary}
+              rosLoaded={Boolean(rosRankingSummary)}
               error={weeklyProjectionError}
               isImporting={isImportingWeeklyProjections}
               isClearing={isClearingWeeklyProjections}

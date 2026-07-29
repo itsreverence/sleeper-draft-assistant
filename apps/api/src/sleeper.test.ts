@@ -141,12 +141,46 @@ describe("Sleeper draft normalization", () => {
     expect(state.currentPick).toBe(4);
     expect(state.userTeamId).toBe("roster-12");
     expect(state.settings.scoring).toBe("PPR");
+    expect(state.settings.formatCompatibility).toMatchObject({ level: "supported" });
     expect(state.settings.rosterSlots).toMatchObject({ QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, BN: 2 });
     expect(state.teams.map((team) => team.name)).toEqual(["Alpha", "Bravo Squad", "Charlie", "delta"]);
     expect(state.teams[1]?.roster).toEqual(["p2"]);
     expect(state.picks[2]).toMatchObject({ pickNo: 3, round: 1, draftSlot: 3, teamId: "roster-13" });
     expect(state.players.map((player) => player.id)).toEqual(["p1", "p2", "p3", "p4"]);
     expect(state.players.find((player) => player.id === "p2")?.riskTags).toEqual(["injury: Questionable"]);
+  });
+
+  it("normalizes half-PPR superflex as a supported format", () => {
+    const state = normalizeSleeperDraftState({
+      ...fixture,
+      league: {
+        ...fixture.league!,
+        scoring_settings: { rec: 0.5 },
+        roster_positions: ["QB", "RB", "RB", "WR", "WR", "TE", "SUPER_FLEX", "BN"],
+      },
+    });
+
+    expect(state.settings.scoring).toBe("Half PPR");
+    expect(state.settings.formatCompatibility).toMatchObject({
+      level: "supported",
+      features: ["superflex"],
+    });
+  });
+
+  it("surfaces unsupported IDP and auction settings", () => {
+    const state = normalizeSleeperDraftState({
+      ...fixture,
+      draft: { ...fixture.draft, type: "auction" },
+      league: {
+        ...fixture.league!,
+        roster_positions: ["QB", "RB", "WR", "TE", "LB", "DB", "BN"],
+      },
+    });
+
+    expect(state.settings.formatCompatibility).toMatchObject({
+      level: "unsupported",
+      features: expect.arrayContaining(["idp", "auction"]),
+    });
   });
 
   it("falls back to league roster count when slot mapping is absent", () => {
@@ -246,6 +280,7 @@ describe("Sleeper team manager normalization", () => {
     });
 
     expect(state.league).toMatchObject({ id: "league-1", name: "Fixture League", scoring: "PPR", teams: 4 });
+    expect(state.league.formatCompatibility).toMatchObject({ level: "supported" });
     expect(state.userTeam).toMatchObject({ rosterId: "12", ownerId: "user-2", name: "Bravo Squad" });
     expect(state.roster.starters.map((slot) => slot.slot)).toEqual(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX"]);
     expect(state.roster.starters[0]?.player?.name).toBe("Player Three");

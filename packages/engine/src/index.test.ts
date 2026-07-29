@@ -160,6 +160,71 @@ describe("mock draft engine", () => {
     expect(recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
   });
 
+  it("caps recommendation confidence when league settings need caution", () => {
+    const state = createEightTeamTwoFlexState();
+    state.settings.formatCompatibility = {
+      level: "caution",
+      features: ["te_premium"],
+      warnings: ["TE-premium values require a matching import."],
+    };
+    state.players = state.players.map((player) => ({
+      ...player,
+      projectionSource: "season_projection",
+    }));
+
+    const recommendation = buildDraftRecommendation(state);
+
+    expect(recommendation.confidence).not.toBe("high");
+    expect(recommendation.risks).toContain("TE-premium values require a matching import.");
+  });
+
+  it("does not let imported season signals saturate a shallow one-QB board", () => {
+    const state = createEightTeamTwoFlexState();
+    const importedRanks = new Map([
+      ["format-qb-allen", 25],
+      ["format-rb-gibbs", 4],
+      ["format-wr-chase", 1],
+      ["format-rb-bijan", 3],
+      ["format-te-bowers", 16],
+      ["format-qb-hurts", 31],
+    ]);
+    state.players = state.players.map((player) => ({
+      ...player,
+      projectionSource: "season_projection",
+      importedRank: importedRanks.get(player.id),
+      seasonProjectedPoints: player.projectedPoints,
+      seasonProjectionSource: "FantasyPros",
+      seasonProjectionSeason: "2026",
+      seasonProjectionCoverage: "league_scored",
+      adpSource: "FantasyPros Sleeper ADP",
+    }));
+
+    const recommendation = buildDraftRecommendation(state);
+    const allen = recommendation.candidates.find((candidate) => candidate.player.id === "format-qb-allen");
+
+    expect(recommendation.candidates[0]?.player.position).toMatch(/RB|WR/);
+    expect(recommendation.recommendedPlayerId).not.toBe("format-qb-allen");
+    expect(recommendation.candidates[0]?.score).toBeLessThan(100);
+    expect(allen?.score).toBeLessThan(recommendation.candidates[0]?.score ?? 0);
+  });
+
+  it("uses the faster of Sleeper and real-time ADP for return probability", () => {
+    const state = createEightTeamTwoFlexState();
+    const player = state.players.find((candidate) => candidate.id === "format-rb-gibbs");
+    if (!player) {
+      throw new Error("Expected Gibbs fixture.");
+    }
+    player.adp = 28;
+    player.realTimeAdp = 4;
+    player.adpSource = "FantasyPros Sleeper ADP";
+
+    const signal = buildCandidateSignals(state, state.players.length)
+      .find((candidate) => candidate.player.id === player.id);
+
+    expect(signal?.returnProbability).toBe(0.08);
+    expect(signal?.reasons).toContain("real-time market is 24.0 picks earlier than Sleeper ADP");
+  });
+
   it("explains shallow-league QB replacement pressure in small one-QB formats", () => {
     const state = createEightTeamTwoFlexState();
     const signals = buildCandidateSignals(state, 10);
@@ -369,6 +434,37 @@ describe("team needs engine", () => {
 
     expect(summary.candidates[0]?.player.id).toBe("fa-weekly");
     expect(summary.candidates[0]?.valueLabel).toBe("24.0 weekly pts");
+  });
+  it("balances weekly projections with rest-of-season value for waivers", () => {
+    const state = createTeamManagerState();
+    const streamer = {
+      ...teamPlayer("fa-streamer", "One Week Streamer", "RB", 18, 180),
+      ...weeklyProjectionFields(18),
+      rosRank: 200,
+      rosAverageRank: 200,
+      rosBestRank: 170,
+      rosWorstRank: 230,
+      rosSource: "FantasyPros",
+      rosSeason: "2026",
+      rosScoring: "PPR" as const,
+    };
+    const longTerm = {
+      ...teamPlayer("fa-long-term", "Long Term Starter", "RB", 16, 20),
+      ...weeklyProjectionFields(16),
+      rosRank: 20,
+      rosAverageRank: 20,
+      rosBestRank: 15,
+      rosWorstRank: 26,
+      rosSource: "FantasyPros",
+      rosSeason: "2026",
+      rosScoring: "PPR" as const,
+    };
+
+    const summary = buildTeamWaiverSummary(state, [streamer, longTerm]);
+
+    expect(summary.candidates[0]?.player.id).toBe("fa-long-term");
+    expect(summary.candidates[0]?.valueLabel).toBe("16.0 weekly pts - ROS 20");
+    expect(summary.candidates[0]?.reasons.some((reason) => reason.includes("expert range 15-26"))).toBe(true);
   });
   it("summarizes available add and drop candidates", () => {
     const state = createTeamManagerState({

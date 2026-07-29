@@ -20,6 +20,7 @@
     leagueSeason,
     currentWeek,
     summary,
+    rosLoaded,
     error,
     isImporting,
     isClearing,
@@ -34,6 +35,7 @@
     leagueSeason: string;
     currentWeek: number;
     summary: WeeklyProjectionImportSummary | null;
+    rosLoaded: boolean;
     error: string;
     isImporting: boolean;
     isClearing: boolean;
@@ -69,6 +71,7 @@
         ? "Not imported yet"
         : "Available after team load",
   );
+  const sourceCount = $derived(Number(Boolean(summary)) + Number(rosLoaded));
   const hasImportMismatch = $derived(Boolean(summary && leagueSeason && summary.season !== leagueSeason));
   const viewingDifferentWeek = $derived(Boolean(currentWeek && week !== currentWeek));
   const totalUnmatched = $derived(summary?.positionResults.reduce((total, result) => total + result.unmatched, 0) ?? 0);
@@ -129,8 +132,8 @@
       <h2><Icon name="upload" size={17} /> Weekly projections</h2>
       <span class="collapsed-summary">{statusText}</span>
     </div>
-    <span class="pill" class:pill-ready={Boolean(summary)} class:pill-warning={hasTeam && !summary}>
-      {summary ? "Imported" : hasTeam ? "Optional import" : "After team load"}
+    <span class="pill" class:pill-ready={sourceCount === 2} class:pill-warning={hasTeam && sourceCount < 2}>
+      {hasTeam ? `${sourceCount}/2 sources` : "After team load"}
     </span>
   </div>
 

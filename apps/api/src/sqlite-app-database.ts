@@ -8,7 +8,13 @@ import type { Database } from "sql.js";
 
 import { ensurePrivateDirectory, readPrivateFile, writePrivateFile } from "./secure-file";
 
-export type JsonNamespace = "settings" | "ranking_imports" | "weekly_projection_imports";
+export type JsonNamespace =
+  | "settings"
+  | "ranking_imports"
+  | "season_projection_imports"
+  | "adp_imports"
+  | "ros_ranking_imports"
+  | "weekly_projection_imports";
 
 export class SqliteAppDatabase {
   private constructor(

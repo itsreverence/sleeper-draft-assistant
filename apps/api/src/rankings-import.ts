@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
+import type { DraftScoringFormat, DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -92,7 +92,9 @@ export class RankingImportStore {
 
   apply(draftId: string, state: DraftState): DraftState {
     const storedImport = this.get(draftId);
-    return storedImport ? applyImportedRankings(state, storedImport) : state;
+    return storedImport && isDraftRankingImportCompatible(state, storedImport)
+      ? applyImportedRankings(state, storedImport)
+      : state;
   }
 
   private load() {
@@ -153,7 +155,11 @@ function deserializeRankingImport(storedImport: SerializedRankingImport): Stored
   };
 }
 
-export function importFantasyProsCsv(state: DraftState, csvText: string): StoredRankingImport {
+export function importFantasyProsCsv(
+  state: DraftState,
+  csvText: string,
+  scoring: DraftScoringFormat = normalizeDraftScoringFormat(state.settings.scoring),
+): StoredRankingImport {
   const rows = parseFantasyProsRows(csvText);
   const playersById = new Map<string, ImportedPlayerValues>();
   const unmatched: RankingImportSummary["unmatched"] = [];
@@ -199,10 +205,36 @@ export function importFantasyProsCsv(state: DraftState, csvText: string): Stored
       matched: playersById.size,
       unmatched: unmatched.slice(0, 40),
       ambiguous: ambiguous.slice(0, 40),
+      scoring,
       appliedAt: new Date().toISOString(),
     },
     playersById,
   };
+}
+
+export function normalizeDraftScoringFormat(scoring: string): DraftScoringFormat {
+  const normalized = scoring.trim().toLowerCase();
+  if (normalized === "ppr") {
+    return "PPR";
+  }
+  if (normalized === "half ppr" || normalized === "half-ppr") {
+    return "Half PPR";
+  }
+  if (normalized === "standard") {
+    return "Standard";
+  }
+  return normalized ? "Custom" : "Unknown";
+}
+
+export function isDraftRankingImportCompatible(
+  state: Pick<DraftState, "settings">,
+  storedImport: Pick<StoredRankingImport, "summary">,
+): boolean {
+  const imported = storedImport.summary.scoring;
+  if (!imported || imported === "Unknown") {
+    return true;
+  }
+  return imported === normalizeDraftScoringFormat(state.settings.scoring);
 }
 
 export function applyImportedRankings(state: DraftState, storedImport: StoredRankingImport): DraftState {
