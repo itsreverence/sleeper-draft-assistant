@@ -1,9 +1,8 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
-  import ResponseMarkdown from "./ResponseMarkdown.svelte";
   import { currentAiDraftStrategy } from "../ai-panel";
-  import type { AiDraftStrategyPayload, CandidateEvaluationPayload, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import type { AiDraftStrategyPayload, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
     showPlaceholderWarning = false,
@@ -17,7 +16,7 @@
     aiStrategyEnabled = false,
     shouldRequestAiStrategy = false,
     strategyRequestKey = "",
-    onEvaluateCandidate,
+    onAskAboutCandidate,
     onRequestAiStrategy,
   }: {
     showPlaceholderWarning?: boolean;
@@ -31,7 +30,7 @@
     aiStrategyEnabled?: boolean;
     shouldRequestAiStrategy?: boolean;
     strategyRequestKey?: string;
-    onEvaluateCandidate?: (playerId: string) => Promise<CandidateEvaluationPayload>;
+    onAskAboutCandidate?: (playerName: string, recommendedPlayerName: string) => void;
     onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
   } = $props();
 
@@ -79,46 +78,16 @@
   const confidenceTone = $derived(
     activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
   );
-  let evaluations: Record<string, CandidateEvaluationPayload> = $state({});
-  let evaluationErrors: Record<string, string> = $state({});
-  let evaluatingPlayerId = $state("");
-  let latestEvaluationPlayerId = $state("");
-  const latestEvaluation = $derived(evaluations[latestEvaluationPlayerId] ?? null);
-  const latestEvaluationStillListed = $derived(
-    Boolean(
-      latestEvaluation &&
-        aiCandidates.some((candidate) => candidate.player.id === latestEvaluation.playerId),
-    ),
-  );
-  const detachedEvaluationError = $derived(
-    latestEvaluationPlayerId && !aiCandidates.some((candidate) => candidate.player.id === latestEvaluationPlayerId)
-      ? evaluationErrors[latestEvaluationPlayerId] ?? ""
-      : "",
-  );
-
-  async function evaluateCandidate(playerId: string) {
-    if (!onEvaluateCandidate || evaluatingPlayerId) {
-      return;
-    }
-    latestEvaluationPlayerId = playerId;
-    evaluatingPlayerId = playerId;
-    evaluationErrors = { ...evaluationErrors, [playerId]: "" };
-    try {
-      const evaluation = await onEvaluateCandidate(playerId);
-      evaluations = { ...evaluations, [playerId]: evaluation };
-    } catch (error) {
-      evaluationErrors = {
-        ...evaluationErrors,
-        [playerId]: error instanceof Error ? error.message : "Could not evaluate this pick.",
-      };
-    } finally {
-      evaluatingPlayerId = "";
-    }
-  }
-
   function retryAiStrategy() {
     aiStrategyError = "";
     lastAiStrategyKey = "";
+  }
+
+  function discussCandidate(playerName: string) {
+    const recommendedPlayerName = currentAiStrategy?.recommendedCandidate.player.name;
+    if (recommendedPlayerName) {
+      onAskAboutCandidate?.(playerName, recommendedPlayerName);
+    }
   }
 
   $effect(() => {
@@ -284,7 +253,7 @@
       <Icon name="pause" size={20} />
       <div>
         <strong>Automatic AI strategy is paused</strong>
-        <span>Enable automatic draft strategy in Settings or use Ask draft manager for an on-demand decision.</span>
+        <span>Enable automatic draft strategy in Settings or use Ask about this draft for an on-demand decision.</span>
       </div>
       {#if onOpenSettings}
         <button class="btn btn-secondary" type="button" onclick={onOpenSettings}>Open AI settings</button>
@@ -295,21 +264,9 @@
       <Icon name="clock" size={20} />
       <div>
         <strong>AI strategy will update near your turn</strong>
-        <span>Automatic analysis starts when you are within two picks. Ask draft manager remains available at any time.</span>
+        <span>Automatic analysis starts when you are within two picks. Ask about this draft remains available at any time.</span>
       </div>
     </div>
-  {/if}
-
-  {#if latestEvaluation && !latestEvaluationStillListed}
-    <div class="detached-evaluation callout callout-warning" aria-live="polite">
-      <div>
-        <strong>AI take for {latestEvaluation.playerName} - stale after pick {latestEvaluation.pickNumber}</strong>
-        <ResponseMarkdown content={latestEvaluation.answer} />
-        <small>This player is no longer in the current AI strategy. Re-evaluate before acting.</small>
-      </div>
-    </div>
-  {:else if detachedEvaluationError}
-    <div class="callout callout-warning" aria-live="polite">{detachedEvaluationError}</div>
   {/if}
 
   {#if currentAiStrategy}
@@ -325,13 +282,9 @@
           featured={index === 0}
           presentation={index === 0 ? "ai-pick" : "ai-alternative"}
           aiReason={index === 0 ? currentAiStrategy.decision.reasons[0] ?? "" : ""}
-          {currentPick}
-          evaluation={evaluations[candidate.player.id] ?? null}
-          evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-          isEvaluating={evaluatingPlayerId === candidate.player.id}
           preference={playerPreferences[candidate.player.id] ?? null}
           {onSetPreference}
-          onEvaluate={evaluateCandidate}
+          onDiscuss={discussCandidate}
         />
       {/each}
     </div>
@@ -344,13 +297,9 @@
               {candidate}
               rank={index + primaryAiCandidates.length + 1}
               presentation="ai-alternative"
-              {currentPick}
-              evaluation={evaluations[candidate.player.id] ?? null}
-              evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-              isEvaluating={evaluatingPlayerId === candidate.player.id}
               preference={playerPreferences[candidate.player.id] ?? null}
               {onSetPreference}
-              onEvaluate={evaluateCandidate}
+              onDiscuss={discussCandidate}
             />
           {/each}
         </div>
@@ -536,8 +485,7 @@
   }
 
   .callout > div,
-  .placeholder-warning > div,
-  .detached-evaluation > div {
+  .placeholder-warning > div {
     display: grid;
     gap: 7px;
   }
@@ -547,8 +495,7 @@
     justify-self: start;
   }
 
-  .placeholder-warning,
-  .detached-evaluation {
+  .placeholder-warning {
     align-items: flex-start;
   }
 
@@ -565,12 +512,6 @@
 
   .empty-state > :global(.icon) {
     color: var(--info);
-  }
-
-  .detached-evaluation small {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
   }
 
   .candidate-section-heading {

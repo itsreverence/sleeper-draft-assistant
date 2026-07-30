@@ -134,14 +134,6 @@ export type AskAnswerPayload = {
   recommendation: DraftRecommendation;
 };
 
-export type CandidateEvaluationPayload = {
-  provider: AiProviderStatus;
-  playerId: string;
-  playerName: string;
-  pickNumber: number;
-  answer: string;
-};
-
 export type AiDraftStrategyPayload = {
   provider: AiProviderStatus;
   pickNumber: number;

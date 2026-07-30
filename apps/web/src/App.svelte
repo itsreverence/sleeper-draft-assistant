@@ -40,7 +40,6 @@
     fetchAiStatus,
     fetchDraftRecommendationRequest,
     fetchDecisionHistory,
-    evaluateDraftCandidateRequest,
     fetchAiDraftStrategyRequest,
     fetchDraftState,
     fetchDiagnostics,
@@ -60,7 +59,7 @@
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
-  import { shouldRequestAiDraftStrategy } from "./lib/ai-panel";
+  import { buildCandidateDiscussionQuestion, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
@@ -73,7 +72,6 @@
     DraftScoringFormat,
     DraftState,
     DecisionSnapshot,
-    CandidateEvaluationPayload,
     AiDraftStrategyPayload,
     AdpImportSummary,
     RankingImportSummary,
@@ -169,6 +167,8 @@
   let decisionHistoryError = $state("");
   let isLoadingDecisionHistory = $state(false);
   let decisionHistoryRequestId = 0;
+  let draftQuestionRequest: { id: number; question: string } | null = $state(null);
+  let draftQuestionRequestId = 0;
 
   function preferenceStorageKey(draftId: string): string {
     return `playerPreferences:${draftId}`;
@@ -1262,15 +1262,11 @@
     return payload.answer;
   }
 
-  async function evaluateDraftCandidate(playerId: string): Promise<CandidateEvaluationPayload> {
-    const payload = await evaluateDraftCandidateRequest(
-      activeDraftId,
-      activeDraftTeamRef,
-      playerId,
-      recommendationPreferenceRequest(),
-    );
-    void loadDecisionHistory();
-    return payload;
+  function askAboutCandidate(playerName: string, recommendedPlayerName: string) {
+    draftQuestionRequest = {
+      id: ++draftQuestionRequestId,
+      question: buildCandidateDiscussionQuestion(playerName, recommendedPlayerName),
+    };
   }
 
   async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
@@ -1523,7 +1519,7 @@
                 shouldRequestAiStrategy={shouldRequestAiStrategy}
                 strategyRequestKey={JSON.stringify(playerPreferences)}
                 onRequestAiStrategy={requestAiDraftStrategy}
-                onEvaluateCandidate={evaluateDraftCandidate}
+                onAskAboutCandidate={askAboutCandidate}
                 playerPreferences={playerPreferences}
                 showPlaceholderWarning={draftValuesIncomplete}
                 onSetPreference={setPlayerPreference}
@@ -1533,6 +1529,7 @@
               />
               <AskManagerPanel
                 onAsk={askManager}
+                promptRequest={draftQuestionRequest}
                 onOpenSettings={() => (settingsOpen = true)}
                 providerStatus={aiProviderStatus}
                 {hasImportedRankings}

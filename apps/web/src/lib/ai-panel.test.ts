@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import {
   buildAiPanelContextSummary,
+  buildCandidateDiscussionQuestion,
   buildSuggestedQuestions,
   currentAiDraftStrategy,
   shouldRequestAiDraftStrategy,
@@ -17,6 +18,15 @@ const state = createState();
 const recommendation = createRecommendation();
 
 describe("AI panel helpers", () => {
+  it("builds a candidate question for the shared draft conversation", () => {
+    expect(buildCandidateDiscussionQuestion("Jahmyr Gibbs", "Jahmyr Gibbs")).toBe(
+      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Jahmyr Gibbs with this pick? Validate that choice against the strongest available alternatives.",
+    );
+    expect(buildCandidateDiscussionQuestion("Ja'Marr Chase", "Jahmyr Gibbs")).toBe(
+      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Ja'Marr Chase instead? Compare both players with the strongest available alternatives.",
+    );
+  });
+
   it("suggests questions from draft context without local candidate ordering", () => {
     const questions = buildSuggestedQuestions(state, recommendation, true, false);
 

@@ -53,18 +53,10 @@ The backend rejects stale pick numbers, excluded or unavailable players, unknown
 
 AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
 
-## Draft questions and candidate evaluation
+## Contextual draft conversation
 
-Ask Manager, suggested questions, and each **AI take** action use the same neutral draft evidence and `search_available_players` tool as primary strategy. Conversation history is included only to resolve follow-up wording; the current draft snapshot remains authoritative.
+**Ask about this draft**, suggested questions, and candidate-card **Ask about pick** actions use the same neutral draft evidence and `search_available_players` tool as primary strategy. Candidate actions seed the shared conversation instead of creating a separate response inside each player card.
 
-Candidate evaluation is:
+The conversation supports comparisons, challenges to the current plan, and what-if analysis. Conversation history is included only to resolve follow-up wording; the current draft snapshot remains authoritative. When the board advances, the renderer marks earlier answers as coming from an older board while new questions use the latest pick, roster, availability, and imported evidence.
 
-- on demand by default, so it does not add model latency to normal draft refreshes;
-- grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations;
-- able to search the full immutable available-player snapshot for positional or named alternatives;
-- valid for any available, non-excluded player returned by the current draft snapshot;
-- validated by the backend so unavailable or excluded players cannot be evaluated from stale UI state;
-- tied to the current pick number and marked stale when the board advances;
-- advisory and separate from the primary structured AI strategy.
-
-The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest credible alternative, next positional priorities, and data limitations. The prompt does not include a local strategic lean or score, and the model does not receive or claim live news outside the supplied draft context.
+Draft questions are grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations. The model can search the complete immutable available-player snapshot for positional or named alternatives. The prompt does not include a local strategic lean or score, and the model does not receive or claim live news outside the supplied draft context.

@@ -11,6 +11,16 @@ export type AiPanelContextSummary = {
   note: string | null;
 };
 
+export function buildCandidateDiscussionQuestion(
+  playerName: string,
+  recommendedPlayerName: string,
+): string {
+  if (playerName === recommendedPlayerName) {
+    return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} with this pick? Validate that choice against the strongest available alternatives.`;
+  }
+  return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} instead? Compare both players with the strongest available alternatives.`;
+}
+
 export function currentAiDraftStrategy(
   strategy: AiDraftStrategyPayload | null,
   currentPick: number,
