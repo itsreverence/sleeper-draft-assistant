@@ -1,4 +1,4 @@
-import type { CandidateSignal, ConnectDraft, DraftState, Player } from "./types";
+import type { ConnectDraft, DraftOption, DraftState, Player } from "./types";
 
 export function isMockDraft(draftId: string) {
   return draftId === "mock" || draftId === "mock-draft";
@@ -16,7 +16,7 @@ export function formatRosterSlots(slots: Record<string, number>) {
     .join(" / ");
 }
 
-export function sourceLabel(candidate: CandidateSignal) {
+export function sourceLabel(candidate: DraftOption) {
   if (candidate.player.projectionSource === "sleeper_search_rank") {
     return "Sleeper rank placeholder";
   }
@@ -114,7 +114,7 @@ export function preferredWorkspaceMode(
   return "draft";
 }
 
-export function rosterFitLabel(rosterFit: CandidateSignal["rosterFit"]) {
+export function rosterFitLabel(rosterFit: DraftOption["rosterFit"]) {
   switch (rosterFit) {
     case "need":
       return "Fills a need";

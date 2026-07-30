@@ -4,7 +4,7 @@ export class NoopAiProvider implements AiProvider {
   status(): AiProviderStatus {
     return {
       id: "noop",
-      label: "Deterministic fallback",
+      label: "Local reference only",
       configured: true,
       detail: "No external AI provider is configured.",
     };
@@ -24,8 +24,8 @@ export class NoopAiProvider implements AiProvider {
         alternativePlayerIds: fallbackPlayers.slice(1, 5).map((candidate) => candidate.playerId),
         verdict: "reasonable",
         confidence: "low",
-        headline: `Fallback: ${top.name}`,
-        summary: `${top.name} leads the neutral evidence fallback while no AI provider is available.`,
+        headline: `Reference: ${top.name}`,
+        summary: `${top.name} leads the strongest populated raw-evidence group while no AI provider is available.`,
         reasons: ["First available player from the strongest populated raw-evidence group."],
         risks: ["This is not an AI-generated strategy decision."],
         plan: {
@@ -40,8 +40,8 @@ export class NoopAiProvider implements AiProvider {
           rosterGoals: ["Complete every required starter slot before the draft ends."],
           watchItems: ["Connect an AI provider for board-aware strategy updates."],
           changeSummary: context.previousPlan
-            ? "The local fallback refreshed its starter-slot priorities for the current pick."
-            : "Initial local fallback plan created.",
+            ? "The local reference refreshed its open starter slots for the current pick."
+            : "Initial local reference created.",
         },
       },
     };

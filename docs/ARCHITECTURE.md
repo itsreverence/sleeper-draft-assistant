@@ -1,6 +1,6 @@
 # Architecture
 
-Sleeper Draft Assistant is an npm-workspace TypeScript application with an Electron shell, Svelte renderer, loopback Hono API, deterministic engine, and shared schemas.
+Sleeper Draft Assistant is an npm-workspace TypeScript application with an Electron shell, Svelte renderer, loopback Hono API, a local evidence and safety engine, and shared schemas.
 
 ```text
 Electron main process
@@ -13,7 +13,7 @@ Svelte renderer
        ├─ Sleeper read-only API client
        ├─ ranking CSV importer
        ├─ weekly projection CSV importer
-       ├─ grounded candidate and safety engine
+       ├─ grounded evidence and safety engine
        ├─ optional local Codex app-server adapter
        └─ sql.js SQLite persistence
 ```
@@ -23,7 +23,7 @@ Svelte renderer
 - `apps/desktop`: Electron lifecycle, process startup, window containment, packaging.
 - `apps/web`: Svelte UI and authenticated local API client.
 - `apps/api`: Hono routes, Sleeper normalization, persistence, provider adapters, SSE.
-- `packages/engine`: grounded candidate generation, roster feasibility, fallback draft analysis, and team-management calculations with no network or persistence dependency.
+- `packages/engine`: transparent draft evidence ordering, roster feasibility safeguards, and team-management calculations with no network or persistence dependency.
 - `packages/shared`: Zod schemas and shared TypeScript types.
 
 ## Trust boundary
@@ -41,19 +41,19 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 3. Normalization produces one format-compatibility assessment for draft and team workflows. Conventional standard, half-PPR, PPR, FLEX, and superflex leagues are supported; custom scoring and TE premium produce cautions; IDP and auction formats are marked unsupported.
 4. A user-supplied FantasyPros draft rankings CSV adds scoring-specific ECR, tiers, bye weeks, and expert-versus-market context. Known scoring mismatches are rejected.
 5. User-supplied FantasyPros season projection files for QB, RB, WR, TE, K, and DST are normalized and, where the export exposes the required statistics, rescored with the connected Sleeper league settings. K and DST retain provider points when exact league scoring cannot be reproduced.
-6. A user-supplied FantasyPros Overall ADP CSV adds Sleeper ADP and Real-Time ADP. Sleeper ADP drives platform-specific value; the more aggressive of Sleeper and Real-Time ADP informs pick-return risk.
+6. A user-supplied FantasyPros Overall ADP CSV adds Sleeper ADP and Real-Time ADP as separate market-timing evidence.
 7. These draft signals remain separate in the model and persistence layer. The repository does not ship ranking, projection, or ADP data.
 8. A user-supplied FantasyPros overall rest-of-season rankings CSV adds scoring-specific ECR and expert disagreement to Team Manager. One overall export is used instead of separate position exports, and known scoring mismatches are rejected.
 9. User-supplied weekly projection files add provider-scored week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
 10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
-11. The local engine evaluates import coverage, matching quality, format compatibility, player availability, and lineup feasibility for immediate offline fallback behavior.
-12. When Codex is configured, the AI strategist receives neutral league, roster, board, and raw player evidence rather than the fallback engine's lean or composite scores.
+11. The local engine evaluates import coverage, matching quality, format compatibility, player availability, and lineup feasibility. Its draft board uses a documented raw ordering of ECR, season projection, Sleeper ADP, Real-Time ADP, and finally Sleeper placeholder rank; it does not calculate a composite strategy score.
+12. When Codex is configured, the AI strategist receives neutral league, roster, board, and raw player evidence rather than a local strategic lean.
 13. The provider can call a backend-owned `search_available_players` tool against an immutable current-pick snapshot. The tool searches the complete available pool by position, name, tier, ECR, season projection, Sleeper ADP, or Real-Time ADP without applying recommendation-engine filtering.
 14. The backend validates the response pick, availability, exclusions, and player IDs; it also rejects choices that worsen a critical starter deficit or make an otherwise feasible required lineup impossible to complete.
 15. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
 16. Draft SSE polling checks the lightweight Sleeper picks endpoint every 2 seconds while drafting, every 5 seconds before the draft, and every 15 seconds after completion. A full state rebuild runs only when the pick count changes. Transient failures preserve the last valid state and use bounded backoff from 5 to 30 seconds; renderer events expose only a generic upstream-safe error plus sync age.
 17. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-18. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and local fallback remains immediately available during provider latency or failure.
+18. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and the local reference board remains immediately available during provider latency or failure.
 19. Each successful AI strategy includes a validated living draft plan with current and next-turn priorities, positions that can wait, roster goals, watch items, and a board-change summary. The latest plan is persisted by draft, team, and provider, then supplied as prior advisory strategy on the next AI turn.
 20. Settings, imports, AI draft plans, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
 21. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
@@ -68,7 +68,7 @@ The renderer can clear draft rankings, season projections, draft ADP, rest-of-se
 
 `AiProvider` keeps provider-specific behavior out of route and renderer code. Its draft strategy method returns a validated structured decision rather than prose:
 
-- `noop`: local fallback response; default and offline-safe.
+- `noop`: local reference response; default and offline-safe, but not a strategic recommendation.
 - `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
 
 The provider-neutral `AiTool` boundary keeps draft search logic in the API domain layer. The Codex adapter maps those definitions to experimental app-server dynamic tools; future providers can expose the same read-only tools through their own function-calling protocol.

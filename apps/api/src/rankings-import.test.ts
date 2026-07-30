@@ -55,7 +55,7 @@ describe("FantasyPros ranking import", () => {
     const recommendation = buildDraftRecommendation(applyImportedRankings(state, storedImport));
 
     expect(recommendation.assumptions[0]).toContain("Imported");
-    expect(recommendation.candidates[0]?.reasons[0]).toContain("FantasyPros rank");
+    expect(recommendation.candidates[0]?.evidence[0]).toContain("ECR rank");
   });
 
   it("persists ranking imports and reapplies them after a store restart", () => {

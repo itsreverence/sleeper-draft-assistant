@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { CandidateEvaluationPayload, CandidateSignal, PlayerPreferenceLevel } from "../types";
+  import type { CandidateEvaluationPayload, DraftOption, PlayerPreferenceLevel } from "../types";
   import { rosterFitLabel, sourceLabel } from "../format";
   import Icon from "./Icon.svelte";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
@@ -19,7 +19,7 @@
     onSetPreference,
     onEvaluate,
   }: {
-    candidate: CandidateSignal;
+    candidate: DraftOption;
     rank: number;
     presentation?: "local" | "ai-pick" | "ai-alternative";
     aiReason?: string;
@@ -36,16 +36,16 @@
 
   let detailsOpen = $state(false);
 
-  const returnPct = $derived(Math.round(candidate.returnProbability * 100));
   const isAiCandidate = $derived(presentation !== "local");
   const primaryReason = $derived(
     presentation === "ai-pick"
       ? aiReason || "Primary choice from the current AI strategy."
       : presentation === "ai-alternative"
         ? "Alternative selected by the current AI strategy."
-        : candidate.reasons[0] ?? rosterFitLabel(candidate.rosterFit),
+        : candidate.requiredToCompleteLineup
+          ? `${candidate.player.position} is required to complete the starting lineup.`
+          : candidate.orderLabel,
   );
-  const detailReasons = $derived(isAiCandidate ? candidate.reasons : candidate.reasons.slice(1));
   const evaluationStale = $derived(Boolean(evaluation && evaluation.pickNumber !== currentPick));
 
   function togglePreference(nextPreference: PlayerPreferenceLevel) {
@@ -94,9 +94,6 @@
         <p class="import-meta">{sourceLabel(candidate)}</p>
       {/if}
     </div>
-    {#if !isAiCandidate}
-      <strong class="score">{candidate.score.toFixed(1)}</strong>
-    {/if}
   </div>
 
   <div class="actions">
@@ -128,15 +125,14 @@
   {#if detailsOpen}
     <div class="details">
       <div class="signal-row">
-        {#if isAiCandidate}<span>Local score {candidate.score.toFixed(1)}</span>{/if}
-        <span>{candidate.valueLabel}</span>
-        <span>{candidate.scarcityLabel}</span>
-        <span>{returnPct}% return</span>
+        <span>Ordered by {candidate.orderLabel}</span>
+        <span>{rosterFitLabel(candidate.rosterFit)}</span>
+        {#if candidate.requiredToCompleteLineup}<span>Required starter position</span>{/if}
       </div>
-      {#if detailReasons.length > 0}
+      {#if candidate.evidence.length > 0}
         <ul>
-          {#each detailReasons as reason}
-            <li>{reason}</li>
+          {#each candidate.evidence as evidence}
+            <li>{evidence}</li>
           {/each}
         </ul>
       {/if}
@@ -185,7 +181,7 @@
         <p class="evaluation-error">{evaluationError}</p>
       {:else if evaluation}
         <ResponseMarkdown content={evaluation.answer} />
-        <small>Evaluated at pick {evaluation.pickNumber}. Verify model analysis against the deterministic evidence above.</small>
+        <small>Evaluated at pick {evaluation.pickNumber}. Verify model analysis against the imported evidence above.</small>
       {/if}
     </div>
   {/if}
@@ -324,15 +320,6 @@
     border-color: var(--danger-border);
     background: var(--danger-soft);
     color: var(--danger);
-  }
-
-  .score {
-    flex-shrink: 0;
-    color: var(--accent);
-    font-size: var(--text-2xl);
-    font-weight: 700;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
   }
 
   .actions {

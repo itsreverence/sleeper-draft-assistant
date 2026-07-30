@@ -1,7 +1,6 @@
 import type {
   AiProviderStatus,
   AiDraftStrategyPayload,
-  CandidateSignal,
   DraftRecommendation,
   DraftState,
   Position,
@@ -60,14 +59,14 @@ export function buildSuggestedQuestions(
   const questions: string[] = [];
 
   if (top) {
-    questions.push(`Why is ${top.player.name} the recommendation?`);
+    questions.push(`Should I draft ${top.player.name} here?`);
   }
 
-  if (hasReason(candidates, "matches RB/WR flex demand")) {
+  if (getFlexSlotCount(state) > 0) {
     questions.push("Which RB/WR fits this build best?");
   }
 
-  if (hasReason(candidates, "shallow league reduces replacement pressure")) {
+  if (hasSingleQbFormat(state)) {
     questions.push("Should I pass on QB in this format?");
   }
 
@@ -81,10 +80,7 @@ export function buildSuggestedQuestions(
     questions.push(`Should I prioritize ${formatPositionList(rosterNeeds)} over ${top?.player.position ?? "the top player"}?`);
   }
 
-  const highReturn = candidates.find((candidate) => candidate.returnProbability >= 0.45 && candidate.player.name !== top?.player.name);
-  if (highReturn) {
-    questions.push(`Can I wait on ${highReturn.player.name}?`);
-  } else if (third) {
+  if (third) {
     questions.push(`What changes if I pass on ${top?.player.name} for ${third.player.name}?`);
   }
 
@@ -105,7 +101,7 @@ export function buildSuggestedQuestions(
 
 export function buildAiPanelContextSummary(
   state: DraftState | null,
-  currentRecommendation: DraftRecommendation | null,
+  _currentRecommendation: DraftRecommendation | null,
   rankingsImported: boolean,
   usingPlaceholderRanks: boolean,
 ): AiPanelContextSummary {
@@ -114,12 +110,10 @@ export function buildAiPanelContextSummary(
   }
 
   const chips = [state.settings.scoring, formatFlexChip(state), rankingsImported ? "Imported rankings" : usingPlaceholderRanks ? "Sleeper placeholder ranks" : "Demo values"];
-  const candidateReasons = currentRecommendation?.candidates.flatMap((candidate) => candidate.reasons) ?? [];
-
-  if (candidateReasons.includes("matches RB/WR flex demand")) {
+  if (getFlexSlotCount(state) > 0) {
     chips.push("RB/WR flex pressure");
   }
-  if (candidateReasons.includes("shallow league reduces replacement pressure")) {
+  if (hasSingleQbFormat(state)) {
     chips.push("Lower QB pressure");
   }
 
@@ -130,10 +124,6 @@ export function buildAiPanelContextSummary(
       : "AI answers are grounded in the current draft context.";
 
   return { chips: uniqueQuestions(chips).slice(0, 5), note };
-}
-
-function hasReason(candidates: CandidateSignal[], reason: string): boolean {
-  return candidates.some((candidate) => candidate.reasons.includes(reason));
 }
 
 function getRosterNeeds(state: DraftState): Position[] {
@@ -166,7 +156,7 @@ function formatPositionList(positions: Position[]): string {
 }
 
 function formatFlexChip(state: DraftState): string {
-  const flexSlots = (state.settings.rosterSlots.FLEX ?? 0) + (state.settings.rosterSlots.WR_RB_FLEX ?? 0) + (state.settings.rosterSlots.REC_FLEX ?? 0);
+  const flexSlots = getFlexSlotCount(state);
   const superFlexSlots = (state.settings.rosterSlots.SUPER_FLEX ?? 0) + (state.settings.rosterSlots.SF ?? 0);
   const parts: string[] = [];
 
@@ -178,6 +168,12 @@ function formatFlexChip(state: DraftState): string {
   }
 
   return parts.length > 0 ? parts.join(" / ") : "No flex";
+}
+
+function getFlexSlotCount(state: DraftState): number {
+  return (state.settings.rosterSlots.FLEX ?? 0) +
+    (state.settings.rosterSlots.WR_RB_FLEX ?? 0) +
+    (state.settings.rosterSlots.REC_FLEX ?? 0);
 }
 
 function uniqueQuestions(source: string[]): string[] {

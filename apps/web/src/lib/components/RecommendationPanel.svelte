@@ -169,7 +169,7 @@
     <div class="preference-summary">
       <div>
         <strong>{preferenceSummary}</strong>
-        <span>Applied to AI strategy and the local fallback for this draft.</span>
+        <span>Applied to AI strategy and the local reference board for this draft.</span>
       </div>
       {#if onClearPreferences}
         <button type="button" onclick={onClearPreferences}>Clear</button>
@@ -260,14 +260,14 @@
     {:else if isLoadingAiStrategy}
       <div class="ai-strategy-pending" aria-live="polite">
         <strong>AI strategist is reviewing this board.</strong>
-        <span>Showing the immediate local fallback while Codex searches the available player pool and evaluates the draft.</span>
+        <span>Showing the local reference board while Codex searches the available player pool and evaluates the draft.</span>
       </div>
       <p class="summary">{activeSummary}</p>
     {:else if aiStrategyEnabled && aiStrategyError}
       <div class="callout callout-warning" aria-live="polite">
         <div>
           <strong>AI strategy unavailable</strong>
-          <span>{aiStrategyError} Showing the deterministic fallback.</span>
+          <span>{aiStrategyError} Showing the local reference board.</span>
           <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry AI strategy</button>
         </div>
       </div>
@@ -291,7 +291,7 @@
     {#if currentAiStrategy}
       <div class="candidate-section-heading">
         <strong>AI player options</strong>
-        <span>Ordered by the current AI strategy. Imported values remain visible as evidence, not as the ordering score.</span>
+        <span>Ordered by the current AI strategy. Imported values remain visible as evidence but do not determine the AI order.</span>
       </div>
       <div class="candidate-list">
         {#each primaryAiCandidates as candidate, index (candidate.player.id)}
@@ -334,8 +334,8 @@
       {/if}
 
       <details class="fallback-board">
-        <summary>Local fallback board ({localCandidates.length})</summary>
-        <p>Independent offline shortlist used while AI is unavailable. Its scores and ordering do not drive the AI strategy above.</p>
+        <summary>Local reference board ({localCandidates.length})</summary>
+        <p>Raw imported evidence for offline use. It has no composite score and does not drive the AI strategy above.</p>
         {#if recommendation.assumptions.length > 0}
           <div class="local-note-group">
             <strong>Local data assumptions</strong>
@@ -397,8 +397,8 @@
       {/if}
 
       <div class="candidate-section-heading">
-        <strong>Local fallback board</strong>
-        <span>Immediate offline shortlist based on imported values and roster constraints.</span>
+        <strong>Local reference board</strong>
+        <span>Raw imported values with hard lineup-completion safeguards, not a strategic recommendation.</span>
       </div>
       <div class="candidate-list">
         {#each primaryLocalCandidates as candidate, index (candidate.player.id)}
@@ -440,7 +440,7 @@
       {/if}
     {/if}
   {:else}
-    <p class="summary">The engine is preparing candidate signals.</p>
+    <p class="summary">Preparing the local evidence board.</p>
   {/if}
 </article>
 

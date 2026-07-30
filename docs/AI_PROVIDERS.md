@@ -2,9 +2,9 @@
 
 AI is optional. Draft strategy is AI-first when Codex is configured, but every model decision is grounded in locally computed Sleeper state and imported evidence.
 
-## Deterministic fallback
+## Local reference mode
 
-This is the default when no provider is configured. It makes no external AI request and requires no account, API key, or model installation. It supplies an immediate shortlist and remains the live fallback if Codex is slow or unavailable.
+This is the default when no provider is configured. It makes no external AI request and requires no account, API key, or model installation. It displays a transparent board ordered by ECR, season projection, Sleeper ADP, Real-Time ADP, and then Sleeper placeholder rank. It does not attempt to reproduce AI strategy with a composite score. Hard feasibility checks still prevent a choice from making required starter completion impossible.
 
 ## Local Codex app-server
 
@@ -37,7 +37,7 @@ Renderer code never stores provider credentials or contacts an AI provider direc
 
 ## AI-first draft strategy
 
-When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and grouped player evidence. The primary strategy packet does not include the fallback engine's lean, composite score, confidence, qualitative value labels, return-probability estimate, or engine-authored reasons.
+When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and grouped player evidence. The primary strategy packet does not include a local strategic lean, composite score, qualitative value labels, return-probability estimate, or engine-authored strategy reasons.
 
 The prompt contains one alphabetically ordered, deduplicated player catalog plus separate ID groups for pinned targets, ECR leaders, season-projection leaders, Sleeper ADP leaders, Real-Time ADP leaders, Sleeper search-rank placeholders, and position coverage. A signal group contains only players with that signal. Ordering within a signal group reflects only that raw signal; catalog order is explicitly not a recommendation.
 
@@ -49,7 +49,7 @@ Dynamic tools are experimental in Codex app-server, so the protocol handling rem
 
 The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, next-position priorities, and a complete living draft plan. The plan records the current approach, current and next-turn positional focus, positions that can wait, roster goals, watch items, and the material change since the prior plan. The latest successful plan is stored locally by draft, team, and provider and supplied to the next AI turn as advisory strategy; the current Sleeper snapshot always remains authoritative.
 
-The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local fallback while the model is working or unavailable.
+The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local reference board while the model is working or unavailable.
 
 AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
 
@@ -62,9 +62,9 @@ Candidate evaluation is:
 - on demand by default, so it does not add model latency to normal draft refreshes;
 - grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations;
 - able to search the full immutable available-player snapshot for positional or named alternatives;
-- valid for any available, non-excluded player, even when the fallback engine did not place that player in its shortlist;
+- valid for any available, non-excluded player, even when the local reference board did not list that player;
 - validated by the backend so unavailable or excluded players cannot be evaluated from stale UI state;
 - tied to the current pick number and marked stale when the board advances;
 - advisory and separate from the primary structured AI strategy.
 
-The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest credible alternative, next positional priorities, and data limitations. The prompt does not include the fallback engine's lean, scores, labels, or reasons, and the model does not receive or claim live news outside the supplied draft context.
+The model is explicitly asked for a Prefer, Reasonable, or Avoid verdict, concise reasons, the strongest credible alternative, next positional priorities, and data limitations. The prompt does not include a local strategic lean or score, and the model does not receive or claim live news outside the supplied draft context.

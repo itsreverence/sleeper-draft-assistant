@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   advanceMockDraftState,
-  buildCandidateSignals,
+  buildDraftOptions,
   buildDraftRecommendation,
   buildTeamDataReadiness,
   buildTeamLineupSummary,
@@ -23,13 +23,14 @@ describe("mock draft engine", () => {
     expect(available.length).toBe(state.players.length - 5);
   });
 
-  it("builds candidate signals sorted by score", () => {
+  it("builds a transparent reference board", () => {
     const state = createMockDraftState(12);
-    const signals = buildCandidateSignals(state, 5);
+    const options = buildDraftOptions(state, 5);
 
-    expect(signals).toHaveLength(5);
-    expect(signals[0].score).toBeGreaterThanOrEqual(signals[1].score);
-    expect(signals[0].reasons.length).toBeGreaterThan(0);
+    expect(options).toHaveLength(5);
+    expect(options[0]?.orderLabel).toBeTruthy();
+    expect(options[0]?.evidence.length).toBeGreaterThan(0);
+    expect(options.every((option) => typeof option.requiredToCompleteLineup === "boolean")).toBe(true);
   });
 
   it("returns a structured recommendation", () => {
@@ -55,39 +56,35 @@ describe("mock draft engine", () => {
     expect(recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
   });
 
-  it("boosts pinned players and annotates the reason", () => {
+  it("puts pinned players first and records the preference as an assumption", () => {
     const state = createMockDraftState(12);
-    const baseline = buildCandidateSignals(state, 20);
-    const target = baseline.find((candidate) => candidate.score < 90) ?? baseline[baseline.length - 1];
+    const baseline = buildDraftOptions(state, 20);
+    const target = baseline.at(-1);
 
-    const pinnedSignals = buildCandidateSignals(state, 20, {
+    const pinnedOptions = buildDraftOptions(state, 20, {
       preferences: { pinnedPlayerIds: target ? [target.player.id] : [] },
     });
     const recommendation = buildDraftRecommendation(state, {
       preferences: { pinnedPlayerIds: target ? [target.player.id] : [] },
     });
 
-    const boosted = pinnedSignals.find((candidate) => candidate.player.id === target?.player.id);
-    expect(boosted?.score).toBeGreaterThan(target?.score ?? 0);
-    expect(boosted?.reasons).toContain("user pinned this player");
+    expect(pinnedOptions[0]?.player.id).toBe(target?.player.id);
     expect(recommendation.assumptions.some((assumption) => assumption.includes("User pinned"))).toBe(true);
   });
 
-  it("penalizes faded players and annotates the reason", () => {
+  it("puts faded players after unmodified options and records the preference", () => {
     const state = createMockDraftState(12);
-    const baseline = buildCandidateSignals(state, 20);
+    const baseline = buildDraftOptions(state, 20);
     const target = baseline[0];
 
-    const fadedSignals = buildCandidateSignals(state, 20, {
+    const fadedOptions = buildDraftOptions(state, 20, {
       preferences: { fadedPlayerIds: target ? [target.player.id] : [] },
     });
     const recommendation = buildDraftRecommendation(state, {
       preferences: { fadedPlayerIds: target ? [target.player.id] : [] },
     });
 
-    const faded = fadedSignals.find((candidate) => candidate.player.id === target?.player.id);
-    expect(faded?.score).toBeLessThan(target?.score ?? 100);
-    expect(faded?.reasons).toContain("user faded this player");
+    expect(fadedOptions[0]?.player.id).not.toBe(target?.player.id);
     expect(recommendation.recommendedPlayerId).not.toBe(target?.player.id);
     expect(recommendation.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
   });
@@ -147,10 +144,10 @@ describe("mock draft engine", () => {
 
     const recommendation = buildDraftRecommendation(state);
 
-    expect(recommendation.headline).toBe("Placeholder lean: Sleeper Player");
+    expect(recommendation.headline).toContain("Sleeper Player");
     expect(recommendation.confidence).toBe("low");
     expect(recommendation.assumptions[0]).toContain("Sleeper does not provide fantasy projections");
-    expect(recommendation.candidates[0]?.reasons[0]).toContain("Sleeper search rank 12");
+    expect(recommendation.candidates[0]?.evidence[0]).toContain("Sleeper placeholder rank 12");
   });
   it("does not let unmatched placeholders outrank available imported players", () => {
     const state = createMockDraftState(0);
@@ -184,65 +181,25 @@ describe("mock draft engine", () => {
     const recommendation = buildDraftRecommendation(state);
 
     expect(recommendation.recommendedPlayerId).toBe("imported-player");
-    expect(recommendation.headline).toBe("Lean Imported Player");
+    expect(recommendation.headline).toContain("Imported Player");
     expect(recommendation.candidates).toHaveLength(1);
   });
-  it("prioritizes RB/WR construction pressure in 8-team PPR leagues with two flex spots", () => {
+  it("orders imported options by ECR without strategic roster reweighting", () => {
     const state = createEightTeamTwoFlexState();
-    const recommendation = buildDraftRecommendation(state);
-
-    expect(recommendation.candidates[0]?.player.position).toMatch(/RB|WR/);
-    expect(recommendation.recommendedPlayerId).not.toBe("format-qb-allen");
-    expect(recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
-  });
-  it("stops recommending WR after WR has filled every starting and flex slot", () => {
-    const state = createEightTeamTwoFlexState();
-    const rosteredReceivers = Array.from({ length: 4 }, (_, index) =>
-      formatPlayer(`rostered-wr-${index + 1}`, `Rostered WR ${index + 1}`, "SEA", "WR", 260 - index, index + 1, 1),
-    );
-    state.players = [...state.players, ...rosteredReceivers];
-    state.teams[0]!.roster = rosteredReceivers.map((player) => player.id);
-    state.picks = rosteredReceivers.map((player, index) => ({
-      pickNo: index + 1,
-      round: index + 1,
-      draftSlot: 1,
-      teamId: state.userTeamId,
-      playerId: player.id,
+    state.players = state.players.map((player, index) => ({
+      ...player,
+      projectionSource: "imported",
+      importedRank: index + 1,
+      importedSource: "FantasyPros",
     }));
-    state.currentPick = 5;
-
-    const recommendation = buildDraftRecommendation(state);
-    const chase = buildCandidateSignals(state, state.players.length)
-      .find((candidate) => candidate.player.id === "format-wr-chase");
-
-    expect(recommendation.candidates[0]?.player.position).toBe("RB");
-    expect(chase?.rosterFit).toBe("depth");
-    expect(chase?.reasons).toContain("WR starting and flex capacity is already covered");
-    expect(chase?.score).toBeLessThan(recommendation.candidates[0]?.score ?? 0);
-  });
-  it("prioritizes an empty RB room after both direct WR starters are filled", () => {
-    const state = createEightTeamTwoFlexState();
-    const rosteredReceivers = Array.from({ length: 2 }, (_, index) =>
-      formatPlayer(`starter-wr-${index + 1}`, `Starter WR ${index + 1}`, "SEA", "WR", 270 - index, index + 1, 1),
-    );
-    state.players = [...state.players, ...rosteredReceivers];
-    state.teams[0]!.roster = rosteredReceivers.map((player) => player.id);
-    state.picks = rosteredReceivers.map((player, index) => ({
-      pickNo: index + 1,
-      round: index + 1,
-      draftSlot: 1,
-      teamId: state.userTeamId,
-      playerId: player.id,
-    }));
-    state.currentPick = 3;
-
     const recommendation = buildDraftRecommendation(state);
 
-    expect(recommendation.candidates[0]?.player.position).toBe("RB");
-    expect(recommendation.candidates[0]?.reasons).toContain("fills a RB roster need");
+    expect(recommendation.recommendedPlayerId).toBe("format-qb-allen");
+    expect(recommendation.candidates[0]?.orderSource).toBe("ecr");
+    expect(recommendation.summary).toContain("not a strategic recommendation");
   });
 
-  it("caps recommendation confidence when league settings need caution", () => {
+  it("keeps local references low confidence and exposes format warnings", () => {
     const state = createEightTeamTwoFlexState();
     state.settings.formatCompatibility = {
       level: "caution",
@@ -256,41 +213,27 @@ describe("mock draft engine", () => {
 
     const recommendation = buildDraftRecommendation(state);
 
-    expect(recommendation.confidence).not.toBe("high");
+    expect(recommendation.confidence).toBe("low");
     expect(recommendation.risks).toContain("TE-premium values require a matching import.");
   });
 
-  it("does not let imported season signals saturate a shallow one-QB board", () => {
+  it("uses season projection when ECR is unavailable", () => {
     const state = createEightTeamTwoFlexState();
-    const importedRanks = new Map([
-      ["format-qb-allen", 25],
-      ["format-rb-gibbs", 4],
-      ["format-wr-chase", 1],
-      ["format-rb-bijan", 3],
-      ["format-te-bowers", 16],
-      ["format-qb-hurts", 31],
-    ]);
     state.players = state.players.map((player) => ({
       ...player,
       projectionSource: "season_projection",
-      importedRank: importedRanks.get(player.id),
       seasonProjectedPoints: player.projectedPoints,
       seasonProjectionSource: "FantasyPros",
       seasonProjectionSeason: "2026",
       seasonProjectionCoverage: "league_scored",
-      adpSource: "FantasyPros Sleeper ADP",
     }));
 
-    const recommendation = buildDraftRecommendation(state);
-    const allen = recommendation.candidates.find((candidate) => candidate.player.id === "format-qb-allen");
-
-    expect(recommendation.candidates[0]?.player.position).toMatch(/RB|WR/);
-    expect(recommendation.recommendedPlayerId).not.toBe("format-qb-allen");
-    expect(recommendation.candidates[0]?.score).toBeLessThan(100);
-    expect(allen?.score).toBeLessThan(recommendation.candidates[0]?.score ?? 0);
+    const options = buildDraftOptions(state, state.players.length);
+    expect(options[0]?.player.id).toBe("format-qb-allen");
+    expect(options[0]?.orderSource).toBe("projection");
   });
 
-  it("uses the faster of Sleeper and real-time ADP for return probability", () => {
+  it("shows both Sleeper and real-time ADP as evidence", () => {
     const state = createEightTeamTwoFlexState();
     const player = state.players.find((candidate) => candidate.id === "format-rb-gibbs");
     if (!player) {
@@ -300,38 +243,11 @@ describe("mock draft engine", () => {
     player.realTimeAdp = 4;
     player.adpSource = "FantasyPros Sleeper ADP";
 
-    const signal = buildCandidateSignals(state, state.players.length)
+    const option = buildDraftOptions(state, state.players.length)
       .find((candidate) => candidate.player.id === player.id);
 
-    expect(signal?.returnProbability).toBe(0.08);
-    expect(signal?.reasons).toContain("real-time market is 24.0 picks earlier than Sleeper ADP");
-  });
-  it("rewards players who fall past ADP and penalizes reaches", () => {
-    const state = createEightTeamTwoFlexState();
-    const falling = formatPlayer("falling-wr", "Falling WR", "SEA", "WR", 280, 5, 2);
-    const reach = formatPlayer("reach-wr", "Reach WR", "SEA", "WR", 280, 45, 2);
-    falling.projectionSource = "season_projection";
-    reach.projectionSource = "season_projection";
-    falling.adpSource = "FantasyPros Sleeper ADP";
-    reach.adpSource = "FantasyPros Sleeper ADP";
-    state.players = [falling, reach];
-    state.currentPick = 25;
-
-    const signals = buildCandidateSignals(state, 2);
-    const fallingSignal = signals.find((candidate) => candidate.player.id === falling.id);
-    const reachSignal = signals.find((candidate) => candidate.player.id === reach.id);
-
-    expect(fallingSignal?.valueLabel).toBe("major Sleeper ADP discount");
-    expect(reachSignal?.valueLabel).toBe("ahead of Sleeper ADP");
-    expect(fallingSignal?.score).toBeGreaterThan(reachSignal?.score ?? 0);
-  });
-
-  it("explains shallow-league QB replacement pressure in small one-QB formats", () => {
-    const state = createEightTeamTwoFlexState();
-    const signals = buildCandidateSignals(state, 10);
-    const qb = signals.find((candidate) => candidate.player.id === "format-qb-allen");
-
-    expect(qb?.reasons).toContain("shallow league reduces replacement pressure");
+    expect(option?.evidence).toContain("Sleeper ADP 28.0");
+    expect(option?.evidence).toContain("Real-Time ADP 4.0");
   });
 });
 function createEightTeamTwoFlexState(): DraftState {
@@ -446,8 +362,9 @@ describe("full draft simulations", () => {
     expect(isDraftChoiceRosterFeasible(state, "endgame-k")).toBe(true);
     expect(isDraftChoiceRosterFeasible(state, "endgame-def")).toBe(true);
     expect(firstRecommendation.candidates.map((candidate) => candidate.player.position).sort()).toEqual(["DEF", "K"]);
-    expect(firstRecommendation.headline).toMatch(/^Fill (K|DEF):/);
-    expect(firstRecommendation.summary).toContain("must be filled now");
+    expect(firstRecommendation.candidates.every((candidate) => candidate.requiredToCompleteLineup)).toBe(true);
+    expect(firstRecommendation.headline).toMatch(/^Required (K|DEF) reference:/);
+    expect(firstRecommendation.summary).toContain("remaining starter requirements");
 
     const selected = firstRecommendation.candidates[0]!.player;
     userTeam.roster.push(selected.id);
@@ -464,7 +381,7 @@ describe("full draft simulations", () => {
     const remainingPosition = selected.position === "K" ? "DEF" : "K";
     expect(finalRecommendation.candidates).toHaveLength(1);
     expect(finalRecommendation.candidates[0]?.player.position).toBe(remainingPosition);
-    expect(finalRecommendation.headline).toMatch(new RegExp(`^Fill ${remainingPosition}:`));
+    expect(finalRecommendation.headline).toMatch(new RegExp(`^Required ${remainingPosition} reference:`));
   });
 
   it("hard-requires a flex-eligible player when the final starter slot is open", () => {

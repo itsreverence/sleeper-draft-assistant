@@ -42,8 +42,10 @@ export type DecisionSnapshot = {
       name: string;
       position: string;
       team: string;
-      score: number;
-      reasons: string[];
+      orderLabel?: string;
+      evidence?: string[];
+      score?: number;
+      reasons?: string[];
     }>;
     assumptions: string[];
     risks: string[];
@@ -194,8 +196,8 @@ function createDecisionSnapshot(input: {
         name: candidate.player.name,
         position: candidate.player.position,
         team: candidate.player.team,
-        score: candidate.score,
-        reasons: candidate.reasons.slice(0, 4),
+        orderLabel: candidate.orderLabel,
+        evidence: candidate.evidence.slice(0, 4),
       })),
       assumptions: input.recommendation.assumptions,
       risks: input.recommendation.risks,

@@ -237,7 +237,7 @@
         <span class="step">3</span>
         <div>
           <strong>Sleeper ADP</strong>
-          <span>Market value and return probability</span>
+          <span>Sleeper and Real-Time market evidence</span>
         </div>
         <span class="source-status" class:ready={Boolean(adpImportSummary)}>
           {adpImportSummary ? `${adpImportSummary.matched} matched` : "Recommended"}

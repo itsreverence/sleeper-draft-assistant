@@ -548,23 +548,21 @@ export const TeamActivitySummarySchema = z.object({
   updatedAt: z.string(),
 });
 export type TeamActivitySummary = z.infer<typeof TeamActivitySummarySchema>;
-export const CandidateSignalSchema = z.object({
+export const DraftOptionSchema = z.object({
   player: PlayerSchema,
-  score: z.number(),
-  projectedEdge: z.number(),
   rosterFit: z.enum(["need", "depth", "luxury"]),
-  valueLabel: z.string(),
-  scarcityLabel: z.string(),
-  returnProbability: z.number(),
-  reasons: z.array(z.string()),
+  evidence: z.array(z.string()),
+  orderSource: z.enum(["ecr", "projection", "sleeper_adp", "real_time_adp", "sleeper_rank", "name"]),
+  orderLabel: z.string(),
+  requiredToCompleteLineup: z.boolean(),
 });
-export type CandidateSignal = z.infer<typeof CandidateSignalSchema>;
+export type DraftOption = z.infer<typeof DraftOptionSchema>;
 
 export const DraftRecommendationSchema = z.object({
   headline: z.string(),
   recommendedPlayerId: z.string().nullable(),
   confidence: z.enum(["low", "medium", "high"]),
-  candidates: z.array(CandidateSignalSchema),
+  candidates: z.array(DraftOptionSchema),
   summary: z.string(),
   risks: z.array(z.string()),
   assumptions: z.array(z.string()),

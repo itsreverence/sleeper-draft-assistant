@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import {
   advanceMockDraftState,
-  buildCandidateSignalForPlayer,
+  buildDraftOptionForPlayer,
   buildDraftRecommendation,
   buildTeamDataReadiness,
   buildTeamLineupSummary,
@@ -653,7 +653,7 @@ app.post("/drafts/:draftId/strategy", async (c) => {
         .map((player) => player.id),
     );
     const recommendedCandidate = availableIds.has(strategy.decision.recommendedPlayerId)
-      ? buildCandidateSignalForPlayer(state, strategy.decision.recommendedPlayerId, { preferences: recommendationPreferences })
+      ? buildDraftOptionForPlayer(state, strategy.decision.recommendedPlayerId, { preferences: recommendationPreferences })
       : null;
     if (
       strategy.decision.basedOnPick !== state.currentPick ||
@@ -666,7 +666,7 @@ app.post("/drafts/:draftId/strategy", async (c) => {
     const alternativeCandidates = Array.from(new Set(strategy.decision.alternativePlayerIds))
       .filter((playerId) => playerId !== recommendedCandidate.player.id)
       .filter((playerId) => availableIds.has(playerId) && isDraftChoiceRosterFeasible(state, playerId))
-      .map((playerId) => buildCandidateSignalForPlayer(state, playerId, { preferences: recommendationPreferences }))
+      .map((playerId) => buildDraftOptionForPlayer(state, playerId, { preferences: recommendationPreferences }))
       .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
       .slice(0, 4);
     const currentPickFocus = Array.from(new Set([

@@ -24,7 +24,7 @@
       "state-load": "draft opened",
       "rankings-import": "rankings updated",
       "rankings-clear": "rankings cleared",
-      "manual-refresh": "recommendation refreshed",
+      "manual-refresh": "reference board refreshed",
       "ai-question": "manager asked",
       "ai-strategy": "AI strategy generated",
       "candidate-evaluation": "candidate evaluated",
@@ -55,13 +55,13 @@
         Changed from <strong>{previousDifferent.headline}</strong> after {triggerLabel(latest.trigger)}.
       </p>
     {:else}
-      <p class="change">The saved recommendation has not changed across recent snapshots.</p>
+      <p class="change">The saved first option has not changed across recent snapshots.</p>
     {/if}
     <ol>
       {#each latest.context.topCandidates.slice(0, 3) as candidate}
         <li>
           <span>{candidate.name} · {candidate.position}</span>
-          <strong>{candidate.score.toFixed(1)}</strong>
+          <strong>{candidate.orderLabel ?? (candidate.score !== undefined ? `Legacy score ${candidate.score.toFixed(1)}` : "Reference")}</strong>
         </li>
       {/each}
     </ol>

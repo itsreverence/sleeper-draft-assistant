@@ -2,7 +2,7 @@ import type {
   AdpImportSummary,
   AppSettings,
   AiDraftDecision,
-  CandidateSignal,
+  DraftOption,
   DraftRecommendation,
   DraftState,
   RankingImportSummary,
@@ -38,8 +38,8 @@ type StrategyPayload = {
   provider: { id: string };
   pickNumber: number;
   decision: AiDraftDecision;
-  recommendedCandidate: CandidateSignal;
-  alternativeCandidates: CandidateSignal[];
+  recommendedCandidate: DraftOption;
+  alternativeCandidates: DraftOption[];
 };
 
 const fantasyProsCsv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
@@ -134,7 +134,7 @@ describe("draft recommendation routes", () => {
       expect(importedStateResponse.status).toBe(200);
       const importedPayload = (await importedStateResponse.json()) as DraftPayload;
       expect(importedPayload.rankingImportSummary?.matched).toBe(3);
-      expect(importedPayload.recommendation.candidates[0]?.reasons[0]).toContain("FantasyPros rank");
+      expect(importedPayload.recommendation.candidates[0]?.evidence[0]).toContain("ECR rank");
 
       const projectionResponse = await app.request("/drafts/mock-draft/projections/season/import", {
         method: "POST",
