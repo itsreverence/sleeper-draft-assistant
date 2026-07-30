@@ -7,12 +7,11 @@
   let {
     candidate,
     rank,
-    presentation = "local",
+    presentation = "ai-alternative",
     aiReason = "",
     preference = null,
     featured = false,
     currentPick,
-    aiEnabled = false,
     evaluation = null,
     evaluationError = "",
     isEvaluating = false,
@@ -21,12 +20,11 @@
   }: {
     candidate: DraftOption;
     rank: number;
-    presentation?: "local" | "ai-pick" | "ai-alternative";
+    presentation?: "ai-pick" | "ai-alternative";
     aiReason?: string;
     preference?: PlayerPreferenceLevel | null;
     featured?: boolean;
     currentPick: number;
-    aiEnabled?: boolean;
     evaluation?: CandidateEvaluationPayload | null;
     evaluationError?: string;
     isEvaluating?: boolean;
@@ -36,15 +34,10 @@
 
   let detailsOpen = $state(false);
 
-  const isAiCandidate = $derived(presentation !== "local");
   const primaryReason = $derived(
     presentation === "ai-pick"
       ? aiReason || "Primary choice from the current AI strategy."
-      : presentation === "ai-alternative"
-        ? "Alternative selected by the current AI strategy."
-        : candidate.requiredToCompleteLineup
-          ? `${candidate.player.position} is required to complete the starting lineup.`
-          : candidate.orderLabel,
+      : "Alternative selected by the current AI strategy.",
   );
   const evaluationStale = $derived(Boolean(evaluation && evaluation.pickNumber !== currentPick));
 
@@ -83,7 +76,6 @@
       </div>
       <p>
         {candidate.player.team} - {candidate.player.position}
-        {#if !isAiCandidate} - {rosterFitLabel(candidate.rosterFit)}{/if}
       </p>
       <p class="reason">{primaryReason}</p>
       {#if candidate.player.importedRank}
@@ -105,7 +97,7 @@
     >
       {preference === "pin" ? "Shortlisted" : "Shortlist"}
     </button>
-    {#if aiEnabled && featured}
+    {#if featured}
       <button
         class="ai-action"
         type="button"
@@ -118,7 +110,7 @@
       </button>
     {/if}
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
-      {detailsOpen ? "Less" : isAiCandidate ? "Local evidence" : "Details"}
+      {detailsOpen ? "Less" : "Evidence"}
     </button>
   </div>
 
@@ -153,7 +145,7 @@
         >
           {preference === "exclude" ? "Excluded" : "Exclude"}
         </button>
-        {#if aiEnabled && !featured}
+        {#if !featured}
           <button
             class="ai-secondary"
             type="button"

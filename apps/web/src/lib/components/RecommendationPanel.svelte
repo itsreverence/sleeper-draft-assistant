@@ -3,15 +3,15 @@
   import CandidateCard from "./CandidateCard.svelte";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
   import { currentAiDraftStrategy } from "../ai-panel";
-  import type { AiDraftStrategyPayload, CandidateEvaluationPayload, DraftRecommendation, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import type { AiDraftStrategyPayload, CandidateEvaluationPayload, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
-    recommendation,
     showPlaceholderWarning = false,
     playerPreferences = {},
     onSetPreference,
     onClearPreferences,
     onOpenRankings,
+    onOpenSettings,
     currentPick,
     aiEnabled = false,
     aiStrategyEnabled = false,
@@ -20,12 +20,12 @@
     onEvaluateCandidate,
     onRequestAiStrategy,
   }: {
-    recommendation: DraftRecommendation | null;
     showPlaceholderWarning?: boolean;
     playerPreferences?: PlayerPreferences;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
     onClearPreferences?: () => void;
     onOpenRankings?: () => void;
+    onOpenSettings?: () => void;
     currentPick: number;
     aiEnabled?: boolean;
     aiStrategyEnabled?: boolean;
@@ -57,7 +57,9 @@
   let isLoadingAiStrategy = $state(false);
   let lastAiStrategyKey = $state("");
   let aiStrategyRequestId = 0;
-  const currentAiStrategy = $derived(currentAiDraftStrategy(aiStrategy, currentPick));
+  const currentAiStrategy = $derived(
+    aiEnabled ? currentAiDraftStrategy(aiStrategy, currentPick) : null,
+  );
   const aiCandidates = $derived.by(() => {
     const strategy = currentAiStrategy;
     if (!strategy) {
@@ -72,12 +74,8 @@
   });
   const primaryAiCandidates = $derived(aiCandidates.slice(0, 3));
   const additionalAiCandidates = $derived(aiCandidates.slice(3));
-  const localCandidates = $derived(recommendation?.candidates ?? []);
-  const primaryLocalCandidates = $derived(localCandidates.slice(0, 3));
-  const additionalLocalCandidates = $derived(localCandidates.slice(3));
-  const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? recommendation?.headline ?? "Waiting for board context");
-  const activeSummary = $derived(currentAiStrategy?.decision.summary ?? recommendation?.summary ?? "");
-  const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? recommendation?.confidence ?? null);
+  const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? "AI draft assistant");
+  const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
   const confidenceTone = $derived(
     activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
   );
@@ -89,11 +87,11 @@
   const latestEvaluationStillListed = $derived(
     Boolean(
       latestEvaluation &&
-        [...aiCandidates, ...localCandidates].some((candidate) => candidate.player.id === latestEvaluation.playerId),
+        aiCandidates.some((candidate) => candidate.player.id === latestEvaluation.playerId),
     ),
   );
   const detachedEvaluationError = $derived(
-    latestEvaluationPlayerId && ![...aiCandidates, ...localCandidates].some((candidate) => candidate.player.id === latestEvaluationPlayerId)
+    latestEvaluationPlayerId && !aiCandidates.some((candidate) => candidate.player.id === latestEvaluationPlayerId)
       ? evaluationErrors[latestEvaluationPlayerId] ?? ""
       : "",
   );
@@ -157,9 +155,7 @@
 
 <article class="panel recommendation-panel">
   <div class="panel-heading">
-    <div>
-      <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
-    </div>
+    <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
     {#if activeConfidence}
       <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
     {/if}
@@ -169,7 +165,7 @@
     <div class="preference-summary">
       <div>
         <strong>{preferenceSummary}</strong>
-        <span>Applied to AI strategy and the local reference board for this draft.</span>
+        <span>Applied to AI strategy for this draft.</span>
       </div>
       {#if onClearPreferences}
         <button type="button" onclick={onClearPreferences}>Clear</button>
@@ -181,187 +177,173 @@
     <div class="callout callout-warning placeholder-warning">
       <Icon name="alert" size={15} />
       <div>
-        <strong>Import rankings before relying on this recommendation.</strong>
-        <span>Sleeper search rank is only a temporary ordering signal.</span>
+        <strong>Player value data is incomplete.</strong>
+        <span>AI can reason from the draft state, but Sleeper search ranks are only placeholder valuation evidence.</span>
         {#if onOpenRankings}
-          <button class="btn btn-secondary" type="button" onclick={onOpenRankings}>Import rankings now</button>
+          <button class="btn btn-secondary" type="button" onclick={onOpenRankings}>Import rankings</button>
         {/if}
       </div>
     </div>
   {/if}
 
-  {#if recommendation}
-    {#if currentAiStrategy}
-      <div class="ai-strategy" aria-live="polite">
-        <div class="ai-strategy-heading">
-          <strong>AI draft strategy</strong>
-          <span>{currentAiStrategy.decision.verdict}</span>
+  {#if currentAiStrategy}
+    <div class="ai-strategy" aria-live="polite">
+      <div class="ai-strategy-heading">
+        <strong>AI draft strategy</strong>
+        <span>{currentAiStrategy.decision.verdict}</span>
+      </div>
+      <p>{currentAiStrategy.decision.summary}</p>
+      <ul>
+        {#each currentAiStrategy.decision.reasons as reason}
+          <li>{reason}</li>
+        {/each}
+      </ul>
+      {#if currentAiStrategy.decision.risks.length > 0}
+        <details>
+          <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
+          <ul>
+            {#each currentAiStrategy.decision.risks as risk}
+              <li>{risk}</li>
+            {/each}
+          </ul>
+        </details>
+      {/if}
+      <div class="draft-plan">
+        <div class="draft-plan-heading">
+          <strong>Living draft plan</strong>
+          <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
         </div>
-        <p>{activeSummary}</p>
-        <ul>
-          {#each currentAiStrategy.decision.reasons as reason}
-            <li>{reason}</li>
-          {/each}
-        </ul>
-        {#if currentAiStrategy.decision.risks.length > 0}
-          <details>
-            <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
+        <p class="plan-change">{currentAiStrategy.decision.plan.changeSummary}</p>
+        <div class="plan-priorities">
+          <div>
+            <span>This pick</span>
+            <strong>{currentAiStrategy.decision.plan.currentPickFocus.join(" / ") || "Best available"}</strong>
+          </div>
+          <div>
+            <span>Next turn</span>
+            <strong>{currentAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong>
+          </div>
+          <div>
+            <span>Can wait</span>
+            <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong>
+          </div>
+        </div>
+        <details>
+          <summary>View full plan</summary>
+          <p>{currentAiStrategy.decision.plan.approach}</p>
+          <div class="plan-detail">
+            <strong>Roster goals</strong>
             <ul>
-              {#each currentAiStrategy.decision.risks as risk}
-                <li>{risk}</li>
+              {#each currentAiStrategy.decision.plan.rosterGoals as goal}
+                <li>{goal}</li>
               {/each}
             </ul>
-          </details>
-        {/if}
-        <div class="draft-plan">
-          <div class="draft-plan-heading">
-            <strong>Living draft plan</strong>
-            <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
           </div>
-          <p class="plan-change">{currentAiStrategy.decision.plan.changeSummary}</p>
-          <div class="plan-priorities">
-            <div>
-              <span>This pick</span>
-              <strong>{currentAiStrategy.decision.plan.currentPickFocus.join(" / ") || "Best available"}</strong>
-            </div>
-            <div>
-              <span>Next turn</span>
-              <strong>{currentAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong>
-            </div>
-            <div>
-              <span>Can wait</span>
-              <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong>
-            </div>
-          </div>
-          <details>
-            <summary>View full plan</summary>
-            <p>{currentAiStrategy.decision.plan.approach}</p>
+          {#if currentAiStrategy.decision.plan.watchItems.length > 0}
             <div class="plan-detail">
-              <strong>Roster goals</strong>
+              <strong>Watching</strong>
               <ul>
-                {#each currentAiStrategy.decision.plan.rosterGoals as goal}
-                  <li>{goal}</li>
+                {#each currentAiStrategy.decision.plan.watchItems as item}
+                  <li>{item}</li>
                 {/each}
               </ul>
             </div>
-            {#if currentAiStrategy.decision.plan.watchItems.length > 0}
-              <div class="plan-detail">
-                <strong>Watching</strong>
-                <ul>
-                  {#each currentAiStrategy.decision.plan.watchItems as item}
-                    <li>{item}</li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
-          </details>
-        </div>
-      </div>
-    {:else if isLoadingAiStrategy}
-      <div class="ai-strategy-pending" aria-live="polite">
-        <strong>AI strategist is reviewing this board.</strong>
-        <span>Showing the local reference board while Codex searches the available player pool and evaluates the draft.</span>
-      </div>
-      <p class="summary">{activeSummary}</p>
-    {:else if aiStrategyEnabled && aiStrategyError}
-      <div class="callout callout-warning" aria-live="polite">
-        <div>
-          <strong>AI strategy unavailable</strong>
-          <span>{aiStrategyError} Showing the local reference board.</span>
-          <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry AI strategy</button>
-        </div>
-      </div>
-      <p class="summary">{activeSummary}</p>
-    {:else}
-      <p class="summary">{activeSummary}</p>
-    {/if}
-
-    {#if latestEvaluation && !latestEvaluationStillListed}
-      <div class="detached-evaluation callout callout-warning" aria-live="polite">
-        <div>
-          <strong>AI take for {latestEvaluation.playerName} · stale after pick {latestEvaluation.pickNumber}</strong>
-          <ResponseMarkdown content={latestEvaluation.answer} />
-          <small>This player is no longer a current recommendation candidate. Re-evaluate an available player before acting.</small>
-        </div>
-      </div>
-    {:else if detachedEvaluationError}
-      <div class="callout callout-warning" aria-live="polite">{detachedEvaluationError}</div>
-    {/if}
-
-    {#if currentAiStrategy}
-      <div class="candidate-section-heading">
-        <strong>AI player options</strong>
-        <span>Ordered by the current AI strategy. Imported values remain visible as evidence but do not determine the AI order.</span>
-      </div>
-      <div class="candidate-list">
-        {#each primaryAiCandidates as candidate, index (candidate.player.id)}
-          <CandidateCard
-            {candidate}
-            rank={index + 1}
-            featured={index === 0}
-            presentation={index === 0 ? "ai-pick" : "ai-alternative"}
-            aiReason={index === 0 ? currentAiStrategy.decision.reasons[0] ?? "" : ""}
-            {currentPick}
-            evaluation={evaluations[candidate.player.id] ?? null}
-            evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-            isEvaluating={evaluatingPlayerId === candidate.player.id}
-            preference={playerPreferences[candidate.player.id] ?? null}
-            {onSetPreference}
-            onEvaluate={evaluateCandidate}
-          />
-        {/each}
-      </div>
-      {#if additionalAiCandidates.length > 0}
-        <details class="more-candidates">
-          <summary>Show {additionalAiCandidates.length} more AI alternative{additionalAiCandidates.length === 1 ? "" : "s"}</summary>
-          <div class="candidate-list">
-            {#each additionalAiCandidates as candidate, index (candidate.player.id)}
-              <CandidateCard
-                {candidate}
-                rank={index + primaryAiCandidates.length + 1}
-                presentation="ai-alternative"
-                {currentPick}
-                evaluation={evaluations[candidate.player.id] ?? null}
-                evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-                isEvaluating={evaluatingPlayerId === candidate.player.id}
-                preference={playerPreferences[candidate.player.id] ?? null}
-                {onSetPreference}
-                onEvaluate={evaluateCandidate}
-              />
-            {/each}
-          </div>
+          {/if}
         </details>
+      </div>
+    </div>
+  {:else if !aiEnabled}
+    <div class="empty-state" aria-live="polite">
+      <Icon name="message" size={20} />
+      <div>
+        <strong>Connect an AI provider for draft strategy</strong>
+        <span>The draft board and imported data remain available, but this app does not generate local pick recommendations.</span>
+      </div>
+      {#if onOpenSettings}
+        <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open AI settings</button>
       {/if}
+    </div>
+  {:else if isLoadingAiStrategy}
+    <div class="ai-strategy-pending" aria-live="polite">
+      <span class="spinner"></span>
+      <div>
+        <strong>AI strategist is reviewing this board</strong>
+        <span>Codex can search the complete available-player pool while it evaluates the current roster and draft room.</span>
+      </div>
+    </div>
+  {:else if aiStrategyEnabled && aiStrategyError}
+    <div class="callout callout-warning" aria-live="polite">
+      <div>
+        <strong>AI strategy unavailable</strong>
+        <span>{aiStrategyError}</span>
+        <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry AI strategy</button>
+      </div>
+    </div>
+  {:else if !aiStrategyEnabled}
+    <div class="empty-state" aria-live="polite">
+      <Icon name="pause" size={20} />
+      <div>
+        <strong>Automatic AI strategy is paused</strong>
+        <span>Enable automatic draft strategy in Settings or use Ask draft manager for an on-demand decision.</span>
+      </div>
+      {#if onOpenSettings}
+        <button class="btn btn-secondary" type="button" onclick={onOpenSettings}>Open AI settings</button>
+      {/if}
+    </div>
+  {:else}
+    <div class="empty-state" aria-live="polite">
+      <Icon name="clock" size={20} />
+      <div>
+        <strong>AI strategy will update near your turn</strong>
+        <span>Automatic analysis starts when you are within two picks. Ask draft manager remains available at any time.</span>
+      </div>
+    </div>
+  {/if}
 
-      <details class="fallback-board">
-        <summary>Local reference board ({localCandidates.length})</summary>
-        <p>Raw imported evidence for offline use. It has no composite score and does not drive the AI strategy above.</p>
-        {#if recommendation.assumptions.length > 0}
-          <div class="local-note-group">
-            <strong>Local data assumptions</strong>
-            <ul>
-              {#each recommendation.assumptions as assumption}
-                <li>{assumption}</li>
-              {/each}
-            </ul>
-          </div>
-        {/if}
-        {#if recommendation.risks.length > 0}
-          <div class="local-note-group">
-            <strong>Local risk checks</strong>
-            <ul>
-              {#each recommendation.risks as risk}
-                <li>{risk}</li>
-              {/each}
-            </ul>
-          </div>
-        {/if}
-        <div class="candidate-list fallback-candidates">
-          {#each localCandidates as candidate, index (candidate.player.id)}
+  {#if latestEvaluation && !latestEvaluationStillListed}
+    <div class="detached-evaluation callout callout-warning" aria-live="polite">
+      <div>
+        <strong>AI take for {latestEvaluation.playerName} - stale after pick {latestEvaluation.pickNumber}</strong>
+        <ResponseMarkdown content={latestEvaluation.answer} />
+        <small>This player is no longer in the current AI strategy. Re-evaluate before acting.</small>
+      </div>
+    </div>
+  {:else if detachedEvaluationError}
+    <div class="callout callout-warning" aria-live="polite">{detachedEvaluationError}</div>
+  {/if}
+
+  {#if currentAiStrategy}
+    <div class="candidate-section-heading">
+      <strong>AI player options</strong>
+      <span>Ordered by the current AI strategy. Imported values remain visible as grounding evidence.</span>
+    </div>
+    <div class="candidate-list">
+      {#each primaryAiCandidates as candidate, index (candidate.player.id)}
+        <CandidateCard
+          {candidate}
+          rank={index + 1}
+          featured={index === 0}
+          presentation={index === 0 ? "ai-pick" : "ai-alternative"}
+          aiReason={index === 0 ? currentAiStrategy.decision.reasons[0] ?? "" : ""}
+          {currentPick}
+          evaluation={evaluations[candidate.player.id] ?? null}
+          evaluationError={evaluationErrors[candidate.player.id] ?? ""}
+          isEvaluating={evaluatingPlayerId === candidate.player.id}
+          preference={playerPreferences[candidate.player.id] ?? null}
+          {onSetPreference}
+          onEvaluate={evaluateCandidate}
+        />
+      {/each}
+    </div>
+    {#if additionalAiCandidates.length > 0}
+      <details class="more-candidates">
+        <summary>Show {additionalAiCandidates.length} more AI alternative{additionalAiCandidates.length === 1 ? "" : "s"}</summary>
+        <div class="candidate-list">
+          {#each additionalAiCandidates as candidate, index (candidate.player.id)}
             <CandidateCard
               {candidate}
-              rank={index + 1}
-              featured={index === 0}
+              rank={index + primaryAiCandidates.length + 1}
+              presentation="ai-alternative"
               {currentPick}
               evaluation={evaluations[candidate.player.id] ?? null}
               evaluationError={evaluationErrors[candidate.player.id] ?? ""}
@@ -373,74 +355,7 @@
           {/each}
         </div>
       </details>
-    {:else}
-      {#if recommendation.assumptions.length > 0}
-        <details class="disclosure">
-          <summary>Local data assumptions ({recommendation.assumptions.length})</summary>
-          <ul class="note-list">
-            {#each recommendation.assumptions as assumption}
-              <li>{assumption}</li>
-            {/each}
-          </ul>
-        </details>
-      {/if}
-
-      {#if recommendation.risks.length > 0}
-        <details class="disclosure">
-          <summary>Local risk checks ({recommendation.risks.length})</summary>
-          <ul class="note-list note-list-risk">
-            {#each recommendation.risks as risk}
-              <li>{risk}</li>
-            {/each}
-          </ul>
-        </details>
-      {/if}
-
-      <div class="candidate-section-heading">
-        <strong>Local reference board</strong>
-        <span>Raw imported values with hard lineup-completion safeguards, not a strategic recommendation.</span>
-      </div>
-      <div class="candidate-list">
-        {#each primaryLocalCandidates as candidate, index (candidate.player.id)}
-          <CandidateCard
-            {candidate}
-            rank={index + 1}
-            featured={index === 0}
-            {currentPick}
-            aiEnabled={aiEnabled}
-            evaluation={evaluations[candidate.player.id] ?? null}
-            evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-            isEvaluating={evaluatingPlayerId === candidate.player.id}
-            preference={playerPreferences[candidate.player.id] ?? null}
-            {onSetPreference}
-            onEvaluate={evaluateCandidate}
-          />
-        {/each}
-      </div>
-      {#if additionalLocalCandidates.length > 0}
-        <details class="more-candidates">
-          <summary>Show {additionalLocalCandidates.length} more local candidate{additionalLocalCandidates.length === 1 ? "" : "s"}</summary>
-          <div class="candidate-list">
-            {#each additionalLocalCandidates as candidate, index (candidate.player.id)}
-              <CandidateCard
-                {candidate}
-                rank={index + primaryLocalCandidates.length + 1}
-                {currentPick}
-                aiEnabled={aiEnabled}
-                evaluation={evaluations[candidate.player.id] ?? null}
-                evaluationError={evaluationErrors[candidate.player.id] ?? ""}
-                isEvaluating={evaluatingPlayerId === candidate.player.id}
-                preference={playerPreferences[candidate.player.id] ?? null}
-                {onSetPreference}
-                onEvaluate={evaluateCandidate}
-              />
-            {/each}
-          </div>
-        </details>
-      {/if}
     {/if}
-  {:else}
-    <p class="summary">Preparing the local evidence board.</p>
   {/if}
 </article>
 
@@ -480,19 +395,19 @@
     font-size: var(--text-sm);
   }
 
-  .preference-summary > div {
+  .preference-summary > div,
+  .empty-state > div,
+  .ai-strategy-pending > div {
     display: grid;
-    gap: 2px;
+    gap: 3px;
   }
 
-  .preference-summary strong {
-    font-weight: 900;
-  }
-
-  .preference-summary span {
+  .preference-summary span,
+  .empty-state span,
+  .ai-strategy-pending span {
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 700;
+    line-height: 1.5;
   }
 
   .preference-summary button {
@@ -505,11 +420,6 @@
     text-transform: uppercase;
   }
 
-  .summary {
-    color: var(--text-secondary);
-    line-height: 1.55;
-  }
-
   .ai-strategy,
   .ai-strategy-pending {
     display: grid;
@@ -520,7 +430,13 @@
     padding: 14px;
   }
 
-  .ai-strategy-heading {
+  .ai-strategy-pending {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+
+  .ai-strategy-heading,
+  .draft-plan-heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -538,8 +454,7 @@
     text-transform: uppercase;
   }
 
-  .ai-strategy p,
-  .ai-strategy-pending span {
+  .ai-strategy p {
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
@@ -558,7 +473,8 @@
     font-size: var(--text-xs);
   }
 
-  .ai-strategy summary {
+  .ai-strategy summary,
+  .more-candidates summary {
     cursor: pointer;
     font-weight: 800;
   }
@@ -568,13 +484,6 @@
     gap: 9px;
     border-top: 1px solid var(--accent-border);
     padding-top: 11px;
-  }
-
-  .draft-plan-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
   }
 
   .draft-plan-heading > span {
@@ -626,93 +535,42 @@
     color: var(--text-primary);
   }
 
-  @media (max-width: 680px) {
-    .plan-priorities {
-      grid-template-columns: 1fr;
-    }
-
-    .plan-priorities > div + div {
-      border-top: 1px solid var(--accent-border);
-      border-left: 0;
-    }
-  }
-
-  .callout > div {
+  .callout > div,
+  .placeholder-warning > div,
+  .detached-evaluation > div {
     display: grid;
     gap: 7px;
   }
 
-  .callout .btn {
-    justify-self: start;
-  }
-
-  .placeholder-warning {
-    align-items: flex-start;
-  }
-
-  .placeholder-warning > div {
-    display: grid;
-    gap: 6px;
-  }
-
-  .placeholder-warning strong {
-    display: block;
-  }
-
+  .callout .btn,
   .placeholder-warning .btn {
     justify-self: start;
-    margin-top: 2px;
   }
 
+  .placeholder-warning,
   .detached-evaluation {
     align-items: flex-start;
   }
 
-  .detached-evaluation > div {
+  .empty-state {
     display: grid;
-    gap: 8px;
-    min-width: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: 14px;
+  }
+
+  .empty-state > :global(.icon) {
+    color: var(--info);
   }
 
   .detached-evaluation small {
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 700;
-  }
-
-  .disclosure {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    padding: 10px 13px;
-  }
-
-  .disclosure summary {
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    font-weight: 700;
-    list-style: none;
-  }
-
-  .disclosure summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .disclosure summary:hover {
-    color: var(--text-primary);
-  }
-
-  .note-list {
-    margin: 10px 0 0;
-    padding-left: 18px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.6;
-  }
-
-  .note-list-risk li::marker {
-    color: var(--warning);
   }
 
   .candidate-section-heading {
@@ -737,57 +595,29 @@
     gap: 12px;
   }
 
-  .fallback-board {
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-
-  .fallback-board > summary {
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    font-weight: 800;
-  }
-
-  .fallback-board > p {
-    margin: 9px 0 0;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    line-height: 1.5;
-  }
-
-  .local-note-group {
-    display: grid;
-    gap: 6px;
-    margin-top: 12px;
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-  }
-
-  .local-note-group ul {
-    margin: 0;
-    padding-left: 18px;
-    line-height: 1.5;
-  }
-
-  .fallback-candidates {
-    margin-top: 12px;
-  }
-
   .more-candidates {
     border-top: 1px solid var(--border);
     padding-top: 12px;
   }
 
   .more-candidates summary {
-    cursor: pointer;
     color: var(--text-secondary);
     font-size: var(--text-sm);
-    font-weight: 800;
   }
 
   .more-candidates[open] summary {
     margin-bottom: 12px;
+  }
+
+  @media (max-width: 680px) {
+    .plan-priorities {
+      grid-template-columns: 1fr;
+    }
+
+    .plan-priorities > div + div {
+      border-top: 1px solid var(--accent-border);
+      border-left: 0;
+    }
   }
 
   @media (max-width: 560px) {
@@ -800,7 +630,14 @@
       font-size: var(--text-lg);
       line-height: 1.3;
     }
+
+    .empty-state {
+      grid-template-columns: auto 1fr;
+    }
+
+    .empty-state .btn {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
   }
 </style>
-
-

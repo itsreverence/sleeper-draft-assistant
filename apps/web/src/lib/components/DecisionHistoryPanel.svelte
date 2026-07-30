@@ -24,7 +24,7 @@
       "state-load": "draft opened",
       "rankings-import": "rankings updated",
       "rankings-clear": "rankings cleared",
-      "manual-refresh": "reference board refreshed",
+      "manual-refresh": "draft context refreshed",
       "ai-question": "manager asked",
       "ai-strategy": "AI strategy generated",
       "candidate-evaluation": "candidate evaluated",
@@ -36,7 +36,7 @@
 
 <details class="panel history-panel">
   <summary>
-    <span><Icon name="history" size={16} /> Recent decisions</span>
+    <span><Icon name="history" size={16} /> AI strategy history</span>
     <small>{snapshots.length > 0 ? `${snapshots.length} saved` : "No snapshots yet"}</small>
   </summary>
 
@@ -55,7 +55,7 @@
         Changed from <strong>{previousDifferent.headline}</strong> after {triggerLabel(latest.trigger)}.
       </p>
     {:else}
-      <p class="change">The saved first option has not changed across recent snapshots.</p>
+      <p class="change">The AI's first option has not changed across recent strategies.</p>
     {/if}
     <ol>
       {#each latest.context.topCandidates.slice(0, 3) as candidate}
@@ -66,7 +66,7 @@
       {/each}
     </ol>
   {:else}
-    <p class="muted">Snapshots appear when the draft loads, picks change, data is imported, or advice is requested.</p>
+    <p class="muted">AI strategy snapshots appear after automatic draft analysis runs.</p>
   {/if}
 </details>
 

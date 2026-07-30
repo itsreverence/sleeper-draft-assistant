@@ -1301,13 +1301,7 @@
   const draftDataSignalCount = $derived(
     Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
   );
-  const recommendationsUsePlaceholder = $derived.by(() => {
-    const currentRecommendation = recommendation;
-    return Boolean(
-      isRealDraftActive &&
-        currentRecommendation?.candidates.some((candidate) => candidate.player.projectionSource === "sleeper_search_rank"),
-    );
-  });
+  const draftValuesIncomplete = $derived(isRealDraftActive && !hasImportedRankings);
   const selectedLeague = $derived.by(() => {
     const payload = connectPayload;
     return payload?.leagues.find((league) => league.leagueId === selectedLeagueId) ?? null;
@@ -1506,7 +1500,7 @@
             {#if draftPhase === "complete"}
               <article class="panel phase-note">
                 <h2>Draft is over</h2>
-                <p>Recommendations and pick tools stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
+                <p>The completed board and roster stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
                 {#if manageAvailable}
                   <button
                     class="btn btn-primary"
@@ -1523,7 +1517,6 @@
             {/if}
             {#if draftPhase !== "complete"}
               <RecommendationPanel
-                {recommendation}
                 currentPick={draftState.currentPick}
                 aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
                 aiStrategyEnabled={aiDraftStrategyEnabled}
@@ -1532,24 +1525,28 @@
                 onRequestAiStrategy={requestAiDraftStrategy}
                 onEvaluateCandidate={evaluateDraftCandidate}
                 playerPreferences={playerPreferences}
-                showPlaceholderWarning={recommendationsUsePlaceholder}
+                showPlaceholderWarning={draftValuesIncomplete}
                 onSetPreference={setPlayerPreference}
                 onClearPreferences={clearPlayerPreferences}
                 onOpenRankings={() => (rankingsExpanded = true)}
+                onOpenSettings={() => (settingsOpen = true)}
               />
               <AskManagerPanel
                 onAsk={askManager}
+                onOpenSettings={() => (settingsOpen = true)}
                 providerStatus={aiProviderStatus}
                 {hasImportedRankings}
-                showPlaceholderWarning={recommendationsUsePlaceholder}
+                showPlaceholderWarning={draftValuesIncomplete}
                 {draftState}
                 {recommendation}
               />
-              <DecisionHistoryPanel
-                snapshots={decisionSnapshots}
-                isLoading={isLoadingDecisionHistory}
-                error={decisionHistoryError}
-              />
+              {#if aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+                <DecisionHistoryPanel
+                  snapshots={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
+                  isLoading={isLoadingDecisionHistory}
+                  error={decisionHistoryError}
+                />
+              {/if}
             {:else}
               <RosterPanel state={draftState} />
               <PickFeedPanel state={draftState} />

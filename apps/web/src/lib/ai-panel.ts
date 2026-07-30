@@ -36,7 +36,7 @@ export function shouldRequestAiDraftStrategy(
 
 export function buildSuggestedQuestions(
   state: DraftState | null,
-  currentRecommendation: DraftRecommendation | null,
+  _currentRecommendation: DraftRecommendation | null,
   rankingsImported: boolean,
   usingPlaceholderRanks: boolean,
 ): string[] {
@@ -47,20 +47,15 @@ export function buildSuggestedQuestions(
     "What roster need matters most?",
   ];
 
-  if (!state || !currentRecommendation?.candidates.length) {
+  if (!state) {
     return fallback;
   }
 
-  const candidates = currentRecommendation.candidates;
-  const top = candidates[0];
-  const second = candidates[1];
-  const third = candidates[2];
   const rosterNeeds = getRosterNeeds(state);
-  const questions: string[] = [];
-
-  if (top) {
-    questions.push(`Should I draft ${top.player.name} here?`);
-  }
+  const questions: string[] = [
+    "Who should I draft if I pick right now?",
+    "Search the available players and compare the best options.",
+  ];
 
   if (getFlexSlotCount(state) > 0) {
     questions.push("Which RB/WR fits this build best?");
@@ -70,18 +65,8 @@ export function buildSuggestedQuestions(
     questions.push("Should I pass on QB in this format?");
   }
 
-  if (top && second) {
-    questions.push(`Compare ${top.player.name} vs ${second.player.name}.`);
-  }
-
-  if (top?.player.position === "QB" && hasSingleQbFormat(state)) {
-    questions.push(`Should I take ${top.player.name} this early in a 1QB format?`);
-  } else if (rosterNeeds.length > 0) {
-    questions.push(`Should I prioritize ${formatPositionList(rosterNeeds)} over ${top?.player.position ?? "the top player"}?`);
-  }
-
-  if (third) {
-    questions.push(`What changes if I pass on ${top?.player.name} for ${third.player.name}?`);
+  if (rosterNeeds.length > 0) {
+    questions.push(`Should I prioritize ${formatPositionList(rosterNeeds)} or take the best available value?`);
   }
 
   if (usingPlaceholderRanks) {

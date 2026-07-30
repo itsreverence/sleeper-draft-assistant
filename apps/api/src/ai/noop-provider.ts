@@ -4,7 +4,7 @@ export class NoopAiProvider implements AiProvider {
   status(): AiProviderStatus {
     return {
       id: "noop",
-      label: "Local reference only",
+      label: "No AI provider",
       configured: true,
       detail: "No external AI provider is configured.",
     };

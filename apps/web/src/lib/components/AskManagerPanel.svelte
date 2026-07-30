@@ -12,6 +12,7 @@
     showPlaceholderWarning = false,
     draftState = null,
     recommendation = null,
+    onOpenSettings,
   }: {
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
@@ -19,6 +20,7 @@
     showPlaceholderWarning?: boolean;
     draftState?: DraftState | null;
     recommendation?: DraftRecommendation | null;
+    onOpenSettings?: () => void;
   } = $props();
 
   let question = $state("");
@@ -28,8 +30,10 @@
   let lastQuestion = $state("");
   let expanded = $state(false);
 
-  const providerLabel = $derived(providerStatus?.label ?? "AI manager");
-  const providerReady = $derived(Boolean(providerStatus?.configured));
+  const providerReady = $derived(
+    providerStatus?.id === "codex-app-server" && providerStatus.configured,
+  );
+  const providerLabel = $derived(providerReady ? providerStatus?.label ?? "AI manager" : "No AI provider");
   const suggestedQuestions = $derived(buildSuggestedQuestions(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
   const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
 
@@ -120,6 +124,17 @@
 
   {#if expanded}
     <div class="ask-content">
+      {#if !providerReady}
+        <div class="provider-empty">
+          <div>
+            <strong>Connect an AI provider to ask draft questions</strong>
+            <span>Imported rankings and projections will be supplied as grounding evidence once Codex is connected.</span>
+          </div>
+          {#if onOpenSettings}
+            <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open AI settings</button>
+          {/if}
+        </div>
+      {:else}
       <div class="context-strip" aria-label="AI grounding context">
         <span class="context-label">Grounded in</span>
         <div class="context-chips">
@@ -162,6 +177,7 @@
         {#if isAsking}<span class="spinner"></span>{/if}
         {isAsking ? "Asking" : "Ask manager"}
       </button>
+      {/if}
     </div>
   {/if}
 </article>
@@ -232,6 +248,31 @@
 
   .ask-content textarea {
     min-height: 82px;
+  }
+
+  .provider-empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .provider-empty > div {
+    display: grid;
+    gap: 4px;
+  }
+
+  .provider-empty span {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 560px) {
+    .provider-empty {
+      align-items: stretch;
+      flex-direction: column;
+    }
   }
 
   .compact-callout {

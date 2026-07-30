@@ -53,7 +53,7 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 15. Complete weekly lineups expose current-versus-optimized totals and per-swap point deltas; incomplete data remains explicitly partial.
 16. Draft SSE polling checks the lightweight Sleeper picks endpoint every 2 seconds while drafting, every 5 seconds before the draft, and every 15 seconds after completion. A full state rebuild runs only when the pick count changes. Transient failures preserve the last valid state and use bounded backoff from 5 to 30 seconds; renderer events expose only a generic upstream-safe error plus sync age.
 17. While Team Manager is visible, the renderer refreshes its existing read-only aggregate every 60 seconds and when the app regains focus. Transient refresh failures preserve the last successful team state.
-18. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and the local reference board remains immediately available during provider latency or failure.
+18. AI-first strategy and candidate evaluation use dedicated authenticated backend routes. Responses are tagged with the current pick number, stale responses are discarded, and provider latency or failure is shown explicitly instead of substituting a local pick recommendation.
 19. Each successful AI strategy includes a validated living draft plan with current and next-turn priorities, positions that can wait, roster goals, watch items, and a board-change summary. The latest plan is persisted by draft, team, and provider, then supplied as prior advisory strategy on the next AI turn.
 20. Settings, imports, AI draft plans, and decision snapshots are persisted locally in `app.sqlite`. The draft workspace can review recent snapshots and recommendation changes without creating a second history store.
 21. Authenticated data-management routes expose aggregate counts, category deletion, a typed-confirmation reset, and a support report that reduces decision history to non-identifying event metadata.
@@ -68,7 +68,7 @@ The renderer can clear draft rankings, season projections, draft ADP, rest-of-se
 
 `AiProvider` keeps provider-specific behavior out of route and renderer code. Its draft strategy method returns a validated structured decision rather than prose:
 
-- `noop`: local reference response; default and offline-safe, but not a strategic recommendation.
+- `noop`: narrow offline response used to preserve the provider contract; default and not rendered as draft advice.
 - `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
 
 The provider-neutral `AiTool` boundary keeps draft search logic in the API domain layer. The Codex adapter maps those definitions to experimental app-server dynamic tools; future providers can expose the same read-only tools through their own function-calling protocol.

@@ -12,7 +12,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Connects to Sleeper's tokenless, read-only API by username, league, or draft.
 - Tracks live and completed draft boards.
 - Tracks active Sleeper drafts with lightweight two-second pick checks, while preserving the last valid board during transient failures with visible sync age and bounded retries.
-- Produces an immediate local reference board ordered by raw ECR, projection, and ADP evidence, with only hard lineup-completion safeguards.
+- Keeps imported ECR, projections, and ADP as grounding evidence for AI strategy rather than presenting a local ranking as draft advice.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
 - Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
@@ -20,11 +20,11 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Offers an optional local Codex app-server provider for conversational analysis.
 - Uses a configured AI provider as the primary draft strategist near your turn, reasoning from neutral draft evidence and searching the full available-player snapshot through a read-only tool.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
-- Keeps the local reference board available during model latency or provider failure without presenting it as a strategic recommendation.
+- Shows explicit AI loading, unavailable, and not-configured states instead of substituting a local pick recommendation.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
 - Shows a compact recent-decision review so recommendation changes can be traced to picks, imports, refreshes, or AI questions.
 
-Sleeper is currently the only supported fantasy platform. Sleeper search rank is a low-confidence fallback; import current draft data before relying on real-draft recommendations.
+Sleeper is currently the only supported fantasy platform. Sleeper search rank is placeholder evidence only; import current draft data before relying on real-draft recommendations.
 
 ## League format support
 
@@ -68,7 +68,7 @@ The app reads Sleeper data but does not submit picks, change lineups, or modify 
 
 ## AI providers
 
-AI is optional. Without a configured provider, the app shows a transparent local reference board rather than attempting full draft strategy. When Codex app-server is configured, AI-first draft strategy runs automatically near the user's turn.
+AI is optional for draft tracking and data imports. Without a configured provider, the app does not generate pick recommendations. When Codex app-server is configured, AI-first draft strategy runs automatically near the user's turn.
 
 The supported optional integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. No provider credentials are stored by Sleeper Draft Assistant.
 

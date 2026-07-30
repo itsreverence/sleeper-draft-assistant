@@ -69,7 +69,7 @@
     <label class="field">
       <span>Provider</span>
       <select class="input" bind:value={aiProvider}>
-        <option value="noop">Local reference only</option>
+        <option value="noop">No AI provider</option>
         <option value="codex-app-server">Codex app-server</option>
       </select>
     </label>
@@ -90,9 +90,9 @@
         </label>
       </div>
       <p class="settings-note">Requires the Codex CLI to be installed and signed in on this machine. Provider auth stays in the backend.</p>
-      <p class="settings-note">AI-first draft strategy starts automatically near your turn. The local reference board remains available during model latency or provider failure.</p>
+      <p class="settings-note">AI-first draft strategy starts automatically near your turn. Failed requests remain visible and can be retried.</p>
     {:else}
-      <p class="settings-note">Shows raw imported evidence and hard lineup safeguards only. No external AI provider is called.</p>
+      <p class="settings-note">Draft tracking and data imports remain available, but the app will not generate pick recommendations.</p>
     {/if}
 
     {#if providerStatus?.detail}

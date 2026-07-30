@@ -17,6 +17,8 @@
     | "chevron-right"
     | "refresh"
     | "history"
+    | "clock"
+    | "pause"
     | "external"
     | "database"
     | "download"
@@ -89,6 +91,11 @@
       <path d="M4 5v5h5" />
       <path d="M5.8 9A8 8 0 1 1 4.6 15" />
       <path d="M12 7.5V12l3 2" />
+    {:else if name === "clock"}
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    {:else if name === "pause"}
+      <path d="M9 6v12M15 6v12" />
     {:else if name === "external"}
       <path d="M9 6h9v9" />
       <path d="M18 6 6 18" />

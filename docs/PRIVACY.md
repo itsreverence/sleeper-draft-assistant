@@ -10,7 +10,7 @@ The application may contact:
 - a locally installed Codex app-server when that provider is selected;
 - external websites only when the user follows an allowlisted link.
 
-The default local reference mode makes no external AI request. FantasyPros files are selected and imported by the user; the app does not download rankings or redistribute their contents. When Codex strategy is enabled, the local app-server receives a compact draft packet and may query an immutable in-memory available-player snapshot through the app's read-only search tool.
+The default no-provider mode makes no external AI request and does not show local pick recommendations. FantasyPros files are selected and imported by the user; the app does not download rankings or redistribute their contents. When Codex strategy is enabled, the local app-server receives a compact draft packet and may query an immutable in-memory available-player snapshot through the app's read-only search tool.
 
 ## Local data
 

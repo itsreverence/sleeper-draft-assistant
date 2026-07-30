@@ -2,9 +2,9 @@
 
 AI is optional. Draft strategy is AI-first when Codex is configured, but every model decision is grounded in locally computed Sleeper state and imported evidence.
 
-## Local reference mode
+## No-provider mode
 
-This is the default when no provider is configured. It makes no external AI request and requires no account, API key, or model installation. It displays a transparent board ordered by ECR, season projection, Sleeper ADP, Real-Time ADP, and then Sleeper placeholder rank. It does not attempt to reproduce AI strategy with a composite score. Hard feasibility checks still prevent a choice from making required starter completion impossible.
+This is the default when no provider is configured. It makes no external AI request and requires no account, API key, or model installation. Draft tracking, imports, and roster context remain available, but the renderer does not present a local pick recommendation. A narrow backend fallback contract remains for offline reliability and tests; it is not a product strategy surface. Hard feasibility checks remain active when validating AI choices.
 
 ## Local Codex app-server
 
@@ -49,7 +49,7 @@ Dynamic tools are experimental in Codex app-server, so the protocol handling rem
 
 The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, next-position priorities, and a complete living draft plan. The plan records the current approach, current and next-turn positional focus, positions that can wait, roster goals, watch items, and the material change since the prior plan. The latest successful plan is stored locally by draft, team, and provider and supplied to the next AI turn as advisory strategy; the current Sleeper snapshot always remains authoritative.
 
-The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows the local reference board while the model is working or unavailable.
+The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows explicit reviewing, unavailable, or not-configured states when no current AI strategy exists.
 
 AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
 
@@ -62,7 +62,7 @@ Candidate evaluation is:
 - on demand by default, so it does not add model latency to normal draft refreshes;
 - grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations;
 - able to search the full immutable available-player snapshot for positional or named alternatives;
-- valid for any available, non-excluded player, even when the local reference board did not list that player;
+- valid for any available, non-excluded player returned by the current draft snapshot;
 - validated by the backend so unavailable or excluded players cannot be evaluated from stale UI state;
 - tied to the current pick number and marked stale when the board advances;
 - advisory and separate from the primary structured AI strategy.
