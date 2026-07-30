@@ -1295,6 +1295,13 @@
     draftPreparationOpen = true;
   }
 
+  function manageDraftDataFromSettings() {
+    settingsOpen = false;
+    workspaceMode = "draft";
+    userPickedMode = true;
+    draftPreparationOpen = true;
+  }
+
   async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
     const payload = await fetchAiDraftStrategyRequest(
       activeDraftId,
@@ -1407,6 +1414,13 @@
   const showSetupChecklist = $derived(
     !draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft"),
   );
+  const draftDataSettingsStatus = $derived(
+    rankingsStale
+      ? "ECR needs refresh"
+      : draftDataSignalCount === 3
+        ? "3/3 sources ready"
+        : `${draftDataSignalCount}/3 sources ready`,
+  );
   const draftPhase = $derived(getDraftPhase(draftState));
   const weeklyProjectionDefaultSeason = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
@@ -1473,6 +1487,9 @@
       onSave={saveSettings}
       onCopyDiagnostics={copyDiagnostics}
       onResetComplete={resetRendererData}
+      draftDataAvailable={isRealDraftActive}
+      draftDataStatus={draftDataSettingsStatus}
+      onManageDraftData={manageDraftDataFromSettings}
     />
   {/if}
 
@@ -1517,7 +1534,7 @@
           userPickedMode = true;
         }}
       />
-      {#if draftPreparationOpen && workspaceMode === "draft" && draftPhase !== "complete"}
+      {#if draftPreparationOpen && workspaceMode === "draft"}
         <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
         <div class="preparation-flow">
           <DraftPreparationHeader
@@ -1638,7 +1655,7 @@
             {/if}
           </div>
           <div class="side-column">
-            {#if draftPhase !== "complete" || draftDataSignalCount > 0}
+            {#if draftValuesIncomplete || limitedDataMode}
               <DraftDataStatus
                 hasRankings={hasImportedRankings}
                 {rankingsStale}

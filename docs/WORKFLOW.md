@@ -16,7 +16,7 @@ npm run dev
 
 The development launcher creates one random API token and passes it to both the API and Vite. Use `http://127.0.0.1:5173` and choose **Load demo draft** for a synthetic-data smoke test.
 
-For a real draft smoke test, confirm that a draft without current ECR opens **Draft preparation**, that normal entry remains disabled until ECR exists, and that **Continue with limited data** opens the workspace with a visible warning. A returning draft with fresh ECR should bypass preparation. The compact Draft data control must reopen the importer.
+For a real draft smoke test, confirm that a draft without current ECR opens **Draft preparation**, that normal entry remains disabled until ECR exists, and that **Continue with limited data** opens the workspace with a visible warning. A returning draft with fresh ECR should bypass preparation and show no persistent data card. **Settings > Draft data** must reopen the importer; the workspace status appears only when data needs attention.
 
 Running the API or web workspace separately requires coordinating `SLEEPER_AI_API_TOKEN` and `VITE_SLEEPER_AI_API_TOKEN`; the root launcher is the supported path.
 

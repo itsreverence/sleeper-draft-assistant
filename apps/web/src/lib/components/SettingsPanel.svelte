@@ -13,6 +13,9 @@
     onSave,
     onCopyDiagnostics,
     onResetComplete,
+    draftDataAvailable = false,
+    draftDataStatus = "",
+    onManageDraftData,
   }: {
     settings: AppSettings | null;
     providerStatus: AiProviderStatus | null;
@@ -23,6 +26,9 @@
     onSave: (settings: AppSettings) => void;
     onCopyDiagnostics: () => void;
     onResetComplete: () => void;
+    draftDataAvailable?: boolean;
+    draftDataStatus?: string;
+    onManageDraftData?: () => void;
   } = $props();
 
   let aiProvider: AppSettings["aiProvider"] = $state("noop");
@@ -118,6 +124,17 @@
     {/if}
   </form>
 
+  {#if draftDataAvailable && onManageDraftData}
+    <button class="maintenance-action" type="button" onclick={onManageDraftData}>
+      <Icon name="upload" size={17} />
+      <span>
+        <strong>Draft data</strong>
+        <small>{draftDataStatus}</small>
+      </span>
+      <Icon name="chevron-right" size={14} />
+    </button>
+  {/if}
+
   <DataManagementPanel {onResetComplete} />
 </section>
 
@@ -148,6 +165,45 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
+  }
+
+  .maintenance-action {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: 12px 13px;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color var(--transition-base), background var(--transition-base);
+  }
+
+  .maintenance-action:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-raised);
+  }
+
+  .maintenance-action > :global(.icon) {
+    color: var(--text-muted);
+  }
+
+  .maintenance-action span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .maintenance-action strong {
+    font-size: var(--text-sm);
+  }
+
+  .maintenance-action small {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
   }
 
   @media (max-width: 720px) {
