@@ -28,6 +28,7 @@
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
   import DraftPreparationHeader from "./lib/components/DraftPreparationHeader.svelte";
+  import DraftAiSetupPanel from "./lib/components/DraftAiSetupPanel.svelte";
   import DraftDataStatus from "./lib/components/DraftDataStatus.svelte";
 
   import {
@@ -352,14 +353,16 @@
     }
   }
 
-  async function saveSettings(settings: AppSettings) {
+  async function saveSettings(settings: AppSettings): Promise<boolean> {
     isSavingSettings = true;
     settingsError = "";
     try {
       appSettings = await updateSettings(settings);
       aiProviderStatus = await fetchAiStatus();
+      return true;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not save settings.";
+      return false;
     } finally {
       isSavingSettings = false;
     }
@@ -591,6 +594,10 @@
         draftId,
         payload.state.status,
         payload.rankingImportSummary?.appliedAt ?? null,
+        Boolean(
+          appSettings?.aiSetupAcknowledged
+          || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured)
+        ),
       );
       limitedDataMode = false;
       if (isMockDraft(draftId)) {
@@ -1279,15 +1286,26 @@
   }
 
   function enterDraftRoom() {
-    if (!rankingImportSummary) {
+    const aiChoiceComplete = appSettings?.aiSetupAcknowledged
+      || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured);
+    if (!rankingImportSummary || !aiChoiceComplete) {
       return;
     }
     limitedDataMode = false;
     draftPreparationOpen = false;
   }
 
-  function enterDraftRoomWithLimitedData() {
-    limitedDataMode = true;
+  async function enterDraftRoomWithFallback() {
+    if (appSettings && !appSettings.aiSetupAcknowledged) {
+      const saved = await saveSettings({
+        ...appSettings,
+        aiSetupAcknowledged: true,
+      });
+      if (!saved) {
+        return;
+      }
+    }
+    limitedDataMode = !rankingImportSummary;
     draftPreparationOpen = false;
   }
 
@@ -1408,6 +1426,26 @@
         : isRealDraftActive
           ? "warning"
           : "neutral",
+    },
+    {
+      label: "AI manager",
+      value: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+        ? "Codex"
+        : appSettings?.aiSetupAcknowledged
+          ? "No AI"
+          : "Choose",
+      detail: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+        ? "Local app-server selected"
+        : appSettings?.aiSetupAcknowledged
+          ? "Draft tracking remains available without recommendations"
+          : "Select Codex or explicitly continue without AI",
+      tone: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+        ? "ready"
+        : appSettings?.aiSetupAcknowledged
+          ? "neutral"
+          : isRealDraftActive
+            ? "warning"
+            : "neutral",
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
@@ -1545,9 +1583,16 @@
             {rankingsStale}
             hasProjections={hasSeasonProjections}
             hasAdp={hasImportedAdp}
+            aiConfigured={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+            aiAcknowledged={Boolean(
+              appSettings?.aiSetupAcknowledged
+              || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured)
+            )}
             liveDraft={draftPhase === "drafting"}
             onContinue={enterDraftRoom}
-            onContinueLimited={enterDraftRoomWithLimitedData}
+            onContinueFallback={() => {
+              void enterDraftRoomWithFallback();
+            }}
           />
           <RankingsImportPanel
             hasDraft={true}
@@ -1575,6 +1620,13 @@
             onOpenSeasonProjections={openFantasyProsSeasonProjections}
             onOpenAdp={openFantasyProsAdp}
             expanded={true}
+          />
+          <DraftAiSetupPanel
+            settings={appSettings}
+            providerStatus={aiProviderStatus}
+            isSaving={isSavingSettings}
+            error={settingsError}
+            onSave={saveSettings}
           />
         </div>
       {:else}

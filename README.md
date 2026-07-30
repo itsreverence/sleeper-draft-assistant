@@ -19,6 +19,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Offers an optional local Codex app-server provider for conversational analysis.
+- Reuses one local Codex app-server process and scoped draft/team threads during each run, preserving conversational continuity without resending prior chat messages from the UI.
 - Uses a configured AI provider as the primary draft strategist near your turn, reasoning from neutral draft evidence and searching the full available-player snapshot through a read-only tool.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
@@ -59,7 +60,7 @@ Open `http://127.0.0.1:5173`, then choose **Load demo draft**. The demo uses syn
 1. Enter your Sleeper username or user ID.
 2. If needed, paste a Sleeper league URL or league ID.
 3. Select the draft and confirm your team or draft slot.
-4. Complete Draft preparation by exporting rankings for your scoring format from FantasyPros and importing the CSV as the required ECR and tier signal.
+4. Complete Draft preparation by choosing Codex or explicitly continuing without AI, then export rankings for your scoring format from FantasyPros and import the CSV as the required ECR and tier signal.
 5. Export the season projection files for QB, RB, WR, TE, K, and DST and import them together. The FLX file is not needed because it duplicates players from RB, WR, and TE.
 6. Export FantasyPros Overall ADP and import it for the Sleeper and Real-Time market columns. A separate Real-Time ADP download is not required.
 7. During the season, export the overall rest-of-season rankings for your scoring format and import the single CSV from Team Manager.

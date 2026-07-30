@@ -108,6 +108,7 @@ export const AppSettingsSchema = z.object({
   codexModel: z.string().trim().min(1).default("gpt-5.4"),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
   automaticAiAudit: AutomaticAiAuditModeSchema.default("off"),
+  aiSetupAcknowledged: z.boolean().default(false),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

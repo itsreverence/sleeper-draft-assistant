@@ -185,6 +185,7 @@ export interface AiProvider {
   strategizeDraft(context: DraftStrategyContext, tools?: AiTool[]): Promise<AiDraftStrategy>;
   answerDraftQuestion(context: DraftQuestionContext, tools?: AiTool[]): Promise<AiAnswer>;
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
+  close?(): void;
 }
 
 

@@ -25,17 +25,38 @@ export type CodexAppServerProviderOptions = {
   codexBin?: string;
   model?: string;
   timeoutMs?: number;
+  clientFactory?: CodexClientFactory;
 };
+
+export type CodexAppServerClient = {
+  initialize(experimentalApi?: boolean): Promise<void>;
+  request<T = unknown>(method: string, params: unknown): Promise<T>;
+  runTurn(threadId: string, prompt: string, tools?: AiTool[]): Promise<string>;
+  isClosed(): boolean;
+  close(): void;
+};
+
+export type CodexClientFactory = (
+  codexBin: string,
+  timeoutMs: number,
+) => Promise<CodexAppServerClient>;
 
 export class CodexAppServerProvider implements AiProvider {
   private readonly codexBin: string;
   private readonly model: string;
   private readonly timeoutMs: number;
+  private readonly clientFactory: CodexClientFactory;
+  private client: CodexAppServerClient | null = null;
+  private clientPromise: Promise<CodexAppServerClient> | null = null;
+  private readonly threadIds = new Map<string, string>();
+  private operationQueue: Promise<void> = Promise.resolve();
+  private closed = false;
 
   constructor(options: CodexAppServerProviderOptions = {}) {
     this.codexBin = options.codexBin ?? process.env.CODEX_BIN ?? "codex";
     this.model = options.model ?? process.env.SLEEPER_AI_CODEX_MODEL ?? "gpt-5.4";
     this.timeoutMs = options.timeoutMs ?? Number(process.env.SLEEPER_AI_CODEX_TIMEOUT_MS ?? 60000);
+    this.clientFactory = options.clientFactory ?? CodexJsonRpcClient.start;
   }
 
   status(): AiProviderStatus {
@@ -49,7 +70,11 @@ export class CodexAppServerProvider implements AiProvider {
   }
 
   async strategizeDraft(context: DraftStrategyContext, tools: AiTool[] = []): Promise<AiDraftStrategy> {
-    const result = await this.runPrompt(buildDraftStrategyPrompt(context), tools);
+    const result = await this.runPrompt(
+      draftThreadScope(context),
+      () => buildDraftStrategyPrompt(context),
+      tools,
+    );
     return {
       provider: this.status(),
       decision: parseAiDraftDecision(result),
@@ -57,7 +82,13 @@ export class CodexAppServerProvider implements AiProvider {
   }
 
   async answerDraftQuestion(context: DraftQuestionContext, tools: AiTool[] = []): Promise<AiAnswer> {
-    const result = await this.runPrompt(buildDraftManagerPrompt(context), tools);
+    const result = await this.runPrompt(
+      draftThreadScope(context),
+      (reusedThread) => buildDraftManagerPrompt(
+        reusedThread ? { ...context, conversationHistory: [] } : context,
+      ),
+      tools,
+    );
     return {
       provider: this.status(),
       answer: result || "Codex completed without returning visible text.",
@@ -65,37 +96,104 @@ export class CodexAppServerProvider implements AiProvider {
   }
 
   async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
-    const result = await this.runPrompt(buildTeamManagerPrompt(context));
+    const result = await this.runPrompt(
+      teamThreadScope(context),
+      (reusedThread) => buildTeamManagerPrompt(
+        reusedThread ? { ...context, conversationHistory: [] } : context,
+      ),
+    );
     return {
       provider: this.status(),
       answer: result || "Codex completed without returning visible text.",
     };
   }
 
-  private async runPrompt(prompt: string, tools: AiTool[] = []): Promise<string> {
-    const client = await CodexJsonRpcClient.start(this.codexBin, this.timeoutMs, tools);
-    try {
-      await client.initialize(tools.length > 0);
-      const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
-        model: this.model,
-        ephemeral: true,
-        approvalPolicy: "never",
-        sandbox: "read-only",
-        serviceName: "sleeper_draft_assistant",
-        baseInstructions:
-          "You are the reasoning provider for a local, read-only Sleeper fantasy football assistant. Use only facts supplied in the user turn and its fantasy tools. Do not inspect files, run shell commands, browse the web, modify anything, or invent unavailable facts.",
-        ...(tools.length > 0 ? { dynamicTools: toDynamicToolDefinitions(tools) } : {}),
-      });
-      const threadId = thread.thread?.id;
-      if (!threadId) {
-        throw new Error("Codex app-server did not return a thread id.");
+  close(): void {
+    this.closed = true;
+    this.client?.close();
+    if (!this.client) {
+      void this.clientPromise?.then((client) => client.close()).catch(() => undefined);
+    }
+    this.client = null;
+    this.clientPromise = null;
+    this.threadIds.clear();
+  }
+
+  private runPrompt(
+    scope: string,
+    buildPrompt: (reusedThread: boolean) => string,
+    tools: AiTool[] = [],
+  ): Promise<string> {
+    return this.enqueue(async () => {
+      if (this.closed) {
+        throw new Error("Codex app-server provider is closed.");
       }
 
-      return await client.runTurn(threadId, prompt);
-    } finally {
-      client.close();
+      const client = await this.getClient();
+      let threadId = this.threadIds.get(scope) ?? null;
+      const reusedThread = Boolean(threadId);
+      try {
+        if (!threadId) {
+          const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
+            model: this.model,
+            ephemeral: true,
+            approvalPolicy: "never",
+            sandbox: "read-only",
+            serviceName: "sleeper_draft_assistant",
+            baseInstructions:
+              "You are the reasoning provider for a local, read-only Sleeper fantasy football assistant. Use only facts supplied in the current and prior user turns and their fantasy tools. The newest structured draft or team snapshot is authoritative when prior context conflicts. Do not inspect files, run shell commands, browse the web, modify anything, or invent unavailable facts.",
+            ...(tools.length > 0 ? { dynamicTools: toDynamicToolDefinitions(tools) } : {}),
+          });
+          threadId = thread.thread?.id ?? null;
+          if (!threadId) {
+            throw new Error("Codex app-server did not return a thread id.");
+          }
+          this.threadIds.set(scope, threadId);
+        }
+
+        return await client.runTurn(threadId, buildPrompt(reusedThread), tools);
+      } catch (error) {
+        client.close();
+        this.client = null;
+        this.clientPromise = null;
+        this.threadIds.clear();
+        throw error;
+      }
+    });
+  }
+
+  private async getClient(): Promise<CodexAppServerClient> {
+    if (this.client && !this.client.isClosed()) {
+      return this.client;
+    }
+
+    this.threadIds.clear();
+    this.clientPromise = this.clientFactory(this.codexBin, this.timeoutMs);
+    try {
+      const client = await this.clientPromise;
+      await client.initialize(true);
+      this.client = client;
+      return client;
+    } catch (error) {
+      void this.clientPromise.then((client) => client.close()).catch(() => undefined);
+      this.clientPromise = null;
+      throw error;
     }
   }
+
+  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.operationQueue.then(operation, operation);
+    this.operationQueue = result.then(() => undefined, () => undefined);
+    return result;
+  }
+}
+
+function draftThreadScope(context: DraftStrategyContext | DraftQuestionContext): string {
+  return `draft:${context.draft.id}:${context.roster.teamId}`;
+}
+
+function teamThreadScope(context: TeamAiContext): string {
+  return `team:${context.teamState.league.id}:${context.teamState.userTeam.rosterId}:${context.teamState.league.season ?? "unknown"}`;
 }
 
 export function parseAiDraftDecision(raw: string): AiDraftDecision {
@@ -124,23 +222,24 @@ class CodexJsonRpcClient {
   private initialized = false;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly deltas: string[] = [];
+  private tools = new Map<string, AiTool>();
   private turnComplete: ((value: string) => void) | null = null;
   private turnFailed: ((error: Error) => void) | null = null;
   private toolCallCount = 0;
+  private closed = false;
 
   private constructor(
     private readonly proc: ChildProcessWithoutNullStreams,
     private readonly timeoutMs: number,
-    private readonly tools: Map<string, AiTool>,
   ) {}
 
-  static async start(codexBin: string, timeoutMs: number, tools: AiTool[] = []): Promise<CodexJsonRpcClient> {
+  static async start(codexBin: string, timeoutMs: number): Promise<CodexJsonRpcClient> {
     const launch = resolveCodexLaunch(codexBin);
     const proc = spawn(launch.command, [...launch.args, "app-server"], {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
-    const client = new CodexJsonRpcClient(proc, timeoutMs, new Map(tools.map((tool) => [tool.definition.name, tool])));
+    const client = new CodexJsonRpcClient(proc, timeoutMs);
     client.attach();
     return client;
   }
@@ -171,8 +270,10 @@ class CodexJsonRpcClient {
     return response.result as T;
   }
 
-  async runTurn(threadId: string, prompt: string): Promise<string> {
+  async runTurn(threadId: string, prompt: string, tools: AiTool[] = []): Promise<string> {
     this.deltas.length = 0;
+    this.toolCallCount = 0;
+    this.tools = new Map(tools.map((tool) => [tool.definition.name, tool]));
     const completion = new Promise<string>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.turnComplete = null;
@@ -209,11 +310,19 @@ class CodexJsonRpcClient {
   }
 
   close() {
+    if (this.closed) {
+      return;
+    }
+    this.closed = true;
     for (const pending of this.pending.values()) {
       pending.reject(new Error("Codex app-server closed."));
     }
     this.pending.clear();
     this.proc.kill();
+  }
+
+  isClosed(): boolean {
+    return this.closed;
   }
 
   private sendRequest(id: number, method: string, params: unknown): Promise<JsonRpcMessage> {
@@ -247,6 +356,7 @@ class CodexJsonRpcClient {
 
     this.proc.once("error", (error) => this.rejectAll(error instanceof Error ? error : new Error(String(error))));
     this.proc.once("exit", (code, signal) => {
+      this.closed = true;
       this.rejectAll(new Error(`Codex app-server exited (${signal ?? code ?? "unknown"}).`));
     });
   }
@@ -286,6 +396,13 @@ class CodexJsonRpcClient {
     }
 
     if (message.method === "turn/completed") {
+      const status = getNestedString(message.params, ["turn", "status"]);
+      if (status === "failed") {
+        this.turnFailed?.(new Error(
+          getNestedString(message.params, ["turn", "error", "message"]) ?? "Codex turn failed.",
+        ));
+        return;
+      }
       this.turnComplete?.(this.deltas.join("").trim());
       return;
     }
@@ -316,6 +433,7 @@ class CodexJsonRpcClient {
   }
 
   private rejectAll(error: Error) {
+    this.closed = true;
     for (const pending of this.pending.values()) {
       pending.reject(error);
     }

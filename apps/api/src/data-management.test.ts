@@ -62,6 +62,7 @@ describe("local data management", () => {
       codexModel: "gpt-5.4",
       codexTimeoutMs: 60000,
       automaticAiAudit: "off",
+      aiSetupAcknowledged: true,
     };
 
     const report = buildRedactedSupportReport({

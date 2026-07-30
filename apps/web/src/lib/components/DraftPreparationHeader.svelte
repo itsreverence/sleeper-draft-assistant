@@ -9,9 +9,11 @@
     rankingsStale = false,
     hasProjections,
     hasAdp,
+    aiConfigured,
+    aiAcknowledged,
     liveDraft = false,
     onContinue,
-    onContinueLimited,
+    onContinueFallback,
   }: {
     draftName: string;
     scoring: string;
@@ -20,9 +22,11 @@
     rankingsStale?: boolean;
     hasProjections: boolean;
     hasAdp: boolean;
+    aiConfigured: boolean;
+    aiAcknowledged: boolean;
     liveDraft?: boolean;
     onContinue: () => void;
-    onContinueLimited: () => void;
+    onContinueFallback: () => void;
   } = $props();
 
   const loadedCount = $derived(
@@ -67,19 +71,28 @@
         <small>{hasAdp ? "Ready" : "Recommended"}</small>
       </span>
     </div>
+    <div class:ready={aiConfigured} class:acknowledged={!aiConfigured && aiAcknowledged}>
+      <Icon name={aiConfigured ? "check-circle" : aiAcknowledged ? "check-circle" : "clock"} size={16} />
+      <span>
+        <strong>AI manager</strong>
+        <small>{aiConfigured ? "Codex selected" : aiAcknowledged ? "Continuing without AI" : "Choose Codex or no AI"}</small>
+      </span>
+    </div>
   </div>
 
   <div class="preparation-actions">
-    <button class="btn btn-primary" type="button" disabled={!hasRankings} onclick={onContinue}>
+    <button class="btn btn-primary" type="button" disabled={!hasRankings || !aiAcknowledged} onclick={onContinue}>
       Enter draft room
     </button>
-    {#if !hasRankings}
-      <button class="limited-action" type="button" onclick={onContinueLimited}>
-        Continue with limited data
+    {#if !hasRankings || !aiAcknowledged}
+      <button class="limited-action" type="button" onclick={onContinueFallback}>
+        {hasRankings ? "Continue without AI" : aiAcknowledged ? "Continue with limited data" : "Continue with limited data and no AI"}
       </button>
     {/if}
     <p>
-      {#if hasRankings && !rankingsStale}
+      {#if !aiAcknowledged}
+        Choose an AI manager below. You can continue without AI and configure Codex later in Settings.
+      {:else if hasRankings && !rankingsStale}
         {loadedCount === 3
           ? "All grounding sources are ready."
           : "Minimum readiness met. You can add the recommended sources now or later."}
@@ -169,6 +182,10 @@
 
   .readiness-list .ready :global(.icon) {
     color: var(--accent);
+  }
+
+  .readiness-list .acknowledged :global(.icon) {
+    color: var(--text-secondary);
   }
 
   .readiness-list span {

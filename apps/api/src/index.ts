@@ -24,7 +24,7 @@ import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-s
 import { DraftPlanStore } from "./draft-plan-store";
 import { draftPollDelayMs } from "./draft-refresh";
 import { createEventStreamChannel } from "./event-stream";
-import { createAiProvider } from "./ai/provider-factory";
+import { AiProviderManager } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, isDraftRankingImportCompatible, RankingImportStore } from "./rankings-import";
 import { AdpImportStore, SeasonProjectionImportStore, applyAdpValue, applySeasonProjectionValue, importFantasyProsAdpCsv, importFantasyProsSeasonProjectionCsvs } from "./draft-value-import";
 import { RosRankingImportStore, applyRosRankingsToPlayers, applyRosRankingsToTeamState, importFantasyProsRosRankings, isRosRankingImportActive, isRosScoringCompatible, normalizeScoringFormat } from "./ros-rankings-import";
@@ -51,6 +51,7 @@ const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, a
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
 const draftPlanStore = new DraftPlanStore(appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
+const aiProviderManager = new AiProviderManager();
 let mockState = createMockDraftState(8);
 
 type DraftPayload = {
@@ -175,7 +176,7 @@ app.put("/settings", async (c) => {
   }
 });
 
-app.get("/ai/status", (c) => c.json(createAiProvider(settingsStore.get()).status()));
+app.get("/ai/status", (c) => c.json(aiProviderManager.get(settingsStore.get()).status()));
 
 app.get("/drafts/mock/state", (c) => {
   return c.json(toDraftPayload(applyDraftData("mock-draft", mockState), "mock-draft"));
@@ -258,7 +259,7 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
     const availableWithRos = applyRosRankingsToPlayers(rankedAvailablePlayers, activeRosImport);
     const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
-    const aiProvider = createAiProvider(settingsStore.get());
+    const aiProvider = aiProviderManager.get(settingsStore.get());
     const waiverSummary = buildTeamWaiverSummary(projectedState, projectedAvailablePlayers);
     const lineupSummary = buildTeamLineupSummary(projectedState);
     const dataReadiness = buildTeamDataReadiness(projectedState, weeklyImport?.summary ?? null);
@@ -630,7 +631,7 @@ app.post("/drafts/:draftId/strategy", async (c) => {
       return c.json({ error: "No available players can be evaluated for this pick." }, 409);
     }
     const tools = createDraftStrategyTools(snapshot);
-    const provider = createAiProvider(settingsStore.get());
+    const provider = aiProviderManager.get(settingsStore.get());
     const providerStatus = provider.status();
     const storedPlan = draftPlanStore.get(draftId, state.userTeamId, providerStatus.id);
     const previousPlan = storedPlan && storedPlan.updatedAtPick <= state.currentPick ? storedPlan : null;
@@ -738,7 +739,7 @@ app.post("/drafts/:draftId/ask", async (c) => {
       excluded: recommendationPreferences?.excludedPlayerIds ?? userPreferences.excluded,
     });
     decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
-    const aiProvider = createAiProvider(settingsStore.get());
+    const aiProvider = aiProviderManager.get(settingsStore.get());
     const aiAnswer = await aiProvider.answerDraftQuestion(
       buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot),
       createDraftStrategyTools(snapshot),
@@ -792,7 +793,7 @@ app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
       "Reason independently from the roster, board, settings, and raw player evidence; identify important data limitations.",
       "Do not claim access to news or information outside the supplied draft context.",
     ].join(" ");
-    const aiProvider = createAiProvider(settingsStore.get());
+    const aiProvider = aiProviderManager.get(settingsStore.get());
     const aiAnswer = await aiProvider.answerDraftQuestion(
       buildDraftQuestionContext(state, question, [], userPreferences, snapshot, [playerId]),
       createDraftStrategyTools(snapshot),
@@ -1220,6 +1221,13 @@ function createEventStreamResponse(stream: ReadableStream<Uint8Array>): Response
 }
 
 if (process.env.NODE_ENV !== "test") {
+  const shutdown = () => {
+    aiProviderManager.close();
+    process.exit(0);
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+
   serve(
     {
       fetch: app.fetch,

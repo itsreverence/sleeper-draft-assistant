@@ -1,6 +1,8 @@
+import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it, vi } from "vitest";
 
-import { executeDynamicToolCall, parseAiDraftDecision, resolveCodexLaunch, toDynamicToolDefinitions } from "./codex-app-server-provider";
+import { buildDraftQuestionContext } from "./context";
+import { CodexAppServerProvider, executeDynamicToolCall, parseAiDraftDecision, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -104,4 +106,87 @@ describe("Codex app-server executable resolution", () => {
     });
     expect(tool.execute).toHaveBeenCalledWith({ positions: ["K"] });
   });
+
+  it("reuses one app-server thread and omits duplicated conversation history", async () => {
+    const client = new FakeCodexClient();
+    const provider = new CodexAppServerProvider({
+      clientFactory: async () => client,
+    });
+    const context = buildDraftQuestionContext(
+      createMockDraftState(0),
+      "Who should I draft?",
+      [{ role: "user", content: "Previous question" }],
+    );
+
+    await provider.answerDraftQuestion(context);
+    await provider.answerDraftQuestion(context);
+
+    expect(client.initializeCalls).toBe(1);
+    expect(client.threadStartCalls).toBe(1);
+    expect(client.turnThreadIds).toEqual(["thread-1", "thread-1"]);
+    expect(client.prompts[0]).toContain("Previous question");
+    expect(client.prompts[1]).toContain('"conversationHistory": []');
+
+    provider.close();
+    expect(client.closed).toBe(true);
+  });
+
+  it("restarts with a fresh thread after a failed turn", async () => {
+    const firstClient = new FakeCodexClient();
+    firstClient.failNextTurn = true;
+    const secondClient = new FakeCodexClient();
+    const clientFactory = vi.fn()
+      .mockResolvedValueOnce(firstClient)
+      .mockResolvedValueOnce(secondClient);
+    const provider = new CodexAppServerProvider({ clientFactory });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Who should I draft?");
+
+    await expect(provider.answerDraftQuestion(context)).rejects.toThrow("Turn failed");
+    await expect(provider.answerDraftQuestion(context)).resolves.toMatchObject({
+      answer: "Grounded answer.",
+    });
+
+    expect(firstClient.closed).toBe(true);
+    expect(clientFactory).toHaveBeenCalledTimes(2);
+    expect(secondClient.threadStartCalls).toBe(1);
+  });
 });
+
+class FakeCodexClient implements CodexAppServerClient {
+  initializeCalls = 0;
+  threadStartCalls = 0;
+  turnThreadIds: string[] = [];
+  prompts: string[] = [];
+  closed = false;
+  failNextTurn = false;
+
+  async initialize(): Promise<void> {
+    this.initializeCalls += 1;
+  }
+
+  async request<T>(method: string): Promise<T> {
+    if (method === "thread/start") {
+      this.threadStartCalls += 1;
+      return { thread: { id: `thread-${this.threadStartCalls}` } } as T;
+    }
+    return {} as T;
+  }
+
+  async runTurn(threadId: string, prompt: string): Promise<string> {
+    this.turnThreadIds.push(threadId);
+    this.prompts.push(prompt);
+    if (this.failNextTurn) {
+      this.failNextTurn = false;
+      throw new Error("Turn failed");
+    }
+    return "Grounded answer.";
+  }
+
+  isClosed(): boolean {
+    return this.closed;
+  }
+
+  close(): void {
+    this.closed = true;
+  }
+}

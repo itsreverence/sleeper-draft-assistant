@@ -8,7 +8,7 @@ This is the default when no provider is configured. It makes no external AI requ
 
 ## Local Codex app-server
 
-The supported optional provider runs a user-installed Codex CLI as a local subprocess and sends it a compact context prompt.
+The supported optional provider runs a user-installed Codex CLI as a local subprocess and sends it a compact context prompt. The API reuses one app-server process for the active provider configuration and one ephemeral thread per draft/team scope while the app is running.
 
 1. Install Codex CLI through its official instructions.
 2. Run `codex login` or `codex login --device-auth` separately.
@@ -34,6 +34,8 @@ Codex installation, login state, model availability, subscription requirements, 
 ## Provider boundary
 
 Renderer code never stores provider credentials or contacts an AI provider directly. `AiProvider` adapters live in the local API and receive a focused context packet rather than the entire player database. Provider failures must be returned as bounded, redacted application errors.
+
+The adapter uses app-server's supported JSONL-over-stdio transport rather than its experimental WebSocket listener. App-server threads, not WebSockets, provide conversation continuity. Follow-up turns reuse the scoped thread and omit duplicated UI conversation history; the newest complete draft or team snapshot is still included because live state can change between turns. Threads are process-scoped and intentionally ephemeral, so restarting the API starts fresh provider threads.
 
 ## AI-first draft strategy
 
