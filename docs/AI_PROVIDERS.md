@@ -39,6 +39,8 @@ Renderer code never stores provider credentials or contacts an AI provider direc
 
 When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and grouped player evidence. The primary strategy packet does not include a local strategic lean, composite score, qualitative value labels, return-probability estimate, or engine-authored strategy reasons.
 
+Real drafts normally enter the AI workspace after current ECR is imported. Season projections and ADP are recommended additional signals. An explicit limited-data path remains available for draft-clock recovery; the AI still receives the data limitations and the renderer keeps the quality warning visible.
+
 The prompt contains one alphabetically ordered, deduplicated player catalog plus separate ID groups for pinned targets, ECR leaders, season-projection leaders, Sleeper ADP leaders, Real-Time ADP leaders, Sleeper search-rank placeholders, and position coverage. A signal group contains only players with that signal. Ordering within a signal group reflects only that raw signal; catalog order is explicitly not a recommendation.
 
 The Codex adapter exposes one provider-neutral, read-only dynamic tool:

@@ -27,6 +27,8 @@
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
+  import DraftPreparationHeader from "./lib/components/DraftPreparationHeader.svelte";
+  import DraftDataStatus from "./lib/components/DraftDataStatus.svelte";
 
   import {
     askManagerRequest,
@@ -60,6 +62,8 @@
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
   import { buildCandidateDiscussionQuestion, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
+  import { getImportFreshness } from "./lib/freshness";
+  import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
@@ -287,7 +291,8 @@
   }
 
   let connectExpanded = $state(!hasStoredDraft());
-  let rankingsExpanded = $state(false);
+  let draftPreparationOpen = $state(false);
+  let limitedDataMode = $state(false);
   let workspaceMode: WorkspaceMode = $state("draft");
   let userPickedMode = $state(false);
   let phaseSyncKey = $state("");
@@ -532,7 +537,8 @@
     adpImportError = "";
     teamManagerError = "";
     connectExpanded = true;
-    rankingsExpanded = false;
+    draftPreparationOpen = false;
+    limitedDataMode = false;
     workspaceMode = "draft";
     userPickedMode = false;
     phaseSyncKey = "";
@@ -581,11 +587,12 @@
         void refreshRecommendationWithPreferences();
       }
       connectExpanded = false;
-      rankingsExpanded = !isMockDraft(draftId) && (
-        !payload.rankingImportSummary ||
-        !payload.seasonProjectionImportSummary ||
-        !payload.adpImportSummary
+      draftPreparationOpen = shouldOpenDraftPreparation(
+        draftId,
+        payload.state.status,
+        payload.rankingImportSummary?.appliedAt ?? null,
       );
+      limitedDataMode = false;
       if (isMockDraft(draftId)) {
         window.localStorage.removeItem("lastDraftId");
         window.localStorage.removeItem("lastDraftTeamRef");
@@ -642,7 +649,8 @@
       teamManagerError = "";
       resetTeamRefreshTracking();
       connectExpanded = true;
-      rankingsExpanded = false;
+      draftPreparationOpen = false;
+      limitedDataMode = false;
       workspaceMode = "draft";
       userPickedMode = false;
       phaseSyncKey = "";
@@ -944,7 +952,8 @@
     try {
       const payload = await clearRankingsRequest(activeDraftId, activeDraftTeamRef);
       applyDraftPayload(payload);
-      rankingsExpanded = true;
+      draftPreparationOpen = draftState?.status !== "complete";
+      limitedDataMode = false;
       if (teamManagerState) {
         void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
       }
@@ -1269,6 +1278,23 @@
     };
   }
 
+  function enterDraftRoom() {
+    if (!rankingImportSummary) {
+      return;
+    }
+    limitedDataMode = false;
+    draftPreparationOpen = false;
+  }
+
+  function enterDraftRoomWithLimitedData() {
+    limitedDataMode = true;
+    draftPreparationOpen = false;
+  }
+
+  function openDraftPreparation() {
+    draftPreparationOpen = true;
+  }
+
   async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
     const payload = await fetchAiDraftStrategyRequest(
       activeDraftId,
@@ -1292,12 +1318,16 @@
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
   const isRealDraftActive = $derived(Boolean(draftState && !isMockDraft(activeDraftId)));
   const hasImportedRankings = $derived(Boolean(rankingImportSummary));
+  const rankingsStale = $derived.by(() => {
+    const summary = rankingImportSummary as RankingImportSummary | null;
+    return summary ? getImportFreshness(summary.appliedAt, 14).stale : false;
+  });
   const hasSeasonProjections = $derived(Boolean(seasonProjectionImportSummary));
   const hasImportedAdp = $derived(Boolean(adpImportSummary));
   const draftDataSignalCount = $derived(
     Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
   );
-  const draftValuesIncomplete = $derived(isRealDraftActive && !hasImportedRankings);
+  const draftValuesIncomplete = $derived(isRealDraftActive && (!hasImportedRankings || rankingsStale));
   const selectedLeague = $derived.by(() => {
     const payload = connectPayload;
     return payload?.leagues.find((league) => league.leagueId === selectedLeagueId) ?? null;
@@ -1348,8 +1378,16 @@
     },
     {
       label: "Player values",
-      value: draftDataSignalCount === 3 ? "Complete" : draftState ? `${draftDataSignalCount}/3 sources` : "Pending",
-      detail: draftDataSignalCount === 3
+      value: rankingsStale
+        ? "Needs refresh"
+        : draftDataSignalCount === 3
+          ? "Complete"
+          : draftState
+            ? `${draftDataSignalCount}/3 sources`
+            : "Pending",
+      detail: rankingsStale
+        ? "Imported ECR is old; review a current export before drafting"
+        : draftDataSignalCount === 3
         ? "ECR, season projections, and Sleeper ADP loaded"
         : hasImportedRankings
           ? "Add season projections and Sleeper ADP for full-quality advice"
@@ -1358,11 +1396,17 @@
           : isDemoDraftActive
             ? "Demo projections active"
             : "Available after draft selection",
-      tone: draftDataSignalCount === 3 || isDemoDraftActive ? "ready" : isRealDraftActive ? "warning" : "neutral",
+      tone: !rankingsStale && (draftDataSignalCount === 3 || isDemoDraftActive)
+        ? "ready"
+        : isRealDraftActive
+          ? "warning"
+          : "neutral",
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
-  const showSetupChecklist = $derived(!draftState || connectExpanded);
+  const showSetupChecklist = $derived(
+    !draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft"),
+  );
   const draftPhase = $derived(getDraftPhase(draftState));
   const weeklyProjectionDefaultSeason = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
@@ -1473,6 +1517,50 @@
           userPickedMode = true;
         }}
       />
+      {#if draftPreparationOpen && workspaceMode === "draft" && draftPhase !== "complete"}
+        <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
+        <div class="preparation-flow">
+          <DraftPreparationHeader
+            draftName={draftState.name}
+            scoring={normalizeDraftScoring(draftState.settings.scoring)}
+            season={draftDataDefaultSeason}
+            hasRankings={hasImportedRankings}
+            {rankingsStale}
+            hasProjections={hasSeasonProjections}
+            hasAdp={hasImportedAdp}
+            liveDraft={draftPhase === "drafting"}
+            onContinue={enterDraftRoom}
+            onContinueLimited={enterDraftRoomWithLimitedData}
+          />
+          <RankingsImportPanel
+            hasDraft={true}
+            scoring={normalizeDraftScoring(draftState.settings.scoring)}
+            season={draftDataDefaultSeason}
+            {isImportingRankings}
+            {isClearingRankings}
+            {isImportingSeasonProjections}
+            {isClearingSeasonProjections}
+            {isImportingAdp}
+            {isClearingAdp}
+            {rankingImportSummary}
+            {seasonProjectionImportSummary}
+            {adpImportSummary}
+            {rankingImportError}
+            {seasonProjectionImportError}
+            {adpImportError}
+            onImportRankings={importRankings}
+            onImportSeasonProjections={importSeasonProjections}
+            onImportAdp={importAdp}
+            onClearRankings={clearRankings}
+            onClearSeasonProjections={clearSeasonProjections}
+            onClearAdp={clearAdp}
+            onOpenRankings={openFantasyProsRankings}
+            onOpenSeasonProjections={openFantasyProsSeasonProjections}
+            onOpenAdp={openFantasyProsAdp}
+            expanded={true}
+          />
+        </div>
+      {:else}
       <DraftSummaryStrip state={draftState} />
       {#if workspaceMode === "draft"}
         <DraftSyncStatus
@@ -1524,7 +1612,7 @@
                 showPlaceholderWarning={draftValuesIncomplete}
                 onSetPreference={setPlayerPreference}
                 onClearPreferences={clearPlayerPreferences}
-                onOpenRankings={() => (rankingsExpanded = true)}
+                onOpenRankings={openDraftPreparation}
                 onOpenSettings={() => (settingsOpen = true)}
               />
               <AskManagerPanel
@@ -1550,65 +1638,18 @@
             {/if}
           </div>
           <div class="side-column">
-            {#if draftPhase !== "complete"}
-              <RankingsImportPanel
-                hasDraft={true}
-                scoring={normalizeDraftScoring(draftState.settings.scoring)}
-                season={draftDataDefaultSeason}
-                {isImportingRankings}
-                {isClearingRankings}
-                {isImportingSeasonProjections}
-                {isClearingSeasonProjections}
-                {isImportingAdp}
-                {isClearingAdp}
-                {rankingImportSummary}
-                {seasonProjectionImportSummary}
-                {adpImportSummary}
-                {rankingImportError}
-                {seasonProjectionImportError}
-                {adpImportError}
-                onImportRankings={importRankings}
-                onImportSeasonProjections={importSeasonProjections}
-                onImportAdp={importAdp}
-                onClearRankings={clearRankings}
-                onClearSeasonProjections={clearSeasonProjections}
-                onClearAdp={clearAdp}
-                onOpenRankings={openFantasyProsRankings}
-                onOpenSeasonProjections={openFantasyProsSeasonProjections}
-                onOpenAdp={openFantasyProsAdp}
-                bind:expanded={rankingsExpanded}
+            {#if draftPhase !== "complete" || draftDataSignalCount > 0}
+              <DraftDataStatus
+                hasRankings={hasImportedRankings}
+                {rankingsStale}
+                hasProjections={hasSeasonProjections}
+                hasAdp={hasImportedAdp}
+                limitedMode={limitedDataMode}
+                onOpen={openDraftPreparation}
               />
-              {#if (userTeam?.roster.length ?? 0) > 0}
-                <RosterPanel state={draftState} />
-              {/if}
-            {:else if draftDataSignalCount > 0}
-              <RankingsImportPanel
-                hasDraft={true}
-                scoring={normalizeDraftScoring(draftState.settings.scoring)}
-                season={draftDataDefaultSeason}
-                {isImportingRankings}
-                {isClearingRankings}
-                {isImportingSeasonProjections}
-                {isClearingSeasonProjections}
-                {isImportingAdp}
-                {isClearingAdp}
-                {rankingImportSummary}
-                {seasonProjectionImportSummary}
-                {adpImportSummary}
-                {rankingImportError}
-                {seasonProjectionImportError}
-                {adpImportError}
-                onImportRankings={importRankings}
-                onImportSeasonProjections={importSeasonProjections}
-                onImportAdp={importAdp}
-                onClearRankings={clearRankings}
-                onClearSeasonProjections={clearSeasonProjections}
-                onClearAdp={clearAdp}
-                onOpenRankings={openFantasyProsRankings}
-                onOpenSeasonProjections={openFantasyProsSeasonProjections}
-                onOpenAdp={openFantasyProsAdp}
-                bind:expanded={rankingsExpanded}
-              />
+            {/if}
+            {#if draftPhase !== "complete" && (userTeam?.roster.length ?? 0) > 0}
+              <RosterPanel state={draftState} />
             {/if}
           </div>
         </section>
@@ -1665,6 +1706,7 @@
           </div>
         </section>
       {/if}
+      {/if}
     {/key}
   {/if}
 </main>
@@ -1686,6 +1728,12 @@
 
   .connect-editor {
     margin-bottom: var(--space-5);
+  }
+
+  .preparation-flow {
+    display: grid;
+    gap: var(--space-5);
+    margin-top: var(--space-5);
   }
 
   .dashboard-grid {
