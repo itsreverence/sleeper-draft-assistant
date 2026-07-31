@@ -1461,7 +1461,8 @@
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
-  const hasStartedConnecting = $derived(Boolean(connectPayload || draftState));
+  const isPreconnect = $derived(!connectPayload && !draftState);
+  const hasStartedConnecting = $derived(!isPreconnect);
   const showSetupChecklist = $derived(
     hasStartedConnecting && (!draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft")),
   );
@@ -1515,7 +1516,7 @@
   });
 </script>
 
-<main class="app-shell">
+<main class="app-shell" class:preconnect-shell={isPreconnect}>
   <TopBar
     title={draftState?.name ?? "Connect your Sleeper draft"}
     {status}
@@ -1550,7 +1551,7 @@
   {/if}
 
   {#if connectExpanded}
-    <div class="connect-editor">
+    <div class="connect-editor" class:preconnect={isPreconnect}>
       <ConnectPanel
         bind:usernameInput
         bind:seasonInput
@@ -1800,6 +1801,11 @@
     gap: 0;
   }
 
+  .app-shell.preconnect-shell {
+    min-height: 100vh;
+    grid-template-rows: auto 1fr;
+  }
+
   .app-shell > *,
   .primary-column,
   .side-column {
@@ -1810,6 +1816,11 @@
     display: grid;
     justify-items: center;
     margin-bottom: var(--space-5);
+  }
+
+  .connect-editor.preconnect {
+    align-content: center;
+    margin-bottom: 0;
   }
 
   .preparation-flow {

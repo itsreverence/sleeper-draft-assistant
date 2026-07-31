@@ -91,7 +91,7 @@
 
 <section class="panel connect-panel" aria-label="Sleeper connection">
   <div class="section-header">
-    <h2><Icon name="link" size={17} /> Connect Sleeper</h2>
+    <h2><Icon name="link" size={17} /> Find your league</h2>
   </div>
 
   <form class="lookup-form" onsubmit={submitLookup}>
@@ -108,7 +108,7 @@
       class="input"
       bind:value={usernameInput}
       type="text"
-      placeholder="Sleeper username"
+      placeholder="e.g. gridiron_gary"
       autocomplete="username"
     />
     <button class="btn btn-primary btn-block" type="submit" disabled={isConnecting}>
@@ -117,46 +117,53 @@
     </button>
   </form>
 
-  <div class="mini-links">
-    <button type="button" class="text-link" onclick={() => (leaguePanelOpen = !leaguePanelOpen)}>Paste a league URL</button>
-    <button type="button" class="text-link" onclick={() => (draftPanelOpen = !draftPanelOpen)}>Paste a draft ID</button>
+  <div class="alternate-connections">
+    <div class="mini-links">
+      <button type="button" class="text-link" onclick={() => (leaguePanelOpen = !leaguePanelOpen)}>Paste a league URL</button>
+      <button type="button" class="text-link" onclick={() => (draftPanelOpen = !draftPanelOpen)}>Paste a draft ID</button>
+    </div>
+
+    {#if leaguePanelOpen}
+      <form class="mini-form" onsubmit={submitLeagueLookup}>
+        {#if noLeaguesFound}
+          <p class="callout callout-warning">
+            <Icon name="alert" size={15} />
+            No leagues found for {connectPayload?.season}. If your league was just created, paste its link below.
+          </p>
+        {/if}
+        <label class="field">
+          <span>League URL or ID</span>
+          <input class="input" bind:value={leagueInput} type="text" placeholder="sleeper.com/leagues/..." />
+        </label>
+        <label class="field">
+          <span>Season</span>
+          <input class="input" bind:value={seasonInput} type="text" placeholder="Auto" inputmode="numeric" />
+        </label>
+        <button class="btn btn-secondary btn-block" type="submit" disabled={isConnecting}>
+          {isConnecting ? "Finding" : "Find this league"}
+        </button>
+      </form>
+    {/if}
+
+    {#if draftPanelOpen}
+      <form class="mini-form" onsubmit={submitAdvanced}>
+        <label class="field">
+          <span>Sleeper draft ID</span>
+          <input class="input" bind:value={draftInput} type="text" placeholder="Paste a draft ID" />
+        </label>
+        <label class="field">
+          <span>Your roster ID or slot</span>
+          <input class="input" bind:value={userRosterIdInput} type="text" placeholder="Optional" />
+        </label>
+        <button class="btn btn-secondary btn-block" type="submit" disabled={isLoading}>{isLoading ? "Loading" : "Load draft"}</button>
+      </form>
+    {/if}
+
+    <div class="demo-row">
+      <button type="button" class="text-link" onclick={onLoadMockDraft}>Try a demo draft</button>
+      <span class="demo-caption">Loads a sample board for testing only, not a source of player values.</span>
+    </div>
   </div>
-
-  {#if leaguePanelOpen}
-    <form class="mini-form" onsubmit={submitLeagueLookup}>
-      {#if noLeaguesFound}
-        <p class="callout callout-warning">
-          <Icon name="alert" size={15} />
-          No leagues found for {connectPayload?.season}. If your league was just created, paste its link below.
-        </p>
-      {/if}
-      <label class="field">
-        <span>League URL or ID</span>
-        <input class="input" bind:value={leagueInput} type="text" placeholder="sleeper.com/leagues/..." />
-      </label>
-      <label class="field">
-        <span>Season</span>
-        <input class="input" bind:value={seasonInput} type="text" placeholder="Auto" inputmode="numeric" />
-      </label>
-      <button class="btn btn-secondary btn-block" type="submit" disabled={isConnecting}>
-        {isConnecting ? "Finding" : "Find this league"}
-      </button>
-    </form>
-  {/if}
-
-  {#if draftPanelOpen}
-    <form class="mini-form" onsubmit={submitAdvanced}>
-      <label class="field">
-        <span>Sleeper draft ID</span>
-        <input class="input" bind:value={draftInput} type="text" placeholder="Paste a draft ID" />
-      </label>
-      <label class="field">
-        <span>Your roster ID or slot</span>
-        <input class="input" bind:value={userRosterIdInput} type="text" placeholder="Optional" />
-      </label>
-      <button class="btn btn-secondary btn-block" type="submit" disabled={isLoading}>{isLoading ? "Loading" : "Load draft"}</button>
-    </form>
-  {/if}
 
   {#if connectPayload && connectPayload.leagues.length > 0}
     <div class="connect-results">
@@ -223,11 +230,6 @@
     </div>
   {/if}
 
-  <div class="demo-row">
-    <button type="button" class="text-link" onclick={onLoadMockDraft}>Try a demo draft</button>
-    <span class="demo-caption">Loads a sample board for testing only, not a source of player values.</span>
-  </div>
-
   {#if activeDraftId || activeUserRosterId}
     <div class="connection-meta">
       <strong>{activeSourceLabel}</strong>
@@ -292,12 +294,17 @@
     color: var(--text-primary);
   }
 
+  .alternate-connections {
+    display: grid;
+    gap: var(--space-3);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-3);
+  }
+
   .mini-links {
     display: flex;
     justify-content: center;
     gap: 18px;
-    border-top: 1px solid var(--border);
-    padding-top: var(--space-3);
   }
 
   .mini-links .text-link {
@@ -417,8 +424,6 @@
     justify-items: center;
     gap: 3px;
     text-align: center;
-    border-top: 1px solid var(--border);
-    padding-top: var(--space-3);
   }
 
   .demo-row .text-link {
