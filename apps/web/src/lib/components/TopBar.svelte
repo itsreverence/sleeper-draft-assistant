@@ -4,6 +4,7 @@
     status,
     lastEvent,
     connected,
+    showStatus = true,
     showChangeDraft = false,
     connectEditorOpen = false,
     onChangeDraft,
@@ -13,6 +14,7 @@
     status: string;
     lastEvent: string;
     connected: boolean;
+    showStatus?: boolean;
     showChangeDraft?: boolean;
     connectEditorOpen?: boolean;
     onChangeDraft?: () => void;
@@ -36,13 +38,15 @@
       <p class="product-name">Sleeper Draft Assistant</p>
     </div>
   </div>
-  <div class="status-panel" class:connected>
-    <span class="status-dot" aria-hidden="true"></span>
-    <div>
-      <strong>{status}</strong>
-      <span>{lastEvent}</span>
+  {#if showStatus}
+    <div class="status-panel" class:connected>
+      <span class="status-dot" aria-hidden="true"></span>
+      <div>
+        <strong>{status}</strong>
+        <span>{lastEvent}</span>
+      </div>
     </div>
-  </div>
+  {/if}
 </section>
 
 <style>

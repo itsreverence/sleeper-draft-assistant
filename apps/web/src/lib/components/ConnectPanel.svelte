@@ -228,15 +228,17 @@
     <span class="demo-caption">Loads a sample board for testing only, not a source of player values.</span>
   </div>
 
-  <div class="connection-meta">
-    <strong>{activeSourceLabel}</strong>
-    {#if activeDraftId}
-      <span>{activeDraftId}</span>
-    {/if}
-    {#if activeUserRosterId}
-      <span>Roster/slot {activeUserRosterId}</span>
-    {/if}
-  </div>
+  {#if activeDraftId || activeUserRosterId}
+    <div class="connection-meta">
+      <strong>{activeSourceLabel}</strong>
+      {#if activeDraftId}
+        <span>{activeDraftId}</span>
+      {/if}
+      {#if activeUserRosterId}
+        <span>Roster/slot {activeUserRosterId}</span>
+      {/if}
+    </div>
+  {/if}
 
   {#if loadError}
     <p class="callout callout-danger"><Icon name="alert" size={15} />{loadError}</p>
