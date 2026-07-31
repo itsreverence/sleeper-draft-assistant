@@ -6,30 +6,19 @@
   let {
     candidate,
     rank,
-    presentation = "ai-alternative",
-    aiReason = "",
     preference = null,
-    featured = false,
     onSetPreference,
     onDiscuss,
   }: {
     candidate: DraftOption;
     rank: number;
-    presentation?: "ai-pick" | "ai-alternative";
-    aiReason?: string;
     preference?: PlayerPreferenceLevel | null;
-    featured?: boolean;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
     onDiscuss?: (playerName: string) => void;
   } = $props();
 
   let detailsOpen = $state(false);
 
-  const primaryReason = $derived(
-    presentation === "ai-pick"
-      ? aiReason || "Primary choice from the current AI strategy."
-      : "Alternative selected by the current AI strategy.",
-  );
   function togglePreference(nextPreference: PlayerPreferenceLevel) {
     onSetPreference?.(candidate.player.id, preference === nextPreference ? null : nextPreference);
   }
@@ -43,18 +32,13 @@
   class="candidate-card"
   class:excluded={preference === "exclude"}
   class:pinned={preference === "pin"}
-  class:featured
 >
   <div class="candidate-main">
     <div class="rank">{rank}</div>
     <div class="candidate-copy">
       <div class="name-row">
         <h3>{candidate.player.name}</h3>
-        {#if presentation === "ai-pick"}
-          <span class="strategy-badge strategy-pick">AI pick</span>
-        {:else if presentation === "ai-alternative"}
-          <span class="strategy-badge">AI alternative</span>
-        {/if}
+        <span class="strategy-badge">AI alternative</span>
         {#if preference}
           <span class="preference-badge preference-{preference}">{preference === "pin" ? "shortlisted" : preference}</span>
         {/if}
@@ -62,7 +46,6 @@
       <p>
         {candidate.player.team} - {candidate.player.position}
       </p>
-      <p class="reason">{primaryReason}</p>
       {#if candidate.player.importedRank}
         <p class="import-meta">
           Rank {candidate.player.importedRank}{candidate.player.tier ? ` - Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` - Bye ${candidate.player.byeWeek}` : ""}
@@ -82,17 +65,6 @@
     >
       {preference === "pin" ? "Shortlisted" : "Shortlist"}
     </button>
-    {#if featured}
-      <button
-        class="ai-action"
-        type="button"
-        title={`Ask about drafting ${candidate.player.name}`}
-        onclick={discussCandidate}
-      >
-        <Icon name="message" size={13} />
-        Ask about pick
-      </button>
-    {/if}
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
       {detailsOpen ? "Less" : "Evidence"}
     </button>
@@ -129,17 +101,15 @@
         >
           {preference === "exclude" ? "Excluded" : "Exclude"}
         </button>
-        {#if !featured}
-          <button
-            class="ai-secondary"
-            type="button"
-            title={`Ask about drafting ${candidate.player.name}`}
-            onclick={discussCandidate}
-          >
-            <Icon name="message" size={13} />
-            Ask about pick
-          </button>
-        {/if}
+        <button
+          class="ai-secondary"
+          type="button"
+          title={`Ask about drafting ${candidate.player.name}`}
+          onclick={discussCandidate}
+        >
+          <Icon name="message" size={13} />
+          Ask about pick
+        </button>
       </div>
     </div>
   {/if}
@@ -148,20 +118,13 @@
 
 <style>
   .candidate-card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    padding: var(--space-4);
-    transition: border-color var(--transition-base), opacity var(--transition-fast);
+    border-top: 1px solid var(--border);
+    padding: var(--space-4) 0;
+    transition: opacity var(--transition-fast);
   }
 
   .candidate-card:hover {
     border-color: var(--border-strong);
-  }
-
-  .candidate-card.featured {
-    border-color: var(--accent-border);
-    background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface-sunken));
   }
 
   .candidate-card.pinned {
@@ -193,11 +156,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .featured .rank {
-    background: var(--accent);
-    color: var(--text-on-accent);
-  }
-
   .candidate-copy {
     flex: 1;
     min-width: 0;
@@ -220,12 +178,6 @@
     margin: 0;
     color: var(--text-muted);
     font-size: var(--text-sm);
-  }
-
-  .reason {
-    margin-top: 6px !important;
-    color: var(--text-secondary) !important;
-    line-height: 1.45;
   }
 
   .import-meta {
@@ -255,12 +207,6 @@
     font-weight: 800;
     line-height: 1;
     text-transform: uppercase;
-  }
-
-  .strategy-pick {
-    border-color: var(--accent-border);
-    background: var(--accent-soft);
-    color: var(--accent);
   }
 
   .preference-pin {

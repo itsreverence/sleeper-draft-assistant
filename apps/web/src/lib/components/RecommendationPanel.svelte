@@ -3,6 +3,7 @@
   import CandidateCard from "./CandidateCard.svelte";
   import DecisionHistoryPanel from "./DecisionHistoryPanel.svelte";
   import { currentAiDraftStrategy } from "../ai-panel";
+  import { rosterFitLabel, sourceLabel } from "../format";
   import type { AiDraftStrategyPayload, DecisionSnapshot, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
@@ -66,22 +67,27 @@
   const currentAiStrategy = $derived(
     aiEnabled ? currentAiDraftStrategy(aiStrategy, currentPick) : null,
   );
-  const aiCandidates = $derived.by(() => {
+  const alternativeAiCandidates = $derived.by(() => {
     const strategy = currentAiStrategy;
     if (!strategy) {
       return [];
     }
     return Array.from(
       new Map(
-        [strategy.recommendedCandidate, ...strategy.alternativeCandidates]
+        strategy.alternativeCandidates
+          .filter((candidate) => candidate.player.id !== strategy.recommendedCandidate.player.id)
           .map((candidate) => [candidate.player.id, candidate]),
       ).values(),
     );
   });
-  const primaryAiCandidates = $derived(aiCandidates.slice(0, 3));
-  const additionalAiCandidates = $derived(aiCandidates.slice(3));
+  const primaryAiCandidates = $derived(alternativeAiCandidates.slice(0, 2));
+  const additionalAiCandidates = $derived(alternativeAiCandidates.slice(2));
   const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? "AI draft assistant");
   const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
+  const planChangeSummary = $derived(currentAiStrategy?.decision.plan.changeSummary.trim() ?? "");
+  const showPlanChangeSummary = $derived(
+    Boolean(planChangeSummary) && !/^no material change\b/i.test(planChangeSummary),
+  );
   const confidenceTone = $derived(
     activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
   );
@@ -95,6 +101,17 @@
     if (recommendedPlayerName) {
       onAskAboutCandidate?.(playerName, recommendedPlayerName);
     }
+  }
+
+  function toggleRecommendedShortlist() {
+    const candidate = currentAiStrategy?.recommendedCandidate;
+    if (!candidate) {
+      return;
+    }
+    onSetPreference?.(
+      candidate.player.id,
+      playerPreferences[candidate.player.id] === "pin" ? null : "pin",
+    );
   }
 
   $effect(() => {
@@ -131,7 +148,10 @@
 
 <article class="panel recommendation-panel">
   <div class="panel-heading">
-    <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
+    <div class="decision-heading">
+      <span>AI call</span>
+      <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
+    </div>
     {#if activeConfidence}
       <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
     {/if}
@@ -164,18 +184,56 @@
 
   {#if currentAiStrategy}
     <div class="ai-strategy" aria-live="polite">
-      <div class="ai-strategy-heading">
-        <strong>AI draft strategy</strong>
-        <span>{currentAiStrategy.decision.verdict}</span>
+      <p class="decision-summary">{currentAiStrategy.decision.summary}</p>
+      <div class="decision-actions">
+        <button
+          class:active={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin"}
+          type="button"
+          aria-pressed={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin"}
+          onclick={toggleRecommendedShortlist}
+        >
+          <Icon name="checklist" size={13} />
+          {playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin" ? "Shortlisted" : "Shortlist"}
+        </button>
+        <button
+          type="button"
+          title={`Ask about drafting ${currentAiStrategy.recommendedCandidate.player.name}`}
+          onclick={() => discussCandidate(currentAiStrategy.recommendedCandidate.player.name)}
+        >
+          <Icon name="message" size={13} />
+          Ask about pick
+        </button>
       </div>
-      <p>{currentAiStrategy.decision.summary}</p>
-      <ul>
-        {#each currentAiStrategy.decision.reasons as reason}
-          <li>{reason}</li>
-        {/each}
-      </ul>
-      {#if currentAiStrategy.decision.risks.length > 0}
+      <div class="decision-details">
         <details>
+          <summary>Why this call ({currentAiStrategy.decision.reasons.length})</summary>
+          <ul>
+            {#each currentAiStrategy.decision.reasons as reason}
+              <li>{reason}</li>
+            {/each}
+          </ul>
+        </details>
+        <details>
+          <summary>Evidence</summary>
+          <div class="evidence-summary">
+            <span>
+              {currentAiStrategy.recommendedCandidate.player.team} -
+              {currentAiStrategy.recommendedCandidate.player.position}
+            </span>
+            <span>{rosterFitLabel(currentAiStrategy.recommendedCandidate.rosterFit)}</span>
+            <span>{sourceLabel(currentAiStrategy.recommendedCandidate)}</span>
+          </div>
+          {#if currentAiStrategy.recommendedCandidate.evidence.length > 0}
+            <ul>
+              {#each currentAiStrategy.recommendedCandidate.evidence as evidence}
+                <li>{evidence}</li>
+              {/each}
+            </ul>
+          {/if}
+        </details>
+      </div>
+      {#if currentAiStrategy.decision.risks.length > 0}
+        <details class="risk-details">
           <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
           <ul>
             {#each currentAiStrategy.decision.risks as risk}
@@ -196,7 +254,9 @@
             />
           </div>
         </div>
-        <p class="plan-change">{currentAiStrategy.decision.plan.changeSummary}</p>
+        {#if showPlanChangeSummary}
+          <p class="plan-change">{planChangeSummary}</p>
+        {/if}
         <div class="plan-priorities">
           <div>
             <span>This pick</span>
@@ -283,19 +343,16 @@
     </div>
   {/if}
 
-  {#if currentAiStrategy}
+  {#if currentAiStrategy && alternativeAiCandidates.length > 0}
     <div class="candidate-section-heading">
-      <strong>AI player options</strong>
-      <span>Ordered by the current AI strategy. Imported values remain visible as grounding evidence.</span>
+      <strong>Alternatives</strong>
+      <span>Other AI-selected paths if you want a different roster shape.</span>
     </div>
     <div class="candidate-list">
       {#each primaryAiCandidates as candidate, index (candidate.player.id)}
         <CandidateCard
           {candidate}
-          rank={index + 1}
-          featured={index === 0}
-          presentation={index === 0 ? "ai-pick" : "ai-alternative"}
-          aiReason={index === 0 ? currentAiStrategy.decision.reasons[0] ?? "" : ""}
+          rank={index + 2}
           preference={playerPreferences[candidate.player.id] ?? null}
           {onSetPreference}
           onDiscuss={discussCandidate}
@@ -309,8 +366,7 @@
           {#each additionalAiCandidates as candidate, index (candidate.player.id)}
             <CandidateCard
               {candidate}
-              rank={index + primaryAiCandidates.length + 1}
-              presentation="ai-alternative"
+              rank={index + primaryAiCandidates.length + 2}
               preference={playerPreferences[candidate.player.id] ?? null}
               {onSetPreference}
               onDiscuss={discussCandidate}
@@ -343,6 +399,18 @@
     gap: 8px;
     margin-top: 3px;
     font-size: var(--text-xl);
+  }
+
+  .decision-heading {
+    display: grid;
+    gap: 4px;
+  }
+
+  .decision-heading > span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
   }
 
   .preference-summary {
@@ -383,7 +451,11 @@
     text-transform: uppercase;
   }
 
-  .ai-strategy,
+  .ai-strategy {
+    display: grid;
+    gap: 10px;
+  }
+
   .ai-strategy-pending {
     display: grid;
     gap: 9px;
@@ -398,7 +470,6 @@
     align-items: center;
   }
 
-  .ai-strategy-heading,
   .draft-plan-heading {
     display: flex;
     align-items: center;
@@ -406,21 +477,71 @@
     gap: 12px;
   }
 
-  .ai-strategy-heading strong {
-    font-size: var(--text-sm);
-  }
-
-  .ai-strategy-heading span {
-    color: var(--accent);
-    font-size: var(--text-xs);
-    font-weight: 900;
-    text-transform: uppercase;
-  }
-
   .ai-strategy p {
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
+  }
+
+  .ai-strategy .decision-summary {
+    max-width: 72ch;
+    color: var(--text-primary);
+    font-size: var(--text-md);
+    font-weight: 650;
+    line-height: 1.55;
+  }
+
+  .decision-actions,
+  .decision-details,
+  .evidence-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .decision-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 7px 10px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 800;
+  }
+
+  .decision-actions button:hover,
+  .decision-actions button.active {
+    border-color: var(--accent-border);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text-primary);
+  }
+
+  .decision-details {
+    gap: 16px;
+  }
+
+  .decision-details details,
+  .risk-details {
+    min-width: 0;
+  }
+
+  .decision-details details[open] {
+    flex-basis: 100%;
+  }
+
+  .evidence-summary {
+    margin-top: 9px;
+  }
+
+  .evidence-summary span {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
   }
 
   .ai-strategy ul {
@@ -445,8 +566,8 @@
   .draft-plan {
     display: grid;
     gap: 9px;
-    border-top: 1px solid var(--accent-border);
-    padding-top: 11px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
   }
 
   .plan-meta {
@@ -467,7 +588,7 @@
   .plan-priorities {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-block: 1px solid var(--accent-border);
+    border-block: 1px solid var(--border);
   }
 
   .plan-priorities > div {
@@ -478,7 +599,7 @@
   }
 
   .plan-priorities > div + div {
-    border-left: 1px solid var(--accent-border);
+    border-left: 1px solid var(--border);
   }
 
   .plan-priorities span {
@@ -550,7 +671,7 @@
 
   .candidate-list {
     display: grid;
-    gap: 12px;
+    gap: 0;
   }
 
   .more-candidates {
@@ -579,7 +700,7 @@
     }
 
     .plan-priorities > div + div {
-      border-top: 1px solid var(--accent-border);
+      border-top: 1px solid var(--border);
       border-left: 0;
     }
   }
