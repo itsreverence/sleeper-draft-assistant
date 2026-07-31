@@ -1802,6 +1802,7 @@
   }
 
   .app-shell.preconnect-shell {
+    width: min(720px, 100%);
     min-height: 100vh;
     grid-template-rows: auto 1fr;
   }
