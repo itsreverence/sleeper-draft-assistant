@@ -14,8 +14,7 @@
   } = $props();
 
   const updates = $derived(meaningfulStrategySnapshots(snapshots));
-  const latest = $derived(updates[0] ?? null);
-  const earlier = $derived(updates.slice(1, 6));
+  const earlier = $derived(updates.slice(1, 7));
 
   function headline(snapshot: DecisionSnapshot): string {
     return snapshot.aiStrategy?.headline ?? snapshot.headline;
@@ -27,10 +26,6 @@
       ?? `Recommendation updated to ${snapshot.headline}.`;
   }
 
-  function positions(values: string[]): string {
-    return values.length > 0 ? values.join(" / ") : "Best available value";
-  }
-
   function time(createdAt: string): string {
     return new Date(createdAt).toLocaleTimeString([], {
       hour: "numeric",
@@ -39,52 +34,23 @@
   }
 </script>
 
-<details class="panel history-panel">
-  <summary>
-    <span><Icon name="history" size={16} /> Strategy updates</span>
-    <small>{updates.length === 1 ? "1 meaningful change" : updates.length > 1 ? `${updates.length} meaningful changes` : "No updates yet"}</small>
-  </summary>
-
-  {#if isLoading}
-    <p class="panel-state">Loading strategy updates...</p>
-  {:else if error}
-    <p class="callout callout-warning panel-callout">{error}</p>
-  {:else if latest}
-    <section class="latest-update" aria-label="Latest strategy update">
-      <div class="update-meta">
-        <span class="eyebrow">Latest update</span>
-        <span class="confidence">{latest.confidence} confidence</span>
-      </div>
-      <div class="update-title">
-        <strong>{headline(latest)}</strong>
-        <small>Pick {latest.currentPick} / {time(latest.createdAt)}</small>
-      </div>
-      <p class="change-summary">{changeSummary(latest)}</p>
-
-      {#if latest.aiStrategy}
-        <p class="approach">{latest.aiStrategy.plan.approach}</p>
-        <dl class="plan-summary">
-          <div>
-            <dt>Focus now</dt>
-            <dd>{positions(latest.aiStrategy.plan.currentPickFocus)}</dd>
-          </div>
-          <div>
-            <dt>Next turn</dt>
-            <dd>{positions(latest.aiStrategy.plan.nextTurnPriorities)}</dd>
-          </div>
-          <div>
-            <dt>Can wait</dt>
-            <dd>{positions(latest.aiStrategy.plan.positionsThatCanWait)}</dd>
-          </div>
-        </dl>
-      {:else}
-        <p class="legacy-note">This older snapshot predates structured strategy history.</p>
+{#if earlier.length > 0 || error}
+  <details class="history-disclosure">
+    <summary title="View earlier strategy changes">
+      <Icon name="history" size={13} />
+      <span>History</span>
+      {#if earlier.length > 0}
+        <small>{earlier.length}</small>
       {/if}
-    </section>
+    </summary>
 
-    {#if earlier.length > 0}
-      <section class="timeline-section" aria-labelledby="earlier-strategy-updates">
-        <h3 id="earlier-strategy-updates">Earlier changes</h3>
+    <div class="history-content">
+      {#if isLoading}
+        <p class="history-state">Loading strategy history...</p>
+      {:else if error}
+        <p class="history-state history-error">{error}</p>
+      {:else}
+        <strong class="history-title">Earlier changes</strong>
         <ol class="timeline">
           {#each earlier as update}
             <li>
@@ -100,60 +66,113 @@
           {/each}
         </ol>
         {#if updates.length > earlier.length + 1}
-          <p class="older-count">{updates.length - earlier.length - 1} earlier updates retained locally.</p>
+          <p class="older-count">{updates.length - earlier.length - 1} more updates retained locally.</p>
         {/if}
-      </section>
-    {/if}
-  {:else}
-    <p class="panel-state">Meaningful strategy changes will appear after AI draft analysis runs.</p>
-  {/if}
-</details>
+      {/if}
+    </div>
+  </details>
+{/if}
 
 <style>
-  .history-panel {
-    padding: 0;
-    overflow: hidden;
+  .history-disclosure {
+    position: relative;
+    z-index: 6;
   }
 
-  summary {
+  .history-disclosure > summary {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 16px;
+    gap: 5px;
     cursor: pointer;
     list-style: none;
-  }
-
-  summary::-webkit-details-marker {
-    display: none;
-  }
-
-  summary span {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
     font-weight: 800;
   }
 
-  summary small,
-  .update-title small,
-  .timeline-heading small,
-  .panel-state,
-  .legacy-note,
-  .older-count {
-    color: var(--text-muted);
+  .history-disclosure > summary::-webkit-details-marker {
+    display: none;
   }
 
-  .latest-update,
-  .timeline-section {
-    border-top: 1px solid var(--border);
-    margin: 0 16px;
-    padding: 16px 0;
+  .history-disclosure > summary:hover,
+  .history-disclosure[open] > summary {
+    color: var(--text-primary);
   }
 
-  .update-meta,
-  .update-title,
+  .history-disclosure > summary:focus-visible {
+    border-radius: var(--radius-sm);
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .history-disclosure > summary small {
+    display: grid;
+    place-items: center;
+    min-width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .history-content {
+    position: absolute;
+    top: calc(100% + 9px);
+    right: 0;
+    width: min(460px, calc(100vw - 48px));
+    max-height: min(460px, 65vh);
+    overflow-y: auto;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-md);
+    padding: 14px;
+    color: var(--text-primary);
+  }
+
+  .history-title {
+    color: var(--text-primary);
+    font-size: var(--text-xs);
+  }
+
+  .timeline {
+    display: grid;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .timeline li {
+    display: grid;
+    grid-template-columns: 11px minmax(0, 1fr);
+    gap: 9px;
+    position: relative;
+    padding-bottom: 12px;
+  }
+
+  .timeline li:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: var(--accent-border);
+  }
+
+  .timeline-marker {
+    width: 8px;
+    height: 8px;
+    margin-top: 4px;
+    border: 2px solid var(--accent-soft);
+    border-radius: 50%;
+    background: var(--text-muted);
+    box-shadow: 0 0 0 1px var(--accent-border);
+    z-index: 1;
+  }
+
   .timeline-heading {
     display: flex;
     align-items: baseline;
@@ -161,148 +180,42 @@
     gap: 12px;
   }
 
-  .confidence {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 700;
-    text-transform: capitalize;
-  }
-
-  .update-title {
-    margin-top: 6px;
-  }
-
-  .update-title strong {
-    font-size: var(--text-base);
-  }
-
-  .change-summary,
-  .approach,
-  .timeline p {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    line-height: 1.55;
-  }
-
-  .change-summary {
-    margin-top: 8px;
-    color: var(--text-primary);
-  }
-
-  .approach {
-    margin-top: 5px;
-  }
-
-  .plan-summary {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-top: 14px;
-    border-block: 1px solid var(--border);
-  }
-
-  .plan-summary div {
-    min-width: 0;
-    padding: 10px 12px 10px 0;
-  }
-
-  .plan-summary div + div {
-    border-left: 1px solid var(--border);
-    padding-left: 12px;
-  }
-
-  .plan-summary dt {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .plan-summary dd {
-    margin: 3px 0 0;
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-    font-weight: 800;
-  }
-
-  .timeline-section h3 {
-    font-size: var(--text-sm);
-  }
-
-  .timeline {
-    display: grid;
-    gap: 0;
-    margin: 12px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .timeline li {
-    display: grid;
-    grid-template-columns: 12px minmax(0, 1fr);
-    gap: 10px;
-    position: relative;
-    padding: 0 0 14px;
-  }
-
-  .timeline li:not(:last-child)::before {
-    content: "";
-    position: absolute;
-    top: 9px;
-    bottom: -1px;
-    left: 4px;
-    width: 1px;
-    background: var(--border);
-  }
-
-  .timeline-marker {
-    width: 9px;
-    height: 9px;
-    margin-top: 5px;
-    border: 2px solid var(--surface);
-    border-radius: 50%;
-    background: var(--text-muted);
-    box-shadow: 0 0 0 1px var(--border-strong);
-    z-index: 1;
-  }
-
   .timeline-heading strong {
+    color: var(--text-primary);
     font-size: var(--text-xs);
   }
 
-  .timeline p {
-    margin-top: 3px;
-  }
-
-  .panel-state,
-  .panel-callout,
-  .legacy-note,
+  .timeline-heading small,
+  .timeline p,
+  .history-state,
   .older-count {
-    margin: 0 16px 16px;
+    color: var(--text-muted);
     font-size: var(--text-xs);
     line-height: 1.5;
   }
 
-  @media (max-width: 640px) {
-    summary,
-    .update-meta,
-    .update-title,
+  .timeline p {
+    margin-top: 2px;
+  }
+
+  .history-state,
+  .older-count {
+    margin: 0;
+  }
+
+  .history-error {
+    color: var(--warning);
+  }
+
+  @media (max-width: 560px) {
+    .history-content {
+      width: min(330px, calc(100vw - 48px));
+    }
+
     .timeline-heading {
       align-items: flex-start;
       flex-direction: column;
-      gap: 4px;
-    }
-
-    .plan-summary {
-      grid-template-columns: 1fr;
-    }
-
-    .plan-summary div {
-      padding: 9px 0;
-    }
-
-    .plan-summary div + div {
-      border-top: 1px solid var(--border);
-      border-left: 0;
-      padding-left: 0;
+      gap: 2px;
     }
   }
 </style>

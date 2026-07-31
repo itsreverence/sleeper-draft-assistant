@@ -23,7 +23,6 @@
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
   import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
-  import DecisionHistoryPanel from "./lib/components/DecisionHistoryPanel.svelte";
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
@@ -1675,6 +1674,9 @@
                 aiStrategyEnabled={aiDraftStrategyEnabled}
                 shouldRequestAiStrategy={shouldRequestAiStrategy}
                 strategyRequestKey={JSON.stringify(playerPreferences)}
+                strategyHistory={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
+                isLoadingStrategyHistory={isLoadingDecisionHistory}
+                strategyHistoryError={decisionHistoryError}
                 onRequestAiStrategy={requestAiDraftStrategy}
                 onAskAboutCandidate={askAboutCandidate}
                 playerPreferences={playerPreferences}
@@ -1694,13 +1696,6 @@
                 {draftState}
                 {recommendation}
               />
-              {#if aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
-                <DecisionHistoryPanel
-                  snapshots={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
-                  isLoading={isLoadingDecisionHistory}
-                  error={decisionHistoryError}
-                />
-              {/if}
             {:else}
               <RosterPanel state={draftState} />
               <PickFeedPanel state={draftState} />

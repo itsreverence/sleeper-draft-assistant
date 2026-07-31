@@ -1,8 +1,9 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
+  import DecisionHistoryPanel from "./DecisionHistoryPanel.svelte";
   import { currentAiDraftStrategy } from "../ai-panel";
-  import type { AiDraftStrategyPayload, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import type { AiDraftStrategyPayload, DecisionSnapshot, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
     showPlaceholderWarning = false,
@@ -16,6 +17,9 @@
     aiStrategyEnabled = false,
     shouldRequestAiStrategy = false,
     strategyRequestKey = "",
+    strategyHistory = [],
+    isLoadingStrategyHistory = false,
+    strategyHistoryError = "",
     onAskAboutCandidate,
     onRequestAiStrategy,
   }: {
@@ -30,6 +34,9 @@
     aiStrategyEnabled?: boolean;
     shouldRequestAiStrategy?: boolean;
     strategyRequestKey?: string;
+    strategyHistory?: DecisionSnapshot[];
+    isLoadingStrategyHistory?: boolean;
+    strategyHistoryError?: string;
     onAskAboutCandidate?: (playerName: string, recommendedPlayerName: string) => void;
     onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
   } = $props();
@@ -180,7 +187,14 @@
       <div class="draft-plan">
         <div class="draft-plan-heading">
           <strong>Living draft plan</strong>
-          <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
+          <div class="plan-meta">
+            <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
+            <DecisionHistoryPanel
+              snapshots={strategyHistory}
+              isLoading={isLoadingStrategyHistory}
+              error={strategyHistoryError}
+            />
+          </div>
         </div>
         <p class="plan-change">{currentAiStrategy.decision.plan.changeSummary}</p>
         <div class="plan-priorities">
@@ -435,7 +449,10 @@
     padding-top: 11px;
   }
 
-  .draft-plan-heading > span {
+  .plan-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 700;
@@ -551,6 +568,12 @@
   }
 
   @media (max-width: 680px) {
+    .draft-plan-heading {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+    }
+
     .plan-priorities {
       grid-template-columns: 1fr;
     }
