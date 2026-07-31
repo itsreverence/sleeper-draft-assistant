@@ -1,6 +1,6 @@
 {
   "name": "@sleeper-draft-assistant/desktop",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "private": true,
   "main": "src/main.cjs",
   "description": "Unofficial, local-first fantasy football draft and team-management assistant for Sleeper.",
