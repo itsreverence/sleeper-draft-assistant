@@ -1461,8 +1461,9 @@
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
+  const hasStartedConnecting = $derived(Boolean(connectPayload || draftState));
   const showSetupChecklist = $derived(
-    !draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft"),
+    hasStartedConnecting && (!draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft")),
   );
   const draftDataSettingsStatus = $derived(
     rankingsStale
@@ -1520,6 +1521,7 @@
     {status}
     {lastEvent}
     connected={Boolean(draftState)}
+    showStatus={hasStartedConnecting}
     showChangeDraft={Boolean(draftState)}
     connectEditorOpen={connectExpanded}
     onChangeDraft={() => (connectExpanded = !connectExpanded)}
