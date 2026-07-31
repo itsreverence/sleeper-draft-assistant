@@ -1,12 +1,14 @@
 import { serve } from "@hono/node-server";
 import {
   advanceMockDraftState,
+  buildDraftOptionForPlayer,
   buildDraftRecommendation,
   buildTeamDataReadiness,
   buildTeamLineupSummary,
   buildTeamNeedsSummary,
   buildTeamWaiverSummary,
   createMockDraftState,
+  isDraftChoiceRosterFeasible,
   type DraftRecommendationOptions,
 } from "@sleeper-draft-assistant/engine";
 import { Hono } from "hono";
@@ -15,11 +17,14 @@ import { cors } from "hono/cors";
 
 import { AdpImportRequestSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
-import { buildDraftAiContext } from "./ai/context";
+import { buildDraftQuestionContext, buildDraftStrategyContext } from "./ai/context";
+import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
+import { DraftPlanStore } from "./draft-plan-store";
+import { draftPollDelayMs } from "./draft-refresh";
 import { createEventStreamChannel } from "./event-stream";
-import { createAiProvider } from "./ai/provider-factory";
+import { AiProviderManager } from "./ai/provider-factory";
 import { applyImportedPlayerValues, importFantasyProsCsv, isDraftRankingImportCompatible, RankingImportStore } from "./rankings-import";
 import { AdpImportStore, SeasonProjectionImportStore, applyAdpValue, applySeasonProjectionValue, importFantasyProsAdpCsv, importFantasyProsSeasonProjectionCsvs } from "./draft-value-import";
 import { RosRankingImportStore, applyRosRankingsToPlayers, applyRosRankingsToTeamState, importFantasyProsRosRankings, isRosRankingImportActive, isRosScoringCompatible, normalizeScoringFormat } from "./ros-rankings-import";
@@ -44,7 +49,9 @@ const adpImportStore = new AdpImportStore(undefined, appDatabase);
 const rosRankingImportStore = new RosRankingImportStore(undefined, appDatabase);
 const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
+const draftPlanStore = new DraftPlanStore(appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
+const aiProviderManager = new AiProviderManager();
 let mockState = createMockDraftState(8);
 
 type DraftPayload = {
@@ -126,6 +133,8 @@ app.delete("/data/:category", async (c) => {
       deleted = weeklyProjectionImportStore.clearAll();
     } else if (category === "decision-history") {
       deleted = decisionLogStore.clearAll();
+    } else if (category === "draft-plans") {
+      deleted = draftPlanStore.clearAll();
     } else {
       return c.json({ error: "Unknown local data category." }, 404);
     }
@@ -148,6 +157,7 @@ app.post("/data/reset", async (c) => {
     rosRankingImportStore.clearAll();
     weeklyProjectionImportStore.clearAll();
     decisionLogStore.clearAll();
+    draftPlanStore.clearAll();
     const settings = settingsStore.reset();
     return c.json({ settings, inventory: buildStorageInventory(appDatabase) });
   } catch (error) {
@@ -166,7 +176,7 @@ app.put("/settings", async (c) => {
   }
 });
 
-app.get("/ai/status", (c) => c.json(createAiProvider(settingsStore.get()).status()));
+app.get("/ai/status", (c) => c.json(aiProviderManager.get(settingsStore.get()).status()));
 
 app.get("/drafts/mock/state", (c) => {
   return c.json(toDraftPayload(applyDraftData("mock-draft", mockState), "mock-draft"));
@@ -249,7 +259,7 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
     const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
     const availableWithRos = applyRosRankingsToPlayers(rankedAvailablePlayers, activeRosImport);
     const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
-    const aiProvider = createAiProvider(settingsStore.get());
+    const aiProvider = aiProviderManager.get(settingsStore.get());
     const waiverSummary = buildTeamWaiverSummary(projectedState, projectedAvailablePlayers);
     const lineupSummary = buildTeamLineupSummary(projectedState);
     const dataReadiness = buildTeamDataReadiness(projectedState, weeklyImport?.summary ?? null);
@@ -460,7 +470,7 @@ app.delete("/leagues/:leagueId/projections/weekly", async (c) => {
 });
 app.get("/drafts/:draftId/state", async (c) => {
   try {
-    const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
+    const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c), c.req.query("userIdentifier"));
     const draftId = c.req.param("draftId");
     return c.json(toDraftPayload(state, draftId, { recordTrigger: "state-load", userRosterId: getUserRosterId(c) }));
   } catch (error) {
@@ -600,6 +610,115 @@ app.post("/drafts/:draftId/recommendations", async (c) => {
   }
 });
 
+app.post("/drafts/:draftId/strategy", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = await c.req
+      .json<{
+        userPreferences?: { pinned?: string[]; faded?: string[]; excluded?: string[] };
+        recommendationPreferences?: DraftRecommendationOptions["preferences"];
+      }>()
+      .catch(() => ({ userPreferences: undefined, recommendationPreferences: undefined }));
+    const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
+    const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
+    const snapshot = createDraftPlayerSnapshot(state, {
+      pinned: recommendationPreferences?.pinnedPlayerIds ?? [],
+      faded: recommendationPreferences?.fadedPlayerIds ?? [],
+      excluded: recommendationPreferences?.excludedPlayerIds ?? [],
+    });
+    if (snapshot.players.every((player) => snapshot.preferences.excluded.has(player.id))) {
+      return c.json({ error: "No available players can be evaluated for this pick." }, 409);
+    }
+    const tools = createDraftStrategyTools(snapshot);
+    const provider = aiProviderManager.get(settingsStore.get());
+    const providerStatus = provider.status();
+    const storedPlan = draftPlanStore.get(draftId, state.userTeamId, providerStatus.id);
+    const previousPlan = storedPlan && storedPlan.updatedAtPick <= state.currentPick ? storedPlan : null;
+    const strategy = await provider.strategizeDraft(
+      buildDraftStrategyContext(
+        state,
+        normalizeUserPreferences(body.userPreferences),
+        snapshot,
+        previousPlan,
+      ),
+      tools,
+    );
+    const latestState = await loadDraftState(draftId, getUserRosterId(c));
+    if (latestState.currentPick !== state.currentPick) {
+      return c.json({ error: "The draft board changed while AI strategy was running. Refreshing the recommendation." }, 409);
+    }
+    const availableIds = new Set(
+      snapshot.players
+        .filter((player) => !snapshot.preferences.excluded.has(player.id))
+        .map((player) => player.id),
+    );
+    const recommendedCandidate = availableIds.has(strategy.decision.recommendedPlayerId)
+      ? buildDraftOptionForPlayer(state, strategy.decision.recommendedPlayerId, { preferences: recommendationPreferences })
+      : null;
+    if (
+      strategy.decision.basedOnPick !== state.currentPick ||
+      strategy.decision.plan.updatedAtPick !== state.currentPick ||
+      !recommendedCandidate ||
+      !isDraftChoiceRosterFeasible(state, recommendedCandidate.player.id)
+    ) {
+      return c.json({ error: "The AI strategy did not match the current draft board." }, 502);
+    }
+    const alternativeCandidates = Array.from(new Set(strategy.decision.alternativePlayerIds))
+      .filter((playerId) => playerId !== recommendedCandidate.player.id)
+      .filter((playerId) => availableIds.has(playerId) && isDraftChoiceRosterFeasible(state, playerId))
+      .map((playerId) => buildDraftOptionForPlayer(state, playerId, { preferences: recommendationPreferences }))
+      .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+      .slice(0, 4);
+    const currentPickFocus = Array.from(new Set([
+      recommendedCandidate.player.position,
+      ...strategy.decision.plan.currentPickFocus,
+    ])).slice(0, 3);
+    const decision = {
+      ...strategy.decision,
+      headline: `Take ${recommendedCandidate.player.name}`,
+      alternativePlayerIds: alternativeCandidates.map((candidate) => candidate.player.id),
+      plan: {
+        ...strategy.decision.plan,
+        currentPickFocus,
+        positionsThatCanWait: strategy.decision.plan.positionsThatCanWait.filter(
+          (position) => !currentPickFocus.includes(position),
+        ),
+      },
+    };
+    if (strategy.provider.id !== "noop") {
+      draftPlanStore.set(draftId, state.userTeamId, strategy.provider.id, decision.plan);
+    }
+
+    decisionLogStore.record({
+      draftId,
+      state,
+      recommendation: {
+        ...recommendation,
+        headline: decision.headline,
+        recommendedPlayerId: recommendedCandidate.player.id,
+        confidence: decision.confidence,
+        summary: decision.summary,
+        risks: decision.risks,
+        candidates: [recommendedCandidate, ...alternativeCandidates],
+      },
+      aiStrategy: decision,
+      trigger: "ai-strategy",
+      userRosterId: getUserRosterId(c),
+    });
+
+    return c.json({
+      provider: strategy.provider,
+      pickNumber: state.currentPick,
+      decision,
+      recommendedCandidate,
+      alternativeCandidates,
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
 app.post("/drafts/:draftId/ask", async (c) => {
   try {
     const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
@@ -613,16 +732,84 @@ app.post("/drafts/:draftId/ask", async (c) => {
     const conversationHistory = normalizeConversationHistory(body.conversationHistory);
     const userPreferences = normalizeUserPreferences(body.userPreferences);
     const draftId = c.req.param("draftId");
-    const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+    const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
+    const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
+    const snapshot = createDraftPlayerSnapshot(state, {
+      pinned: recommendationPreferences?.pinnedPlayerIds ?? userPreferences.pinned,
+      faded: recommendationPreferences?.fadedPlayerIds ?? userPreferences.faded,
+      excluded: recommendationPreferences?.excludedPlayerIds ?? userPreferences.excluded,
+    });
     decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
-    const aiProvider = createAiProvider(settingsStore.get());
-    const aiAnswer = await aiProvider.answerDraftQuestion(buildDraftAiContext(state, recommendation, question, conversationHistory, userPreferences));
+    const aiProvider = aiProviderManager.get(settingsStore.get());
+    const aiAnswer = await aiProvider.answerDraftQuestion(
+      buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot),
+      createDraftStrategyTools(snapshot),
+    );
 
     return c.json({
       provider: aiAnswer.provider,
       question,
       answer: aiAnswer.answer,
       recommendation,
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const playerId = c.req.param("playerId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = (await c.req
+      .json<{ recommendationPreferences?: DraftRecommendationOptions["preferences"] }>()
+      .catch(() => ({}))) as { recommendationPreferences?: DraftRecommendationOptions["preferences"] };
+    const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
+    const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
+    const userPreferences = {
+      pinned: recommendationPreferences?.pinnedPlayerIds ?? [],
+      faded: recommendationPreferences?.fadedPlayerIds ?? [],
+      excluded: recommendationPreferences?.excludedPlayerIds ?? [],
+    };
+    const snapshot = createDraftPlayerSnapshot(state, userPreferences);
+    const candidate = snapshot.players.find(
+      (player) => player.id === playerId && !snapshot.preferences.excluded.has(player.id),
+    );
+    if (!candidate) {
+      return c.json({ error: "That player is no longer available for this draft pick." }, 409);
+    }
+
+    decisionLogStore.record({
+      draftId,
+      state,
+      recommendation,
+      trigger: "candidate-evaluation",
+      userRosterId: getUserRosterId(c),
+    });
+    const question = [
+      `Evaluate drafting ${candidate.name} (${candidate.position}, ${candidate.team}) at pick ${state.currentPick}.`,
+      "Give a direct verdict using Prefer, Reasonable, or Avoid.",
+      "Then provide 2-4 concise reasons, search for the strongest credible alternative, and give the next two positional priorities if this player is selected.",
+      "Reason independently from the roster, board, settings, and raw player evidence; identify important data limitations.",
+      "Do not claim access to news or information outside the supplied draft context.",
+    ].join(" ");
+    const aiProvider = aiProviderManager.get(settingsStore.get());
+    const aiAnswer = await aiProvider.answerDraftQuestion(
+      buildDraftQuestionContext(state, question, [], userPreferences, snapshot, [playerId]),
+      createDraftStrategyTools(snapshot),
+    );
+    const latestState = await loadDraftState(draftId, getUserRosterId(c));
+    if (latestState.currentPick !== state.currentPick) {
+      return c.json({ error: "The draft board changed while AI evaluation was running. Refreshing the recommendation." }, 409);
+    }
+
+    return c.json({
+      provider: aiAnswer.provider,
+      playerId,
+      playerName: candidate.name,
+      pickNumber: state.currentPick,
+      answer: aiAnswer.answer,
     });
   } catch (error) {
     return handleRouteError(c, error);
@@ -649,12 +836,16 @@ app.get("/drafts/:draftId/events", async (c) => {
   }
 });
 
-async function loadDraftState(draftId: string, userRosterId?: string | null): Promise<DraftState> {
+async function loadDraftState(
+  draftId: string,
+  userRosterId?: string | null,
+  userIdentifier?: string | null,
+): Promise<DraftState> {
   if (isMockDraft(draftId)) {
     return applyDraftData(draftId, mockState);
   }
 
-  const state = await sleeperClient.getDraftState(draftId, userRosterId);
+  const state = await sleeperClient.getDraftState(draftId, userRosterId, userIdentifier);
   return applyDraftData(draftId, state);
 }
 
@@ -940,7 +1131,8 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
   let localState = await loadDraftState(draftId, userRosterId);
   let lastPickCount = localState.picks.length;
   let consecutiveFailures = 0;
-  let interval: ReturnType<typeof setInterval> | undefined;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let cancelled = false;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -949,52 +1141,74 @@ async function streamSleeperDraftEvents(draftId: string, userRosterId: string | 
         ...toDraftPayload(localState, draftId),
       });
 
-      interval = setInterval(() => {
-        void refresh(controller);
-      }, 5000);
+      scheduleRefresh(controller);
     },
     cancel() {
+      cancelled = true;
       channel.close();
-      if (interval) {
-        clearInterval(interval);
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
       }
     },
   });
 
   return createEventStreamResponse(stream);
 
+  function scheduleRefresh(
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    delay = draftPollDelayMs(consecutiveFailures, localState.status),
+  ) {
+    if (cancelled) {
+      return;
+    }
+    refreshTimer = setTimeout(() => {
+      void refresh(controller);
+    }, delay);
+  }
+
   async function refresh(controller: ReadableStreamDefaultController<Uint8Array>) {
+    let sent = false;
     try {
-      const nextState = await loadDraftState(draftId, userRosterId);
+      const picks = await sleeperClient.getDraftPicks(draftId);
       consecutiveFailures = 0;
       const previousPickCount = lastPickCount;
-      localState = nextState;
-      lastPickCount = nextState.picks.length;
 
-      if (nextState.picks.length > previousPickCount) {
-        channel.send(controller, "pick", {
+      if (picks.length !== previousPickCount) {
+        const nextState = await loadDraftState(draftId, userRosterId);
+        localState = nextState;
+        lastPickCount = nextState.picks.length;
+        sent = channel.send(controller, "pick", {
           type: "pick",
           pick: nextState.picks[nextState.picks.length - 1],
           ...toDraftPayload(nextState, draftId, { recordTrigger: "pick-update", userRosterId }),
         });
-        return;
+      } else {
+        sent = channel.send(controller, "heartbeat", {
+          type: "heartbeat",
+          at: new Date().toISOString(),
+        });
       }
-
-      channel.send(controller, "heartbeat", {
-        type: "heartbeat",
-        at: new Date().toISOString(),
-      });
     } catch (error) {
       consecutiveFailures += 1;
-      const message = error instanceof Error ? error.message : "Sleeper polling failed.";
-      channel.send(controller, "stream-error", {
+      logRouteErrorMessage("draft event refresh", error);
+      sent = channel.send(controller, "stream-error", {
         type: "stream-error",
         at: new Date().toISOString(),
-        message,
+        message: "Sleeper is temporarily unavailable. Automatic retry will continue.",
         consecutiveFailures,
+        nextRetryMs: draftPollDelayMs(consecutiveFailures, localState.status),
       });
+    } finally {
+      if (sent) {
+        scheduleRefresh(controller);
+      }
     }
   }
+}
+
+function logRouteErrorMessage(context: string, error: unknown) {
+  const message = redactErrorMessage(error instanceof Error ? error.message : String(error));
+  console.error(`[api] ${context} failed: ${message}`);
 }
 
 function createEventStreamResponse(stream: ReadableStream<Uint8Array>): Response {
@@ -1008,6 +1222,13 @@ function createEventStreamResponse(stream: ReadableStream<Uint8Array>): Response
 }
 
 if (process.env.NODE_ENV !== "test") {
+  const shutdown = () => {
+    aiProviderManager.close();
+    process.exit(0);
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+
   serve(
     {
       fetch: app.fetch,

@@ -61,6 +61,8 @@ describe("local data management", () => {
       codexBin: "C:\\Users\\private\\bin\\codex.exe",
       codexModel: "gpt-5.4",
       codexTimeoutMs: 60000,
+      automaticAiAudit: "off",
+      aiSetupAcknowledged: true,
     };
 
     const report = buildRedactedSupportReport({

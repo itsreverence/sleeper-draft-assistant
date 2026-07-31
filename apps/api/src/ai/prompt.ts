@@ -1,38 +1,63 @@
-import type { DraftAiContext, TeamAiContext } from "./types";
+import type { DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 
 export function buildDraftManagerInstructions(): string {
   return [
-    "You are an AI fantasy football draft manager for a Sleeper draft room.",
-    "Use only the provided structured draft context and conversation history. Do not invent player projections, injuries, news, depth chart facts, or provider/auth status.",
-    "The deterministic recommendation engine is an important signal. Use draftBrief first, then recommendation.candidates[].reasons and rosterConstruction.pressureSignals as the grounding source for tradeoffs.",
-    "If player values use Sleeper placeholder ranks, say they are placeholder ranks. If imported rankings are present, call them imported rankings or tiers, not projections.",
-    "Never say the AI provider is disconnected unless the user explicitly provides an error stating that.",
-    "Respect userPreferences: pinned players are preferred targets, faded players require extra justification, and excluded players should not be recommended unless the user asks about them directly.",
-    "When draftBrief says roster need conflicts with the engine lean, explain the conflict plainly instead of forcing agreement.",
-    "Keep answers concise and actionable for a live draft clock.",
+    "Answer as an independent fantasy football draft manager using the current Sleeper draft snapshot.",
+    "The evidence groups are separate raw signals, not a composite recommendation.",
+    "Respect player preferences and never recommend an unavailable or excluded player.",
   ].join(" ");
 }
 
-export function buildDraftManagerPrompt(context: DraftAiContext): string {
+export function buildDraftManagerPrompt(context: DraftQuestionContext): string {
   return [
+    buildDraftManagerInstructions(),
+    "",
     `User question: ${context.question}`,
     "",
-    "Answer format:",
-    "- Direct answer: one clear recommendation for the user's question.",
-    "- Why: 2-4 bullets grounded in draftBrief.primaryDecisionGuidance, draftBrief.rosterPressure, candidate reasons, and data quality.",
-    "- Alternatives: mention the best 1-3 alternatives only when useful.",
-    "- Risk/constraint: one short caveat if data quality, return probability, or roster construction matters.",
+    "Lead with the answer. Include the evidence needed to support it, a useful alternative when one exists, and any material data limitation. Keep it usable during a live pick clock.",
+    "Use focusPlayers for specific-player questions and conversationHistory only to resolve follow-up wording. Use search_available_players when a material alternative is missing from the supplied evidence.",
+    "Do not endorse a choice that makes completing required starter slots mathematically impossible.",
     "",
-    "Decision guidance:",
-    "- For roster-need questions, prioritize draftBrief.primaryDecisionGuidance, rosterConstruction.primaryNeeds, rosterConstruction.pressureSignals, and FLEX pressure before blindly repeating the top engine candidate.",
-    "- For pick-now questions, start from draftBrief.engineLean and recommendation.candidates[0], cite candidate reasons, then explain any roster-construction or user-preference reason to deviate.",
-    "- Use conversationHistory only to resolve follow-ups like why, compare him, or what about that player; current draft context is the source of truth.",
-    "- Do not call imported FantasyPros rankings projections unless the context says projections were imported.",
+    "Neutral draft evidence JSON:",
+    JSON.stringify(context, null, 2),
+  ].join("\n");
+}
+
+export function buildDraftStrategyPrompt(context: DraftStrategyContext): string {
+  return [
+    "Choose the best available player for the user's roster at the current pick.",
+    "Reason independently from the current Sleeper draft snapshot. The evidence groups are separate raw signals, not a composite recommendation.",
+    "Use search_available_players when the supplied evidence does not cover a material position, tier, or named alternative.",
+    "The decision must preserve a feasible path to completing required starter slots and respect player preferences.",
+    "Return a complete living draft plan with every decision. Treat previousPlan as the prior model strategy, not as authoritative evidence. Revise it from the current board and explain the most material change in changeSummary. When previousPlan is null, establish the initial plan.",
+    "currentPickFocus must include the recommended player's position. Do not put a current-pick focus position in positionsThatCanWait.",
+    "Keep the explanation concise enough for a live pick clock.",
     "",
-    "Draft brief contract JSON:",
-    JSON.stringify(context.draftBrief, null, 2),
+    "Return JSON only, with no markdown fence or surrounding prose.",
+    "Required JSON shape:",
+    JSON.stringify({
+      basedOnPick: context.draft.currentPick,
+      recommendedPlayerId: "candidate playerId",
+      alternativePlayerIds: ["up to four candidate playerIds"],
+      verdict: "strong | reasonable | avoid",
+      confidence: "high | medium | low",
+      headline: "short recommendation headline",
+      summary: "concise explanation for the live pick clock",
+      reasons: ["1-5 grounded reasons"],
+      risks: ["0-4 grounded risks"],
+      plan: {
+        updatedAtPick: context.draft.currentPick,
+        approach: "current roster-building approach",
+        currentPickFocus: ["up to three of QB, RB, WR, TE, K, DEF"],
+        nextTurnPriorities: ["up to three of QB, RB, WR, TE, K, DEF"],
+        positionsThatCanWait: ["zero or more of QB, RB, WR, TE, K, DEF"],
+        rosterGoals: ["1-5 concrete roster construction goals"],
+        watchItems: ["0-5 board developments or tier risks to monitor"],
+        changeSummary: "what changed from previousPlan, or why this is the initial plan",
+      },
+    }, null, 2),
     "",
-    "Full draft context JSON:",
+    "Draft context JSON:",
     JSON.stringify(context, null, 2),
   ].join("\n");
 }

@@ -1,6 +1,8 @@
 import type {
   AdpImportSummary,
   AppSettings,
+  AiDraftDecision,
+  DraftOption,
   DraftRecommendation,
   DraftState,
   RankingImportSummary,
@@ -22,6 +24,22 @@ type AskPayload = {
   answer: string;
   recommendation: DraftRecommendation;
   provider: { id: string; label: string; configured: boolean };
+};
+
+type CandidateEvaluationPayload = {
+  answer: string;
+  playerId: string;
+  playerName: string;
+  pickNumber: number;
+  provider: { id: string };
+};
+
+type StrategyPayload = {
+  provider: { id: string };
+  pickNumber: number;
+  decision: AiDraftDecision;
+  recommendedCandidate: DraftOption;
+  alternativeCandidates: DraftOption[];
 };
 
 const fantasyProsCsv = `"RK",TIERS,"PLAYER NAME",TEAM,"POS","BYE WEEK","UPSIDE ","BUST ","SOS SEASON","ECR VS. ADP"
@@ -116,7 +134,7 @@ describe("draft recommendation routes", () => {
       expect(importedStateResponse.status).toBe(200);
       const importedPayload = (await importedStateResponse.json()) as DraftPayload;
       expect(importedPayload.rankingImportSummary?.matched).toBe(3);
-      expect(importedPayload.recommendation.candidates[0]?.reasons[0]).toContain("FantasyPros rank");
+      expect(importedPayload.recommendation.candidates[0]?.evidence[0]).toContain("ECR rank");
 
       const projectionResponse = await app.request("/drafts/mock-draft/projections/season/import", {
         method: "POST",
@@ -182,17 +200,89 @@ describe("draft recommendation routes", () => {
       expect(askResponse.status).toBe(200);
       const askPayload = (await askResponse.json()) as AskPayload;
       expect(askPayload.provider.id).toBe("noop");
-      expect(askPayload.answer).toContain("deterministic draft context");
+      expect(askPayload.answer).toContain("neutral draft evidence");
       expect(askPayload.recommendation.recommendedPlayerId).not.toBe(excludedId);
       expect(askPayload.recommendation.candidates.some((candidate) => candidate.player.id === excludedId)).toBe(false);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("Excluded players hidden"))).toBe(true);
       expect(askPayload.recommendation.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
 
+      const strategyResponse = await app.request("/drafts/mock-draft/strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recommendationPreferences: {
+            excludedPlayerIds: excludedId ? [excludedId] : [],
+            fadedPlayerIds: fadedId ? [fadedId] : [],
+          },
+        }),
+      });
+      expect(strategyResponse.status).toBe(200);
+      const strategy = (await strategyResponse.json()) as StrategyPayload;
+      expect(strategy.provider.id).toBe("noop");
+      expect(strategy.decision.basedOnPick).toBe(strategy.pickNumber);
+      expect(strategy.decision.recommendedPlayerId).toBe(strategy.recommendedCandidate.player.id);
+      expect(strategy.decision.headline).toBe(`Take ${strategy.recommendedCandidate.player.name}`);
+      expect(strategy.recommendedCandidate.player.id).not.toBe(excludedId);
+      expect(strategy.alternativeCandidates.every((candidate) =>
+        strategy.decision.alternativePlayerIds.includes(candidate.player.id)
+      )).toBe(true);
+
+      const recommendationIds = new Set(askPayload.recommendation.candidates.map((candidate) => candidate.player.id));
+      const pickedIds = new Set(draftDataReload.state.picks.map((pick) => pick.playerId));
+      const evaluationPlayer = draftDataReload.state.players.find(
+        (player) =>
+          !pickedIds.has(player.id) &&
+          !recommendationIds.has(player.id) &&
+          player.id !== excludedId,
+      );
+      expect(evaluationPlayer).toBeTruthy();
+      const evaluationResponse = await app.request(
+        `/drafts/mock-draft/candidates/${evaluationPlayer!.id}/evaluate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recommendationPreferences: {
+              excludedPlayerIds: excludedId ? [excludedId] : [],
+              fadedPlayerIds: fadedId ? [fadedId] : [],
+            },
+          }),
+        },
+      );
+      expect(evaluationResponse.status).toBe(200);
+      const evaluation = (await evaluationResponse.json()) as CandidateEvaluationPayload;
+      expect(evaluation).toMatchObject({
+        playerId: evaluationPlayer!.id,
+        playerName: evaluationPlayer!.name,
+        pickNumber: expect.any(Number),
+        provider: { id: "noop" },
+      });
+      expect(evaluation.answer).toContain("neutral draft evidence");
+
+      const unavailableEvaluation = await app.request("/drafts/mock-draft/candidates/not-available/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(unavailableEvaluation.status).toBe(409);
+      expect(await unavailableEvaluation.json()).toEqual({
+        error: "That player is no longer available for this draft pick.",
+      });
+
       const decisionResponse = await app.request("/drafts/mock-draft/decisions?limit=10");
       expect(decisionResponse.status).toBe(200);
-      const decisions = (await decisionResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
+      const decisions = (await decisionResponse.json()) as {
+        snapshots: Array<{
+          trigger: string;
+          recommendedPlayerId: string | null;
+          aiStrategy?: { plan?: { changeSummary?: string } };
+        }>;
+      };
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-strategy")).toBe(true);
+      expect(decisions.snapshots.find((snapshot) => snapshot.trigger === "ai-strategy")?.aiStrategy?.plan?.changeSummary).toBeTruthy();
+      expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "candidate-evaluation")).toBe(true);
     } finally {
       await app.request("/drafts/mock-draft/rankings/import", { method: "DELETE" });
       await app.request("/drafts/mock-draft/projections/season/import", { method: "DELETE" });

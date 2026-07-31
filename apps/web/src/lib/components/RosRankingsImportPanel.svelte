@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DraftScoringFormat, RosRankingImportSummary } from "../types";
   import { formatImportDate } from "../format";
+  import { getImportFreshness } from "../freshness";
   import Icon from "./Icon.svelte";
 
   let {
@@ -40,6 +41,7 @@
 
   const sourceCount = $derived(Number(Boolean(summary)) + Number(weeklyLoaded));
   const mismatch = $derived(Boolean(summary && leagueSeason && summary.season !== leagueSeason));
+  const freshness = $derived(summary ? getImportFreshness(summary.appliedAt, 7) : null);
 
   async function readFile(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -108,8 +110,9 @@
   </button>
 
   {#if summary}
-    <p class="import-status">
+    <p class="import-status" class:stale={freshness?.stale}>
       {summary.matched}/{summary.rowsParsed} matched, saved {formatImportDate(summary)}.
+      {freshness?.label}.
       {#if summary.unmatched.length > 0 || summary.ambiguous.length > 0}
         Review: {summary.unmatched.length} unmatched, {summary.ambiguous.length} ambiguous.
       {/if}
@@ -144,6 +147,9 @@
   .import-status {
     margin: 0;
     line-height: 1.55;
+  }
+  .import-status.stale {
+    color: var(--warning);
   }
   .control-grid {
     display: grid;

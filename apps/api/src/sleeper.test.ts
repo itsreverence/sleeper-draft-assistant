@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SleeperApiError, SleeperClient, normalizeSleeperActivitySummary, normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
+import { SleeperApiError, SleeperClient, getDraftUserTeamReference, normalizeSleeperActivitySummary, normalizeSleeperAvailablePlayers, normalizeSleeperDraftState, normalizeSleeperTeamManagerState, normalizeSleeperTeamWeekContext, type SleeperDraftStateInput } from "./sleeper";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -131,6 +131,13 @@ const fixture: SleeperDraftStateInput = {
 };
 
 describe("Sleeper draft normalization", () => {
+  it("resolves a connected user to their mock-draft slot", () => {
+    expect(getDraftUserTeamReference({
+      draft_id: "mock-draft",
+      draft_order: { "user-1": 5 },
+    }, "user-1")).toBe("slot-5");
+  });
+
   it("maps Sleeper draft, league, teams, picks, and players into DraftState", () => {
     const state = normalizeSleeperDraftState(fixture);
 
@@ -148,6 +155,15 @@ describe("Sleeper draft normalization", () => {
     expect(state.picks[2]).toMatchObject({ pickNo: 3, round: 1, draftSlot: 3, teamId: "roster-13" });
     expect(state.players.map((player) => player.id)).toEqual(["p1", "p2", "p3", "p4"]);
     expect(state.players.find((player) => player.id === "p2")?.riskTags).toEqual(["injury: Questionable"]);
+  });
+  it("uses an explicit draft-slot team reference instead of a same-numbered roster", () => {
+    const state = normalizeSleeperDraftState({
+      ...fixture,
+      userRosterId: "slot-3",
+    });
+
+    expect(state.userTeamId).toBe("roster-13");
+    expect(state.teams.find((team) => team.id === state.userTeamId)?.draftSlot).toBe(3);
   });
 
   it("normalizes half-PPR superflex as a supported format", () => {

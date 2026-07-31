@@ -18,6 +18,7 @@ describe("SettingsStore", () => {
       codexBin,
       codexModel: "gpt-5.4-test",
       codexTimeoutMs: 45000,
+      aiSetupAcknowledged: true,
     });
 
     const raw = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
@@ -29,6 +30,7 @@ describe("SettingsStore", () => {
       codexBin,
       codexModel: "gpt-5.4-test",
       codexTimeoutMs: 45000,
+      aiSetupAcknowledged: true,
     });
   });
 

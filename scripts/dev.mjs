@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -20,10 +20,11 @@ const processes = [
     shell: process.platform === "win32",
   });
 
-  child.on("exit", (code) => {
-    if (code && !shuttingDown) {
-      console.error(`[${name}] exited with code ${code}`);
-      shutdown(code);
+  child.on("exit", (code, signal) => {
+    if (!shuttingDown) {
+      const exitCode = code ?? 1;
+      console.error(`[${name}] exited${signal ? ` from ${signal}` : ` with code ${exitCode}`}`);
+      shutdown(exitCode);
     }
   });
 
@@ -33,10 +34,23 @@ const processes = [
 let shuttingDown = false;
 
 function shutdown(code = 0) {
+  if (shuttingDown) {
+    return;
+  }
+
   shuttingDown = true;
   for (const child of processes) {
-    if (!child.killed) {
-      child.kill();
+    if (!child.pid || child.exitCode !== null) {
+      continue;
+    }
+
+    if (process.platform === "win32") {
+      spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } else {
+      child.kill("SIGTERM");
     }
   }
   process.exit(code);

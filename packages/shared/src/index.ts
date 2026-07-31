@@ -66,6 +66,34 @@ export type RankingImportRequest = z.infer<typeof RankingImportRequestSchema>;
 
 export const AiProviderIdSchema = z.enum(["noop", "codex-app-server"]);
 export type AiProviderId = z.infer<typeof AiProviderIdSchema>;
+export const AutomaticAiAuditModeSchema = z.enum(["off", "on_turn", "on_deck"]);
+export type AutomaticAiAuditMode = z.infer<typeof AutomaticAiAuditModeSchema>;
+
+export const AiDraftPlanSchema = z.object({
+  updatedAtPick: z.number().int().positive(),
+  approach: z.string().min(1).max(400),
+  currentPickFocus: z.array(PositionSchema).max(3).default([]),
+  nextTurnPriorities: z.array(PositionSchema).max(3).default([]),
+  positionsThatCanWait: z.array(PositionSchema).max(6).default([]),
+  rosterGoals: z.array(z.string().min(1).max(200)).min(1).max(5),
+  watchItems: z.array(z.string().min(1).max(200)).max(5).default([]),
+  changeSummary: z.string().min(1).max(300),
+});
+export type AiDraftPlan = z.infer<typeof AiDraftPlanSchema>;
+
+export const AiDraftDecisionSchema = z.object({
+  basedOnPick: z.number().int().positive(),
+  recommendedPlayerId: z.string().min(1),
+  alternativePlayerIds: z.array(z.string().min(1)).max(4).default([]),
+  verdict: z.enum(["strong", "reasonable", "avoid"]),
+  confidence: z.enum(["high", "medium", "low"]),
+  headline: z.string().min(1).max(120),
+  summary: z.string().min(1).max(600),
+  reasons: z.array(z.string().min(1).max(240)).min(1).max(5),
+  risks: z.array(z.string().min(1).max(240)).max(4).default([]),
+  plan: AiDraftPlanSchema,
+});
+export type AiDraftDecision = z.infer<typeof AiDraftDecisionSchema>;
 
 export function isCodexExecutableReference(value: string): boolean {
   const executableName = value.trim().split(/[\\/]/).pop()?.toLowerCase();
@@ -79,6 +107,8 @@ export const AppSettingsSchema = z.object({
   }).default("codex"),
   codexModel: z.string().trim().min(1).default("gpt-5.4"),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
+  automaticAiAudit: AutomaticAiAuditModeSchema.default("off"),
+  aiSetupAcknowledged: z.boolean().default(false),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
@@ -519,23 +549,21 @@ export const TeamActivitySummarySchema = z.object({
   updatedAt: z.string(),
 });
 export type TeamActivitySummary = z.infer<typeof TeamActivitySummarySchema>;
-export const CandidateSignalSchema = z.object({
+export const DraftOptionSchema = z.object({
   player: PlayerSchema,
-  score: z.number(),
-  projectedEdge: z.number(),
   rosterFit: z.enum(["need", "depth", "luxury"]),
-  valueLabel: z.string(),
-  scarcityLabel: z.string(),
-  returnProbability: z.number(),
-  reasons: z.array(z.string()),
+  evidence: z.array(z.string()),
+  orderSource: z.enum(["ecr", "projection", "sleeper_adp", "real_time_adp", "sleeper_rank", "name"]),
+  orderLabel: z.string(),
+  requiredToCompleteLineup: z.boolean(),
 });
-export type CandidateSignal = z.infer<typeof CandidateSignalSchema>;
+export type DraftOption = z.infer<typeof DraftOptionSchema>;
 
 export const DraftRecommendationSchema = z.object({
   headline: z.string(),
   recommendedPlayerId: z.string().nullable(),
   confidence: z.enum(["low", "medium", "high"]),
-  candidates: z.array(CandidateSignalSchema),
+  candidates: z.array(DraftOptionSchema),
   summary: z.string(),
   risks: z.array(z.string()),
   assumptions: z.array(z.string()),

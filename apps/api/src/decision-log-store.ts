@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -14,6 +14,8 @@ export type DecisionSnapshotTrigger =
   | "rankings-clear"
   | "manual-refresh"
   | "ai-question"
+  | "ai-strategy"
+  | "candidate-evaluation"
   | "pick-update";
 
 export type DecisionSnapshot = {
@@ -32,6 +34,7 @@ export type DecisionSnapshot = {
   recommendedPlayerId: string | null;
   headline: string;
   confidence: DraftRecommendation["confidence"];
+  aiStrategy?: AiDraftDecision;
   candidatePlayerIds: string[];
   recommendation: DraftRecommendation;
   context: {
@@ -40,8 +43,10 @@ export type DecisionSnapshot = {
       name: string;
       position: string;
       team: string;
-      score: number;
-      reasons: string[];
+      orderLabel?: string;
+      evidence?: string[];
+      score?: number;
+      reasons?: string[];
     }>;
     assumptions: string[];
     risks: string[];
@@ -65,6 +70,7 @@ export class DecisionLogStore {
     draftId: string;
     state: DraftState;
     recommendation: DraftRecommendation;
+    aiStrategy?: AiDraftDecision;
     trigger: DecisionSnapshotTrigger;
     userRosterId?: string | null;
   }): DecisionSnapshot {
@@ -162,6 +168,7 @@ function createDecisionSnapshot(input: {
   draftId: string;
   state: DraftState;
   recommendation: DraftRecommendation;
+  aiStrategy?: AiDraftDecision;
   trigger: DecisionSnapshotTrigger;
   userRosterId?: string | null;
 }): DecisionSnapshot {
@@ -184,6 +191,7 @@ function createDecisionSnapshot(input: {
     recommendedPlayerId: input.recommendation.recommendedPlayerId,
     headline: input.recommendation.headline,
     confidence: input.recommendation.confidence,
+    ...(input.aiStrategy ? { aiStrategy: input.aiStrategy } : {}),
     candidatePlayerIds: input.recommendation.candidates.map((candidate) => candidate.player.id),
     recommendation: input.recommendation,
     context: {
@@ -192,8 +200,8 @@ function createDecisionSnapshot(input: {
         name: candidate.player.name,
         position: candidate.player.position,
         team: candidate.player.team,
-        score: candidate.score,
-        reasons: candidate.reasons.slice(0, 4),
+        orderLabel: candidate.orderLabel,
+        evidence: candidate.evidence.slice(0, 4),
       })),
       assumptions: input.recommendation.assumptions,
       risks: input.recommendation.risks,

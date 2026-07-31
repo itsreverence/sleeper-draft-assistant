@@ -14,7 +14,8 @@ export type JsonNamespace =
   | "season_projection_imports"
   | "adp_imports"
   | "ros_ranking_imports"
-  | "weekly_projection_imports";
+  | "weekly_projection_imports"
+  | "draft_plans";
 
 export class SqliteAppDatabase {
   private constructor(

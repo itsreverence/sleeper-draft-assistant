@@ -12,6 +12,7 @@ export type StorageInventory = {
   rosRankingImports: number;
   weeklyProjectionImports: number;
   decisionSnapshots: number;
+  draftPlans: number;
 };
 
 export function buildStorageInventory(database: SqliteAppDatabase): StorageInventory {
@@ -24,6 +25,7 @@ export function buildStorageInventory(database: SqliteAppDatabase): StorageInven
     rosRankingImports: database.countJson("ros_ranking_imports"),
     weeklyProjectionImports: database.countJson("weekly_projection_imports"),
     decisionSnapshots: database.countDecisionSnapshots(),
+    draftPlans: database.countJson("draft_plans"),
   };
 }
 

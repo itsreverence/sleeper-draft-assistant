@@ -10,7 +10,7 @@ The application may contact:
 - a locally installed Codex app-server when that provider is selected;
 - external websites only when the user follows an allowlisted link.
 
-The default deterministic provider makes no external AI request. FantasyPros files are selected and imported by the user; the app does not download rankings or redistribute their contents.
+The default no-provider mode makes no external AI request and does not show local pick recommendations. FantasyPros files are selected and imported by the user; the app does not download rankings or redistribute their contents. When Codex strategy is enabled, the local app-server receives a compact draft packet and may query an immutable in-memory available-player snapshot through the app's read-only search tool.
 
 ## Local data
 
@@ -21,6 +21,7 @@ The local SQLite database may contain:
 - imported ranking values and import summaries;
 - imported weekly projection values and import summaries;
 - recommendation and decision snapshots.
+- the latest AI draft plan for each draft team and provider.
 
 The packaged app writes beneath Electron's per-user application-data directory, in a `data` subdirectory. Development writes to repository `data/` unless `SLEEPER_AI_DATA_DIR` is set.
 

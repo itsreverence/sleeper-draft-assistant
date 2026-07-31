@@ -69,6 +69,25 @@ describe("Sleeper connect options", () => {
       rounds: 16,
     });
   });
+  it("prefers a mock draft's explicit user assignment over league roster mapping", () => {
+    const response = buildSleeperConnectResponse(
+      { user_id: "user-1", username: "manager" },
+      "2026",
+      [{
+        league: { league_id: "league-1", total_rosters: 8 },
+        rosters: [{ roster_id: 1, owner_id: "user-1" }],
+        drafts: [{
+          draft_id: "mock-draft-1",
+          settings: { teams: 8, rounds: 15 },
+          slot_to_roster_id: { "1": 1, "5": 5 },
+          draft_order: { "user-1": 5 },
+        }],
+      }],
+    );
+
+    expect(response.leagues[0]?.userRosterId).toBe("1");
+    expect(response.leagues[0]?.drafts[0]?.userDraftSlot).toBe(5);
+  });
   it("includes a direct league URL when user league listing omits a new predraft league", async () => {
     const client = {
       getUser: async () => ({ user_id: "user-2", username: "manager", display_name: "Manager" }),

@@ -22,9 +22,13 @@
   import RosRankingsImportPanel from "./lib/components/RosRankingsImportPanel.svelte";
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
+  import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
+  import DraftPreparationHeader from "./lib/components/DraftPreparationHeader.svelte";
+  import DraftAiSetupPanel from "./lib/components/DraftAiSetupPanel.svelte";
+  import DraftDataStatus from "./lib/components/DraftDataStatus.svelte";
 
   import {
     askManagerRequest,
@@ -37,6 +41,8 @@
     createDraftEventSource,
     fetchAiStatus,
     fetchDraftRecommendationRequest,
+    fetchDecisionHistory,
+    fetchAiDraftStrategyRequest,
     fetchDraftState,
     fetchDiagnostics,
     fetchSettings,
@@ -49,12 +55,15 @@
     importSeasonProjectionsRequest,
     updateSettings,
   } from "./lib/api";
-  import { draftSlotToRosterFallback, getDraftPhase, getUserTeam, isMockDraft, preferredWorkspaceMode } from "./lib/format";
+  import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
   import {
     shouldRefreshTeamManager,
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
+  import { buildCandidateDiscussionQuestion, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
+  import { getImportFreshness } from "./lib/freshness";
+  import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
   import type {
     ConnectDraft,
@@ -66,6 +75,8 @@
     DraftRecommendation,
     DraftScoringFormat,
     DraftState,
+    DecisionSnapshot,
+    AiDraftStrategyPayload,
     AdpImportSummary,
     RankingImportSummary,
     RosRankingImportSummary,
@@ -100,6 +111,7 @@
   let selectedLeagueId = $state("");
   let selectedDraftId = $state("");
   let activeDraftId = $state("");
+  let activeDraftTeamRef: string | null = $state(null);
   let activeUserRosterId: string | null = $state(null);
   let loadError = $state("");
   let rankingImportSummary: RankingImportSummary | null = $state(null);
@@ -151,6 +163,16 @@
   let isCopyingDiagnostics = $state(false);
   let diagnosticsStatus = $state("");
   let eventSource: EventSource | null = null;
+  let draftLastSuccessfulAt: number | null = $state(null);
+  let draftConsecutiveFailures = $state(0);
+  let draftNextRetryMs = $state(0);
+  let draftReconnecting = $state(false);
+  let decisionSnapshots: DecisionSnapshot[] = $state([]);
+  let decisionHistoryError = $state("");
+  let isLoadingDecisionHistory = $state(false);
+  let decisionHistoryRequestId = 0;
+  let draftQuestionRequest: { id: number; question: string } | null = $state(null);
+  let draftQuestionRequestId = 0;
 
   function preferenceStorageKey(draftId: string): string {
     return `playerPreferences:${draftId}`;
@@ -250,9 +272,10 @@
     try {
       recommendation = await fetchDraftRecommendationRequest(
         activeDraftId,
-        activeUserRosterId,
+        activeDraftTeamRef,
         recommendationPreferenceRequest(preferences),
       );
+      void loadDecisionHistory();
     } catch (error) {
       lastEvent = error instanceof Error ? `Preference refresh failed: ${error.message}` : "Preference refresh failed";
     }
@@ -268,7 +291,8 @@
   }
 
   let connectExpanded = $state(!hasStoredDraft());
-  let rankingsExpanded = $state(false);
+  let draftPreparationOpen = $state(false);
+  let limitedDataMode = $state(false);
   let workspaceMode: WorkspaceMode = $state("draft");
   let userPickedMode = $state(false);
   let phaseSyncKey = $state("");
@@ -295,12 +319,14 @@
     seasonInput = window.localStorage.getItem("sleeperSeason") ?? "";
     leagueInput = window.localStorage.getItem("sleeperLeagueInput") ?? "";
     const lastDraftId = window.localStorage.getItem("lastDraftId") ?? "";
+    const lastDraftTeamRef = window.localStorage.getItem("lastDraftTeamRef");
     const lastUserRosterId = window.localStorage.getItem("lastUserRosterId");
     const lastLeagueId = window.localStorage.getItem("lastLeagueId") ?? "";
     if (lastDraftId && !isMockDraft(lastDraftId)) {
-      await loadDraft(lastDraftId, lastUserRosterId, lastLeagueId);
+      await loadDraft(lastDraftId, lastDraftTeamRef ?? lastUserRosterId, lastLeagueId, lastUserRosterId);
     } else if (lastDraftId && isMockDraft(lastDraftId)) {
       window.localStorage.removeItem("lastDraftId");
+      window.localStorage.removeItem("lastDraftTeamRef");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
     }
@@ -326,14 +352,16 @@
     }
   }
 
-  async function saveSettings(settings: AppSettings) {
+  async function saveSettings(settings: AppSettings): Promise<boolean> {
     isSavingSettings = true;
     settingsError = "";
     try {
       appSettings = await updateSettings(settings);
       aiProviderStatus = await fetchAiStatus();
+      return true;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not save settings.";
+      return false;
     } finally {
       isSavingSettings = false;
     }
@@ -456,8 +484,8 @@
       return;
     }
 
-    const userRosterId = selectedLeague.userRosterId ?? draftSlotToRosterFallback(selectedDraft);
-    await loadDraft(selectedDraft.draftId, userRosterId, selectedLeague.leagueId);
+    const draftTeamRef = draftTeamReference(selectedDraft, selectedLeague.userRosterId);
+    await loadDraft(selectedDraft.draftId, draftTeamRef, selectedLeague.leagueId, selectedLeague.userRosterId);
   }
 
   async function connectSleeperDraft() {
@@ -467,7 +495,14 @@
       return;
     }
 
-    await loadDraft(draftId, userRosterIdInput.trim() || null, "");
+    const explicitRosterId = userRosterIdInput.trim() || null;
+    await loadDraft(
+      draftId,
+      explicitRosterId,
+      "",
+      explicitRosterId,
+      connectPayload?.user.userId ?? (usernameInput.trim() || null),
+    );
   }
 
   async function loadMockDraft() {
@@ -485,6 +520,7 @@
     seasonProjectionImportSummary = null;
     adpImportSummary = null;
     activeDraftId = "";
+    activeDraftTeamRef = null;
     activeUserRosterId = null;
     teamManagerState = null;
     teamDataReadiness = null;
@@ -503,24 +539,35 @@
     adpImportError = "";
     teamManagerError = "";
     connectExpanded = true;
-    rankingsExpanded = false;
+    draftPreparationOpen = false;
+    limitedDataMode = false;
     workspaceMode = "draft";
     userPickedMode = false;
     phaseSyncKey = "";
     window.localStorage.removeItem("lastDraftId");
+    window.localStorage.removeItem("lastDraftTeamRef");
     window.localStorage.removeItem("lastUserRosterId");
     window.localStorage.removeItem("lastLeagueId");
   }
 
-  async function loadDraft(draftId: string, userRosterId: string | null, leagueId = "") {
+  async function loadDraft(
+    draftId: string,
+    draftTeamRef: string | null,
+    leagueId = "",
+    userRosterId: string | null = draftTeamRef,
+    userIdentifier: string | null = null,
+  ) {
     eventSource?.close();
+    resetDraftSyncTracking();
     isLoading = true;
     loadError = "";
     status = isMockDraft(draftId) ? "Loading demo draft" : "Loading Sleeper draft";
     lastEvent = "Waiting for event stream";
 
     try {
-      const payload = await fetchDraftState(draftId, userRosterId);
+      const payload = await fetchDraftState(draftId, draftTeamRef, userIdentifier);
+      const resolvedDraftTeamRef = draftTeamRef
+        ?? `slot-${payload.state.teams.find((team) => team.id === payload.state.userTeamId)?.draftSlot ?? 1}`;
       const resolvedLeagueId = leagueId || payload.state.leagueId || "";
       if (teamManagerState?.league.id !== resolvedLeagueId) {
         resetTeamRefreshTracking();
@@ -533,24 +580,37 @@
       }
       applyDraftPayload(payload);
       activeDraftId = draftId;
+      activeDraftTeamRef = resolvedDraftTeamRef;
       activeUserRosterId = userRosterId;
+      void loadDecisionHistory();
       void loadTeamManager(resolvedLeagueId, userRosterId);
       loadPlayerPreferences(draftId);
       if (hasPlayerPreferences()) {
         void refreshRecommendationWithPreferences();
       }
       connectExpanded = false;
-      rankingsExpanded = !isMockDraft(draftId) && (
-        !payload.rankingImportSummary ||
-        !payload.seasonProjectionImportSummary ||
-        !payload.adpImportSummary
+      draftPreparationOpen = shouldOpenDraftPreparation(
+        draftId,
+        payload.state.status,
+        payload.rankingImportSummary?.appliedAt ?? null,
+        Boolean(
+          appSettings?.aiSetupAcknowledged
+          || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured)
+        ),
       );
+      limitedDataMode = false;
       if (isMockDraft(draftId)) {
         window.localStorage.removeItem("lastDraftId");
+        window.localStorage.removeItem("lastDraftTeamRef");
         window.localStorage.removeItem("lastUserRosterId");
         window.localStorage.removeItem("lastLeagueId");
       } else {
         window.localStorage.setItem("lastDraftId", draftId);
+        if (resolvedDraftTeamRef) {
+          window.localStorage.setItem("lastDraftTeamRef", resolvedDraftTeamRef);
+        } else {
+          window.localStorage.removeItem("lastDraftTeamRef");
+        }
         if (userRosterId) {
           window.localStorage.setItem("lastUserRosterId", userRosterId);
         } else {
@@ -563,7 +623,7 @@
         }
       }
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
-      connectEvents(draftId, userRosterId);
+      connectEvents(draftId, resolvedDraftTeamRef);
     } catch (error) {
       loadError = error instanceof Error ? error.message : "Draft load failed.";
       status = "Draft unavailable";
@@ -573,7 +633,10 @@
       seasonProjectionImportSummary = null;
       adpImportSummary = null;
       activeDraftId = "";
+      activeDraftTeamRef = null;
       activeUserRosterId = null;
+      decisionSnapshots = [];
+      decisionHistoryError = "";
       teamManagerState = null;
       teamDataReadiness = null;
       teamNeeds = null;
@@ -592,11 +655,13 @@
       teamManagerError = "";
       resetTeamRefreshTracking();
       connectExpanded = true;
-      rankingsExpanded = false;
+      draftPreparationOpen = false;
+      limitedDataMode = false;
       workspaceMode = "draft";
       userPickedMode = false;
       phaseSyncKey = "";
       window.localStorage.removeItem("lastDraftId");
+      window.localStorage.removeItem("lastDraftTeamRef");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
     } finally {
@@ -749,6 +814,49 @@
     if (hasPlayerPreferences()) {
       void refreshRecommendationWithPreferences();
     }
+    if (activeDraftId) {
+      void loadDecisionHistory();
+    }
+  }
+
+  async function loadDecisionHistory() {
+    if (!activeDraftId) {
+      decisionSnapshots = [];
+      return;
+    }
+
+    const requestId = ++decisionHistoryRequestId;
+    isLoadingDecisionHistory = decisionSnapshots.length === 0;
+    decisionHistoryError = "";
+    try {
+      const payload = await fetchDecisionHistory(activeDraftId, activeDraftTeamRef);
+      if (requestId === decisionHistoryRequestId) {
+        decisionSnapshots = payload.snapshots;
+      }
+    } catch (error) {
+      if (requestId === decisionHistoryRequestId) {
+        decisionHistoryError = error instanceof Error ? error.message : "Could not load recommendation history.";
+      }
+    } finally {
+      if (requestId === decisionHistoryRequestId) {
+        isLoadingDecisionHistory = false;
+      }
+    }
+  }
+
+  function resetDraftSyncTracking() {
+    draftLastSuccessfulAt = null;
+    draftConsecutiveFailures = 0;
+    draftNextRetryMs = 0;
+    draftReconnecting = false;
+  }
+
+  function markDraftSyncSuccessful(at?: string) {
+    const parsed = at ? new Date(at).getTime() : Date.now();
+    draftLastSuccessfulAt = Number.isFinite(parsed) ? parsed : Date.now();
+    draftConsecutiveFailures = 0;
+    draftNextRetryMs = 0;
+    draftReconnecting = false;
   }
 
   function formatPollTime(value: string | undefined): string {
@@ -769,6 +877,7 @@
       applyDraftPayload(payload);
       lastEvent = "Snapshot received";
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      markDraftSyncSuccessful();
     });
 
     eventSource.addEventListener("pick", (event) => {
@@ -776,11 +885,13 @@
       applyDraftPayload(payload);
       lastEvent = `Pick ${payload.state.currentPick - 1} recorded`;
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      markDraftSyncSuccessful();
     });
 
     eventSource.addEventListener("heartbeat", (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as { at?: string };
       status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
+      markDraftSyncSuccessful(payload.at);
       lastEvent = isMockDraft(draftId)
         ? `Demo stream checked ${formatPollTime(payload.at)}`
         : `Sleeper checked ${formatPollTime(payload.at)}; no new picks`;
@@ -790,13 +901,18 @@
       const payload = JSON.parse((event as MessageEvent).data) as {
         message?: string;
         consecutiveFailures?: number;
+        nextRetryMs?: number;
       };
       const failures = payload.consecutiveFailures ?? 1;
+      draftConsecutiveFailures = failures;
+      draftNextRetryMs = payload.nextRetryMs ?? 0;
+      draftReconnecting = false;
       status = failures >= 3 ? "Sleeper polling degraded" : "Sleeper polling retrying";
       lastEvent = payload.message ? `Poll failed (${failures}): ${payload.message}` : `Poll failed (${failures})`;
     });
 
     eventSource.onerror = () => {
+      draftReconnecting = true;
       status = isMockDraft(draftId) ? "Event stream reconnecting" : "Sleeper polling reconnecting";
     };
   }
@@ -813,7 +929,7 @@
     try {
       const payload = await importRankingsRequest(
         activeDraftId,
-        activeUserRosterId,
+        activeDraftTeamRef,
         csvText,
         normalizeDraftScoring(draftState?.settings.scoring),
       );
@@ -840,9 +956,10 @@
     rankingImportError = "";
 
     try {
-      const payload = await clearRankingsRequest(activeDraftId, activeUserRosterId);
+      const payload = await clearRankingsRequest(activeDraftId, activeDraftTeamRef);
       applyDraftPayload(payload);
-      rankingsExpanded = true;
+      draftPreparationOpen = draftState?.status !== "complete";
+      limitedDataMode = false;
       if (teamManagerState) {
         void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
       }
@@ -870,7 +987,7 @@
     try {
       const payload = await importSeasonProjectionsRequest({
         draftId: activeDraftId,
-        userRosterId: activeUserRosterId,
+        userRosterId: activeDraftTeamRef,
         season: input.season,
         files: input.files,
       });
@@ -894,7 +1011,7 @@
     isClearingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
-      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeUserRosterId));
+      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeDraftTeamRef));
       status = "Season projections cleared";
     } catch (error) {
       seasonProjectionImportError = error instanceof Error ? error.message : "Could not clear season projections.";
@@ -913,7 +1030,7 @@
     try {
       const payload = await importAdpRequest({
         draftId: activeDraftId,
-        userRosterId: activeUserRosterId,
+        userRosterId: activeDraftTeamRef,
         season,
         csvText,
       });
@@ -934,7 +1051,7 @@
     isClearingAdp = true;
     adpImportError = "";
     try {
-      applyDraftPayload(await clearAdpRequest(activeDraftId, activeUserRosterId));
+      applyDraftPayload(await clearAdpRequest(activeDraftId, activeDraftTeamRef));
       status = "Sleeper ADP cleared";
     } catch (error) {
       adpImportError = error instanceof Error ? error.message : "Could not clear Sleeper ADP.";
@@ -946,8 +1063,8 @@
   function normalizeDraftScoring(scoring: string | null | undefined): DraftScoringFormat {
     const normalized = scoring?.trim().toLowerCase();
     if (normalized === "ppr") return "PPR";
-    if (normalized === "half ppr" || normalized === "half-ppr") return "Half PPR";
-    if (normalized === "standard") return "Standard";
+    if (normalized === "half ppr" || normalized === "half-ppr" || normalized === "half_ppr") return "Half PPR";
+    if (normalized === "standard" || normalized === "std") return "Standard";
     return normalized ? "Custom" : "Unknown";
   }
 
@@ -1149,33 +1266,92 @@
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
     const payload = await askManagerRequest(
       activeDraftId,
-      activeUserRosterId,
+      activeDraftTeamRef,
       question,
       conversationHistory,
       playerPreferenceSummary(),
       recommendationPreferenceRequest(),
     );
     recommendation = payload.recommendation;
+    void loadDecisionHistory();
     return payload.answer;
   }
 
+  function askAboutCandidate(playerName: string, recommendedPlayerName: string) {
+    draftQuestionRequest = {
+      id: ++draftQuestionRequestId,
+      question: buildCandidateDiscussionQuestion(playerName, recommendedPlayerName),
+    };
+  }
+
+  function enterDraftRoom() {
+    const aiChoiceComplete = appSettings?.aiSetupAcknowledged
+      || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured);
+    if (!rankingImportSummary || !aiChoiceComplete) {
+      return;
+    }
+    limitedDataMode = false;
+    draftPreparationOpen = false;
+  }
+
+  async function enterDraftRoomWithFallback() {
+    if (appSettings && !appSettings.aiSetupAcknowledged) {
+      const saved = await saveSettings({
+        ...appSettings,
+        aiSetupAcknowledged: true,
+      });
+      if (!saved) {
+        return;
+      }
+    }
+    limitedDataMode = !rankingImportSummary;
+    draftPreparationOpen = false;
+  }
+
+  function openDraftPreparation() {
+    draftPreparationOpen = true;
+  }
+
+  function manageDraftDataFromSettings() {
+    settingsOpen = false;
+    workspaceMode = "draft";
+    userPickedMode = true;
+    draftPreparationOpen = true;
+  }
+
+  async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
+    const payload = await fetchAiDraftStrategyRequest(
+      activeDraftId,
+      activeDraftTeamRef,
+      playerPreferenceSummary(),
+      recommendationPreferenceRequest(),
+    );
+    void loadDecisionHistory();
+    return payload;
+  }
+
   const userTeam = $derived(getUserTeam(draftState));
+  const picksUntilTurn = $derived(picksUntilUserTurn(draftState));
+  const shouldRequestAiStrategy = $derived(
+    shouldRequestAiDraftStrategy(draftState, aiProviderStatus, picksUntilTurn),
+  );
+  const aiDraftStrategyEnabled = $derived(
+    shouldRequestAiDraftStrategy(draftState, aiProviderStatus, 0),
+  );
   const activeSourceLabel = $derived(draftState ? (isMockDraft(activeDraftId) ? "Demo draft" : "Sleeper draft") : "No draft loaded");
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
   const isRealDraftActive = $derived(Boolean(draftState && !isMockDraft(activeDraftId)));
   const hasImportedRankings = $derived(Boolean(rankingImportSummary));
+  const rankingsStale = $derived.by(() => {
+    const summary = rankingImportSummary as RankingImportSummary | null;
+    return summary ? getImportFreshness(summary.appliedAt, 14).stale : false;
+  });
   const hasSeasonProjections = $derived(Boolean(seasonProjectionImportSummary));
   const hasImportedAdp = $derived(Boolean(adpImportSummary));
   const draftDataSignalCount = $derived(
     Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
   );
-  const recommendationsUsePlaceholder = $derived.by(() => {
-    const currentRecommendation = recommendation;
-    return Boolean(
-      isRealDraftActive &&
-        currentRecommendation?.candidates.some((candidate) => candidate.player.projectionSource === "sleeper_search_rank"),
-    );
-  });
+  const draftValuesIncomplete = $derived(isRealDraftActive && (!hasImportedRankings || rankingsStale));
   const selectedLeague = $derived.by(() => {
     const payload = connectPayload;
     return payload?.leagues.find((league) => league.leagueId === selectedLeagueId) ?? null;
@@ -1208,6 +1384,8 @@
       label: "Your team",
       value: activeUserRosterId
         ? `Roster ${activeUserRosterId}`
+        : activeDraftTeamRef?.startsWith("slot-")
+          ? `Draft slot ${activeDraftTeamRef.replace("slot-", "")}`
         : selectedLeague?.userRosterId
           ? `Roster ${selectedLeague.userRosterId}`
           : draftState
@@ -1220,12 +1398,20 @@
           : draftState
             ? "Recommendations may miss roster needs"
             : "Matched after draft selection",
-      tone: activeUserRosterId || selectedLeague?.userRosterId ? "ready" : isRealDraftActive ? "warning" : "neutral",
+      tone: activeUserRosterId || activeDraftTeamRef || selectedLeague?.userRosterId ? "ready" : isRealDraftActive ? "warning" : "neutral",
     },
     {
       label: "Player values",
-      value: draftDataSignalCount === 3 ? "Complete" : draftState ? `${draftDataSignalCount}/3 sources` : "Pending",
-      detail: draftDataSignalCount === 3
+      value: rankingsStale
+        ? "Needs refresh"
+        : draftDataSignalCount === 3
+          ? "Complete"
+          : draftState
+            ? `${draftDataSignalCount}/3 sources`
+            : "Pending",
+      detail: rankingsStale
+        ? "Imported ECR is old; review a current export before drafting"
+        : draftDataSignalCount === 3
         ? "ECR, season projections, and Sleeper ADP loaded"
         : hasImportedRankings
           ? "Add season projections and Sleeper ADP for full-quality advice"
@@ -1234,11 +1420,44 @@
           : isDemoDraftActive
             ? "Demo projections active"
             : "Available after draft selection",
-      tone: draftDataSignalCount === 3 || isDemoDraftActive ? "ready" : isRealDraftActive ? "warning" : "neutral",
+      tone: !rankingsStale && (draftDataSignalCount === 3 || isDemoDraftActive)
+        ? "ready"
+        : isRealDraftActive
+          ? "warning"
+          : "neutral",
+    },
+    {
+      label: "AI manager",
+      value: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+        ? "Codex"
+        : appSettings?.aiSetupAcknowledged
+          ? "No AI"
+          : "Choose",
+      detail: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+        ? "Local app-server selected"
+        : appSettings?.aiSetupAcknowledged
+          ? "Draft tracking remains available without recommendations"
+          : "Select Codex or explicitly continue without AI",
+      tone: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+        ? "ready"
+        : appSettings?.aiSetupAcknowledged
+          ? "neutral"
+          : isRealDraftActive
+            ? "warning"
+            : "neutral",
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
-  const showSetupChecklist = $derived(!draftState || connectExpanded);
+  const showSetupChecklist = $derived(
+    !draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft"),
+  );
+  const draftDataSettingsStatus = $derived(
+    rankingsStale
+      ? "ECR needs refresh"
+      : draftDataSignalCount === 3
+        ? "3/3 sources ready"
+        : `${draftDataSignalCount}/3 sources ready`,
+  );
   const draftPhase = $derived(getDraftPhase(draftState));
   const weeklyProjectionDefaultSeason = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
@@ -1305,6 +1524,9 @@
       onSave={saveSettings}
       onCopyDiagnostics={copyDiagnostics}
       onResetComplete={resetRendererData}
+      draftDataAvailable={isRealDraftActive}
+      draftDataStatus={draftDataSettingsStatus}
+      onManageDraftData={manageDraftDataFromSettings}
     />
   {/if}
 
@@ -1328,7 +1550,7 @@
         {loadError}
         {activeSourceLabel}
         {activeDraftId}
-        {activeUserRosterId}
+        activeUserRosterId={activeUserRosterId ?? activeDraftTeamRef}
         onFindLeagues={findSleeperLeagues}
         onSelectLeague={selectLeague}
         onSelectDraft={selectDraft}
@@ -1349,7 +1571,74 @@
           userPickedMode = true;
         }}
       />
+      {#if draftPreparationOpen && workspaceMode === "draft"}
+        <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
+        <div class="preparation-flow">
+          <DraftPreparationHeader
+            draftName={draftState.name}
+            scoring={normalizeDraftScoring(draftState.settings.scoring)}
+            season={draftDataDefaultSeason}
+            hasRankings={hasImportedRankings}
+            {rankingsStale}
+            hasProjections={hasSeasonProjections}
+            hasAdp={hasImportedAdp}
+            aiConfigured={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+            aiAcknowledged={Boolean(
+              appSettings?.aiSetupAcknowledged
+              || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured)
+            )}
+            liveDraft={draftPhase === "drafting"}
+            onContinue={enterDraftRoom}
+            onContinueFallback={() => {
+              void enterDraftRoomWithFallback();
+            }}
+          />
+          <RankingsImportPanel
+            hasDraft={true}
+            scoring={normalizeDraftScoring(draftState.settings.scoring)}
+            season={draftDataDefaultSeason}
+            {isImportingRankings}
+            {isClearingRankings}
+            {isImportingSeasonProjections}
+            {isClearingSeasonProjections}
+            {isImportingAdp}
+            {isClearingAdp}
+            {rankingImportSummary}
+            {seasonProjectionImportSummary}
+            {adpImportSummary}
+            {rankingImportError}
+            {seasonProjectionImportError}
+            {adpImportError}
+            onImportRankings={importRankings}
+            onImportSeasonProjections={importSeasonProjections}
+            onImportAdp={importAdp}
+            onClearRankings={clearRankings}
+            onClearSeasonProjections={clearSeasonProjections}
+            onClearAdp={clearAdp}
+            onOpenRankings={openFantasyProsRankings}
+            onOpenSeasonProjections={openFantasyProsSeasonProjections}
+            onOpenAdp={openFantasyProsAdp}
+            expanded={true}
+          />
+          <DraftAiSetupPanel
+            settings={appSettings}
+            providerStatus={aiProviderStatus}
+            isSaving={isSavingSettings}
+            error={settingsError}
+            onSave={saveSettings}
+          />
+        </div>
+      {:else}
       <DraftSummaryStrip state={draftState} />
+      {#if workspaceMode === "draft"}
+        <DraftSyncStatus
+          lastSuccessfulAt={draftLastSuccessfulAt}
+          consecutiveFailures={draftConsecutiveFailures}
+          nextRetryMs={draftNextRetryMs}
+          reconnecting={draftReconnecting}
+          onReconnect={() => connectEvents(activeDraftId, activeDraftTeamRef)}
+        />
+      {/if}
       <FormatCompatibilityNotice
         compatibility={workspaceMode === "manage"
           ? teamManagerState?.league.formatCompatibility
@@ -1363,7 +1652,7 @@
             {#if draftPhase === "complete"}
               <article class="panel phase-note">
                 <h2>Draft is over</h2>
-                <p>Recommendations and pick tools stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
+                <p>The completed board and roster stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
                 {#if manageAvailable}
                   <button
                     class="btn btn-primary"
@@ -1380,18 +1669,30 @@
             {/if}
             {#if draftPhase !== "complete"}
               <RecommendationPanel
-                {recommendation}
+                currentPick={draftState.currentPick}
+                aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+                aiStrategyEnabled={aiDraftStrategyEnabled}
+                shouldRequestAiStrategy={shouldRequestAiStrategy}
+                strategyRequestKey={JSON.stringify(playerPreferences)}
+                strategyHistory={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
+                isLoadingStrategyHistory={isLoadingDecisionHistory}
+                strategyHistoryError={decisionHistoryError}
+                onRequestAiStrategy={requestAiDraftStrategy}
+                onAskAboutCandidate={askAboutCandidate}
                 playerPreferences={playerPreferences}
-                showPlaceholderWarning={recommendationsUsePlaceholder}
+                showPlaceholderWarning={draftValuesIncomplete}
                 onSetPreference={setPlayerPreference}
                 onClearPreferences={clearPlayerPreferences}
-                onOpenRankings={() => (rankingsExpanded = true)}
+                onOpenRankings={openDraftPreparation}
+                onOpenSettings={() => (settingsOpen = true)}
               />
               <AskManagerPanel
                 onAsk={askManager}
+                promptRequest={draftQuestionRequest}
+                onOpenSettings={() => (settingsOpen = true)}
                 providerStatus={aiProviderStatus}
                 {hasImportedRankings}
-                showPlaceholderWarning={recommendationsUsePlaceholder}
+                showPlaceholderWarning={draftValuesIncomplete}
                 {draftState}
                 {recommendation}
               />
@@ -1401,65 +1702,18 @@
             {/if}
           </div>
           <div class="side-column">
-            {#if draftPhase !== "complete"}
-              <RankingsImportPanel
-                hasDraft={true}
-                scoring={draftState.settings.scoring}
-                season={draftDataDefaultSeason}
-                {isImportingRankings}
-                {isClearingRankings}
-                {isImportingSeasonProjections}
-                {isClearingSeasonProjections}
-                {isImportingAdp}
-                {isClearingAdp}
-                {rankingImportSummary}
-                {seasonProjectionImportSummary}
-                {adpImportSummary}
-                {rankingImportError}
-                {seasonProjectionImportError}
-                {adpImportError}
-                onImportRankings={importRankings}
-                onImportSeasonProjections={importSeasonProjections}
-                onImportAdp={importAdp}
-                onClearRankings={clearRankings}
-                onClearSeasonProjections={clearSeasonProjections}
-                onClearAdp={clearAdp}
-                onOpenRankings={openFantasyProsRankings}
-                onOpenSeasonProjections={openFantasyProsSeasonProjections}
-                onOpenAdp={openFantasyProsAdp}
-                bind:expanded={rankingsExpanded}
+            {#if draftValuesIncomplete || limitedDataMode}
+              <DraftDataStatus
+                hasRankings={hasImportedRankings}
+                {rankingsStale}
+                hasProjections={hasSeasonProjections}
+                hasAdp={hasImportedAdp}
+                limitedMode={limitedDataMode}
+                onOpen={openDraftPreparation}
               />
-              {#if (userTeam?.roster.length ?? 0) > 0}
-                <RosterPanel state={draftState} />
-              {/if}
-            {:else if draftDataSignalCount > 0}
-              <RankingsImportPanel
-                hasDraft={true}
-                scoring={draftState.settings.scoring}
-                season={draftDataDefaultSeason}
-                {isImportingRankings}
-                {isClearingRankings}
-                {isImportingSeasonProjections}
-                {isClearingSeasonProjections}
-                {isImportingAdp}
-                {isClearingAdp}
-                {rankingImportSummary}
-                {seasonProjectionImportSummary}
-                {adpImportSummary}
-                {rankingImportError}
-                {seasonProjectionImportError}
-                {adpImportError}
-                onImportRankings={importRankings}
-                onImportSeasonProjections={importSeasonProjections}
-                onImportAdp={importAdp}
-                onClearRankings={clearRankings}
-                onClearSeasonProjections={clearSeasonProjections}
-                onClearAdp={clearAdp}
-                onOpenRankings={openFantasyProsRankings}
-                onOpenSeasonProjections={openFantasyProsSeasonProjections}
-                onOpenAdp={openFantasyProsAdp}
-                bind:expanded={rankingsExpanded}
-              />
+            {/if}
+            {#if draftPhase !== "complete" && (userTeam?.roster.length ?? 0) > 0}
+              <RosterPanel state={draftState} />
             {/if}
           </div>
         </section>
@@ -1516,6 +1770,7 @@
           </div>
         </section>
       {/if}
+      {/if}
     {/key}
   {/if}
 </main>
@@ -1537,6 +1792,12 @@
 
   .connect-editor {
     margin-bottom: var(--space-5);
+  }
+
+  .preparation-flow {
+    display: grid;
+    gap: var(--space-5);
+    margin-top: var(--space-5);
   }
 
   .dashboard-grid {

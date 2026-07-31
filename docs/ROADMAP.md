@@ -9,12 +9,15 @@ This is a direction document, not a promise or release schedule.
 - synthetic demo draft
 - FantasyPros rankings CSV import
 - FantasyPros weekly projection CSV import
-- deterministic recommendation evidence and weekly data confidence
+- transparent draft evidence and weekly data confidence
 - current-versus-optimized lineup totals and projected swap deltas
 - roster, lineup, waiver, week, and activity views
 - optional local Codex app-server analysis
 - local SQLite persistence and Electron packaging
 - explicit format compatibility warnings for custom scoring, TE premium, IDP, and auction leagues
+- draft sync age, bounded retry backoff, and last-valid-state messaging
+- recent recommendation-change review backed by persisted decision snapshots
+- age warnings for imported draft, rest-of-season, and weekly data
 
 ## Before the first published alpha installer
 

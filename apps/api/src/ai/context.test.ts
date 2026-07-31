@@ -1,60 +1,99 @@
-import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
+import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
-import { buildDraftAiContext } from "./context";
+import { buildDraftQuestionContext, buildDraftStrategyContext } from "./context";
 import { NoopAiProvider } from "./noop-provider";
 
 describe("AI provider context", () => {
-  it("builds a compact draft question packet from draft state and recommendation", () => {
+  it("builds a neutral draft question packet from draft state", () => {
     const state = createMockDraftState(3);
-    const recommendation = buildDraftRecommendation(state);
-    const context = buildDraftAiContext(state, recommendation, "Who should I draft?");
+    const focusPlayer = state.players.find((player) => !state.picks.some((pick) => pick.playerId === player.id));
+    const context = buildDraftQuestionContext(
+      state,
+      "Who should I draft?",
+      Array.from({ length: 10 }, (_, index) => ({ role: "user" as const, content: `Question ${index}` })),
+      { pinned: [], faded: [], excluded: [] },
+      undefined,
+      focusPlayer ? [focusPlayer.id] : [],
+    );
 
     expect(context.task).toBe("draft_question");
     expect(context.question).toBe("Who should I draft?");
     expect(context.draft.id).toBe(state.id);
-    expect(context.userTeam?.id).toBe(state.userTeamId);
-    expect(context.recentPicks).toHaveLength(3);
-    expect(context.recommendation.candidates[0]?.name).toBe(recommendation.candidates[0]?.player.name);
-    expect(context.draftBrief.engineLean).toContain(recommendation.candidates[0]?.player.name);
-    expect(context.draftBrief.candidateTradeoffs[0]).toContain("Engine lean");
-    expect(context.draftBrief.responseRules).toContain("Answer the user's exact question first, then explain the tradeoff.");
+    expect(context.roster.teamId).toBe(state.userTeamId);
+    expect(context.board.recentPicks).toHaveLength(3);
+    expect(context.conversationHistory).toHaveLength(8);
+    expect(context.focusPlayers[0]?.playerId).toBe(focusPlayer?.id);
+    expect(context.playerEvidence[0]).not.toHaveProperty("score");
+    expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
+    expect(context).not.toHaveProperty("recommendation");
+    expect(context).not.toHaveProperty("draftBrief");
+    expect(context).not.toHaveProperty("toolInstructions");
   });
 
-  it("answers through the deterministic fallback provider", async () => {
+  it("answers through the neutral fallback provider", async () => {
     const state = createMockDraftState(0);
-    const recommendation = buildDraftRecommendation(state);
-    const context = buildDraftAiContext(state, recommendation, "What is my best pick?");
+    const context = buildDraftQuestionContext(state, "What is my best pick?");
     const provider = new NoopAiProvider();
 
     const answer = await provider.answerDraftQuestion(context);
 
     expect(answer.provider.id).toBe("noop");
-    expect(answer.answer).toContain("AI provider is not connected yet");
-    expect(answer.answer).toContain(recommendation.candidates[0]?.player.name);
+    expect(answer.answer).toContain("AI provider is not connected");
+    const projectionLeader = context.playerEvidence.find(
+      (player) => player.playerId === context.playerEvidenceGroups.projectionLeaders[0],
+    );
+    expect(answer.answer).toContain(projectionLeader?.name);
   });
-  it("includes roster pressure and candidate engine reasons for grounded answers", () => {
+  it("builds a structured strategy packet with a broad grounded shortlist", async () => {
     const state = createEightTeamTwoFlexState();
-    const recommendation = buildDraftRecommendation(state);
-    const context = buildDraftAiContext(state, recommendation, "Should I pass on QB in this format?");
-    const qb = context.recommendation.candidates.find((candidate) => candidate.playerId === "context-qb-allen");
+    const context = buildDraftStrategyContext(state);
+    const strategy = await new NoopAiProvider().strategizeDraft(context);
 
-    expect(context.rosterConstruction.flexSlots).toBe(2);
-    expect(context.rosterConstruction.superFlexSlots).toBe(0);
-    expect(context.rosterConstruction.rbWrDemand).toBe(6);
-    expect(context.rosterConstruction.pressureSignals).toContain(
-      "This format has 2 RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.",
+    expect(context.task).toBe("draft_strategy");
+    expect(context.previousPlan).toBeNull();
+    expect(context.playerEvidence.length).toBeGreaterThan(0);
+    expect(context.playerEvidence[0]).not.toHaveProperty("score");
+    expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
+    expect(context.roster.openDirectStarterSlots.K).toBe(0);
+    expect(context.roster.openSuperFlexSlots).toBe(0);
+    expect(strategy.decision.basedOnPick).toBe(state.currentPick);
+    expect(strategy.decision.recommendedPlayerId).toBe(context.playerEvidenceGroups.projectionLeaders[0]);
+    expect(strategy.decision.alternativePlayerIds.length).toBeGreaterThan(0);
+    expect(strategy.decision.plan.updatedAtPick).toBe(state.currentPick);
+  });
+  it("carries a prior plan into the next neutral strategy packet", () => {
+    const state = createEightTeamTwoFlexState();
+    const previousPlan = {
+      updatedAtPick: 1,
+      approach: "Build an RB/WR foundation.",
+      currentPickFocus: ["RB" as const],
+      nextTurnPriorities: ["WR" as const],
+      positionsThatCanWait: ["QB" as const],
+      rosterGoals: ["Fill both flex spots with RB/WR depth."],
+      watchItems: ["Monitor the first WR tier."],
+      changeSummary: "Initial plan created.",
+    };
+
+    const context = buildDraftStrategyContext(state, undefined, undefined, previousPlan);
+
+    expect(context.previousPlan).toEqual(previousPlan);
+  });
+  it("reports raw open slots when one position has consumed direct and flex capacity", () => {
+    const state = createEightTeamTwoFlexState();
+    const receivers = Array.from({ length: 4 }, (_, index) =>
+      contextPlayer(`context-rostered-wr-${index}`, `Rostered WR ${index}`, "SEA", "WR", 250, index + 1, 1),
     );
-    expect(context.rosterConstruction.pressureSignals).toContain(
-      "This is a shallow one-QB league, so QB replacement pressure is lower than in deeper or superflex formats.",
-    );
-    expect(context.recommendation.candidates[0]?.reasons).toContain("matches RB/WR flex demand");
-    expect(qb?.reasons).toContain("shallow league reduces replacement pressure");
-    expect(context.draftBrief.leagueFormat).toContain("8-team PPR");
-    expect(context.draftBrief.primaryDecisionGuidance).toContain("RB/WR depth has extra importance because FLEX slots increase weekly starter demand.");
-    expect(context.draftBrief.primaryDecisionGuidance).toContain("QB replacement pressure is lower because this is not a superflex format.");
-    expect(context.draftBrief.rosterPressure).toContain("This format has 2 RB/WR/TE FLEX slot(s), increasing RB/WR depth pressure.");
+    state.players.push(...receivers);
+    state.teams[0]!.roster = receivers.map((player) => player.id);
+
+    const context = buildDraftQuestionContext(state, "Should I draft another WR?");
+
+    expect(context.roster.openDirectStarterSlots.RB).toBe(2);
+    expect(context.roster.openDirectStarterSlots.WR).toBe(0);
+    expect(context.roster.openFlexSlots).toBe(0);
+    expect(context.roster.positionCounts.WR).toBe(4);
   });
 });
 function createEightTeamTwoFlexState(): DraftState {

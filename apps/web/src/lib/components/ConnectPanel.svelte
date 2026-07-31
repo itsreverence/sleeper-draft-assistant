@@ -88,15 +88,6 @@
     <h2><Icon name="link" size={17} /> Connect Sleeper</h2>
   </div>
 
-  <div class="first-run-guide" aria-label="First run guide">
-    <strong>First release setup</strong>
-    <ol>
-      <li>Enter your Sleeper username. Paste a league URL or ID too if the league is new or still predraft.</li>
-      <li>Open the draft room and confirm your roster or draft slot matched correctly.</li>
-      <li>Import FantasyPros draft rankings before trusting pick recommendations for a real draft.</li>
-    </ol>
-  </div>
-
   <form class="lookup-form" onsubmit={submitLookup}>
     <label class="field">
       <span>Sleeper username or ID</span>
@@ -235,32 +226,6 @@
     gap: 8px;
     font-size: var(--text-lg);
     margin-top: 2px;
-  }
-
-  .first-run-guide {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    padding: var(--space-3) var(--space-4);
-  }
-
-  .first-run-guide strong {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-  }
-
-  .first-run-guide ol {
-    margin: 0;
-    padding-left: 18px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.45;
-  }
-
-  .first-run-guide li + li {
-    margin-top: 4px;
   }
 
   .lookup-form {
@@ -432,33 +397,7 @@
   }
 
   @media (max-width: 720px) {
-    .first-run-guide {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    padding: var(--space-3) var(--space-4);
-  }
-
-  .first-run-guide strong {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-  }
-
-  .first-run-guide ol {
-    margin: 0;
-    padding-left: 18px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.45;
-  }
-
-  .first-run-guide li + li {
-    margin-top: 4px;
-  }
-
-  .lookup-form {
+    .lookup-form {
       grid-template-columns: 1fr;
     }
 

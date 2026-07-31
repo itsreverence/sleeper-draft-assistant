@@ -1,4 +1,4 @@
-import type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 export type DraftPayload = {
   state: DraftState;
@@ -6,6 +6,36 @@ export type DraftPayload = {
   rankingImportSummary: RankingImportSummary | null;
   seasonProjectionImportSummary: SeasonProjectionImportSummary | null;
   adpImportSummary: AdpImportSummary | null;
+};
+
+export type DecisionSnapshot = {
+  id: string;
+  trigger: "state-load" | "rankings-import" | "rankings-clear" | "manual-refresh" | "ai-question" | "ai-strategy" | "candidate-evaluation" | "pick-update";
+  createdAt: string;
+  currentPick: number;
+  picksMade: number;
+  recommendedPlayerId: string | null;
+  headline: string;
+  confidence: DraftRecommendation["confidence"];
+  aiStrategy?: AiDraftDecision;
+  context: {
+    topCandidates: Array<{
+      playerId: string;
+      name: string;
+      position: string;
+      team: string;
+      orderLabel?: string;
+      evidence?: string[];
+      score?: number;
+      reasons?: string[];
+    }>;
+    assumptions: string[];
+    risks: string[];
+  };
+};
+
+export type DecisionHistoryPayload = {
+  snapshots: DecisionSnapshot[];
 };
 
 export type RankingImportPayload = DraftPayload & {
@@ -105,6 +135,14 @@ export type AskAnswerPayload = {
   recommendation: DraftRecommendation;
 };
 
+export type AiDraftStrategyPayload = {
+  provider: AiProviderStatus;
+  pickNumber: number;
+  decision: AiDraftDecision;
+  recommendedCandidate: DraftOption;
+  alternativeCandidates: DraftOption[];
+};
+
 export type Tone = "ready" | "warning" | "blocked" | "neutral";
 
 export type ReadinessItem = {
@@ -122,7 +160,7 @@ export type AiProviderStatus = {
   detail?: string;
 };
 
-export type { AdpImportSummary, AppSettings, CandidateSignal, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
+export type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 
 
 
@@ -175,9 +213,10 @@ export type StorageInventory = {
   rosRankingImports: number;
   weeklyProjectionImports: number;
   decisionSnapshots: number;
+  draftPlans: number;
 };
 
-export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history";
+export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history" | "draft-plans";
 
 export type DataMutationPayload = {
   deleted: number;

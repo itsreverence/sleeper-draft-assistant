@@ -16,6 +16,8 @@ npm run dev
 
 The development launcher creates one random API token and passes it to both the API and Vite. Use `http://127.0.0.1:5173` and choose **Load demo draft** for a synthetic-data smoke test.
 
+For a real draft smoke test, confirm that a draft without current ECR opens **Draft preparation**, that normal entry remains disabled until ECR exists, and that the fallback entry opens the workspace with a visible data warning. A new installation must also require an explicit Codex or no-AI choice; that choice should not be requested again after it is saved. A returning draft with fresh ECR and an acknowledged AI choice should bypass preparation and show no persistent data card. **Settings > Manage draft data** must reopen the dedicated preparation workspace; the draft workspace status appears only when data needs attention.
+
 Running the API or web workspace separately requires coordinating `SLEEPER_AI_API_TOKEN` and `VITE_SLEEPER_AI_API_TOKEN`; the root launcher is the supported path.
 
 ## Canonical validation
@@ -64,6 +66,7 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Port already in use:** close the prior development or desktop process; the app intentionally refuses to attach to an API that cannot prove possession of its token.
 - **Web requests return 401:** use the root `npm run dev` launcher so renderer and API receive the same token.
 - **Codex cannot start:** verify the configured executable is `codex`, `codex.exe`, or `codex.cmd`, then run `codex login` separately.
+- **Windows Codex launcher:** prefer the default `codex` setting. The backend resolves the npm launcher without invoking `cmd.exe`; explicit non-npm `.cmd` wrappers are unsupported.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
 - **Recommendations warn about placeholder values:** import the scoring-specific ECR CSV first, then season projections and Overall ADP for full draft context.
 - **League format warning:** standard, half-PPR, PPR, FLEX, and superflex are supported. Custom scoring and TE premium require matching imports; IDP and auction advice is unsupported.
@@ -75,3 +78,5 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
 - **Weekly scoring warning:** weekly `FPTS` are used as FantasyPros provides them. Confirm the FantasyPros export scoring matches the Sleeper league.
 - **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.
+- **Sleeper draft refresh is degraded:** the last successful draft remains visible while the app retries automatically with bounded backoff. Use the reconnect control only when an immediate retry is useful.
+- **Imported data is marked old:** replace the export with a current FantasyPros download before relying on time-sensitive draft, waiver, or lineup advice.
