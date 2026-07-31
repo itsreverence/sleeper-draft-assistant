@@ -1,6 +1,4 @@
 <script lang="ts">
-  import Icon from "./Icon.svelte";
-
   let {
     draftName,
     scoring,
@@ -32,52 +30,47 @@
   const loadedCount = $derived(
     Number(hasRankings) + Number(hasProjections) + Number(hasAdp),
   );
+
+  const chips = $derived([
+    {
+      label: "ECR ready",
+      pending: rankingsStale ? "ECR needs refresh" : "ECR rankings",
+      ready: hasRankings && !rankingsStale,
+    },
+    { label: "Projections ready", pending: "Projections", ready: hasProjections },
+    { label: "ADP ready", pending: "ADP", ready: hasAdp },
+    {
+      label: aiConfigured ? "AI manager ready" : "AI manager skipped",
+      pending: "AI manager",
+      ready: aiConfigured || aiAcknowledged,
+    },
+  ]);
+
+  const helperText = $derived.by(() => {
+    if (!aiAcknowledged) return "Choose an AI manager below, or continue without one.";
+    if (hasRankings && !rankingsStale) {
+      return loadedCount === 3
+        ? "All grounding sources are ready."
+        : "Minimum readiness met - add the recommended sources now or later.";
+    }
+    if (rankingsStale) return "Your previous rankings are available, but a current export is recommended.";
+    if (liveDraft) return "Already on the clock - limited mode carries a data-quality warning.";
+    return "Limited mode is available, but normal AI strategy starts after ECR is imported.";
+  });
 </script>
 
 <section class="panel preparation-header" aria-labelledby="draft-preparation-title">
-  <div class="preparation-copy">
-    <span class="section-label">Draft preparation</span>
-    <h2 id="draft-preparation-title">Ground the AI before entering the draft room</h2>
-    <p>
-      Match FantasyPros exports to {draftName}. Rankings are the minimum required
-      signal; projections and ADP make comparisons and pick timing more reliable.
-    </p>
-    <div class="draft-meta">
-      <span>{scoring}</span>
-      <span>{season} season</span>
-      <span>{loadedCount}/3 sources ready</span>
-    </div>
-  </div>
+  <span class="section-label">Draft preparation</span>
+  <h2 id="draft-preparation-title">Ground the AI before entering the draft room</h2>
+  <p class="meta-line">{draftName} - {scoring} - {season} season - {loadedCount}/3 sources ready</p>
 
-  <div class="readiness-list" aria-label="Draft data readiness">
-    <div class:ready={hasRankings && !rankingsStale}>
-      <Icon name={hasRankings && !rankingsStale ? "check-circle" : "alert"} size={16} />
-      <span>
-        <strong>ECR rankings</strong>
-        <small>{rankingsStale ? "Needs a current export" : hasRankings ? "Ready" : "Required for normal AI advice"}</small>
+  <div class="chip-row" aria-label="Draft data readiness">
+    {#each chips as chip}
+      <span class="chip" class:ready={chip.ready}>
+        <span class="dot"></span>
+        {chip.ready ? chip.label : chip.pending}
       </span>
-    </div>
-    <div class:ready={hasProjections}>
-      <Icon name={hasProjections ? "check-circle" : "clock"} size={16} />
-      <span>
-        <strong>Season projections</strong>
-        <small>{hasProjections ? "Ready" : "Recommended"}</small>
-      </span>
-    </div>
-    <div class:ready={hasAdp}>
-      <Icon name={hasAdp ? "check-circle" : "clock"} size={16} />
-      <span>
-        <strong>Sleeper ADP</strong>
-        <small>{hasAdp ? "Ready" : "Recommended"}</small>
-      </span>
-    </div>
-    <div class:ready={aiConfigured} class:acknowledged={!aiConfigured && aiAcknowledged}>
-      <Icon name={aiConfigured ? "check-circle" : aiAcknowledged ? "check-circle" : "clock"} size={16} />
-      <span>
-        <strong>AI manager</strong>
-        <small>{aiConfigured ? "Codex selected" : aiAcknowledged ? "Continuing without AI" : "Choose Codex or no AI"}</small>
-      </span>
-    </div>
+    {/each}
   </div>
 
   <div class="preparation-actions">
@@ -89,135 +82,86 @@
         {hasRankings ? "Continue without AI" : aiAcknowledged ? "Continue with limited data" : "Continue with limited data and no AI"}
       </button>
     {/if}
-    <p>
-      {#if !aiAcknowledged}
-        Choose an AI manager below. You can continue without AI and configure Codex later in Settings.
-      {:else if hasRankings && !rankingsStale}
-        {loadedCount === 3
-          ? "All grounding sources are ready."
-          : "Minimum readiness met. You can add the recommended sources now or later."}
-      {:else if rankingsStale}
-        Your previous rankings are available, but a current export is recommended before relying on draft advice.
-      {:else if liveDraft}
-        Already on the clock? Limited mode remains available, but its advice will carry a data-quality warning.
-      {:else}
-        The draft board remains available in limited mode, but normal AI strategy starts after ECR is imported.
-      {/if}
-    </p>
+    <span class="helper-text">{helperText}</span>
   </div>
 </section>
 
 <style>
   .preparation-header {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.8fr);
-    gap: var(--space-5);
-    padding: var(--space-6);
-  }
-
-  .preparation-copy {
-    max-width: 68ch;
+    gap: var(--space-3);
+    padding: var(--space-5);
   }
 
   .section-label {
     display: block;
-    margin-bottom: 8px;
     color: var(--accent);
     font-size: var(--text-xs);
     font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   h2 {
-    max-width: 28ch;
-    font-size: var(--text-2xl);
-    line-height: 1.15;
+    max-width: 40ch;
+    font-size: var(--text-lg);
+    line-height: 1.25;
   }
 
-  .preparation-copy > p {
-    margin-top: 10px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.55;
+  .meta-line {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
   }
 
-  .draft-meta {
+  .chip-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-top: var(--space-4);
+    gap: 8px;
+    margin: 2px 0 4px;
   }
 
-  .draft-meta span {
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    background: var(--surface-sunken);
-    padding: 5px 8px;
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .readiness-list {
-    display: grid;
-    align-content: start;
-    gap: 2px;
-    border-block: 1px solid var(--border);
-  }
-
-  .readiness-list > div {
-    display: grid;
-    grid-template-columns: auto 1fr;
+  .chip {
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 11px 2px;
-  }
-
-  .readiness-list > div + div {
-    border-top: 1px solid var(--border);
-  }
-
-  .readiness-list :global(.icon) {
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 5px 10px 5px 8px;
     color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
   }
 
-  .readiness-list .ready :global(.icon) {
-    color: var(--accent);
-  }
-
-  .readiness-list .acknowledged :global(.icon) {
+  .chip.ready {
+    border-color: var(--border-strong);
     color: var(--text-secondary);
   }
 
-  .readiness-list span {
-    display: grid;
-    gap: 2px;
+  .chip .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border-strong);
   }
 
-  .readiness-list strong {
-    font-size: var(--text-sm);
-  }
-
-  .readiness-list small {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
+  .chip.ready .dot {
+    background: var(--accent);
   }
 
   .preparation-actions {
-    grid-column: 1 / -1;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     border-top: 1px solid var(--border);
     padding-top: var(--space-4);
   }
 
-  .preparation-actions p {
-    margin-left: auto;
-    max-width: 55ch;
+  .helper-text {
     color: var(--text-muted);
     font-size: var(--text-xs);
     line-height: 1.45;
-    text-align: right;
   }
 
   .limited-action {
@@ -235,12 +179,7 @@
     color: var(--text-primary);
   }
 
-  @media (max-width: 760px) {
-    .preparation-header {
-      grid-template-columns: 1fr;
-      padding: var(--space-5);
-    }
-
+  @media (max-width: 640px) {
     .preparation-actions {
       align-items: stretch;
       flex-direction: column;
@@ -248,11 +187,6 @@
 
     .preparation-actions .btn {
       width: 100%;
-    }
-
-    .preparation-actions p {
-      margin-left: 0;
-      text-align: left;
     }
   }
 </style>

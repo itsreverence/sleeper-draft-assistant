@@ -46,9 +46,9 @@
     isClearingSeasonProjections: boolean;
     isImportingAdp: boolean;
     isClearingAdp: boolean;
-    onImportRankings: (csvText: string) => void;
-    onImportSeasonProjections: (input: { season: string; files: Array<{ position: Position; csvText: string }> }) => void;
-    onImportAdp: (csvText: string, season: string) => void;
+    onImportRankings: (csvText: string) => void | Promise<void>;
+    onImportSeasonProjections: (input: { season: string; files: Array<{ position: Position; csvText: string }> }) => void | Promise<void>;
+    onImportAdp: (csvText: string, season: string) => void | Promise<void>;
     onClearRankings: () => void;
     onClearSeasonProjections: () => void;
     onClearAdp: () => void;
@@ -58,8 +58,6 @@
     expanded?: boolean;
   } = $props();
 
-  let rankingCsvText = $state("");
-  let adpCsvText = $state("");
   let projectionFiles: Array<{ position: Position; csvText: string; name: string }> = $state([]);
   let selectionError = $state("");
 
@@ -78,10 +76,11 @@
     if (!file) return;
     const text = await file.text();
     if (target === "rankings") {
-      rankingCsvText = text;
+      await onImportRankings(text);
     } else {
-      adpCsvText = text;
+      await onImportAdp(text, season);
     }
+    input.value = "";
   }
 
   async function readProjectionFiles(event: Event) {
@@ -100,12 +99,23 @@
       })
       .filter((file): file is { position: Position; csvText: string; name: string } => Boolean(file));
     const unique = new Map(classified.map((file) => [file.position, file]));
+    const allIdentified = classified.length === files.length;
+    const hasDuplicatePositions = unique.size !== classified.length;
     projectionFiles = Array.from(unique.values()).sort(
       (left, right) => projectionOrder.indexOf(left.position) - projectionOrder.indexOf(right.position),
     );
-    selectionError = classified.length === files.length
-      ? ""
-      : "One or more files could not be identified. Use the FantasyPros QB, RB, WR, TE, K, and DST exports.";
+    selectionError = !allIdentified
+      ? "One or more files could not be identified. Use the FantasyPros QB, RB, WR, TE, K, and DST exports."
+      : hasDuplicatePositions
+        ? "Select only one FantasyPros projection file per position."
+        : "";
+    if (!selectionError && projectionFiles.length > 0) {
+      await onImportSeasonProjections({
+        season,
+        files: projectionFiles.map(({ position, csvText }) => ({ position, csvText })),
+      });
+    }
+    input.value = "";
   }
 
   function inferPosition(fileName: string, csvText: string): Position | null {
@@ -154,7 +164,9 @@
 
     <div class="source-row">
       <div class="source-heading">
-        <span class="step">1</span>
+        <span class="step" class:done={Boolean(rankingImportSummary)}>
+          {#if rankingImportSummary}<Icon name="check-circle" size={12} />{:else}1{/if}
+        </span>
         <div>
           <strong>{scoring || "Scoring-aware"} ECR</strong>
           <span>Expert ranks and tiers</span>
@@ -164,17 +176,14 @@
         </span>
       </div>
       <div class="source-actions">
-        <button class="btn btn-secondary" type="button" onclick={onOpenRankings}>Open rankings <Icon name="external" size={13} /></button>
-        <label class="btn btn-secondary file-button">
-          Choose CSV
-          <input type="file" accept=".csv,text/csv" onchange={(event) => readSingleFile(event, "rankings")} />
-        </label>
-        <button class="btn btn-primary" type="button" disabled={!rankingCsvText || isImportingRankings || isClearingRankings} onclick={() => onImportRankings(rankingCsvText)}>
-          {isImportingRankings ? "Importing" : rankingImportSummary ? "Replace" : "Import"}
-        </button>
+        <button class="text-link" type="button" onclick={onOpenRankings}>View source <Icon name="external" size={12} /></button>
         {#if rankingImportSummary}
-          <button class="btn btn-quiet" type="button" disabled={isClearingRankings} onclick={onClearRankings}>Clear</button>
+          <button class="text-link" type="button" disabled={isClearingRankings} onclick={onClearRankings}>Clear</button>
         {/if}
+        <label class="btn btn-primary upload-button">
+          {isImportingRankings ? "Importing" : rankingImportSummary ? "Replace CSV" : "Upload CSV"}
+          <input type="file" accept=".csv,text/csv" disabled={isImportingRankings || isClearingRankings} onchange={(event) => readSingleFile(event, "rankings")} />
+        </label>
       </div>
       {#if rankingImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(rankingImportSummary.appliedAt, 14).stale}>
@@ -187,7 +196,9 @@
 
     <div class="source-row">
       <div class="source-heading">
-        <span class="step">2</span>
+        <span class="step" class:done={Boolean(seasonProjectionImportSummary)}>
+          {#if seasonProjectionImportSummary}<Icon name="check-circle" size={12} />{:else}2{/if}
+        </span>
         <div>
           <strong>{season} season projections</strong>
           <span>League-scored points and replacement value</span>
@@ -197,22 +208,14 @@
         </span>
       </div>
       <div class="source-actions">
-        <button class="btn btn-secondary" type="button" onclick={onOpenSeasonProjections}>Open projections <Icon name="external" size={13} /></button>
-        <label class="btn btn-secondary file-button">
-          Choose files
-          <input type="file" multiple accept=".csv,text/csv" onchange={readProjectionFiles} />
-        </label>
-        <button
-          class="btn btn-primary"
-          type="button"
-          disabled={projectionFiles.length === 0 || isImportingSeasonProjections || isClearingSeasonProjections}
-          onclick={() => onImportSeasonProjections({ season, files: projectionFiles.map(({ position, csvText }) => ({ position, csvText })) })}
-        >
-          {isImportingSeasonProjections ? "Importing" : seasonProjectionImportSummary ? "Replace" : "Import"}
-        </button>
+        <button class="text-link" type="button" onclick={onOpenSeasonProjections}>View source <Icon name="external" size={12} /></button>
         {#if seasonProjectionImportSummary}
-          <button class="btn btn-quiet" type="button" disabled={isClearingSeasonProjections} onclick={onClearSeasonProjections}>Clear</button>
+          <button class="text-link" type="button" disabled={isClearingSeasonProjections} onclick={onClearSeasonProjections}>Clear</button>
         {/if}
+        <label class="btn btn-primary upload-button">
+          {isImportingSeasonProjections ? "Importing" : seasonProjectionImportSummary ? "Replace files" : "Upload files"}
+          <input type="file" multiple accept=".csv,text/csv" disabled={isImportingSeasonProjections || isClearingSeasonProjections} onchange={readProjectionFiles} />
+        </label>
       </div>
       {#if projectionFiles.length > 0}
         <div class="position-list">
@@ -234,7 +237,9 @@
 
     <div class="source-row">
       <div class="source-heading">
-        <span class="step">3</span>
+        <span class="step" class:done={Boolean(adpImportSummary)}>
+          {#if adpImportSummary}<Icon name="check-circle" size={12} />{:else}3{/if}
+        </span>
         <div>
           <strong>Sleeper ADP</strong>
           <span>Sleeper and Real-Time market evidence</span>
@@ -244,17 +249,14 @@
         </span>
       </div>
       <div class="source-actions">
-        <button class="btn btn-secondary" type="button" onclick={onOpenAdp}>Open ADP <Icon name="external" size={13} /></button>
-        <label class="btn btn-secondary file-button">
-          Choose CSV
-          <input type="file" accept=".csv,text/csv" onchange={(event) => readSingleFile(event, "adp")} />
-        </label>
-        <button class="btn btn-primary" type="button" disabled={!adpCsvText || isImportingAdp || isClearingAdp} onclick={() => onImportAdp(adpCsvText, season)}>
-          {isImportingAdp ? "Importing" : adpImportSummary ? "Replace" : "Import"}
-        </button>
+        <button class="text-link" type="button" onclick={onOpenAdp}>View source <Icon name="external" size={12} /></button>
         {#if adpImportSummary}
-          <button class="btn btn-quiet" type="button" disabled={isClearingAdp} onclick={onClearAdp}>Clear</button>
+          <button class="text-link" type="button" disabled={isClearingAdp} onclick={onClearAdp}>Clear</button>
         {/if}
+        <label class="btn btn-primary upload-button">
+          {isImportingAdp ? "Importing" : adpImportSummary ? "Replace CSV" : "Upload CSV"}
+          <input type="file" accept=".csv,text/csv" disabled={isImportingAdp || isClearingAdp} onchange={(event) => readSingleFile(event, "adp")} />
+        </label>
       </div>
       {#if adpImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(adpImportSummary.appliedAt, 14).stale}>
@@ -370,6 +372,11 @@
     font-weight: 800;
   }
 
+  .step.done {
+    background: var(--accent-soft);
+    color: var(--accent) !important;
+  }
+
   .source-status {
     margin-left: auto;
     color: var(--warning) !important;
@@ -388,21 +395,37 @@
 
   .source-actions .btn {
     min-height: 34px;
+    margin-left: auto;
   }
 
-  .btn-quiet {
-    border-color: transparent;
+  .text-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 0;
     background: transparent;
+    padding: 0;
     color: var(--text-muted);
+    font-size: var(--text-xs);
+    cursor: pointer;
   }
 
-  .file-button {
+  .text-link:hover {
+    color: var(--text-primary);
+  }
+
+  .text-link:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .upload-button {
     position: relative;
     overflow: hidden;
     cursor: pointer;
   }
 
-  .file-button input {
+  .upload-button input {
     position: absolute;
     width: 1px;
     height: 1px;

@@ -467,6 +467,19 @@
     }
   }
 
+  function resetSleeperLookup() {
+    usernameInput = "";
+    seasonInput = "";
+    leagueInput = "";
+    connectPayload = null;
+    selectedLeagueId = "";
+    selectedDraftId = "";
+    loadError = "";
+    window.localStorage.removeItem("sleeperUsername");
+    window.localStorage.removeItem("sleeperSeason");
+    window.localStorage.removeItem("sleeperLeagueInput");
+  }
+
   function selectLeague(league: ConnectLeague) {
     selectedLeagueId = league.leagueId;
     selectedDraftId = league.recommendedDraftId ?? league.drafts[0]?.draftId ?? "";
@@ -1552,6 +1565,7 @@
         {activeDraftId}
         activeUserRosterId={activeUserRosterId ?? activeDraftTeamRef}
         onFindLeagues={findSleeperLeagues}
+        onResetLookup={resetSleeperLookup}
         onSelectLeague={selectLeague}
         onSelectDraft={selectDraft}
         onOpenSelectedDraft={openSelectedDraft}
@@ -1791,6 +1805,8 @@
   }
 
   .connect-editor {
+    display: grid;
+    justify-items: center;
     margin-bottom: var(--space-5);
   }
 
