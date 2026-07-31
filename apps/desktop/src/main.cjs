@@ -20,6 +20,10 @@ let webProcess = null;
 let mainWindow = null;
 
 app.setName("Sleeper Draft Assistant");
+app.setPath(
+  "userData",
+  userDataOverride ?? path.join(app.getPath("appData"), "Sleeper Draft Assistant"),
+);
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -36,7 +40,6 @@ app.on("second-instance", () => {
 });
 
 app.whenReady().then(async () => {
-  app.setPath("userData", userDataOverride ?? path.join(app.getPath("appData"), "Sleeper Draft Assistant"));
   await ensureApiServer();
   await createWindow();
 });
