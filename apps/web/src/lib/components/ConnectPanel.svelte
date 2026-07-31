@@ -91,7 +91,7 @@
 
 <section class="panel connect-panel" aria-label="Sleeper connection">
   <div class="section-header">
-    <h2><Icon name="link" size={17} /> Find your league</h2>
+    <h2><Icon name="link" size={17} /> Find your draft</h2>
   </div>
 
   <form class="lookup-form" onsubmit={submitLookup}>
