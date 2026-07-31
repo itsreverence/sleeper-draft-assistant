@@ -25,7 +25,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
 - Shows explicit AI loading, unavailable, and not-configured states instead of substituting a local pick recommendation.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
-- Shows a compact recent-decision review so recommendation changes can be traced to picks, imports, refreshes, or AI questions.
+- Shows a compact strategy-update timeline that keeps the latest living plan prominent, collapses repeated same-pick runs, and preserves older AI changes for review.
 
 Sleeper is currently the only supported fantasy platform. Sleeper search rank is placeholder evidence only; import current draft data before relying on real-draft recommendations.
 

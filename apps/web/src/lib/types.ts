@@ -17,6 +17,7 @@ export type DecisionSnapshot = {
   recommendedPlayerId: string | null;
   headline: string;
   confidence: DraftRecommendation["confidence"];
+  aiStrategy?: AiDraftDecision;
   context: {
     topCandidates: Array<{
       playerId: string;

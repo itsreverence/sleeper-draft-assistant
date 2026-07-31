@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -34,6 +34,7 @@ export type DecisionSnapshot = {
   recommendedPlayerId: string | null;
   headline: string;
   confidence: DraftRecommendation["confidence"];
+  aiStrategy?: AiDraftDecision;
   candidatePlayerIds: string[];
   recommendation: DraftRecommendation;
   context: {
@@ -69,6 +70,7 @@ export class DecisionLogStore {
     draftId: string;
     state: DraftState;
     recommendation: DraftRecommendation;
+    aiStrategy?: AiDraftDecision;
     trigger: DecisionSnapshotTrigger;
     userRosterId?: string | null;
   }): DecisionSnapshot {
@@ -166,6 +168,7 @@ function createDecisionSnapshot(input: {
   draftId: string;
   state: DraftState;
   recommendation: DraftRecommendation;
+  aiStrategy?: AiDraftDecision;
   trigger: DecisionSnapshotTrigger;
   userRosterId?: string | null;
 }): DecisionSnapshot {
@@ -188,6 +191,7 @@ function createDecisionSnapshot(input: {
     recommendedPlayerId: input.recommendation.recommendedPlayerId,
     headline: input.recommendation.headline,
     confidence: input.recommendation.confidence,
+    ...(input.aiStrategy ? { aiStrategy: input.aiStrategy } : {}),
     candidatePlayerIds: input.recommendation.candidates.map((candidate) => candidate.player.id),
     recommendation: input.recommendation,
     context: {

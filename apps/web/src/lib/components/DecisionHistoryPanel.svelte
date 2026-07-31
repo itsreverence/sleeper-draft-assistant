@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DecisionSnapshot } from "../types";
+  import { meaningfulStrategySnapshots } from "../strategy-history";
   import Icon from "./Icon.svelte";
 
   let {
@@ -12,61 +13,99 @@
     error?: string;
   } = $props();
 
-  const latest = $derived(snapshots[0] ?? null);
-  const previousDifferent = $derived(
-    latest
-      ? snapshots.slice(1).find((snapshot) => snapshot.recommendedPlayerId !== latest.recommendedPlayerId) ?? null
-      : null,
-  );
+  const updates = $derived(meaningfulStrategySnapshots(snapshots));
+  const latest = $derived(updates[0] ?? null);
+  const earlier = $derived(updates.slice(1, 6));
 
-  function triggerLabel(trigger: DecisionSnapshot["trigger"]): string {
-    const labels: Record<DecisionSnapshot["trigger"], string> = {
-      "state-load": "draft opened",
-      "rankings-import": "rankings updated",
-      "rankings-clear": "rankings cleared",
-      "manual-refresh": "draft context refreshed",
-      "ai-question": "manager asked",
-      "ai-strategy": "AI strategy generated",
-      "candidate-evaluation": "candidate evaluated",
-      "pick-update": "pick recorded",
-    };
-    return labels[trigger];
+  function headline(snapshot: DecisionSnapshot): string {
+    return snapshot.aiStrategy?.headline ?? snapshot.headline;
+  }
+
+  function changeSummary(snapshot: DecisionSnapshot): string {
+    return snapshot.aiStrategy?.plan.changeSummary
+      ?? snapshot.aiStrategy?.summary
+      ?? `Recommendation updated to ${snapshot.headline}.`;
+  }
+
+  function positions(values: string[]): string {
+    return values.length > 0 ? values.join(" / ") : "Best available value";
+  }
+
+  function time(createdAt: string): string {
+    return new Date(createdAt).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
   }
 </script>
 
 <details class="panel history-panel">
   <summary>
-    <span><Icon name="history" size={16} /> AI strategy history</span>
-    <small>{snapshots.length > 0 ? `${snapshots.length} saved` : "No snapshots yet"}</small>
+    <span><Icon name="history" size={16} /> Strategy updates</span>
+    <small>{updates.length === 1 ? "1 meaningful change" : updates.length > 1 ? `${updates.length} meaningful changes` : "No updates yet"}</small>
   </summary>
 
   {#if isLoading}
-    <p class="muted">Loading recommendation history...</p>
+    <p class="panel-state">Loading strategy updates...</p>
   {:else if error}
-    <p class="callout callout-warning">{error}</p>
+    <p class="callout callout-warning panel-callout">{error}</p>
   {:else if latest}
-    <div class="latest">
-      <span class="eyebrow">Latest at pick {latest.currentPick}</span>
-      <strong>{latest.headline}</strong>
-      <small>{triggerLabel(latest.trigger)} · {new Date(latest.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small>
-    </div>
-    {#if previousDifferent}
-      <p class="change">
-        Changed from <strong>{previousDifferent.headline}</strong> after {triggerLabel(latest.trigger)}.
-      </p>
-    {:else}
-      <p class="change">The AI's first option has not changed across recent strategies.</p>
+    <section class="latest-update" aria-label="Latest strategy update">
+      <div class="update-meta">
+        <span class="eyebrow">Latest update</span>
+        <span class="confidence">{latest.confidence} confidence</span>
+      </div>
+      <div class="update-title">
+        <strong>{headline(latest)}</strong>
+        <small>Pick {latest.currentPick} / {time(latest.createdAt)}</small>
+      </div>
+      <p class="change-summary">{changeSummary(latest)}</p>
+
+      {#if latest.aiStrategy}
+        <p class="approach">{latest.aiStrategy.plan.approach}</p>
+        <dl class="plan-summary">
+          <div>
+            <dt>Focus now</dt>
+            <dd>{positions(latest.aiStrategy.plan.currentPickFocus)}</dd>
+          </div>
+          <div>
+            <dt>Next turn</dt>
+            <dd>{positions(latest.aiStrategy.plan.nextTurnPriorities)}</dd>
+          </div>
+          <div>
+            <dt>Can wait</dt>
+            <dd>{positions(latest.aiStrategy.plan.positionsThatCanWait)}</dd>
+          </div>
+        </dl>
+      {:else}
+        <p class="legacy-note">This older snapshot predates structured strategy history.</p>
+      {/if}
+    </section>
+
+    {#if earlier.length > 0}
+      <section class="timeline-section" aria-labelledby="earlier-strategy-updates">
+        <h3 id="earlier-strategy-updates">Earlier changes</h3>
+        <ol class="timeline">
+          {#each earlier as update}
+            <li>
+              <span class="timeline-marker" aria-hidden="true"></span>
+              <div>
+                <div class="timeline-heading">
+                  <strong>{headline(update)}</strong>
+                  <small>Pick {update.currentPick} / {time(update.createdAt)}</small>
+                </div>
+                <p>{changeSummary(update)}</p>
+              </div>
+            </li>
+          {/each}
+        </ol>
+        {#if updates.length > earlier.length + 1}
+          <p class="older-count">{updates.length - earlier.length - 1} earlier updates retained locally.</p>
+        {/if}
+      </section>
     {/if}
-    <ol>
-      {#each latest.context.topCandidates.slice(0, 3) as candidate}
-        <li>
-          <span>{candidate.name} · {candidate.position}</span>
-          <strong>{candidate.orderLabel ?? (candidate.score !== undefined ? `Legacy score ${candidate.score.toFixed(1)}` : "Reference")}</strong>
-        </li>
-      {/each}
-    </ol>
   {:else}
-    <p class="muted">AI strategy snapshots appear after automatic draft analysis runs.</p>
+    <p class="panel-state">Meaningful strategy changes will appear after AI draft analysis runs.</p>
   {/if}
 </details>
 
@@ -75,6 +114,7 @@
     padding: 0;
     overflow: hidden;
   }
+
   summary {
     display: flex;
     align-items: center;
@@ -84,56 +124,185 @@
     cursor: pointer;
     list-style: none;
   }
+
   summary::-webkit-details-marker {
     display: none;
   }
+
   summary span {
     display: flex;
     align-items: center;
     gap: 8px;
     font-weight: 800;
   }
+
   summary small,
-  .latest small,
-  .muted {
+  .update-title small,
+  .timeline-heading small,
+  .panel-state,
+  .legacy-note,
+  .older-count {
     color: var(--text-muted);
   }
-  .latest,
-  .change,
-  ol,
-  details > .muted,
-  details > .callout {
-    margin: 0 16px 14px;
-  }
-  .latest {
-    display: grid;
-    gap: 4px;
-    padding-top: 14px;
+
+  .latest-update,
+  .timeline-section {
     border-top: 1px solid var(--border);
+    margin: 0 16px;
+    padding: 16px 0;
   }
-  .latest strong {
-    font-size: var(--text-sm);
+
+  .update-meta,
+  .update-title,
+  .timeline-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
   }
-  .change {
+
+  .confidence {
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    line-height: 1.5;
+    font-weight: 700;
+    text-transform: capitalize;
   }
-  ol {
+
+  .update-title {
+    margin-top: 6px;
+  }
+
+  .update-title strong {
+    font-size: var(--text-base);
+  }
+
+  .change-summary,
+  .approach,
+  .timeline p {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.55;
+  }
+
+  .change-summary {
+    margin-top: 8px;
+    color: var(--text-primary);
+  }
+
+  .approach {
+    margin-top: 5px;
+  }
+
+  .plan-summary {
     display: grid;
-    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 14px;
+    border-block: 1px solid var(--border);
+  }
+
+  .plan-summary div {
+    min-width: 0;
+    padding: 10px 12px 10px 0;
+  }
+
+  .plan-summary div + div {
+    border-left: 1px solid var(--border);
+    padding-left: 12px;
+  }
+
+  .plan-summary dt {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .plan-summary dd {
+    margin: 3px 0 0;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+
+  .timeline-section h3 {
+    font-size: var(--text-sm);
+  }
+
+  .timeline {
+    display: grid;
+    gap: 0;
+    margin: 12px 0 0;
     padding: 0;
     list-style: none;
   }
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--text-secondary);
+
+  .timeline li {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr);
+    gap: 10px;
+    position: relative;
+    padding: 0 0 14px;
+  }
+
+  .timeline li:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    top: 9px;
+    bottom: -1px;
+    left: 4px;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .timeline-marker {
+    width: 9px;
+    height: 9px;
+    margin-top: 5px;
+    border: 2px solid var(--surface);
+    border-radius: 50%;
+    background: var(--text-muted);
+    box-shadow: 0 0 0 1px var(--border-strong);
+    z-index: 1;
+  }
+
+  .timeline-heading strong {
     font-size: var(--text-xs);
   }
-  li strong {
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
+
+  .timeline p {
+    margin-top: 3px;
+  }
+
+  .panel-state,
+  .panel-callout,
+  .legacy-note,
+  .older-count {
+    margin: 0 16px 16px;
+    font-size: var(--text-xs);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 640px) {
+    summary,
+    .update-meta,
+    .update-title,
+    .timeline-heading {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .plan-summary {
+      grid-template-columns: 1fr;
+    }
+
+    .plan-summary div {
+      padding: 9px 0;
+    }
+
+    .plan-summary div + div {
+      border-top: 1px solid var(--border);
+      border-left: 0;
+      padding-left: 0;
+    }
   }
 </style>

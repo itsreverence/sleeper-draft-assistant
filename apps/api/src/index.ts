@@ -702,6 +702,7 @@ app.post("/drafts/:draftId/strategy", async (c) => {
         risks: decision.risks,
         candidates: [recommendedCandidate, ...alternativeCandidates],
       },
+      aiStrategy: decision,
       trigger: "ai-strategy",
       userRosterId: getUserRosterId(c),
     });

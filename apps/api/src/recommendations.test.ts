@@ -271,10 +271,17 @@ describe("draft recommendation routes", () => {
 
       const decisionResponse = await app.request("/drafts/mock-draft/decisions?limit=10");
       expect(decisionResponse.status).toBe(200);
-      const decisions = (await decisionResponse.json()) as { snapshots: Array<{ trigger: string; recommendedPlayerId: string | null }> };
+      const decisions = (await decisionResponse.json()) as {
+        snapshots: Array<{
+          trigger: string;
+          recommendedPlayerId: string | null;
+          aiStrategy?: { plan?: { changeSummary?: string } };
+        }>;
+      };
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "rankings-import")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-question")).toBe(true);
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "ai-strategy")).toBe(true);
+      expect(decisions.snapshots.find((snapshot) => snapshot.trigger === "ai-strategy")?.aiStrategy?.plan?.changeSummary).toBeTruthy();
       expect(decisions.snapshots.some((snapshot) => snapshot.trigger === "candidate-evaluation")).toBe(true);
     } finally {
       await app.request("/drafts/mock-draft/rankings/import", { method: "DELETE" });
