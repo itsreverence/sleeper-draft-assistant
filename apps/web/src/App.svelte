@@ -1525,6 +1525,8 @@
     showStatus={hasStartedConnecting}
     showChangeDraft={Boolean(draftState)}
     connectEditorOpen={connectExpanded}
+    centered={isPreconnect}
+    {settingsOpen}
     onChangeDraft={() => (connectExpanded = !connectExpanded)}
     onOpenSettings={() => (settingsOpen = !settingsOpen)}
   />

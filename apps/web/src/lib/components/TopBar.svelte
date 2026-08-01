@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
+
   let {
     title,
     status,
@@ -7,6 +9,8 @@
     showStatus = true,
     showChangeDraft = false,
     connectEditorOpen = false,
+    centered = false,
+    settingsOpen = false,
     onChangeDraft,
     onOpenSettings,
   }: {
@@ -17,12 +21,14 @@
     showStatus?: boolean;
     showChangeDraft?: boolean;
     connectEditorOpen?: boolean;
+    centered?: boolean;
+    settingsOpen?: boolean;
     onChangeDraft?: () => void;
     onOpenSettings?: () => void;
   } = $props();
 </script>
 
-<section class="topbar" aria-label="Draft status">
+<section class="topbar" class:centered aria-label="Draft status">
   <div class="brand">
     <div class="brand-mark" aria-hidden="true">SDA</div>
     <div>
@@ -33,7 +39,17 @@
             {connectEditorOpen ? "Close" : "Change draft"}
           </button>
         {/if}
-        <button class="btn btn-ghost btn-change" type="button" onclick={onOpenSettings}>Settings</button>
+        <button
+          class="settings-button"
+          class:active={settingsOpen}
+          type="button"
+          aria-label={settingsOpen ? "Close settings" : "Open settings"}
+          aria-pressed={settingsOpen}
+          title={settingsOpen ? "Close settings" : "Open settings"}
+          onclick={onOpenSettings}
+        >
+          <Icon name="settings" size={18} />
+        </button>
       </div>
       <p class="product-name">Sleeper Draft Assistant</p>
     </div>
@@ -58,6 +74,11 @@
     padding: var(--space-2) 0 var(--space-6);
   }
 
+  .topbar.centered {
+    position: relative;
+    justify-content: center;
+  }
+
   .brand {
     display: flex;
     align-items: center;
@@ -80,7 +101,7 @@
 
   .title-row {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 12px;
   }
 
@@ -105,6 +126,37 @@
     font-weight: 700;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .settings-button {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .settings-button:hover,
+  .settings-button.active {
+    border-color: var(--border);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+
+  .settings-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .topbar.centered .settings-button {
+    position: absolute;
+    top: var(--space-2);
+    right: 0;
   }
 
   .status-panel {
@@ -172,6 +224,13 @@
     .topbar {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .topbar.centered {
+      align-items: flex-start;
+      flex-direction: row;
+      justify-content: flex-start;
+      padding-right: 46px;
     }
 
     .status-panel {
