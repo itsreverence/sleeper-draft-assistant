@@ -454,8 +454,18 @@
       const firstLeague = payload.leagues[0] ?? null;
       selectedLeagueId = firstLeague?.leagueId ?? "";
       selectedDraftId = firstLeague?.recommendedDraftId ?? firstLeague?.drafts[0]?.draftId ?? "";
-      status = payload.leagues.length > 0 ? "Choose a Sleeper league" : "No Sleeper leagues found";
-      lastEvent = `Loaded ${payload.season} leagues for ${payload.user.displayName ?? payload.user.username ?? payload.user.userId}`;
+      if (payload.leagues.length === 0) {
+        status = "No Sleeper leagues found";
+      } else if (payload.leagues.length > 1) {
+        status = "Choose a Sleeper league";
+      } else if (selectedDraftId) {
+        status = "Ready to open";
+      } else {
+        status = "No Sleeper drafts found";
+      }
+      lastEvent = firstLeague && payload.leagues.length === 1
+        ? `${firstLeague.name} selected for ${payload.user.displayName ?? payload.user.username ?? payload.user.userId}`
+        : `Loaded ${payload.season} leagues for ${payload.user.displayName ?? payload.user.username ?? payload.user.userId}`;
     } catch (error) {
       connectPayload = null;
       selectedLeagueId = "";
@@ -484,11 +494,15 @@
     selectedLeagueId = league.leagueId;
     selectedDraftId = league.recommendedDraftId ?? league.drafts[0]?.draftId ?? "";
     loadError = "";
+    status = selectedDraftId ? "Ready to open" : "No Sleeper drafts found";
+    lastEvent = `${league.name} selected`;
   }
 
   function selectDraft(draft: ConnectDraft) {
     selectedDraftId = draft.draftId;
     loadError = "";
+    status = "Ready to open";
+    lastEvent = `${draft.name} selected`;
   }
 
   async function openSelectedDraft() {

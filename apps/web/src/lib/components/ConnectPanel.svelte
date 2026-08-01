@@ -111,7 +111,11 @@
       placeholder="e.g. gridiron_gary"
       autocomplete="username"
     />
-    <button class="btn btn-primary btn-block" type="submit" disabled={isConnecting}>
+    <button
+      class={`btn ${connectPayload && connectPayload.leagues.length > 0 ? "btn-secondary" : "btn-primary"} btn-block`}
+      type="submit"
+      disabled={isConnecting}
+    >
       {#if isConnecting}<span class="spinner"></span>{/if}
       {isConnecting ? "Finding" : "Find leagues"}
     </button>
