@@ -1,19 +1,28 @@
 ﻿<script lang="ts">
+  import type { SuggestedQuestion } from "../ai-panel";
+
   let {
     questions,
     disabled = false,
     onChoose,
   }: {
-    questions: string[];
+    questions: SuggestedQuestion[];
     disabled?: boolean;
     onChoose: (question: string) => void;
   } = $props();
 </script>
 
 <div class="suggestions" aria-label="Suggested questions">
-  {#each questions as question}
-    <button class="suggestion" type="button" {disabled} onclick={() => onChoose(question)}>
-      {question}
+  {#each questions as question (question.prompt)}
+    <button
+      class="suggestion"
+      type="button"
+      {disabled}
+      aria-label={question.prompt}
+      title={question.prompt}
+      onclick={() => onChoose(question.prompt)}
+    >
+      {question.label}
     </button>
   {/each}
 </div>

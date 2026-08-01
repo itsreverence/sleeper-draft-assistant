@@ -29,12 +29,16 @@ describe("AI panel helpers", () => {
 
   it("suggests questions from draft context without local candidate ordering", () => {
     const questions = buildSuggestedQuestions(state, recommendation, true, false);
+    const prompts = questions.map((question) => question.prompt);
+    const labels = questions.map((question) => question.label);
 
-    expect(questions).toContain("Search the available players and compare the best options.");
-    expect(questions).toContain("Which RB/WR fits this build best?");
-    expect(questions).toContain("Should I pass on QB in this format?");
-    expect(questions).toContain("Where are imported rankings weakest for this decision?");
-    expect(questions.some((question) => question.includes("Jahmyr Gibbs"))).toBe(false);
+    expect(prompts).toContain("Search the available players and compare the best options.");
+    expect(prompts).toContain("Which RB/WR fits this build best?");
+    expect(prompts).toContain("Should I pass on QB in this format?");
+    expect(prompts).toContain("Where are imported rankings weakest for this decision?");
+    expect(labels).toContain("Best RB/WR fit");
+    expect(labels).toContain("Pass on QB?");
+    expect(questions.some((question) => question.prompt.includes("Jahmyr Gibbs"))).toBe(false);
   });
 
   it("builds concise grounding chips for the AI panel", () => {
