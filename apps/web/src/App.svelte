@@ -1516,7 +1516,11 @@
   });
 </script>
 
-<main class="app-shell" class:preconnect-shell={isPreconnect}>
+<main
+  class="app-shell"
+  class:preconnect-shell={isPreconnect}
+  class:preconnect-landing={isPreconnect && !settingsOpen}
+>
   <TopBar
     title={draftState?.name ?? "Connect your Sleeper draft"}
     {status}
@@ -1806,7 +1810,12 @@
   .app-shell.preconnect-shell {
     width: min(720px, 100%);
     min-height: 100vh;
-    grid-template-rows: auto 1fr;
+  }
+
+  .app-shell.preconnect-landing {
+    grid-template-rows: auto auto;
+    align-content: center;
+    gap: var(--space-6);
   }
 
   .app-shell > *,

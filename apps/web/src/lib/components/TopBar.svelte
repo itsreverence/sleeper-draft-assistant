@@ -156,7 +156,7 @@
   .topbar.centered .settings-button {
     position: absolute;
     top: var(--space-2);
-    right: 0;
+    right: max(0px, calc(50% - 260px));
   }
 
   .status-panel {
