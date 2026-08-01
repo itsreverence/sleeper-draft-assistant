@@ -59,6 +59,7 @@
   const showDraftPicker = $derived(Boolean(selectedLeague && hasMultipleDrafts));
   const showReadyCard = $derived(Boolean(selectedLeague && selectedDraft));
   const noLeaguesFound = $derived(Boolean(connectPayload && connectPayload.leagues.length === 0));
+  const hasLookupResults = $derived(Boolean(connectPayload && connectPayload.leagues.length > 0));
 
   $effect(() => {
     if (noLeaguesFound) leaguePanelOpen = true;
@@ -112,7 +113,7 @@
       autocomplete="username"
     />
     <button
-      class={`btn ${connectPayload && connectPayload.leagues.length > 0 ? "btn-secondary" : "btn-primary"} btn-block`}
+      class={`btn ${hasLookupResults ? "btn-secondary" : "btn-primary"} btn-block`}
       type="submit"
       disabled={isConnecting}
     >
@@ -121,7 +122,8 @@
     </button>
   </form>
 
-  <div class="alternate-connections">
+  {#if !hasLookupResults}
+    <div class="alternate-connections">
     <div class="mini-links">
       <button type="button" class="text-link" onclick={() => (leaguePanelOpen = !leaguePanelOpen)}>Paste a league URL</button>
       <button type="button" class="text-link" onclick={() => (draftPanelOpen = !draftPanelOpen)}>Paste a draft ID</button>
@@ -167,7 +169,8 @@
       <button type="button" class="text-link" onclick={onLoadMockDraft}>Try a demo draft</button>
       <span class="demo-caption">Loads a sample board for testing only, not a source of player values.</span>
     </div>
-  </div>
+    </div>
+  {/if}
 
   {#if connectPayload && connectPayload.leagues.length > 0}
     <div class="connect-results">
