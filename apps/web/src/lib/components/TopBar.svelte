@@ -154,9 +154,10 @@
   }
 
   .topbar.centered .settings-button {
-    position: absolute;
-    top: var(--space-2);
-    right: max(0px, calc(50% - 260px));
+    position: fixed;
+    z-index: 20;
+    top: var(--space-6);
+    right: var(--space-6);
   }
 
   .status-panel {
