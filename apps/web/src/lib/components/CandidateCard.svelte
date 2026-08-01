@@ -66,7 +66,7 @@
       {preference === "pin" ? "Shortlisted" : "Shortlist"}
     </button>
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
-      {detailsOpen ? "Less" : "Evidence"}
+      {detailsOpen ? "Hide evidence" : "View evidence"}
     </button>
   </div>
 
@@ -257,6 +257,22 @@
 
   .details-toggle {
     margin-left: auto;
+  }
+
+  .actions .details-toggle {
+    border: 0;
+    background: transparent;
+    padding-right: 2px;
+    padding-left: 2px;
+    color: var(--text-muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .actions .details-toggle:hover {
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
   }
 
   .details {

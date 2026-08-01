@@ -1749,7 +1749,7 @@
                 onOpen={openDraftPreparation}
               />
             {/if}
-            {#if draftPhase !== "complete" && (userTeam?.roster.length ?? 0) > 0}
+            {#if draftPhase !== "complete"}
               <RosterPanel state={draftState} />
             {/if}
           </div>

@@ -13,6 +13,7 @@
     <div>
       <h2><Icon name="users" size={17} /> {userTeam?.name ?? "Your draft roster"}</h2>
     </div>
+    <span class="roster-count">{userTeam?.roster.length ?? 0}/{state.settings.rounds}</span>
   </div>
   {#if userTeam && userTeam.roster.length > 0}
     <ul class="roster-list">
@@ -32,6 +33,13 @@
     gap: 8px;
     margin-top: 3px;
     font-size: var(--text-lg);
+  }
+
+  .roster-count {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
 
   .roster-list {
