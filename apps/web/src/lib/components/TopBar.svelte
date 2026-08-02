@@ -73,7 +73,7 @@
 
 <section class="topbar" class:centered class:has-draft={showChangeDraft} aria-label="Draft status">
   <div class="brand">
-    <div class="brand-mark" aria-hidden="true">SDA</div>
+    <img class="brand-mark" src="./favicon.svg" alt="" aria-hidden="true" />
     <div>
       <div class="title-row">
         {#if showChangeDraft}
@@ -174,17 +174,10 @@
   }
 
   .brand-mark {
-    display: grid;
-    place-items: center;
+    display: block;
     width: 42px;
     height: 42px;
     flex-shrink: 0;
-    border-radius: var(--radius-md);
-    background: var(--accent);
-    color: var(--text-on-accent);
-    font-size: 14px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
   }
 
   .title-row {

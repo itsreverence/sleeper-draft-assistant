@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Snake Path logo concept</title>
+  <desc id="description">A serpentine draft path with one highlighted current pick.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#34d399"/>
+  <path d="M60 72h124c14 0 22 8 22 22s-8 22-22 22H72c-14 0-22 8-22 22s8 22 22 22h124" fill="none" stroke="#0b1512" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="116" r="17" fill="#f4f7f5" stroke="#0b1512" stroke-width="8"/>
+</svg>
