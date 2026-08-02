@@ -2,6 +2,7 @@
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
   import DecisionHistoryPanel from "./DecisionHistoryPanel.svelte";
+  import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
   import { currentAiDraftStrategy } from "../ai-panel";
   import { rosterFitLabel, sourceLabel } from "../format";
   import type { AiDraftStrategyPayload, DecisionSnapshot, PlayerPreferenceLevel, PlayerPreferences } from "../types";
@@ -103,17 +104,6 @@
     }
   }
 
-  function toggleRecommendedPriority() {
-    const candidate = currentAiStrategy?.recommendedCandidate;
-    if (!candidate) {
-      return;
-    }
-    onSetPreference?.(
-      candidate.player.id,
-      playerPreferences[candidate.player.id] === "pin" ? null : "pin",
-    );
-  }
-
   $effect(() => {
     const requestKey = `${currentPick}:${strategyRequestKey}`;
     if (
@@ -174,16 +164,12 @@
     <div class="ai-strategy" aria-live="polite">
       <p class="decision-summary">{currentAiStrategy.decision.summary}</p>
       <div class="decision-actions">
-        <button
-          class:active={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin"}
-          type="button"
-          aria-pressed={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin"}
-          title="Strong preference: ask AI to consider this player first"
-          onclick={toggleRecommendedPriority}
-        >
-          <Icon name="checklist" size={13} />
-          {playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin" ? "Prioritized" : "Prioritize"}
-        </button>
+        <PlayerPreferenceMenu
+          playerId={currentAiStrategy.recommendedCandidate.player.id}
+          playerName={currentAiStrategy.recommendedCandidate.player.name}
+          preference={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] ?? null}
+          {onSetPreference}
+        />
         <button
           type="button"
           title={`Ask about drafting ${currentAiStrategy.recommendedCandidate.player.name}`}
@@ -493,7 +479,7 @@
     gap: 8px;
   }
 
-  .decision-actions button {
+  .decision-actions > button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -507,8 +493,7 @@
     font-weight: 800;
   }
 
-  .decision-actions button:hover,
-  .decision-actions button.active {
+  .decision-actions > button:hover {
     border-color: var(--accent-border);
     background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--text-primary);

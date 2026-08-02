@@ -2,6 +2,7 @@
   import type { DraftOption, PlayerPreferenceLevel } from "../types";
   import { rosterFitLabel, sourceLabel } from "../format";
   import Icon from "./Icon.svelte";
+  import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
 
   let {
     candidate,
@@ -18,10 +19,6 @@
   } = $props();
 
   let detailsOpen = $state(false);
-
-  function togglePreference(nextPreference: PlayerPreferenceLevel) {
-    onSetPreference?.(candidate.player.id, preference === nextPreference ? null : nextPreference);
-  }
 
   function discussCandidate() {
     onDiscuss?.(candidate.player.name);
@@ -57,14 +54,20 @@
   </div>
 
   <div class="actions">
+    <PlayerPreferenceMenu
+      playerId={candidate.player.id}
+      playerName={candidate.player.name}
+      {preference}
+      {onSetPreference}
+    />
     <button
-      class:active={preference === "pin"}
+      class="ask-action"
       type="button"
-      aria-pressed={preference === "pin"}
-      title="Strong preference: ask AI to consider this player first"
-      onclick={() => togglePreference("pin")}
+      title={`Ask about drafting ${candidate.player.name}`}
+      onclick={discussCandidate}
     >
-      {preference === "pin" ? "Prioritized" : "Prioritize"}
+      <Icon name="message" size={13} />
+      Ask about pick
     </button>
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
       {detailsOpen ? "Hide evidence" : "View evidence"}
@@ -85,35 +88,6 @@
           {/each}
         </ul>
       {/if}
-      <div class="secondary-actions" aria-label={`Preferences for ${candidate.player.name}`}>
-        <button
-          class:active={preference === "fade"}
-          type="button"
-          aria-pressed={preference === "fade"}
-          title="Soft preference: keep this player available but consider them later"
-          onclick={() => togglePreference("fade")}
-        >
-          {preference === "fade" ? "Deprioritized" : "Deprioritize"}
-        </button>
-        <button
-          class:active={preference === "exclude"}
-          type="button"
-          aria-pressed={preference === "exclude"}
-          title="Hard rule: remove this player from AI recommendations and player search"
-          onclick={() => togglePreference("exclude")}
-        >
-          {preference === "exclude" ? "Excluded" : "Exclude"}
-        </button>
-        <button
-          class="ai-secondary"
-          type="button"
-          title={`Ask about drafting ${candidate.player.name}`}
-          onclick={discussCandidate}
-        >
-          <Icon name="message" size={13} />
-          Ask about pick
-        </button>
-      </div>
     </div>
   {/if}
 
@@ -237,7 +211,7 @@
     margin-top: 12px;
   }
 
-  .actions button {
+  .actions > button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -251,8 +225,7 @@
     padding: 7px 10px;
   }
 
-  .actions button:hover,
-  .actions button.active {
+  .actions > button:hover {
     border-color: var(--accent-border);
     background: var(--accent-soft);
     color: var(--text-primary);
@@ -312,35 +285,4 @@
     margin-bottom: 0;
   }
 
-  .secondary-actions {
-    display: flex;
-    gap: 6px;
-    margin-top: 10px;
-  }
-
-  .secondary-actions button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    border: 0;
-    background: transparent;
-    padding: 4px 0;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .ai-secondary {
-    margin-left: auto;
-  }
-
-  .secondary-actions button + button {
-    margin-left: 12px;
-  }
-
-  .secondary-actions button:hover,
-  .secondary-actions button.active {
-    color: var(--text-primary);
-  }
 </style>
