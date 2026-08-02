@@ -45,4 +45,19 @@ describe("draft manager prompt", () => {
     expect(prompt).not.toContain("deterministic order");
     expect(prompt.match(/search_available_players/g)).toHaveLength(1);
   });
+
+  it("assigns non-overlapping jobs to draft decision fields", () => {
+    const prompt = buildDraftStrategyPrompt(buildDraftStrategyContext(createMockDraftState(8)));
+
+    expect(prompt).toContain("UI separately renders the recommended player's raw evidence");
+    expect(prompt).toContain("Give every generated field a distinct purpose");
+    expect(prompt).toContain("summary: one or two live-pick-clock sentences");
+    expect(prompt).toContain("reasons: two or three distinct comparative or strategic reasons");
+    expect(prompt).toContain("do not re-list ranks, projections, ADP, tiers, or flags");
+    expect(prompt).toContain("risks: only material decision implications");
+    expect(prompt).toContain("paired with its consequence or mitigation");
+    expect(prompt).toContain("begin after the recommended selection");
+    expect(prompt).toContain("do not re-justify or restate the current recommendation");
+    expect(prompt).toContain("complete but non-redundant living draft plan");
+  });
 });
