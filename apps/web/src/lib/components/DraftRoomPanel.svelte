@@ -20,6 +20,13 @@
   const totalPicks = $derived(draftState.settings.teams * draftState.settings.rounds);
   const completedPicks = $derived(draftState.picks.length);
   const completion = $derived(totalPicks > 0 ? Math.min(100, Math.round((completedPicks / totalPicks) * 100)) : 0);
+  const boardEyebrow = $derived(
+    draftState.status === "pre_draft"
+      ? "Pre-draft board"
+      : draftState.status === "complete"
+        ? "Draft results"
+        : "Live draft board",
+  );
 
   $effect(() => {
     draftState.currentPick;
@@ -56,7 +63,7 @@
 <section class="draft-room" aria-label="Draft room">
   <header class="room-header">
     <div class="room-title">
-      <p class="eyebrow">Live draft board</p>
+      <p class="eyebrow">{boardEyebrow}</p>
       <h2><Icon name="grid" size={19} /> Draft room</h2>
       <p>
         {#if draftState.status === "pre_draft"}
@@ -90,9 +97,6 @@
           Full board
         </button>
       </div>
-      <span class="room-status" class:status-live={draftState.status === "drafting"}>
-        <i></i>{draftState.status.replace("_", " ")}
-      </span>
     </div>
   </header>
 
@@ -221,37 +225,6 @@
     background: var(--surface-raised);
     color: var(--text-primary);
     box-shadow: var(--shadow-sm);
-  }
-
-  .room-status {
-    display: inline-flex;
-    gap: 7px;
-    align-items: center;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
-    padding: 7px 10px;
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 800;
-    text-transform: capitalize;
-    white-space: nowrap;
-  }
-
-  .room-status i {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--text-muted);
-  }
-
-  .room-status.status-live {
-    border-color: var(--accent-border);
-    color: var(--accent);
-  }
-
-  .room-status.status-live i {
-    background: var(--accent);
-    box-shadow: 0 0 0 4px var(--accent-soft);
   }
 
   .progress-row {
@@ -516,10 +489,6 @@
 
     .room-actions {
       justify-content: space-between;
-    }
-
-    .room-status {
-      padding-inline: 9px;
     }
 
     .board-scroller {

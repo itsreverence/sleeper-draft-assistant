@@ -1662,7 +1662,6 @@
         <ModeTabs
           bind:mode={workspaceMode}
           {manageAvailable}
-          phase={draftPhase}
           onUserSelect={() => {
             userPickedMode = true;
           }}

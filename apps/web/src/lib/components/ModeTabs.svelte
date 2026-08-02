@@ -1,27 +1,19 @@
 <script lang="ts">
-  import type { DraftPhase, WorkspaceMode } from "../format";
+  import type { WorkspaceMode } from "../format";
 
   let {
     mode = $bindable("draft"),
     manageAvailable = false,
-    phase = null,
     onUserSelect,
   }: {
     mode?: WorkspaceMode;
     manageAvailable?: boolean;
-    phase?: DraftPhase | null;
     onUserSelect?: () => void;
   } = $props();
 
-  const draftLabel = $derived(
-    phase === "complete" ? "Draft review" : phase === "pre_draft" ? "Draft prep" : "Draft room",
-  );
-  const manageLabel = $derived(phase === "complete" ? "Season" : "Team manager");
   const manageTitle = $derived(
     manageAvailable
-      ? phase === "complete"
-        ? "Lineups, waivers, and weekly decisions"
-        : "Season team manager"
+      ? "Lineups, waivers, and weekly decisions"
       : "Open a real Sleeper league to manage your team",
   );
 
@@ -43,7 +35,7 @@
     aria-selected={mode === "draft"}
     onclick={() => select("draft")}
   >
-    {draftLabel}
+    Draft
   </button>
   <button
     class="mode-tab"
@@ -55,32 +47,40 @@
     title={manageTitle}
     onclick={() => select("manage")}
   >
-    {manageLabel}
+    Team manager
   </button>
 </div>
 
 <style>
   .mode-tabs {
     display: inline-flex;
-    gap: 4px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    gap: 24px;
     width: fit-content;
     max-width: 100%;
+    border-bottom: 1px solid var(--border);
   }
 
   .mode-tab {
+    position: relative;
     border: 0;
-    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-sm);
     font-weight: 700;
-    padding: 8px 14px;
+    padding: 9px 2px 10px;
     transition: background var(--transition-fast), color var(--transition-fast);
+  }
+
+  .mode-tab::after {
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    background: transparent;
+    content: "";
+    transition: background var(--transition-fast);
   }
 
   .mode-tab:hover:not(:disabled) {
@@ -88,9 +88,11 @@
   }
 
   .mode-tab.active {
-    background: var(--surface-raised);
     color: var(--text-primary);
-    box-shadow: var(--shadow-sm);
+  }
+
+  .mode-tab.active::after {
+    background: var(--accent);
   }
 
   .mode-tab:disabled {
