@@ -15,6 +15,7 @@
     onSelectDraft,
     onFindAnotherLeague,
     onOpenDraftId,
+    onViewDraftResults,
     onOpenSettings,
   }: {
     title: string;
@@ -30,6 +31,7 @@
     onSelectDraft?: (draftId: string) => void | Promise<void>;
     onFindAnotherLeague?: () => void;
     onOpenDraftId?: (draftId: string) => void | Promise<void>;
+    onViewDraftResults?: () => void;
     onOpenSettings?: () => void;
   } = $props();
 
@@ -103,6 +105,15 @@
                 {/each}
               </div>
               <div class="switcher-actions">
+                {#if onViewDraftResults}
+                  <button
+                    type="button"
+                    onclick={() => {
+                      closeSwitcher();
+                      onViewDraftResults?.();
+                    }}
+                  >View draft results</button>
+                {/if}
                 <button
                   type="button"
                   onclick={() => {
@@ -127,7 +138,9 @@
           <h1>{title}</h1>
         {/if}
       </div>
-      <p class="product-name">Sleeper Draft Assistant</p>
+      {#if !showChangeDraft}
+        <p class="product-name">Sleeper Draft Assistant</p>
+      {/if}
     </div>
   </div>
   {#if showStatus}

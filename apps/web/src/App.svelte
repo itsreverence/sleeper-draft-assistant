@@ -3,7 +3,6 @@
 
   import TopBar from "./lib/components/TopBar.svelte";
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
-  import ModeTabs from "./lib/components/ModeTabs.svelte";
   import ConnectPanel from "./lib/components/ConnectPanel.svelte";
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsPanel from "./lib/components/SettingsPanel.svelte";
@@ -297,7 +296,7 @@
   let draftPreparationOpen = $state(false);
   let limitedDataMode = $state(false);
   let workspaceMode: WorkspaceMode = $state("draft");
-  let userPickedMode = $state(false);
+  let reviewingDraftResults = $state(false);
   let phaseSyncKey = $state("");
 
   function handleTeamRefreshFocus() {
@@ -592,7 +591,7 @@
     draftPreparationOpen = false;
     limitedDataMode = false;
     workspaceMode = "draft";
-    userPickedMode = false;
+    reviewingDraftResults = false;
     phaseSyncKey = "";
     window.localStorage.removeItem("lastDraftId");
     window.localStorage.removeItem("lastDraftTeamRef");
@@ -709,7 +708,7 @@
       draftPreparationOpen = false;
       limitedDataMode = false;
       workspaceMode = "draft";
-      userPickedMode = false;
+      reviewingDraftResults = false;
       phaseSyncKey = "";
       window.localStorage.removeItem("lastDraftId");
       window.localStorage.removeItem("lastDraftTeamRef");
@@ -1366,8 +1365,20 @@
   function manageDraftDataFromSettings() {
     settingsOpen = false;
     workspaceMode = "draft";
-    userPickedMode = true;
+    reviewingDraftResults = true;
     draftPreparationOpen = true;
+  }
+
+  function viewDraftResults() {
+    if (draftPhase !== "complete") return;
+    reviewingDraftResults = true;
+    workspaceMode = "draft";
+  }
+
+  function openTeamManager() {
+    if (!manageAvailable) return;
+    reviewingDraftResults = false;
+    workspaceMode = "manage";
   }
 
   async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
@@ -1568,12 +1579,12 @@
 
     if (key !== phaseSyncKey) {
       phaseSyncKey = key;
-      userPickedMode = false;
+      reviewingDraftResults = false;
       workspaceMode = preferredWorkspaceMode(draftPhase, manageAvailable);
       return;
     }
 
-    if (!userPickedMode && draftPhase === "complete" && manageAvailable && workspaceMode !== "manage") {
+    if (!reviewingDraftResults && draftPhase === "complete" && manageAvailable && workspaceMode !== "manage") {
       workspaceMode = "manage";
     }
   });
@@ -1604,6 +1615,7 @@
     onSelectDraft={switchToKnownDraft}
     onFindAnotherLeague={findAnotherLeague}
     onOpenDraftId={openDraftIdFromSwitcher}
+    onViewDraftResults={draftPhase === "complete" && workspaceMode === "manage" ? viewDraftResults : undefined}
     onOpenSettings={() => (settingsOpen = !settingsOpen)}
   />
 
@@ -1658,15 +1670,8 @@
 
   {#if draftState}
     {#key activeDraftId}
-      <div class="workspace-toolbar">
-        <ModeTabs
-          bind:mode={workspaceMode}
-          {manageAvailable}
-          onUserSelect={() => {
-            userPickedMode = true;
-          }}
-        />
-        {#if !draftPreparationOpen && workspaceMode === "draft"}
+      {#if !draftPreparationOpen && workspaceMode === "draft"}
+        <div class="workspace-toolbar">
           <DraftSyncStatus
             lastSuccessfulAt={draftLastSuccessfulAt}
             consecutiveFailures={draftConsecutiveFailures}
@@ -1674,8 +1679,8 @@
             reconnecting={draftReconnecting}
             onReconnect={() => connectEvents(activeDraftId, activeDraftTeamRef)}
           />
-        {/if}
-      </div>
+        </div>
+      {/if}
       {#if draftPreparationOpen && workspaceMode === "draft"}
         <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
         <div class="preparation-flow">
@@ -1748,17 +1753,14 @@
             {#if draftPhase === "complete"}
               <article class="panel phase-note">
                 <h2>Draft is over</h2>
-                <p>The completed board and roster stay here for review. Switch to Season for lineups, waivers, and weekly decisions.</p>
+                <p>The completed board and roster stay here for review. Team Manager remains the primary workspace for lineups, waivers, and weekly decisions.</p>
                 {#if manageAvailable}
                   <button
                     class="btn btn-primary"
                     type="button"
-                    onclick={() => {
-                      userPickedMode = true;
-                      workspaceMode = "manage";
-                    }}
+                    onclick={openTeamManager}
                   >
-                    Open season manager
+                    Back to team manager
                   </button>
                 {/if}
               </article>
@@ -1924,9 +1926,9 @@
   .workspace-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--space-4);
-    margin: var(--space-3) 0 var(--space-4);
+    margin: 0 0 var(--space-4);
   }
 
   .dashboard-grid {
@@ -1970,11 +1972,4 @@
     }
   }
 
-  @media (max-width: 720px) {
-    .workspace-toolbar {
-      align-items: stretch;
-      flex-direction: column;
-      gap: var(--space-2);
-    }
-  }
 </style>
