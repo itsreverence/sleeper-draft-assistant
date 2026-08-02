@@ -10,6 +10,8 @@
     onAsk,
     providerStatus = null,
     hasImportedRankings = false,
+    hasSeasonProjections = false,
+    hasImportedAdp = false,
     showPlaceholderWarning = false,
     draftState = null,
     recommendation = null,
@@ -19,6 +21,8 @@
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
     hasImportedRankings?: boolean;
+    hasSeasonProjections?: boolean;
+    hasImportedAdp?: boolean;
     showPlaceholderWarning?: boolean;
     draftState?: DraftState | null;
     recommendation?: DraftRecommendation | null;
@@ -42,7 +46,7 @@
   );
   const providerLabel = $derived(providerReady ? providerStatus?.label ?? "AI manager" : "No AI provider");
   const suggestedQuestions = $derived(buildSuggestedQuestions(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
-  const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
+  const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, hasSeasonProjections, hasImportedAdp, showPlaceholderWarning));
   const boardChanged = $derived(
     Boolean(messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
   );
@@ -177,8 +181,8 @@
           {/if}
         </div>
       {:else}
-      <div class="context-strip" aria-label="AI grounding context">
-        <span class="context-label">Grounded in</span>
+      <div class="context-strip" aria-label="AI context">
+        <span class="context-label">AI context</span>
         <div class="context-chips">
           {#each contextSummary.chips as chip}
             <span>{chip}</span>

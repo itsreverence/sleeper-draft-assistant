@@ -182,8 +182,8 @@
     <span class:offline={!providerReady} class="pill pill-info">{providerLabel}</span>
   </div>
 
-  <div class="context-strip" aria-label="AI team grounding context">
-    <span class="context-label">Grounded in</span>
+  <div class="context-strip" aria-label="AI team context">
+    <span class="context-label">AI context</span>
     <div class="context-chips">
       {#each contextChips as chip}
         <span>{chip}</span>

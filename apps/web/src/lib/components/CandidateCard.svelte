@@ -40,7 +40,7 @@
         <h3>{candidate.player.name}</h3>
         <span class="strategy-badge">AI alternative</span>
         {#if preference}
-          <span class="preference-badge preference-{preference}">{preference === "pin" ? "shortlisted" : preference}</span>
+          <span class="preference-badge preference-{preference}">{preference === "pin" ? "prioritized" : preference === "fade" ? "deprioritized" : "excluded"}</span>
         {/if}
       </div>
       <p>
@@ -61,9 +61,10 @@
       class:active={preference === "pin"}
       type="button"
       aria-pressed={preference === "pin"}
+      title="Strong preference: ask AI to consider this player first"
       onclick={() => togglePreference("pin")}
     >
-      {preference === "pin" ? "Shortlisted" : "Shortlist"}
+      {preference === "pin" ? "Prioritized" : "Prioritize"}
     </button>
     <button class="details-toggle" type="button" aria-expanded={detailsOpen} onclick={() => (detailsOpen = !detailsOpen)}>
       {detailsOpen ? "Hide evidence" : "View evidence"}
@@ -89,14 +90,16 @@
           class:active={preference === "fade"}
           type="button"
           aria-pressed={preference === "fade"}
+          title="Soft preference: keep this player available but consider them later"
           onclick={() => togglePreference("fade")}
         >
-          {preference === "fade" ? "Faded" : "Fade"}
+          {preference === "fade" ? "Deprioritized" : "Deprioritize"}
         </button>
         <button
           class:active={preference === "exclude"}
           type="button"
           aria-pressed={preference === "exclude"}
+          title="Hard rule: remove this player from AI recommendations and player search"
           onclick={() => togglePreference("exclude")}
         >
           {preference === "exclude" ? "Excluded" : "Exclude"}

@@ -1729,6 +1729,8 @@
                 onOpenSettings={() => (settingsOpen = true)}
                 providerStatus={aiProviderStatus}
                 {hasImportedRankings}
+                {hasSeasonProjections}
+                {hasImportedAdp}
                 showPlaceholderWarning={draftValuesIncomplete}
                 {draftState}
                 {recommendation}

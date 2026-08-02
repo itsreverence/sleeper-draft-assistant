@@ -42,14 +42,18 @@ describe("AI panel helpers", () => {
   });
 
   it("builds concise grounding chips for the AI panel", () => {
-    const summary = buildAiPanelContextSummary(state, recommendation, true, false);
+    const summary = buildAiPanelContextSummary(state, recommendation, true, true, true, false);
 
     expect(summary.chips).toContain("PPR");
+    expect(summary.chips).toContain("8 teams");
+    expect(summary.chips).toContain("1 QB");
     expect(summary.chips).toContain("2 FLEX");
-    expect(summary.chips).toContain("Imported rankings");
-    expect(summary.chips).toContain("RB/WR flex pressure");
-    expect(summary.chips).toContain("Lower QB pressure");
-    expect(summary.note).toContain("imported rankings");
+    expect(summary.chips).toContain("ECR");
+    expect(summary.chips).toContain("Season projections");
+    expect(summary.chips).toContain("Sleeper ADP");
+    expect(summary.chips).not.toContain("RB/WR flex pressure");
+    expect(summary.chips).not.toContain("Lower QB pressure");
+    expect(summary.note).toContain("imported player-value sources");
   });
 
   it("requests AI-first strategy near the turn and rejects stale results", () => {

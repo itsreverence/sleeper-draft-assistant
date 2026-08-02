@@ -106,27 +106,31 @@ export function buildAiPanelContextSummary(
   state: DraftState | null,
   _currentRecommendation: DraftRecommendation | null,
   rankingsImported: boolean,
+  projectionsImported: boolean,
+  adpImported: boolean,
   usingPlaceholderRanks: boolean,
 ): AiPanelContextSummary {
   if (!state) {
     return { chips: ["No draft loaded"], note: null };
   }
 
-  const chips = [state.settings.scoring, formatFlexChip(state), rankingsImported ? "Imported rankings" : usingPlaceholderRanks ? "Sleeper placeholder ranks" : "Demo values"];
-  if (getFlexSlotCount(state) > 0) {
-    chips.push("RB/WR flex pressure");
-  }
-  if (hasSingleQbFormat(state)) {
-    chips.push("Lower QB pressure");
-  }
+  const chips = [
+    state.settings.scoring.toUpperCase(),
+    `${state.settings.teams} teams`,
+    `${state.settings.rosterSlots.QB ?? 0} QB`,
+    formatFlexChip(state),
+  ];
+  if (rankingsImported) chips.push("ECR");
+  if (projectionsImported) chips.push("Season projections");
+  if (adpImported) chips.push("Sleeper ADP");
+  if (usingPlaceholderRanks) chips.push("Sleeper placeholder ranks");
+  if (!rankingsImported && !projectionsImported && !adpImported && !usingPlaceholderRanks) chips.push("Demo values");
 
   const note = usingPlaceholderRanks
-    ? "AI answers are grounded in Sleeper draft context, but player values are placeholder ranks."
-    : rankingsImported
-      ? "AI answers are grounded in Sleeper draft context and imported rankings, not live projections."
-      : "AI answers are grounded in the current draft context.";
+    ? "AI receives the current board, roster, and league settings, but player values are temporary Sleeper search ranks."
+    : "AI receives the current board, roster, league settings, and the imported player-value sources shown above.";
 
-  return { chips: uniqueQuestions(chips).slice(0, 5), note };
+  return { chips: uniqueQuestions(chips).slice(0, 8), note };
 }
 
 function getRosterNeeds(state: DraftState): Position[] {
@@ -170,7 +174,7 @@ function formatFlexChip(state: DraftState): string {
     parts.push(`${superFlexSlots} SUPER_FLEX`);
   }
 
-  return parts.length > 0 ? parts.join(" / ") : "No flex";
+  return parts.length > 0 ? parts.join(" / ") : "No FLEX";
 }
 
 function getFlexSlotCount(state: DraftState): number {

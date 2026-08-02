@@ -52,9 +52,9 @@
   const preferenceCount = $derived(preferenceCounts.pin + preferenceCounts.fade + preferenceCounts.exclude);
   const preferenceSummary = $derived(
     [
-      preferenceCounts.pin > 0 ? `${preferenceCounts.pin} pinned` : "",
-      preferenceCounts.fade > 0 ? `${preferenceCounts.fade} faded` : "",
-      preferenceCounts.exclude > 0 ? `${preferenceCounts.exclude} hidden` : "",
+      preferenceCounts.pin > 0 ? `${preferenceCounts.pin} prioritized` : "",
+      preferenceCounts.fade > 0 ? `${preferenceCounts.fade} deprioritized` : "",
+      preferenceCounts.exclude > 0 ? `${preferenceCounts.exclude} excluded` : "",
     ]
       .filter(Boolean)
       .join(" / "),
@@ -103,7 +103,7 @@
     }
   }
 
-  function toggleRecommendedShortlist() {
+  function toggleRecommendedPriority() {
     const candidate = currentAiStrategy?.recommendedCandidate;
     if (!candidate) {
       return;
@@ -190,10 +190,11 @@
           class:active={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin"}
           type="button"
           aria-pressed={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin"}
-          onclick={toggleRecommendedShortlist}
+          title="Strong preference: ask AI to consider this player first"
+          onclick={toggleRecommendedPriority}
         >
           <Icon name="checklist" size={13} />
-          {playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin" ? "Shortlisted" : "Shortlist"}
+          {playerPreferences[currentAiStrategy.recommendedCandidate.player.id] === "pin" ? "Prioritized" : "Prioritize"}
         </button>
         <button
           type="button"
