@@ -217,17 +217,17 @@
     gap: 6px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    background: var(--surface-raised);
+    background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 700;
+    font-weight: 800;
     padding: 7px 10px;
   }
 
   .actions > button:hover {
     border-color: var(--accent-border);
-    background: var(--accent-soft);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--text-primary);
   }
 
