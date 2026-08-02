@@ -10,6 +10,7 @@
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
+  import DraftStrategyPanel from "./lib/components/DraftStrategyPanel.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
@@ -61,7 +62,7 @@
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
-  import { buildCandidateDiscussionQuestion, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
+  import { buildCandidateDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import { getImportFreshness } from "./lib/freshness";
   import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
@@ -173,6 +174,7 @@
   let decisionHistoryRequestId = 0;
   let draftQuestionRequest: { id: number; question: string } | null = $state(null);
   let draftQuestionRequestId = 0;
+  let resolvedAiDraftStrategy: { draftId: string; payload: AiDraftStrategyPayload } | null = $state(null);
 
   function preferenceStorageKey(draftId: string): string {
     return `playerPreferences:${draftId}`;
@@ -1347,12 +1349,14 @@
   }
 
   async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
+    const draftId = activeDraftId;
     const payload = await fetchAiDraftStrategyRequest(
-      activeDraftId,
+      draftId,
       activeDraftTeamRef,
       playerPreferenceSummary(),
       recommendationPreferenceRequest(),
     );
+    resolvedAiDraftStrategy = { draftId, payload };
     void loadDecisionHistory();
     return payload;
   }
@@ -1365,6 +1369,14 @@
   const aiDraftStrategyEnabled = $derived(
     shouldRequestAiDraftStrategy(draftState, aiProviderStatus, 0),
   );
+  const visibleAiDraftStrategy = $derived.by(() => {
+    const state: DraftState | null = draftState;
+    const resolved: { draftId: string; payload: AiDraftStrategyPayload } | null = resolvedAiDraftStrategy;
+    if (!state || !resolved || resolved.draftId !== activeDraftId) {
+      return null;
+    }
+    return currentAiDraftStrategy(resolved.payload, state.currentPick);
+  });
   const activeSourceLabel = $derived(draftState ? (isMockDraft(activeDraftId) ? "Demo draft" : "Sleeper draft") : "No draft loaded");
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
   const isRealDraftActive = $derived(Boolean(draftState && !isMockDraft(activeDraftId)));
@@ -1710,10 +1722,7 @@
                 aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
                 aiStrategyEnabled={aiDraftStrategyEnabled}
                 shouldRequestAiStrategy={shouldRequestAiStrategy}
-                strategyRequestKey={JSON.stringify(playerPreferences)}
-                strategyHistory={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
-                isLoadingStrategyHistory={isLoadingDecisionHistory}
-                strategyHistoryError={decisionHistoryError}
+                strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}`}
                 onRequestAiStrategy={requestAiDraftStrategy}
                 onAskAboutCandidate={askAboutCandidate}
                 playerPreferences={playerPreferences}
@@ -1753,6 +1762,14 @@
             {/if}
             {#if draftPhase !== "complete"}
               <RosterPanel state={draftState} />
+              {#if visibleAiDraftStrategy}
+                <DraftStrategyPanel
+                  strategy={visibleAiDraftStrategy}
+                  history={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
+                  isLoadingHistory={isLoadingDecisionHistory}
+                  historyError={decisionHistoryError}
+                />
+              {/if}
             {/if}
           </div>
         </section>

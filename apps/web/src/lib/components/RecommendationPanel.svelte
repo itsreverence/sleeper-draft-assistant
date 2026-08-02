@@ -1,11 +1,10 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
-  import DecisionHistoryPanel from "./DecisionHistoryPanel.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
   import { currentAiDraftStrategy } from "../ai-panel";
   import { rosterFitLabel, sourceLabel } from "../format";
-  import type { AiDraftStrategyPayload, DecisionSnapshot, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import type { AiDraftStrategyPayload, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
     showPlaceholderWarning = false,
@@ -19,9 +18,6 @@
     aiStrategyEnabled = false,
     shouldRequestAiStrategy = false,
     strategyRequestKey = "",
-    strategyHistory = [],
-    isLoadingStrategyHistory = false,
-    strategyHistoryError = "",
     onAskAboutCandidate,
     onRequestAiStrategy,
   }: {
@@ -36,9 +32,6 @@
     aiStrategyEnabled?: boolean;
     shouldRequestAiStrategy?: boolean;
     strategyRequestKey?: string;
-    strategyHistory?: DecisionSnapshot[];
-    isLoadingStrategyHistory?: boolean;
-    strategyHistoryError?: string;
     onAskAboutCandidate?: (playerName: string, recommendedPlayerName: string) => void;
     onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
   } = $props();
@@ -88,10 +81,6 @@
   });
   const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? "AI draft assistant");
   const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
-  const planChangeSummary = $derived(currentAiStrategy?.decision.plan.changeSummary.trim() ?? "");
-  const showPlanChangeSummary = $derived(
-    Boolean(planChangeSummary) && !/^no material change\b/i.test(planChangeSummary),
-  );
   const confidenceTone = $derived(
     activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
   );
@@ -119,6 +108,7 @@
       const requestId = ++aiStrategyRequestId;
       isLoadingAiStrategy = true;
       aiStrategyError = "";
+      aiStrategy = null;
       void onRequestAiStrategy()
         .then((payload) => {
           if (requestId === aiStrategyRequestId && payload.pickNumber === currentPick) {
@@ -197,26 +187,6 @@
           {/if}
         </div>
       {/if}
-      <div class="draft-plan">
-        <div class="draft-plan-heading">
-          <strong>Living draft plan</strong>
-          <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
-        </div>
-        <div class="plan-priorities">
-          <div>
-            <span>This pick</span>
-            <strong>{currentAiStrategy.decision.plan.currentPickFocus.join(" / ") || "Best available"}</strong>
-          </div>
-          <div>
-            <span>Next turn</span>
-            <strong>{currentAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong>
-          </div>
-          <div>
-            <span>Can wait</span>
-            <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong>
-          </div>
-        </div>
-      </div>
       <details class="full-analysis">
         <summary>Full analysis</summary>
         <div class="analysis-content">
@@ -256,38 +226,6 @@
               </ul>
             </section>
           {/if}
-          <section class="full-plan">
-            <div class="full-plan-heading">
-              <h3>Full draft plan</h3>
-              <DecisionHistoryPanel
-                snapshots={strategyHistory}
-                isLoading={isLoadingStrategyHistory}
-                error={strategyHistoryError}
-              />
-            </div>
-            {#if showPlanChangeSummary}
-              <p class="plan-change">{planChangeSummary}</p>
-            {/if}
-            <p>{currentAiStrategy.decision.plan.approach}</p>
-            <div class="plan-detail">
-              <strong>Roster goals</strong>
-              <ul>
-                {#each currentAiStrategy.decision.plan.rosterGoals as goal}
-                  <li>{goal}</li>
-                {/each}
-              </ul>
-            </div>
-            {#if currentAiStrategy.decision.plan.watchItems.length > 0}
-              <div class="plan-detail">
-                <strong>Watching</strong>
-                <ul>
-                  {#each currentAiStrategy.decision.plan.watchItems as item}
-                    <li>{item}</li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
-          </section>
         </div>
       </details>
     </div>
@@ -457,19 +395,6 @@
     align-items: center;
   }
 
-  .draft-plan-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .draft-plan-heading > span {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
   .ai-strategy p {
     color: var(--text-secondary);
     font-size: var(--text-sm);
@@ -537,56 +462,6 @@
     font-weight: 800;
   }
 
-  .draft-plan {
-    display: grid;
-    gap: 9px;
-    border-top: 1px solid var(--border);
-    padding-top: 14px;
-  }
-
-  .ai-strategy .plan-change {
-    color: var(--text-primary);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .plan-priorities {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-block: 1px solid var(--border);
-  }
-
-  .plan-priorities > div {
-    display: grid;
-    gap: 3px;
-    min-width: 0;
-    padding: 9px 10px;
-  }
-
-  .plan-priorities > div + div {
-    border-left: 1px solid var(--border);
-  }
-
-  .plan-priorities span {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .plan-priorities strong {
-    overflow-wrap: anywhere;
-    font-size: var(--text-sm);
-  }
-
-  .plan-detail {
-    margin-top: 9px;
-  }
-
-  .plan-detail > strong {
-    color: var(--text-primary);
-  }
-
   .full-analysis {
     border-top: 1px solid var(--border);
     padding-top: 11px;
@@ -620,13 +495,6 @@
   .analysis-content h3 {
     color: var(--text-primary);
     font-size: var(--text-sm);
-  }
-
-  .full-plan-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
   }
 
   .callout > div,
@@ -691,29 +559,6 @@
   .candidate-list {
     display: grid;
     gap: 0;
-  }
-
-  @media (max-width: 680px) {
-    .draft-plan-heading {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .plan-priorities {
-      grid-template-columns: 1fr;
-    }
-
-    .plan-priorities > div + div {
-      border-top: 1px solid var(--border);
-      border-left: 0;
-    }
-
-    .full-plan-heading {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 6px;
-    }
   }
 
   @media (max-width: 560px) {
