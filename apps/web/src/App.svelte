@@ -293,6 +293,7 @@
   }
 
   let connectExpanded = $state(!hasStoredDraft());
+  let switchingDraft = $state(false);
   let draftPreparationOpen = $state(false);
   let limitedDataMode = $state(false);
   let workspaceMode: WorkspaceMode = $state("draft");
@@ -517,6 +518,26 @@
     await loadDraft(selectedDraft.draftId, draftTeamRef, selectedLeague.leagueId, selectedLeague.userRosterId);
   }
 
+  async function switchToKnownDraft(draftId: string) {
+    const match = connectPayload?.leagues.flatMap((league) =>
+      league.drafts.map((draft) => ({ league, draft })),
+    ).find(({ draft }) => draft.draftId === draftId);
+    if (!match) return;
+    const draftTeamRef = draftTeamReference(match.draft, match.league.userRosterId);
+    await loadDraft(draftId, draftTeamRef, match.league.leagueId, match.league.userRosterId);
+  }
+
+  async function openDraftIdFromSwitcher(draftId: string) {
+    draftInput = draftId;
+    userRosterIdInput = "";
+    await connectSleeperDraft();
+  }
+
+  function findAnotherLeague() {
+    clearActiveDraft();
+    switchingDraft = true;
+  }
+
   async function connectSleeperDraft() {
     const draftId = draftInput.trim();
     if (!draftId) {
@@ -618,6 +639,7 @@
         void refreshRecommendationWithPreferences();
       }
       connectExpanded = false;
+      switchingDraft = false;
       draftPreparationOpen = shouldOpenDraftPreparation(
         draftId,
         payload.state.status,
@@ -1490,8 +1512,29 @@
   const isPreconnect = $derived(!connectPayload && !draftState);
   const hasStartedConnecting = $derived(!isPreconnect);
   const showSetupChecklist = $derived(
-    hasStartedConnecting && (!draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft")),
+    !switchingDraft && hasStartedConnecting && (!draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft")),
   );
+  const draftSwitcherOptions = $derived.by(() => {
+    const options = connectPayload?.leagues.flatMap((league) =>
+      league.drafts.map((draft) => ({
+        draftId: draft.draftId,
+        name: draft.name || league.name,
+        detail: [draft.season ?? league.season, draft.status, draft.teams ? `${draft.teams} teams` : ""]
+          .filter(Boolean)
+          .join(" - "),
+      })),
+    ) ?? [];
+    if (draftState && !options.some((option) => option.draftId === activeDraftId)) {
+      options.unshift({
+        draftId: activeDraftId,
+        name: draftState.name,
+        detail: [draftState.status.replace("_", " "), `${draftState.settings.teams} teams`]
+          .filter(Boolean)
+          .join(" - "),
+      });
+    }
+    return options;
+  });
   const draftDataSettingsStatus = $derived(
     rankingsStale
       ? "ECR needs refresh"
@@ -1544,20 +1587,23 @@
 
 <main
   class="app-shell"
-  class:preconnect-shell={isPreconnect}
-  class:preconnect-landing={isPreconnect && !settingsOpen}
+  class:preconnect-shell={isPreconnect || switchingDraft}
+  class:preconnect-landing={(isPreconnect || switchingDraft) && !settingsOpen}
 >
   <TopBar
-    title={draftState?.name ?? "Connect your Sleeper draft"}
+    title={draftState?.name ?? (switchingDraft ? "Choose another draft" : "Connect your Sleeper draft")}
     {status}
     {lastEvent}
     connected={Boolean(draftState)}
-    showStatus={hasStartedConnecting && !draftState}
+    showStatus={hasStartedConnecting && !draftState && !switchingDraft}
     showChangeDraft={Boolean(draftState)}
-    connectEditorOpen={connectExpanded}
-    centered={isPreconnect}
+    centered={isPreconnect || switchingDraft}
     {settingsOpen}
-    onChangeDraft={() => (connectExpanded = !connectExpanded)}
+    draftOptions={draftSwitcherOptions}
+    {activeDraftId}
+    onSelectDraft={switchToKnownDraft}
+    onFindAnotherLeague={findAnotherLeague}
+    onOpenDraftId={openDraftIdFromSwitcher}
     onOpenSettings={() => (settingsOpen = !settingsOpen)}
   />
 
@@ -1583,7 +1629,7 @@
   {/if}
 
   {#if connectExpanded}
-    <div class="connect-editor" class:preconnect={isPreconnect}>
+    <div class="connect-editor" class:preconnect={isPreconnect || switchingDraft}>
       <ConnectPanel
         bind:usernameInput
         bind:seasonInput
