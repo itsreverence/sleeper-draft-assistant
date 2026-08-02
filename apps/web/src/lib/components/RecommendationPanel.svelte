@@ -81,8 +81,11 @@
       ).values(),
     );
   });
-  const primaryAiCandidates = $derived(alternativeAiCandidates.slice(0, 2));
-  const additionalAiCandidates = $derived(alternativeAiCandidates.slice(2));
+  const alternativeTeaser = $derived.by(() => {
+    const names = alternativeAiCandidates.slice(0, 2).map((candidate) => candidate.player.name);
+    const remaining = alternativeAiCandidates.length - names.length;
+    return `${names.join(", ")}${remaining > 0 ? `, +${remaining} more` : ""}`;
+  });
   const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? "AI draft assistant");
   const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
   const planChangeSummary = $derived(currentAiStrategy?.decision.plan.changeSummary.trim() ?? "");
@@ -142,9 +145,16 @@
       <span>AI call</span>
       <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
     </div>
-    {#if activeConfidence}
-      <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
-    {/if}
+    <div class="decision-status">
+      {#if activeConfidence}
+        <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
+      {/if}
+      {#if currentAiStrategy && currentAiStrategy.decision.risks.length > 0}
+        <span class="pill pill-warning">
+          {currentAiStrategy.decision.risks.length} consideration{currentAiStrategy.decision.risks.length === 1 ? "" : "s"}
+        </span>
+      {/if}
+    </div>
   </div>
 
   {#if showPlaceholderWarning}
@@ -187,59 +197,11 @@
           {/if}
         </div>
       {/if}
-      <div class="decision-details">
-        <details>
-          <summary>Why this call ({currentAiStrategy.decision.reasons.length})</summary>
-          <ul>
-            {#each currentAiStrategy.decision.reasons as reason}
-              <li>{reason}</li>
-            {/each}
-          </ul>
-        </details>
-        <details>
-          <summary>Evidence</summary>
-          <div class="evidence-summary">
-            <span>
-              {currentAiStrategy.recommendedCandidate.player.team} -
-              {currentAiStrategy.recommendedCandidate.player.position}
-            </span>
-            <span>{rosterFitLabel(currentAiStrategy.recommendedCandidate.rosterFit)}</span>
-            <span>{sourceLabel(currentAiStrategy.recommendedCandidate)}</span>
-          </div>
-          {#if currentAiStrategy.recommendedCandidate.evidence.length > 0}
-            <ul>
-              {#each currentAiStrategy.recommendedCandidate.evidence as evidence}
-                <li>{evidence}</li>
-              {/each}
-            </ul>
-          {/if}
-        </details>
-        {#if currentAiStrategy.decision.risks.length > 0}
-          <details>
-            <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
-            <ul>
-              {#each currentAiStrategy.decision.risks as risk}
-                <li>{risk}</li>
-              {/each}
-            </ul>
-          </details>
-        {/if}
-      </div>
       <div class="draft-plan">
         <div class="draft-plan-heading">
           <strong>Living draft plan</strong>
-          <div class="plan-meta">
-            <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
-            <DecisionHistoryPanel
-              snapshots={strategyHistory}
-              isLoading={isLoadingStrategyHistory}
-              error={strategyHistoryError}
-            />
-          </div>
+          <span>Updated at pick {currentAiStrategy.decision.plan.updatedAtPick}</span>
         </div>
-        {#if showPlanChangeSummary}
-          <p class="plan-change">{planChangeSummary}</p>
-        {/if}
         <div class="plan-priorities">
           <div>
             <span>This pick</span>
@@ -254,29 +216,80 @@
             <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong>
           </div>
         </div>
-        <details>
-          <summary>View full plan</summary>
-          <p>{currentAiStrategy.decision.plan.approach}</p>
-          <div class="plan-detail">
-            <strong>Roster goals</strong>
+      </div>
+      <details class="full-analysis">
+        <summary>Full analysis</summary>
+        <div class="analysis-content">
+          <section>
+            <h3>Why this call</h3>
             <ul>
-              {#each currentAiStrategy.decision.plan.rosterGoals as goal}
-                <li>{goal}</li>
+              {#each currentAiStrategy.decision.reasons as reason}
+                <li>{reason}</li>
               {/each}
             </ul>
-          </div>
-          {#if currentAiStrategy.decision.plan.watchItems.length > 0}
-            <div class="plan-detail">
-              <strong>Watching</strong>
+          </section>
+          <section>
+            <h3>Evidence</h3>
+            <div class="evidence-summary">
+              <span>
+                {currentAiStrategy.recommendedCandidate.player.team} -
+                {currentAiStrategy.recommendedCandidate.player.position}
+              </span>
+              <span>{rosterFitLabel(currentAiStrategy.recommendedCandidate.rosterFit)}</span>
+              <span>{sourceLabel(currentAiStrategy.recommendedCandidate)}</span>
+            </div>
+            {#if currentAiStrategy.recommendedCandidate.evidence.length > 0}
               <ul>
-                {#each currentAiStrategy.decision.plan.watchItems as item}
-                  <li>{item}</li>
+                {#each currentAiStrategy.recommendedCandidate.evidence as evidence}
+                  <li>{evidence}</li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+          {#if currentAiStrategy.decision.risks.length > 0}
+            <section>
+              <h3>Risks and constraints</h3>
+              <ul>
+                {#each currentAiStrategy.decision.risks as risk}
+                  <li>{risk}</li>
+                {/each}
+              </ul>
+            </section>
+          {/if}
+          <section class="full-plan">
+            <div class="full-plan-heading">
+              <h3>Full draft plan</h3>
+              <DecisionHistoryPanel
+                snapshots={strategyHistory}
+                isLoading={isLoadingStrategyHistory}
+                error={strategyHistoryError}
+              />
+            </div>
+            {#if showPlanChangeSummary}
+              <p class="plan-change">{planChangeSummary}</p>
+            {/if}
+            <p>{currentAiStrategy.decision.plan.approach}</p>
+            <div class="plan-detail">
+              <strong>Roster goals</strong>
+              <ul>
+                {#each currentAiStrategy.decision.plan.rosterGoals as goal}
+                  <li>{goal}</li>
                 {/each}
               </ul>
             </div>
-          {/if}
-        </details>
-      </div>
+            {#if currentAiStrategy.decision.plan.watchItems.length > 0}
+              <div class="plan-detail">
+                <strong>Watching</strong>
+                <ul>
+                  {#each currentAiStrategy.decision.plan.watchItems as item}
+                    <li>{item}</li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          </section>
+        </div>
+      </details>
     </div>
   {:else if !aiEnabled}
     <div class="empty-state" aria-live="polite">
@@ -327,37 +340,25 @@
   {/if}
 
   {#if currentAiStrategy && alternativeAiCandidates.length > 0}
-    <div class="candidate-section-heading">
-      <strong>Alternatives</strong>
-      <span>Other AI-selected paths if you want a different roster shape.</span>
-    </div>
-    <div class="candidate-list">
-      {#each primaryAiCandidates as candidate, index (candidate.player.id)}
-        <CandidateCard
-          {candidate}
-          rank={index + 2}
-          preference={playerPreferences[candidate.player.id] ?? null}
-          {onSetPreference}
-          onDiscuss={discussCandidate}
-        />
-      {/each}
-    </div>
-    {#if additionalAiCandidates.length > 0}
-      <details class="more-candidates">
-        <summary>Show {additionalAiCandidates.length} more AI alternative{additionalAiCandidates.length === 1 ? "" : "s"}</summary>
+    <details class="alternatives-disclosure">
+      <summary>
+        <strong>Alternatives ({alternativeAiCandidates.length})</strong>
+        <span>Also considered: {alternativeTeaser}</span>
+      </summary>
+      <div class="alternatives-content">
         <div class="candidate-list">
-          {#each additionalAiCandidates as candidate, index (candidate.player.id)}
+          {#each alternativeAiCandidates as candidate, index (candidate.player.id)}
             <CandidateCard
               {candidate}
-              rank={index + primaryAiCandidates.length + 2}
+              rank={index + 2}
               preference={playerPreferences[candidate.player.id] ?? null}
               {onSetPreference}
               onDiscuss={discussCandidate}
             />
           {/each}
         </div>
-      </details>
-    {/if}
+      </div>
+    </details>
   {/if}
 </article>
 
@@ -382,6 +383,13 @@
     gap: 8px;
     margin-top: 3px;
     font-size: var(--text-xl);
+  }
+
+  .decision-status {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
   .decision-heading {
@@ -456,6 +464,12 @@
     gap: 12px;
   }
 
+  .draft-plan-heading > span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
   .ai-strategy p {
     color: var(--text-secondary);
     font-size: var(--text-sm);
@@ -471,7 +485,6 @@
   }
 
   .decision-actions,
-  .decision-details,
   .evidence-summary {
     display: flex;
     flex-wrap: wrap;
@@ -499,22 +512,6 @@
     color: var(--text-primary);
   }
 
-  .decision-details {
-    gap: 16px;
-  }
-
-  .decision-details details {
-    min-width: 0;
-  }
-
-  .decision-details details[open] {
-    flex-basis: 100%;
-  }
-
-  .evidence-summary {
-    margin-top: 9px;
-  }
-
   .evidence-summary span {
     color: var(--text-secondary);
     font-size: var(--text-xs);
@@ -535,7 +532,7 @@
   }
 
   .ai-strategy summary,
-  .more-candidates summary {
+  .alternatives-disclosure summary {
     cursor: pointer;
     font-weight: 800;
   }
@@ -545,15 +542,6 @@
     gap: 9px;
     border-top: 1px solid var(--border);
     padding-top: 14px;
-  }
-
-  .plan-meta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
   }
 
   .ai-strategy .plan-change {
@@ -599,6 +587,48 @@
     color: var(--text-primary);
   }
 
+  .full-analysis {
+    border-top: 1px solid var(--border);
+    padding-top: 11px;
+  }
+
+  .full-analysis > summary {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .full-analysis[open] > summary {
+    color: var(--text-primary);
+  }
+
+  .analysis-content {
+    display: grid;
+    gap: 16px;
+    padding-top: 14px;
+  }
+
+  .analysis-content section {
+    display: grid;
+    gap: 8px;
+  }
+
+  .analysis-content section + section {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+
+  .analysis-content h3 {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .full-plan-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
   .callout > div,
   .placeholder-warning > div {
     display: grid;
@@ -629,40 +659,38 @@
     color: var(--info);
   }
 
-  .candidate-section-heading {
-    display: grid;
-    gap: 3px;
+  .alternatives-disclosure {
     border-top: 1px solid var(--border);
     padding-top: 12px;
   }
 
-  .candidate-section-heading strong {
+  .alternatives-disclosure > summary {
+    color: var(--text-secondary);
     font-size: var(--text-sm);
   }
 
-  .candidate-section-heading span {
+  .alternatives-disclosure > summary strong {
+    margin-right: 6px;
+    color: var(--text-primary);
+  }
+
+  .alternatives-disclosure > summary span {
     color: var(--text-muted);
     font-size: var(--text-xs);
     line-height: 1.45;
   }
 
+  .alternatives-disclosure[open] > summary {
+    margin-bottom: 10px;
+  }
+
+  .alternatives-content {
+    border-top: 1px solid var(--border);
+  }
+
   .candidate-list {
     display: grid;
     gap: 0;
-  }
-
-  .more-candidates {
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-
-  .more-candidates summary {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .more-candidates[open] summary {
-    margin-bottom: 12px;
   }
 
   @media (max-width: 680px) {
@@ -680,6 +708,12 @@
       border-top: 1px solid var(--border);
       border-left: 0;
     }
+
+    .full-plan-heading {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 6px;
+    }
   }
 
   @media (max-width: 560px) {
@@ -691,6 +725,15 @@
     .panel-heading h2 {
       font-size: var(--text-lg);
       line-height: 1.3;
+    }
+
+    .decision-status {
+      justify-content: flex-start;
+    }
+
+    .alternatives-disclosure > summary span {
+      display: block;
+      margin-top: 3px;
     }
 
     .empty-state {
