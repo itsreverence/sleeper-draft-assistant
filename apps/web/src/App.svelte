@@ -1552,7 +1552,7 @@
     {status}
     {lastEvent}
     connected={Boolean(draftState)}
-    showStatus={hasStartedConnecting}
+    showStatus={hasStartedConnecting && !draftState}
     showChangeDraft={Boolean(draftState)}
     connectEditorOpen={connectExpanded}
     centered={isPreconnect}
@@ -1612,14 +1612,25 @@
 
   {#if draftState}
     {#key activeDraftId}
-      <ModeTabs
-        bind:mode={workspaceMode}
-        {manageAvailable}
-        phase={draftPhase}
-        onUserSelect={() => {
-          userPickedMode = true;
-        }}
-      />
+      <div class="workspace-toolbar">
+        <ModeTabs
+          bind:mode={workspaceMode}
+          {manageAvailable}
+          phase={draftPhase}
+          onUserSelect={() => {
+            userPickedMode = true;
+          }}
+        />
+        {#if !draftPreparationOpen && workspaceMode === "draft"}
+          <DraftSyncStatus
+            lastSuccessfulAt={draftLastSuccessfulAt}
+            consecutiveFailures={draftConsecutiveFailures}
+            nextRetryMs={draftNextRetryMs}
+            reconnecting={draftReconnecting}
+            onReconnect={() => connectEvents(activeDraftId, activeDraftTeamRef)}
+          />
+        {/if}
+      </div>
       {#if draftPreparationOpen && workspaceMode === "draft"}
         <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
         <div class="preparation-flow">
@@ -1679,15 +1690,6 @@
         </div>
       {:else}
       <DraftSummaryStrip state={draftState} />
-      {#if workspaceMode === "draft"}
-        <DraftSyncStatus
-          lastSuccessfulAt={draftLastSuccessfulAt}
-          consecutiveFailures={draftConsecutiveFailures}
-          nextRetryMs={draftNextRetryMs}
-          reconnecting={draftReconnecting}
-          onReconnect={() => connectEvents(activeDraftId, activeDraftTeamRef)}
-        />
-      {/if}
       <FormatCompatibilityNotice
         compatibility={workspaceMode === "manage"
           ? teamManagerState?.league.formatCompatibility
@@ -1874,6 +1876,14 @@
     margin-top: var(--space-5);
   }
 
+  .workspace-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin: var(--space-3) 0 var(--space-4);
+  }
+
   .dashboard-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
@@ -1912,6 +1922,14 @@
   @media (max-width: 920px) {
     .dashboard-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .workspace-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+      gap: var(--space-2);
     }
   }
 </style>

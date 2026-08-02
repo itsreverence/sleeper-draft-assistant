@@ -63,7 +63,6 @@
   .mode-tabs {
     display: inline-flex;
     gap: 4px;
-    margin: var(--space-4) 0 0;
     padding: 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
