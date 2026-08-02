@@ -57,7 +57,7 @@
       preferenceCounts.exclude > 0 ? `${preferenceCounts.exclude} excluded` : "",
     ]
       .filter(Boolean)
-      .join(" / "),
+      .join(" · "),
   );
   let aiStrategy: AiDraftStrategyPayload | null = $state(null);
   let aiStrategyError = $state("");
@@ -157,18 +157,6 @@
     {/if}
   </div>
 
-  {#if preferenceCount > 0}
-    <div class="preference-summary">
-      <div>
-        <strong>{preferenceSummary}</strong>
-        <span>Applied to AI strategy for this draft.</span>
-      </div>
-      {#if onClearPreferences}
-        <button type="button" onclick={onClearPreferences}>Clear</button>
-      {/if}
-    </div>
-  {/if}
-
   {#if showPlaceholderWarning}
     <div class="callout callout-warning placeholder-warning">
       <Icon name="alert" size={15} />
@@ -205,6 +193,14 @@
           Ask about pick
         </button>
       </div>
+      {#if preferenceCount > 0}
+        <div class="preference-summary" aria-label="Draft preferences">
+          <span>{preferenceSummary}</span>
+          {#if onClearPreferences}
+            <button type="button" onclick={onClearPreferences}>Clear</button>
+          {/if}
+        </div>
+      {/if}
       <div class="decision-details">
         <details>
           <summary>Why this call ({currentAiStrategy.decision.reasons.length})</summary>
@@ -232,17 +228,17 @@
             </ul>
           {/if}
         </details>
+        {#if currentAiStrategy.decision.risks.length > 0}
+          <details>
+            <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
+            <ul>
+              {#each currentAiStrategy.decision.risks as risk}
+                <li>{risk}</li>
+              {/each}
+            </ul>
+          </details>
+        {/if}
       </div>
-      {#if currentAiStrategy.decision.risks.length > 0}
-        <details class="risk-details">
-          <summary>Risks ({currentAiStrategy.decision.risks.length})</summary>
-          <ul>
-            {#each currentAiStrategy.decision.risks as risk}
-              <li>{risk}</li>
-            {/each}
-          </ul>
-        </details>
-      {/if}
       <div class="draft-plan">
         <div class="draft-plan-heading">
           <strong>Living draft plan</strong>
@@ -417,21 +413,9 @@
   .preference-summary {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    border: 1px solid var(--accent-border);
-    border-radius: var(--radius-md);
-    background: var(--accent-soft);
-    padding: 10px 12px;
-    color: var(--text-primary);
-    font-size: var(--text-sm);
-  }
-
-  .preference-summary > div,
-  .empty-state > div,
-  .ai-strategy-pending > div {
-    display: grid;
-    gap: 3px;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
   }
 
   .preference-summary span,
@@ -448,8 +432,16 @@
     color: var(--accent);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 900;
-    text-transform: uppercase;
+    font-weight: 800;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .empty-state > div,
+  .ai-strategy-pending > div {
+    display: grid;
+    gap: 3px;
   }
 
   .ai-strategy {
@@ -526,8 +518,7 @@
     gap: 16px;
   }
 
-  .decision-details details,
-  .risk-details {
+  .decision-details details {
     min-width: 0;
   }
 
