@@ -183,10 +183,19 @@
       {:else}
       <div class="context-strip" aria-label="AI context">
         <span class="context-label">AI context</span>
-        <div class="context-chips">
-          {#each contextSummary.chips as chip}
-            <span>{chip}</span>
-          {/each}
+        <div class="context-groups">
+          <div class="context-group">
+            <strong>League</strong>
+            <span>{contextSummary.league}</span>
+          </div>
+          <div class="context-group">
+            <strong>Starters</strong>
+            <span>{contextSummary.starters}</span>
+          </div>
+          <div class="context-group">
+            <strong>Data</strong>
+            <span>{contextSummary.data}</span>
+          </div>
         </div>
       </div>
 
@@ -353,19 +362,28 @@
     text-transform: uppercase;
   }
 
-  .context-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .context-groups {
+    display: grid;
+    gap: 5px;
   }
 
-  .context-chips span {
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
+  .context-group {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .context-group strong {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .context-group span {
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 800;
-    padding: 4px 7px;
+    line-height: 1.45;
   }
 
   .context-note,

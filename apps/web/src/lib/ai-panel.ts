@@ -7,7 +7,9 @@ import type {
 } from "./types";
 
 export type AiPanelContextSummary = {
-  chips: string[];
+  league: string;
+  starters: string;
+  data: string;
   note: string | null;
 };
 
@@ -111,26 +113,31 @@ export function buildAiPanelContextSummary(
   usingPlaceholderRanks: boolean,
 ): AiPanelContextSummary {
   if (!state) {
-    return { chips: ["No draft loaded"], note: null };
+    return {
+      league: "No draft loaded",
+      starters: "Not available",
+      data: "Not available",
+      note: null,
+    };
   }
 
-  const chips = [
-    state.settings.scoring.toUpperCase(),
-    `${state.settings.teams} teams`,
-    `${state.settings.rosterSlots.QB ?? 0} QB`,
-    formatFlexChip(state),
-  ];
-  if (rankingsImported) chips.push("ECR");
-  if (projectionsImported) chips.push("Season projections");
-  if (adpImported) chips.push("Sleeper ADP");
-  if (usingPlaceholderRanks) chips.push("Sleeper placeholder ranks");
-  if (!rankingsImported && !projectionsImported && !adpImported && !usingPlaceholderRanks) chips.push("Demo values");
+  const dataSources: string[] = [];
+  if (rankingsImported) dataSources.push("ECR");
+  if (projectionsImported) dataSources.push("Season projections");
+  if (adpImported) dataSources.push("Sleeper ADP");
+  if (usingPlaceholderRanks) dataSources.push("Sleeper placeholder ranks");
+  if (dataSources.length === 0) dataSources.push("Demo values");
 
   const note = usingPlaceholderRanks
     ? "AI receives the current board, roster, and league settings, but player values are temporary Sleeper search ranks."
     : "AI receives the current board, roster, league settings, and the imported player-value sources shown above.";
 
-  return { chips: uniqueQuestions(chips).slice(0, 8), note };
+  return {
+    league: `${state.settings.scoring.toUpperCase()} · ${state.settings.teams} teams`,
+    starters: formatStarterSlots(state.settings.rosterSlots),
+    data: uniqueQuestions(dataSources).join(" · "),
+    note,
+  };
 }
 
 function getRosterNeeds(state: DraftState): Position[] {
@@ -162,21 +169,6 @@ function formatPositionList(positions: Position[]): string {
   return `${positions.slice(0, -1).join("/")}/${positions[positions.length - 1]}`;
 }
 
-function formatFlexChip(state: DraftState): string {
-  const flexSlots = getFlexSlotCount(state);
-  const superFlexSlots = (state.settings.rosterSlots.SUPER_FLEX ?? 0) + (state.settings.rosterSlots.SF ?? 0);
-  const parts: string[] = [];
-
-  if (flexSlots > 0) {
-    parts.push(`${flexSlots} FLEX`);
-  }
-  if (superFlexSlots > 0) {
-    parts.push(`${superFlexSlots} SUPER_FLEX`);
-  }
-
-  return parts.length > 0 ? parts.join(" / ") : "No FLEX";
-}
-
 function getFlexSlotCount(state: DraftState): number {
   return (state.settings.rosterSlots.FLEX ?? 0) +
     (state.settings.rosterSlots.WR_RB_FLEX ?? 0) +
@@ -185,6 +177,35 @@ function getFlexSlotCount(state: DraftState): number {
 
 function uniqueQuestions(source: string[]): string[] {
   return Array.from(new Set(source.filter(Boolean)));
+}
+
+function formatStarterSlots(rosterSlots: Record<string, number>): string {
+  const slotGroups = [
+    { label: "QB", keys: ["QB"] },
+    { label: "RB", keys: ["RB"] },
+    { label: "WR", keys: ["WR"] },
+    { label: "TE", keys: ["TE"] },
+    { label: "FLEX", keys: ["FLEX", "WR_RB_FLEX", "REC_FLEX"] },
+    { label: "SUPER FLEX", keys: ["SUPER_FLEX", "SF"] },
+    { label: "K", keys: ["K"] },
+    { label: "DEF", keys: ["DEF", "DST"] },
+  ];
+  const ignoredSlots = new Set(["BN", "BENCH", "IR", "RESERVE", "TAXI"]);
+  const consumedSlots = new Set(slotGroups.flatMap((group) => group.keys));
+  const formatted = slotGroups
+    .map((group) => ({
+      label: group.label,
+      count: group.keys.reduce((total, key) => total + (rosterSlots[key] ?? 0), 0),
+    }))
+    .filter((slot) => slot.count > 0)
+    .map((slot) => `${slot.count} ${slot.label}`);
+
+  const otherStarters = Object.entries(rosterSlots)
+    .filter(([key, count]) => count > 0 && !consumedSlots.has(key) && !ignoredSlots.has(key))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => `${count} ${key.replaceAll("_", " ")}`);
+
+  return [...formatted, ...otherStarters].join(" · ") || "Not available";
 }
 
 function uniqueSuggestedQuestions(source: SuggestedQuestion[]): SuggestedQuestion[] {
