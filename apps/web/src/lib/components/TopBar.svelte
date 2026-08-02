@@ -28,28 +28,26 @@
   } = $props();
 </script>
 
-<section class="topbar" class:centered aria-label="Draft status">
+<section class="topbar" class:centered class:has-draft={showChangeDraft} aria-label="Draft status">
   <div class="brand">
     <div class="brand-mark" aria-hidden="true">SDA</div>
     <div>
       <div class="title-row">
-        <h1>{title}</h1>
         {#if showChangeDraft}
-          <button class="btn btn-ghost btn-change" type="button" onclick={onChangeDraft}>
-            {connectEditorOpen ? "Close" : "Change draft"}
+          <button
+            class="league-switcher"
+            class:open={connectEditorOpen}
+            type="button"
+            aria-expanded={connectEditorOpen}
+            title={connectEditorOpen ? "Close draft switcher" : "Change draft"}
+            onclick={onChangeDraft}
+          >
+            <h1>{title}</h1>
+            <Icon name="chevron-right" size={17} />
           </button>
+        {:else}
+          <h1>{title}</h1>
         {/if}
-        <button
-          class="settings-button"
-          class:active={settingsOpen}
-          type="button"
-          aria-label={settingsOpen ? "Close settings" : "Open settings"}
-          aria-pressed={settingsOpen}
-          title={settingsOpen ? "Close settings" : "Open settings"}
-          onclick={onOpenSettings}
-        >
-          <Icon name="settings" size={18} />
-        </button>
       </div>
       <p class="product-name">Sleeper Draft Assistant</p>
     </div>
@@ -63,6 +61,17 @@
       </div>
     </div>
   {/if}
+  <button
+    class="settings-button"
+    class:active={settingsOpen}
+    type="button"
+    aria-label={settingsOpen ? "Close settings" : "Open settings"}
+    aria-pressed={settingsOpen}
+    title={settingsOpen ? "Close settings" : "Open settings"}
+    onclick={onOpenSettings}
+  >
+    <Icon name="settings" size={18} />
+  </button>
 </section>
 
 <style>
@@ -83,6 +92,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    min-width: 0;
   }
 
   .brand-mark {
@@ -102,7 +112,6 @@
   .title-row {
     display: flex;
     align-items: center;
-    gap: 12px;
   }
 
   h1 {
@@ -119,13 +128,37 @@
     font-weight: 600;
   }
 
-  .btn-change {
+  .league-switcher {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 3px 5px 3px 0;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .league-switcher:hover {
+    color: var(--accent);
+  }
+
+  .league-switcher:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .league-switcher :global(.icon) {
     flex-shrink: 0;
-    padding: 4px 10px;
-    font-size: var(--text-xs);
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    transform: rotate(90deg);
+    transition: transform var(--transition-fast);
+  }
+
+  .league-switcher.open :global(.icon) {
+    transform: rotate(-90deg);
   }
 
   .settings-button {
@@ -234,12 +267,29 @@
       padding-right: 46px;
     }
 
+    .topbar.has-draft {
+      align-items: flex-start;
+      flex-direction: row;
+    }
+
+    .topbar.has-draft .brand {
+      flex: 1;
+    }
+
     .status-panel {
       min-width: 0;
     }
 
     .title-row {
-      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .league-switcher {
+      align-items: flex-start;
+    }
+
+    .league-switcher h1 {
+      overflow-wrap: anywhere;
     }
   }
 </style>
