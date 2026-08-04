@@ -268,7 +268,7 @@ class CodexJsonRpcClient {
       clientInfo: {
         name: "sleeper_draft_assistant",
         title: "Sleeper Draft Assistant",
-        version: "0.1.0-alpha.5",
+        version: "0.1.0-alpha.6",
       },
       ...(experimentalApi ? { capabilities: { experimentalApi: true } } : {}),
     });
