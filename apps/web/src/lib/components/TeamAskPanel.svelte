@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SuggestedQuestion } from "../ai-panel";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
@@ -119,52 +120,57 @@
       .slice(-8);
   }
 
-  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined, currentLineup: TeamLineupSummary | null | undefined, currentWeek: TeamWeekContext | null | undefined, currentWaivers: TeamWaiverSummary | null | undefined, currentActivity: TeamActivitySummary | null | undefined): string[] {
+  function buildTeamQuestions(currentState: TeamManagerState | null, currentNeeds: TeamNeedsSummary | null | undefined, currentLineup: TeamLineupSummary | null | undefined, currentWeek: TeamWeekContext | null | undefined, currentWaivers: TeamWaiverSummary | null | undefined, currentActivity: TeamActivitySummary | null | undefined): SuggestedQuestion[] {
     if (!currentState) {
-      return ["What should I check after loading my roster?"];
+      return [{ label: "After roster load", prompt: "What should I check after loading my roster?" }];
     }
 
     const openSlot = currentNeeds?.openStarterSlots[0] ?? currentState.roster.starters.find((slot) => !slot.player)?.slot;
-    const questions = [
-      "What is my weakest position?",
-      "Who are my likely starters?",
-      "Where is my bench too thin?",
-      "What should I prioritize after the draft?",
+    const questions: SuggestedQuestion[] = [
+      { label: "Weakest position", prompt: "What is my weakest position?" },
+      { label: "Likely starters", prompt: "Who are my likely starters?" },
+      { label: "Bench depth", prompt: "Where is my bench too thin?" },
+      { label: "Post-draft priorities", prompt: "What should I prioritize after the draft?" },
     ];
 
     if (openSlot) {
-      questions.unshift(`How should I fill my open ${openSlot} slot?`);
+      questions.unshift({ label: `Fill ${openSlot}`, prompt: `How should I fill my open ${openSlot} slot?` });
     }
 
     if (currentNeeds?.weakestPositions.length) {
-      questions.unshift(`How should I fix ${currentNeeds.weakestPositions.join("/")} first?`);
+      const positions = currentNeeds.weakestPositions.join("/");
+      questions.unshift({ label: `Fix ${positions}`, prompt: `How should I fix ${positions} first?` });
     }
 
     if (currentLineup) {
-      questions.unshift("Who should I start this week?");
+      questions.unshift({ label: "Set this week's lineup", prompt: "Who should I start this week?" });
       if (currentLineup.swapRecommendations[0]?.recommendedPlayer && currentLineup.swapRecommendations[0]?.currentPlayer) {
-        questions.unshift(`Should I start ${currentLineup.swapRecommendations[0].recommendedPlayer.name} over ${currentLineup.swapRecommendations[0].currentPlayer.name}?`);
+        const recommendedName = currentLineup.swapRecommendations[0].recommendedPlayer.name;
+        const currentName = currentLineup.swapRecommendations[0].currentPlayer.name;
+        questions.unshift({ label: `Start ${recommendedName}?`, prompt: `Should I start ${recommendedName} over ${currentName}?` });
       }
     }
 
     if (currentWeek) {
-      questions.unshift("What does this week's matchup tell me?");
+      questions.unshift({ label: "Matchup outlook", prompt: "What does this week's matchup tell me?" });
       if (currentWeek.userPoints !== null || currentWeek.opponentPoints !== null) {
-        questions.unshift("Am I ahead in this matchup?");
+        questions.unshift({ label: "Am I ahead?", prompt: "Am I ahead in this matchup?" });
       }
     }
 
     if (currentActivity?.trendingAdds.length) {
-      questions.unshift("Who is trending that I should care about?");
-      questions.unshift(`Should I care about ${currentActivity.trendingAdds[0].player.name} trending up?`);
+      const playerName = currentActivity.trendingAdds[0].player.name;
+      questions.unshift({ label: "Trending adds", prompt: "Who is trending that I should care about?" });
+      questions.unshift({ label: `${playerName} trending?`, prompt: `Should I care about ${playerName} trending up?` });
     }
 
     if (currentWaivers?.candidates.length) {
-      questions.unshift("Who should I add or drop?");
-      questions.unshift(`Is ${currentWaivers.candidates[0].player.name} worth adding?`);
+      const playerName = currentWaivers.candidates[0].player.name;
+      questions.unshift({ label: "Add/drop advice", prompt: "Who should I add or drop?" });
+      questions.unshift({ label: `Add ${playerName}?`, prompt: `Is ${playerName} worth adding?` });
     }
 
-    return Array.from(new Set(questions)).slice(0, 5);
+    return questions.filter((question, index) => questions.findIndex((candidate) => candidate.prompt === question.prompt) === index).slice(0, 5);
   }
 </script>
 
@@ -176,8 +182,8 @@
     <span class:offline={!providerReady} class="pill pill-info">{providerLabel}</span>
   </div>
 
-  <div class="context-strip" aria-label="AI team grounding context">
-    <span class="context-label">Grounded in</span>
+  <div class="context-strip" aria-label="AI team context">
+    <span class="context-label">AI context</span>
     <div class="context-chips">
       {#each contextChips as chip}
         <span>{chip}</span>

@@ -45,22 +45,30 @@ Real drafts normally enter the AI workspace after current ECR is imported. Seaso
 
 The prompt contains one alphabetically ordered, deduplicated player catalog plus separate ID groups for pinned targets, ECR leaders, season-projection leaders, Sleeper ADP leaders, Real-Time ADP leaders, Sleeper search-rank placeholders, and position coverage. A signal group contains only players with that signal. Ordering within a signal group reflects only that raw signal; catalog order is explicitly not a recommendation.
 
-The Codex adapter exposes one provider-neutral, read-only dynamic tool:
+The Codex adapter exposes provider-neutral, read-only dynamic tools:
 
 - `search_available_players`: searches the immutable player pool captured at the current pick. It supports position, name, exact tier, result limit, and sorting by ECR, season projection, Sleeper ADP, Real-Time ADP, or Sleeper search-rank placeholder. Results contain raw evidence and user preference markers, not local recommendation scores.
+- `compare_players`: compares two to six known player IDs and reports raw evidence plus available, drafted, or excluded status without selecting a winner.
+- `inspect_position_market`: reports available counts, imported tier depth, drafted counts, and teams selecting before the next user turn for one to three positions. It labels timing as `sleeper`, `normal_snake_fallback`, or `unsupported`; the AI must qualify exact wait-or-take claims when the source is not `sleeper`.
 
 Dynamic tools are experimental in Codex app-server, so the protocol handling remains isolated inside the experimental adapter. Tool calls are limited to six per AI turn and twenty results per search.
 
 The response is strict structured JSON containing one recommended player ID, alternatives, confidence, reasons, risks, next-position priorities, and a complete living draft plan. The plan records the current approach, current and next-turn positional focus, positions that can wait, roster goals, watch items, and the material change since the prior plan. The latest successful plan is stored locally by draft, team, and provider and supplied to the next AI turn as advisory strategy; the current Sleeper snapshot always remains authoritative.
 
+Sleeper draft normalization includes the draft's pick-to-roster order and traded-pick ownership when the upstream draft is a supported non-auction format. Keeper metadata is preserved on completed picks. Older or synthetic snapshots without that data use a labeled normal-snake fallback, while auction timing is marked unsupported.
+
+Users can add concise `next-pick` or `draft` strategy guidance. Active guidance is included as preference-level context in strategy, conversation, and candidate-evaluation turns. It can influence a decision when reasonable, but it does not override availability, exclusions, roster feasibility, or the current Sleeper snapshot.
+
 The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows explicit reviewing, unavailable, or not-configured states when no current AI strategy exists.
 
-AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and the fantasy player-search tool.
+AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and these bounded draft tools.
 
 ## Contextual draft conversation
 
-**Ask about this draft**, suggested questions, and candidate-card **Ask about pick** actions use the same neutral draft evidence and `search_available_players` tool as primary strategy. Candidate actions seed the shared conversation instead of creating a separate response inside each player card.
+**Ask about this draft**, suggested questions, and candidate-card **Ask about pick** actions use the same neutral draft evidence and draft tools as primary strategy. Candidate actions seed the shared conversation instead of creating a separate response inside each player card.
 
 The conversation supports comparisons, challenges to the current plan, and what-if analysis. Conversation history is included only to resolve follow-up wording; the current draft snapshot remains authoritative. When the board advances, the renderer marks earlier answers as coming from an older board while new questions use the latest pick, roster, availability, and imported evidence.
+
+When a user explicitly asks the conversation to adopt or change draft strategy, the provider may append a validated strategy proposal. The proposal is displayed separately from the answer and is not active until the user selects **Apply to strategy**. Provider tools remain read-only and cannot persist guidance directly.
 
 Draft questions are grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations. The model can search the complete immutable available-player snapshot for positional or named alternatives. The prompt does not include a local strategic lean or score, and the model does not receive or claim live news outside the supplied draft context.

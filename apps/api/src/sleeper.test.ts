@@ -155,6 +155,24 @@ describe("Sleeper draft normalization", () => {
     expect(state.picks[2]).toMatchObject({ pickNo: 3, round: 1, draftSlot: 3, teamId: "roster-13" });
     expect(state.players.map((player) => player.id)).toEqual(["p1", "p2", "p3", "p4"]);
     expect(state.players.find((player) => player.id === "p2")?.riskTags).toEqual(["injury: Questionable"]);
+    expect(state.pickOrder).toMatchObject({ source: "sleeper" });
+    expect(state.pickOrder?.entries).toHaveLength(12);
+  });
+  it("applies traded-pick ownership to future pick order and preserves keeper metadata", () => {
+    const state = normalizeSleeperDraftState({
+      ...fixture,
+      draft: { ...fixture.draft, season: "2026" },
+      picks: [{ ...fixture.picks[0]!, is_keeper: true }, ...fixture.picks.slice(1)],
+      tradedPicks: [{ season: "2026", round: 2, roster_id: 11, previous_owner_id: 11, owner_id: 13 }],
+    });
+
+    expect(state.picks[0]?.isKeeper).toBe(true);
+    expect(state.pickOrder?.entries.find((entry) => entry.pickNo === 8)).toMatchObject({
+      draftSlot: 1,
+      teamId: "roster-13",
+      originalTeamId: "roster-11",
+      isTraded: true,
+    });
   });
   it("uses an explicit draft-slot team reference instead of a same-numbered roster", () => {
     const state = normalizeSleeperDraftState({
@@ -197,6 +215,7 @@ describe("Sleeper draft normalization", () => {
       level: "unsupported",
       features: expect.arrayContaining(["idp", "auction"]),
     });
+    expect(state.pickOrder).toEqual({ source: "unsupported", entries: [] });
   });
 
   it("falls back to league roster count when slot mapping is absent", () => {

@@ -1,4 +1,4 @@
-import type { AdpImportPayload, AiConversationMessage, AiDraftStrategyPayload, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
+import type { AdpImportPayload, AiConversationMessage, AiDraftStrategyPayload, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, DraftStrategyInstructionSource, DraftStrategyInstructionsPayload, DraftStrategyProposal, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiPort } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
@@ -17,7 +17,7 @@ if (packagedApiToken) {
   }
 }
 
-export type DraftAction = "state" | "events" | "ask" | "strategy" | "recommendations" | "decisions" | "rankings/import" | "projections/season/import" | "adp/import";
+export type DraftAction = "state" | "events" | "ask" | "strategy" | "strategy-instructions" | "recommendations" | "decisions" | "rankings/import" | "projections/season/import" | "adp/import";
 
 export function buildDraftUrl(draftId: string, action: DraftAction, userRosterId: string | null) {
   const query = new URLSearchParams();
@@ -445,6 +445,61 @@ export async function fetchAiDraftStrategyRequest(
     throw new Error(await readErrorMessage(response, "The AI strategist could not evaluate this board."));
   }
   return (await response.json()) as AiDraftStrategyPayload;
+}
+
+export async function fetchDraftStrategyInstructions(
+  draftId: string,
+  userRosterId: string | null,
+): Promise<DraftStrategyInstructionsPayload> {
+  const response = await apiFetch(buildDraftUrl(draftId, "strategy-instructions", userRosterId));
+  if (!response.ok) throw new Error(await readErrorMessage(response, "Could not load draft strategy instructions."));
+  return (await response.json()) as DraftStrategyInstructionsPayload;
+}
+
+export async function createDraftStrategyInstruction(
+  draftId: string,
+  userRosterId: string | null,
+  proposal: DraftStrategyProposal,
+  source: DraftStrategyInstructionSource,
+): Promise<DraftStrategyInstructionsPayload> {
+  const response = await apiFetch(buildDraftUrl(draftId, "strategy-instructions", userRosterId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...proposal, source }),
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response, "Could not add the strategy instruction."));
+  return (await response.json()) as DraftStrategyInstructionsPayload;
+}
+
+export async function updateDraftStrategyInstruction(
+  draftId: string,
+  userRosterId: string | null,
+  instructionId: string,
+  proposal: DraftStrategyProposal,
+): Promise<DraftStrategyInstructionsPayload> {
+  const response = await apiFetch(buildStrategyInstructionUrl(draftId, userRosterId, instructionId), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(proposal),
+  });
+  if (!response.ok) throw new Error(await readErrorMessage(response, "Could not update the strategy instruction."));
+  return (await response.json()) as DraftStrategyInstructionsPayload;
+}
+
+export async function deleteDraftStrategyInstruction(
+  draftId: string,
+  userRosterId: string | null,
+  instructionId: string,
+): Promise<DraftStrategyInstructionsPayload> {
+  const response = await apiFetch(buildStrategyInstructionUrl(draftId, userRosterId, instructionId), { method: "DELETE" });
+  if (!response.ok) throw new Error(await readErrorMessage(response, "Could not remove the strategy instruction."));
+  return (await response.json()) as DraftStrategyInstructionsPayload;
+}
+
+function buildStrategyInstructionUrl(draftId: string, userRosterId: string | null, instructionId: string): URL {
+  const url = new URL(buildDraftUrl(draftId, "strategy-instructions", userRosterId), window.location.href);
+  url.pathname += `/${encodeURIComponent(instructionId)}`;
+  return url;
 }
 
 export async function askManagerRequest(

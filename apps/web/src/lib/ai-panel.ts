@@ -7,8 +7,15 @@ import type {
 } from "./types";
 
 export type AiPanelContextSummary = {
-  chips: string[];
+  league: string;
+  starters: string;
+  data: string;
   note: string | null;
+};
+
+export type SuggestedQuestion = {
+  label: string;
+  prompt: string;
 };
 
 export function buildCandidateDiscussionQuestion(
@@ -49,12 +56,12 @@ export function buildSuggestedQuestions(
   _currentRecommendation: DraftRecommendation | null,
   rankingsImported: boolean,
   usingPlaceholderRanks: boolean,
-): string[] {
-  const fallback = [
-    "Who should I draft if I pick right now?",
-    "Compare my top 3 options.",
-    "Should I prioritize QB here?",
-    "What roster need matters most?",
+): SuggestedQuestion[] {
+  const fallback: SuggestedQuestion[] = [
+    { label: "Best pick now", prompt: "Who should I draft if I pick right now?" },
+    { label: "Compare top options", prompt: "Compare my top 3 options." },
+    { label: "QB priority?", prompt: "Should I prioritize QB here?" },
+    { label: "Biggest roster need", prompt: "What roster need matters most?" },
   ];
 
   if (!state) {
@@ -62,63 +69,79 @@ export function buildSuggestedQuestions(
   }
 
   const rosterNeeds = getRosterNeeds(state);
-  const questions: string[] = [
-    "Who should I draft if I pick right now?",
-    "Search the available players and compare the best options.",
+  const questions: SuggestedQuestion[] = [
+    { label: "Best pick now", prompt: "Who should I draft if I pick right now?" },
+    { label: "Compare best options", prompt: "Search the available players and compare the best options." },
   ];
 
   if (getFlexSlotCount(state) > 0) {
-    questions.push("Which RB/WR fits this build best?");
+    questions.push({ label: "Best RB/WR fit", prompt: "Which RB/WR fits this build best?" });
   }
 
   if (hasSingleQbFormat(state)) {
-    questions.push("Should I pass on QB in this format?");
+    questions.push({ label: "Pass on QB?", prompt: "Should I pass on QB in this format?" });
   }
 
   if (rosterNeeds.length > 0) {
-    questions.push(`Should I prioritize ${formatPositionList(rosterNeeds)} or take the best available value?`);
+    questions.push({
+      label: "Need vs. value",
+      prompt: `Should I prioritize ${formatPositionList(rosterNeeds)} or take the best available value?`,
+    });
   }
 
   if (usingPlaceholderRanks) {
-    questions.push("How much should I trust these placeholder Sleeper ranks?");
+    questions.push({ label: "Trust Sleeper ranks?", prompt: "How much should I trust these placeholder Sleeper ranks?" });
   } else if (rankingsImported) {
-    questions.push("Where are imported rankings weakest for this decision?");
+    questions.push({ label: "Ranking uncertainty", prompt: "Where are imported rankings weakest for this decision?" });
   }
 
   if (rosterNeeds.length > 0) {
-    questions.push("What roster need matters most after this pick?");
+    questions.push({ label: "Need after this pick", prompt: "What roster need matters most after this pick?" });
   } else {
-    questions.push("What position should I target next round?");
+    questions.push({ label: "Next-round target", prompt: "What position should I target next round?" });
   }
 
-  return uniqueQuestions(questions).slice(0, 6);
+  return uniqueSuggestedQuestions(questions).slice(0, 6);
 }
 
 export function buildAiPanelContextSummary(
   state: DraftState | null,
   _currentRecommendation: DraftRecommendation | null,
   rankingsImported: boolean,
+  projectionsImported: boolean,
+  adpImported: boolean,
   usingPlaceholderRanks: boolean,
 ): AiPanelContextSummary {
   if (!state) {
-    return { chips: ["No draft loaded"], note: null };
+    return {
+      league: "No draft loaded",
+      starters: "Not available",
+      data: "Not available",
+      note: null,
+    };
   }
 
-  const chips = [state.settings.scoring, formatFlexChip(state), rankingsImported ? "Imported rankings" : usingPlaceholderRanks ? "Sleeper placeholder ranks" : "Demo values"];
-  if (getFlexSlotCount(state) > 0) {
-    chips.push("RB/WR flex pressure");
-  }
-  if (hasSingleQbFormat(state)) {
-    chips.push("Lower QB pressure");
-  }
+  const dataSources: string[] = [];
+  if (rankingsImported) dataSources.push("ECR");
+  if (projectionsImported) dataSources.push("Season projections");
+  if (adpImported) dataSources.push("Sleeper ADP");
+  if (usingPlaceholderRanks) dataSources.push("Sleeper placeholder ranks");
+  if (dataSources.length === 0) dataSources.push("Demo values");
 
   const note = usingPlaceholderRanks
-    ? "AI answers are grounded in Sleeper draft context, but player values are placeholder ranks."
-    : rankingsImported
-      ? "AI answers are grounded in Sleeper draft context and imported rankings, not live projections."
-      : "AI answers are grounded in the current draft context.";
+    ? "AI receives the current board, roster, and league settings, but player values are temporary Sleeper search ranks."
+    : "AI receives the current board, roster, league settings, and the imported player-value sources shown above.";
 
-  return { chips: uniqueQuestions(chips).slice(0, 5), note };
+  return {
+    league: `${state.settings.scoring.toUpperCase()} · ${state.settings.teams} teams`,
+    starters: formatStarterSlots(state.settings.rosterSlots),
+    data: uniqueQuestions(dataSources).join(" · "),
+    note,
+  };
+}
+
+export function buildPlayerDiscussionQuestion(playerName: string): string {
+  return `Evaluate ${playerName} for my current pick. Compare them with the strongest available alternatives and explain whether I should draft them now, wait, deprioritize them, or exclude them.`;
 }
 
 function getRosterNeeds(state: DraftState): Position[] {
@@ -150,21 +173,6 @@ function formatPositionList(positions: Position[]): string {
   return `${positions.slice(0, -1).join("/")}/${positions[positions.length - 1]}`;
 }
 
-function formatFlexChip(state: DraftState): string {
-  const flexSlots = getFlexSlotCount(state);
-  const superFlexSlots = (state.settings.rosterSlots.SUPER_FLEX ?? 0) + (state.settings.rosterSlots.SF ?? 0);
-  const parts: string[] = [];
-
-  if (flexSlots > 0) {
-    parts.push(`${flexSlots} FLEX`);
-  }
-  if (superFlexSlots > 0) {
-    parts.push(`${superFlexSlots} SUPER_FLEX`);
-  }
-
-  return parts.length > 0 ? parts.join(" / ") : "No flex";
-}
-
 function getFlexSlotCount(state: DraftState): number {
   return (state.settings.rosterSlots.FLEX ?? 0) +
     (state.settings.rosterSlots.WR_RB_FLEX ?? 0) +
@@ -173,5 +181,38 @@ function getFlexSlotCount(state: DraftState): number {
 
 function uniqueQuestions(source: string[]): string[] {
   return Array.from(new Set(source.filter(Boolean)));
+}
+
+function formatStarterSlots(rosterSlots: Record<string, number>): string {
+  const slotGroups = [
+    { label: "QB", keys: ["QB"] },
+    { label: "RB", keys: ["RB"] },
+    { label: "WR", keys: ["WR"] },
+    { label: "TE", keys: ["TE"] },
+    { label: "FLEX", keys: ["FLEX", "WR_RB_FLEX", "REC_FLEX"] },
+    { label: "SUPER FLEX", keys: ["SUPER_FLEX", "SF"] },
+    { label: "K", keys: ["K"] },
+    { label: "DEF", keys: ["DEF", "DST"] },
+  ];
+  const ignoredSlots = new Set(["BN", "BENCH", "IR", "RESERVE", "TAXI"]);
+  const consumedSlots = new Set(slotGroups.flatMap((group) => group.keys));
+  const formatted = slotGroups
+    .map((group) => ({
+      label: group.label,
+      count: group.keys.reduce((total, key) => total + (rosterSlots[key] ?? 0), 0),
+    }))
+    .filter((slot) => slot.count > 0)
+    .map((slot) => `${slot.count} ${slot.label}`);
+
+  const otherStarters = Object.entries(rosterSlots)
+    .filter(([key, count]) => count > 0 && !consumedSlots.has(key) && !ignoredSlots.has(key))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => `${count} ${key.replaceAll("_", " ")}`);
+
+  return [...formatted, ...otherStarters].join(" · ") || "Not available";
+}
+
+function uniqueSuggestedQuestions(source: SuggestedQuestion[]): SuggestedQuestion[] {
+  return source.filter((question, index) => question.prompt && source.findIndex((candidate) => candidate.prompt === question.prompt) === index);
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
-  import type { AiConversationMessage, AiProviderStatus, DraftRecommendation, DraftState } from "../types";
+  import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
@@ -10,20 +10,26 @@
     onAsk,
     providerStatus = null,
     hasImportedRankings = false,
+    hasSeasonProjections = false,
+    hasImportedAdp = false,
     showPlaceholderWarning = false,
     draftState = null,
     recommendation = null,
     onOpenSettings,
     promptRequest = null,
+    onApplyStrategyProposal,
   }: {
-    onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
+    onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<DraftAskResult>;
     providerStatus?: AiProviderStatus | null;
     hasImportedRankings?: boolean;
+    hasSeasonProjections?: boolean;
+    hasImportedAdp?: boolean;
     showPlaceholderWarning?: boolean;
     draftState?: DraftState | null;
     recommendation?: DraftRecommendation | null;
     onOpenSettings?: () => void;
     promptRequest?: { id: number; question: string } | null;
+    onApplyStrategyProposal?: (proposal: DraftStrategyProposal) => Promise<void>;
   } = $props();
 
   let question = $state("");
@@ -42,7 +48,7 @@
   );
   const providerLabel = $derived(providerReady ? providerStatus?.label ?? "AI manager" : "No AI provider");
   const suggestedQuestions = $derived(buildSuggestedQuestions(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
-  const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
+  const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, hasSeasonProjections, hasImportedAdp, showPlaceholderWarning));
   const boardChanged = $derived(
     Boolean(messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
   );
@@ -72,9 +78,11 @@
     messages = [...messages, createMessage("user", trimmed), loadingMessage];
 
     try {
-      const answer = await onAsk(trimmed, conversationHistory);
+      const result = await onAsk(trimmed, conversationHistory);
       messages = messages.map((message) =>
-        message.id === loadingMessage.id ? { ...message, content: answer, status: "complete" } : message,
+        message.id === loadingMessage.id
+          ? { ...message, content: result.answer, status: "complete", strategyProposal: result.strategyProposal }
+          : message,
       );
     } catch (error) {
       const answer = error instanceof Error ? error.message : "The manager could not answer because the draft state is unavailable.";
@@ -121,6 +129,18 @@
     question = "";
     lastQuestion = "";
     conversationPick = null;
+  }
+
+  async function applyStrategyProposal(messageId: string, proposal: DraftStrategyProposal) {
+    if (!onApplyStrategyProposal) return;
+    try {
+      await onApplyStrategyProposal(proposal);
+      messages = messages.map((message) =>
+        message.id === messageId ? { ...message, strategyProposalApplied: true } : message,
+      );
+    } catch {
+      // The strategy drawer surfaces the persistence error and leaves this proposal retryable.
+    }
   }
 
   $effect(() => {
@@ -177,12 +197,21 @@
           {/if}
         </div>
       {:else}
-      <div class="context-strip" aria-label="AI grounding context">
-        <span class="context-label">Grounded in</span>
-        <div class="context-chips">
-          {#each contextSummary.chips as chip}
-            <span>{chip}</span>
-          {/each}
+      <div class="context-strip" aria-label="AI context">
+        <span class="context-label">AI context</span>
+        <div class="context-groups">
+          <div class="context-group">
+            <strong>League</strong>
+            <span>{contextSummary.league}</span>
+          </div>
+          <div class="context-group">
+            <strong>Starters</strong>
+            <span>{contextSummary.starters}</span>
+          </div>
+          <div class="context-group">
+            <strong>Data</strong>
+            <span>{contextSummary.data}</span>
+          </div>
         </div>
       </div>
 
@@ -209,7 +238,12 @@
       {:else}
         <div class="conversation" aria-live="polite">
           {#each messages as message (message.id)}
-            <AiMessageBubble message={message} onCopy={copyMessage} onRetry={() => submit(lastQuestion)} />
+            <AiMessageBubble
+              {message}
+              onCopy={copyMessage}
+              onRetry={() => submit(lastQuestion)}
+              onApplyStrategyProposal={(proposal) => applyStrategyProposal(message.id, proposal)}
+            />
           {/each}
         </div>
         {#if copied}
@@ -349,19 +383,28 @@
     text-transform: uppercase;
   }
 
-  .context-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  .context-groups {
+    display: grid;
+    gap: 5px;
   }
 
-  .context-chips span {
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
+  .context-group {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .context-group strong {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  .context-group span {
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 800;
-    padding: 4px 7px;
+    line-height: 1.45;
   }
 
   .context-note,

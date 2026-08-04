@@ -1194,6 +1194,9 @@ function getDirectStarterGaps(
 }
 
 function countRemainingUserPicks(state: DraftState): number {
+  if (state.pickOrder?.source === "sleeper" && state.pickOrder.entries.length > 0) {
+    return state.pickOrder.entries.filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId).length;
+  }
   const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot ?? 1;
   const totalPicks = state.settings.teams * state.settings.rounds;
   let remaining = 0;

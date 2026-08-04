@@ -1,4 +1,4 @@
-import type { AiDraftPlan, DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
+import type { AiDraftPlan, DraftState, DraftStrategyInstruction, Player, Position } from "@sleeper-draft-assistant/shared";
 
 import { buildGroupedPlayerEvidence, createDraftPlayerSnapshot, toDraftPlayerEvidence, type DraftPlayerSnapshot } from "./draft-tools";
 import type { AiConversationMessage, DraftQuestionContext, DraftStrategyContext, PlayerPreferenceSummary } from "./types";
@@ -8,6 +8,7 @@ export function buildDraftStrategyContext(
   userPreferences: PlayerPreferenceSummary = { pinned: [], faded: [], excluded: [] },
   snapshot: DraftPlayerSnapshot = createDraftPlayerSnapshot(state, userPreferences),
   previousPlan: AiDraftPlan | null = null,
+  strategyInstructions: DraftStrategyInstruction[] = [],
 ): DraftStrategyContext {
   const playersById = new Map(state.players.map((player) => [player.id, player]));
   const teamsById = new Map(state.teams.map((team) => [team.id, team]));
@@ -26,6 +27,7 @@ export function buildDraftStrategyContext(
     task: "draft_strategy",
     objective: "Choose the best available player for the user's roster at the current pick.",
     previousPlan,
+    strategyInstructions,
     userPreferences,
     dataQuality: {
       availablePlayers: availablePlayers.length,
@@ -43,6 +45,8 @@ export function buildDraftStrategyContext(
       currentPick: state.currentPick,
       nextUserPick,
       picksUntilNextUserPick: nextUserPick === null ? null : nextUserPick - state.currentPick,
+      pickOrderSource: getPickOrderSource(state),
+      pickOrderNote: getPickOrderNote(state),
       remainingUserSelections: countUserPicksFrom(state, state.currentPick),
       updatedAt: state.updatedAt,
     },
@@ -78,6 +82,16 @@ export function buildDraftStrategyContext(
       recentDraftedByPosition: countPickedPositions(recentPicks, playersById),
       availableByPosition: countPlayerPositions(availablePlayers),
       teamsSelectingBeforeNextTurn: getTeamsSelectingBeforeNextTurn(state, nextUserPick, playersById),
+      teamRosters: state.teams.map((team) => ({
+        teamId: team.id,
+        team: team.name,
+        draftSlot: team.draftSlot,
+        positionCounts: countRosterPositions(team, playersById),
+        players: team.roster.flatMap((playerId) => {
+          const player = playersById.get(playerId);
+          return player ? [{ name: player.name, position: player.position }] : [];
+        }),
+      })),
     },
     ...groupedPlayerEvidence,
   };
@@ -90,11 +104,14 @@ export function buildDraftQuestionContext(
   userPreferences: PlayerPreferenceSummary = { pinned: [], faded: [], excluded: [] },
   snapshot: DraftPlayerSnapshot = createDraftPlayerSnapshot(state, userPreferences),
   focusPlayerIds: string[] = [],
+  strategyInstructions: DraftStrategyInstruction[] = [],
 ): DraftQuestionContext {
   const { task: _task, objective: _objective, ...evidence } = buildDraftStrategyContext(
     state,
     userPreferences,
     snapshot,
+    null,
+    strategyInstructions,
   );
   const playersById = new Map(snapshot.players.map((player) => [player.id, player]));
 
@@ -153,8 +170,14 @@ function findNextUserPick(state: DraftState): number | null {
   if (!userSlot) {
     return null;
   }
+  if (state.pickOrder?.source === "unsupported") {
+    return null;
+  }
   const currentSlot = draftSlotForPick(state.currentPick, state.settings.teams);
   const start = currentSlot === userSlot ? state.currentPick + 1 : state.currentPick;
+  if (state.pickOrder?.entries.length) {
+    return state.pickOrder.entries.find((entry) => entry.pickNo >= start && entry.teamId === state.userTeamId)?.pickNo ?? null;
+  }
   const totalPicks = state.settings.teams * state.settings.rounds;
   for (let pickNo = start; pickNo <= totalPicks; pickNo += 1) {
     if (draftSlotForPick(pickNo, state.settings.teams) === userSlot) {
@@ -165,6 +188,9 @@ function findNextUserPick(state: DraftState): number | null {
 }
 
 function countUserPicksFrom(state: DraftState, fromPick: number): number {
+  if (state.pickOrder?.source === "sleeper" && state.pickOrder.entries.length > 0) {
+    return state.pickOrder.entries.filter((entry) => entry.pickNo >= fromPick && entry.teamId === state.userTeamId).length;
+  }
   const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot;
   if (!userSlot) {
     return 0;
@@ -210,13 +236,18 @@ function getTeamsSelectingBeforeNextTurn(
   nextUserPick: number | null,
   playersById: Map<string, Player>,
 ): DraftStrategyContext["board"]["teamsSelectingBeforeNextTurn"] {
-  if (nextUserPick === null) {
+  if (nextUserPick === null || state.pickOrder?.source === "unsupported") {
     return [];
   }
   const teamsBySlot = new Map(state.teams.map((team) => [team.draftSlot, team]));
+  const teamsById = new Map(state.teams.map((team) => [team.id, team]));
+  const pickOrderByNumber = new Map((state.pickOrder?.entries ?? []).map((entry) => [entry.pickNo, entry]));
   const selected = new Map<string, DraftStrategyContext["board"]["teamsSelectingBeforeNextTurn"][number]>();
   for (let pickNo = state.currentPick; pickNo < nextUserPick; pickNo += 1) {
-    const team = teamsBySlot.get(draftSlotForPick(pickNo, state.settings.teams));
+    const orderEntry = pickOrderByNumber.get(pickNo);
+    const team = orderEntry
+      ? teamsById.get(orderEntry.teamId)
+      : teamsBySlot.get(draftSlotForPick(pickNo, state.settings.teams));
     if (!team || team.id === state.userTeamId || selected.has(team.id)) {
       continue;
     }
@@ -227,6 +258,17 @@ function getTeamsSelectingBeforeNextTurn(
     });
   }
   return [...selected.values()];
+}
+
+function getPickOrderSource(state: DraftState): NonNullable<DraftState["pickOrder"]>["source"] {
+  return state.pickOrder?.source ?? "normal_snake_fallback";
+}
+
+function getPickOrderNote(state: DraftState): string | null {
+  const source = getPickOrderSource(state);
+  if (source === "sleeper") return null;
+  if (source === "unsupported") return "This draft format does not expose a modeled pick-by-pick turn order.";
+  return "Sleeper pick-order data is unavailable in this snapshot; timing uses normal snake slot order.";
 }
 
 function countRosterPositions(

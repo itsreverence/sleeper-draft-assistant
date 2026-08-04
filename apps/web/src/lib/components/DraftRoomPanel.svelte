@@ -8,7 +8,13 @@
   } from "../draft-board";
   import Icon from "./Icon.svelte";
 
-  let { state: draftState }: { state: DraftState } = $props();
+  let {
+    state: draftState,
+    onSelectTeam,
+  }: {
+    state: DraftState;
+    onSelectTeam?: (teamId: string) => void;
+  } = $props();
 
   let view: DraftBoardView = $state("live");
   let boardScroller: HTMLDivElement;
@@ -20,6 +26,13 @@
   const totalPicks = $derived(draftState.settings.teams * draftState.settings.rounds);
   const completedPicks = $derived(draftState.picks.length);
   const completion = $derived(totalPicks > 0 ? Math.min(100, Math.round((completedPicks / totalPicks) * 100)) : 0);
+  const boardEyebrow = $derived(
+    draftState.status === "pre_draft"
+      ? "Pre-draft board"
+      : draftState.status === "complete"
+        ? "Draft results"
+        : "Live draft board",
+  );
 
   $effect(() => {
     draftState.currentPick;
@@ -56,7 +69,7 @@
 <section class="draft-room" aria-label="Draft room">
   <header class="room-header">
     <div class="room-title">
-      <p class="eyebrow">Live draft board</p>
+      <p class="eyebrow">{boardEyebrow}</p>
       <h2><Icon name="grid" size={19} /> Draft room</h2>
       <p>
         {#if draftState.status === "pre_draft"}
@@ -90,14 +103,11 @@
           Full board
         </button>
       </div>
-      <span class="room-status" class:status-live={draftState.status === "drafting"}>
-        <i></i>{draftState.status.replace("_", " ")}
-      </span>
     </div>
   </header>
 
   <div class="progress-row">
-    <span style={`width:${completion}%`}></span>
+    <span style={`transform:scaleX(${completion / 100})`}></span>
   </div>
 
   <div class="board-scroller" bind:this={boardScroller}>
@@ -106,11 +116,18 @@
         <span>Round</span>
       </div>
       {#each teams as team (team.id)}
-        <div class="team-header" class:user-team={team.id === draftState.userTeamId} data-user-slot={team.id === draftState.userTeamId}>
+        <button
+          class="team-header"
+          class:user-team={team.id === draftState.userTeamId}
+          data-user-slot={team.id === draftState.userTeamId}
+          type="button"
+          title={`View ${team.name} roster`}
+          onclick={() => onSelectTeam?.(team.id)}
+        >
           <span>{team.draftSlot}</span>
           <strong title={team.name}>{shortTeamName(team.name)}</strong>
           {#if team.id === draftState.userTeamId}<small>Your team</small>{/if}
-        </div>
+        </button>
       {/each}
 
       {#each rows as boardRow (boardRow.round)}
@@ -223,37 +240,6 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .room-status {
-    display: inline-flex;
-    gap: 7px;
-    align-items: center;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
-    padding: 7px 10px;
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    font-weight: 800;
-    text-transform: capitalize;
-    white-space: nowrap;
-  }
-
-  .room-status i {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--text-muted);
-  }
-
-  .room-status.status-live {
-    border-color: var(--accent-border);
-    color: var(--accent);
-  }
-
-  .room-status.status-live i {
-    background: var(--accent);
-    box-shadow: 0 0 0 4px var(--accent-soft);
-  }
-
   .progress-row {
     height: 3px;
     background: var(--surface-sunken);
@@ -261,9 +247,11 @@
 
   .progress-row span {
     display: block;
+    width: 100%;
     height: 100%;
     background: var(--accent);
-    transition: width var(--transition-base);
+    transform-origin: left;
+    transition: transform var(--transition-base);
   }
 
   .board-scroller {
@@ -310,6 +298,23 @@
     column-gap: 6px;
     align-content: center;
     padding: 9px 10px;
+    border-top: 0;
+    border-left: 0;
+    border-radius: 0;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .team-header:hover,
+  .team-header:focus-visible {
+    background: #20262d;
+  }
+
+  .team-header:focus-visible {
+    z-index: 4;
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   .team-header > span {
@@ -387,8 +392,8 @@
 
   .pick-cell.filled::before {
     position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
+    inset: 0 0 auto;
+    height: 2px;
     background: var(--position-color, var(--border-strong));
     content: "";
   }
@@ -516,10 +521,6 @@
 
     .room-actions {
       justify-content: space-between;
-    }
-
-    .room-status {
-      padding-inline: 9px;
     }
 
     .board-scroller {

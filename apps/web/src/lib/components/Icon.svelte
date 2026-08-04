@@ -22,6 +22,9 @@
     | "external"
     | "database"
     | "download"
+    | "settings"
+    | "search"
+    | "close"
     | "trash";
 
   let { name, size = 16 }: { name: IconName; size?: number } = $props();
@@ -62,6 +65,12 @@
     {:else if name === "plus"}
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    {:else if name === "close"}
+      <path d="m6 6 12 12" />
+      <path d="m18 6-12 12" />
+    {:else if name === "search"}
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 4 4" />
     {:else if name === "calendar"}
       <rect x="4" y="5" width="16" height="15" rx="2" />
       <path d="M8 3.5v3M16 3.5v3M4 10h16" />
@@ -107,6 +116,9 @@
       <path d="M12 4v11" />
       <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
       <path d="M5 20h14" />
+    {:else if name === "settings"}
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
     {:else if name === "trash"}
       <path d="M5 7h14" />
       <path d="M9 7V4.5h6V7" />

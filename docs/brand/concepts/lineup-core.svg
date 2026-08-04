@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Lineup Core logo concept</title>
+  <desc id="description">A connected team formation organized around one central decision point.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#0f1916"/>
+  <path d="M78 74 128 128 178 74M78 182l50-54 50 54" fill="none" stroke="#34d399" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="78" cy="74" r="18" fill="#34d399"/>
+  <circle cx="178" cy="74" r="18" fill="#34d399"/>
+  <circle cx="78" cy="182" r="18" fill="#34d399"/>
+  <circle cx="178" cy="182" r="18" fill="#34d399"/>
+  <circle cx="128" cy="128" r="27" fill="#f4f7f5" stroke="#0f1916" stroke-width="10"/>
+</svg>

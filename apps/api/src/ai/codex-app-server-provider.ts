@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-import { AiDraftDecisionSchema, type AiDraftDecision } from "@sleeper-draft-assistant/shared";
+import { AiDraftDecisionSchema, DraftStrategyProposalSchema, type AiDraftDecision, type DraftStrategyProposal } from "@sleeper-draft-assistant/shared";
 
 import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
@@ -89,9 +89,11 @@ export class CodexAppServerProvider implements AiProvider {
       ),
       tools,
     );
+    const parsed = parseDraftQuestionAnswer(result);
     return {
       provider: this.status(),
-      answer: result || "Codex completed without returning visible text.",
+      answer: parsed.answer || "Codex completed without returning visible text.",
+      ...(parsed.strategyProposal ? { strategyProposal: parsed.strategyProposal } : {}),
     };
   }
 
@@ -215,6 +217,19 @@ export function parseAiDraftDecision(raw: string): AiDraftDecision {
     throw new Error("Codex returned an invalid draft decision.");
   }
   return result.data;
+}
+
+export function parseDraftQuestionAnswer(raw: string): { answer: string; strategyProposal?: DraftStrategyProposal } {
+  const pattern = /<strategy_proposal>([\s\S]*?)<\/strategy_proposal>/i;
+  const match = raw.match(pattern);
+  if (!match) return { answer: raw.trim() };
+  const answer = raw.replace(pattern, "").trim();
+  try {
+    const result = DraftStrategyProposalSchema.safeParse(JSON.parse(match[1] ?? ""));
+    return result.success ? { answer, strategyProposal: result.data } : { answer };
+  } catch {
+    return { answer };
+  }
 }
 
 class CodexJsonRpcClient {

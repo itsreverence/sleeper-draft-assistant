@@ -19,6 +19,11 @@ let apiProcess = null;
 let webProcess = null;
 let mainWindow = null;
 
+// CI and package smoke hosts may not expose a usable GPU process.
+if (process.env.SLEEPER_AI_PACKAGE_SMOKE === "1") {
+  app.disableHardwareAcceleration();
+}
+
 app.setName("Sleeper Draft Assistant");
 app.setPath(
   "userData",

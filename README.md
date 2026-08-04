@@ -23,6 +23,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Uses a configured AI provider as the primary draft strategist near your turn, reasoning from neutral draft evidence and searching the full available-player snapshot through a read-only tool.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
+- Lets users add next-pick or rest-of-draft guidance, and lets AI chat propose guidance that is persisted only after explicit user confirmation.
 - Shows explicit AI loading, unavailable, and not-configured states instead of substituting a local pick recommendation.
 - Stores settings, imported rankings and projections, and decision history locally in SQLite.
 - Shows a compact strategy-update timeline that keeps the latest living plan prominent, collapses repeated same-pick runs, and preserves older AI changes for review.
@@ -91,7 +92,7 @@ See [Installing on Windows](docs/INSTALLING.md) for artifact choices, checksum v
 
 ## Local data and privacy
 
-The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported draft and rest-of-season rankings, season and weekly projections, ADP, settings, and recommendation history.
+The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported draft and rest-of-season rankings, season and weekly projections, ADP, settings, user strategy guidance, and recommendation history.
 
 Settings shows aggregate local-data counts, can download a redacted support report, and provides controls to clear imports, recommendation history, or all local app data.
 

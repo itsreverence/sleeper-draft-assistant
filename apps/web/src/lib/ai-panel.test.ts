@@ -9,6 +9,7 @@ import type {
 import {
   buildAiPanelContextSummary,
   buildCandidateDiscussionQuestion,
+  buildPlayerDiscussionQuestion,
   buildSuggestedQuestions,
   currentAiDraftStrategy,
   shouldRequestAiDraftStrategy,
@@ -29,23 +30,62 @@ describe("AI panel helpers", () => {
 
   it("suggests questions from draft context without local candidate ordering", () => {
     const questions = buildSuggestedQuestions(state, recommendation, true, false);
+    const prompts = questions.map((question) => question.prompt);
+    const labels = questions.map((question) => question.label);
 
-    expect(questions).toContain("Search the available players and compare the best options.");
-    expect(questions).toContain("Which RB/WR fits this build best?");
-    expect(questions).toContain("Should I pass on QB in this format?");
-    expect(questions).toContain("Where are imported rankings weakest for this decision?");
-    expect(questions.some((question) => question.includes("Jahmyr Gibbs"))).toBe(false);
+    expect(prompts).toContain("Search the available players and compare the best options.");
+    expect(prompts).toContain("Which RB/WR fits this build best?");
+    expect(prompts).toContain("Should I pass on QB in this format?");
+    expect(prompts).toContain("Where are imported rankings weakest for this decision?");
+    expect(labels).toContain("Best RB/WR fit");
+    expect(labels).toContain("Pass on QB?");
+    expect(questions.some((question) => question.prompt.includes("Jahmyr Gibbs"))).toBe(false);
   });
 
-  it("builds concise grounding chips for the AI panel", () => {
-    const summary = buildAiPanelContextSummary(state, recommendation, true, false);
+  it("builds a complete, grouped context summary for the AI panel", () => {
+    const summary = buildAiPanelContextSummary(state, recommendation, true, true, true, false);
 
-    expect(summary.chips).toContain("PPR");
-    expect(summary.chips).toContain("2 FLEX");
-    expect(summary.chips).toContain("Imported rankings");
-    expect(summary.chips).toContain("RB/WR flex pressure");
-    expect(summary.chips).toContain("Lower QB pressure");
-    expect(summary.note).toContain("imported rankings");
+    expect(summary.league).toBe("PPR · 8 teams");
+    expect(summary.starters).toBe("1 QB · 2 RB · 2 WR · 1 TE · 2 FLEX");
+    expect(summary.starters).not.toContain("BN");
+    expect(summary.data).toBe("ECR · Season projections · Sleeper ADP");
+    expect(summary.note).toContain("imported player-value sources");
+  });
+
+  it("builds a neutral player-search question", () => {
+    expect(buildPlayerDiscussionQuestion("Luther Burden")).toBe(
+      "Evaluate Luther Burden for my current pick. Compare them with the strongest available alternatives and explain whether I should draft them now, wait, deprioritize them, or exclude them.",
+    );
+  });
+
+  it("includes specialist and custom starting slots while excluding reserves", () => {
+    const customState = {
+      ...state,
+      settings: {
+        ...state.settings,
+        rosterSlots: {
+          QB: 1,
+          RB: 2,
+          WR: 3,
+          TE: 1,
+          WR_RB_FLEX: 1,
+          SF: 1,
+          K: 1,
+          DEF: 1,
+          IDP_FLEX: 2,
+          BN: 8,
+          IR: 2,
+        },
+      },
+    };
+
+    const summary = buildAiPanelContextSummary(customState, recommendation, true, false, false, false);
+
+    expect(summary.starters).toBe(
+      "1 QB · 2 RB · 3 WR · 1 TE · 1 FLEX · 1 SUPER FLEX · 1 K · 1 DEF · 2 IDP FLEX",
+    );
+    expect(summary.starters).not.toContain("BN");
+    expect(summary.starters).not.toContain("IR");
   });
 
   it("requests AI-first strategy near the turn and rejects stale results", () => {

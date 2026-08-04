@@ -1,14 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sleeper Draft Assistant icon">
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="#10201d"/>
-  <rect x="54" y="45" width="148" height="170" rx="22" fill="#f5f1e7"/>
-  <rect x="91" y="30" width="74" height="34" rx="15" fill="#39d98a"/>
-  <circle cx="82" cy="94" r="10" fill="#39d98a"/>
-  <path d="m76 94 4 4 8-9" fill="none" stroke="#10201d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M108 92h60" fill="none" stroke="#10201d" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="82" cy="132" r="10" fill="#c8d4cd"/>
-  <path d="M108 130h48" fill="none" stroke="#50635c" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="82" cy="170" r="10" fill="#c8d4cd"/>
-  <path d="M108 168h34" fill="none" stroke="#50635c" stroke-width="10" stroke-linecap="round"/>
-  <ellipse cx="167" cy="173" rx="34" ry="22" fill="#c8753d" transform="rotate(-20 167 173)"/>
-  <path d="M155 173h24m-12-8v16m-7-13v10m14-10v10" fill="none" stroke="#f5f1e7" stroke-width="4" stroke-linecap="round" transform="rotate(-20 167 173)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#34d399"/>
+  <path d="M94 58H66c-9 0-16 7-16 16v28M162 58h28c9 0 16 7 16 16v28M94 198H66c-9 0-16-7-16-16v-28M162 198h28c9 0 16-7 16-16v-28" fill="none" stroke="#0b1512" stroke-width="18" stroke-linecap="round"/>
+  <path d="m128 82 46 46-46 46-46-46 46-46Z" fill="#f4f7f5" stroke="#0b1512" stroke-width="12" stroke-linejoin="round"/>
+  <circle cx="128" cy="128" r="13" fill="#0b1512"/>
 </svg>

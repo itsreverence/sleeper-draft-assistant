@@ -2,7 +2,7 @@ import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDraftQuestionContext } from "./context";
-import { CodexAppServerProvider, executeDynamicToolCall, parseAiDraftDecision, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
+import { CodexAppServerProvider, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -56,6 +56,23 @@ describe("Codex app-server executable resolution", () => {
     expect(decision.recommendedPlayerId).toBe("player-1");
     expect(decision.plan.nextTurnPriorities).toEqual(["WR"]);
     expect(() => parseAiDraftDecision('{"recommendedPlayerId":"player-1"}')).toThrow("invalid draft decision");
+  });
+
+  it("extracts an explicit strategy proposal without treating it as already applied", () => {
+    expect(parseDraftQuestionAnswer(`Favoring Bears players is reasonable when the value is close.
+<strategy_proposal>{"text":"Favor Bears players when value is close.","scope":"draft"}</strategy_proposal>`)).toEqual({
+      answer: "Favoring Bears players is reasonable when the value is close.",
+      strategyProposal: {
+        text: "Favor Bears players when value is close.",
+        scope: "draft",
+      },
+    });
+  });
+
+  it("drops malformed strategy proposal markup while preserving the answer", () => {
+    expect(parseDraftQuestionAnswer("I can account for that.\n<strategy_proposal>not-json</strategy_proposal>")).toEqual({
+      answer: "I can account for that.",
+    });
   });
 
   it("passes provider-neutral tool definitions through to app-server", () => {
