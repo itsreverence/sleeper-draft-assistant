@@ -13,6 +13,7 @@
     onClearPreferences,
     onOpenRankings,
     onOpenSettings,
+    onOpenPlayerSearch,
     currentPick,
     aiEnabled = false,
     aiStrategyEnabled = false,
@@ -20,6 +21,8 @@
     strategyRequestKey = "",
     onAskAboutCandidate,
     onRequestAiStrategy,
+    strategyOpen = false,
+    onToggleStrategy,
   }: {
     showPlaceholderWarning?: boolean;
     playerPreferences?: PlayerPreferences;
@@ -27,6 +30,7 @@
     onClearPreferences?: () => void;
     onOpenRankings?: () => void;
     onOpenSettings?: () => void;
+    onOpenPlayerSearch?: () => void;
     currentPick: number;
     aiEnabled?: boolean;
     aiStrategyEnabled?: boolean;
@@ -34,6 +38,8 @@
     strategyRequestKey?: string;
     onAskAboutCandidate?: (playerName: string, recommendedPlayerName: string) => void;
     onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
+    strategyOpen?: boolean;
+    onToggleStrategy?: () => void;
   } = $props();
 
   const preferenceCounts = $derived.by(() => {
@@ -56,6 +62,8 @@
   let aiStrategy: AiDraftStrategyPayload | null = $state(null);
   let aiStrategyError = $state("");
   let isLoadingAiStrategy = $state(false);
+  let analysisOpen = $state(false);
+  let alternativesOpen = $state(false);
   let lastAiStrategyKey = $state("");
   let aiStrategyRequestId = 0;
   const currentAiStrategy = $derived(
@@ -73,11 +81,6 @@
           .map((candidate) => [candidate.player.id, candidate]),
       ).values(),
     );
-  });
-  const alternativeTeaser = $derived.by(() => {
-    const names = alternativeAiCandidates.slice(0, 2).map((candidate) => candidate.player.name);
-    const remaining = alternativeAiCandidates.length - names.length;
-    return `${names.join(", ")}${remaining > 0 ? `, +${remaining} more` : ""}`;
   });
   const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? "AI draft assistant");
   const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
@@ -136,6 +139,28 @@
       <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
     </div>
     <div class="decision-status">
+      {#if onOpenPlayerSearch}
+        <button
+          class="player-search-trigger"
+          type="button"
+          title="Find a player"
+          aria-label="Find a player"
+          onclick={onOpenPlayerSearch}
+        >
+          <Icon name="search" size={15} />
+        </button>
+      {/if}
+      {#if onToggleStrategy}
+        <button
+          class="player-search-trigger"
+          type="button"
+          title="Guide draft strategy"
+          aria-label="Guide draft strategy"
+          onclick={onToggleStrategy}
+        >
+          <Icon name="clipboard" size={15} />
+        </button>
+      {/if}
       {#if activeConfidence}
         <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
       {/if}
@@ -178,6 +203,25 @@
           <Icon name="message" size={13} />
           Ask about pick
         </button>
+        {#if alternativeAiCandidates.length > 0}
+          <button
+            class:active={alternativesOpen}
+            type="button"
+            aria-expanded={alternativesOpen}
+            onclick={() => (alternativesOpen = !alternativesOpen)}
+          >
+            {alternativeAiCandidates.length} alternatives
+          </button>
+        {/if}
+        <button
+          class="analysis-trigger"
+          class:active={analysisOpen}
+          type="button"
+          aria-expanded={analysisOpen}
+          onclick={() => (analysisOpen = !analysisOpen)}
+        >
+          Analysis
+        </button>
       </div>
       {#if preferenceCount > 0}
         <div class="preference-summary" aria-label="Draft preferences">
@@ -187,8 +231,7 @@
           {/if}
         </div>
       {/if}
-      <details class="full-analysis">
-        <summary>Full analysis</summary>
+      {#if analysisOpen}
         <div class="analysis-content">
           <section>
             <h3>Why this call</h3>
@@ -227,7 +270,36 @@
             </section>
           {/if}
         </div>
-      </details>
+      {/if}
+      {#if alternativesOpen && alternativeAiCandidates.length > 0}
+        <div class="alternatives-content">
+          <div class="candidate-list">
+            {#each alternativeAiCandidates as candidate, index (candidate.player.id)}
+              <CandidateCard
+                {candidate}
+                rank={index + 2}
+                preference={playerPreferences[candidate.player.id] ?? null}
+                {onSetPreference}
+                onDiscuss={discussCandidate}
+              />
+            {/each}
+          </div>
+        </div>
+      {/if}
+      <div class="strategy-glance" aria-label="Draft strategy summary">
+        <span>Next: <strong>{currentAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong></span>
+        <span>Wait: <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong></span>
+        {#if onToggleStrategy}
+          <button
+            type="button"
+            aria-expanded={strategyOpen}
+            onclick={onToggleStrategy}
+          >
+            {strategyOpen ? "Close draft plan" : "Open draft plan"}
+            <Icon name="chevron-right" size={12} />
+          </button>
+        {/if}
+      </div>
     </div>
   {:else if !aiEnabled}
     <div class="empty-state" aria-live="polite">
@@ -277,34 +349,13 @@
     </div>
   {/if}
 
-  {#if currentAiStrategy && alternativeAiCandidates.length > 0}
-    <details class="alternatives-disclosure">
-      <summary>
-        <strong>Alternatives ({alternativeAiCandidates.length})</strong>
-        <span>Also considered: {alternativeTeaser}</span>
-      </summary>
-      <div class="alternatives-content">
-        <div class="candidate-list">
-          {#each alternativeAiCandidates as candidate, index (candidate.player.id)}
-            <CandidateCard
-              {candidate}
-              rank={index + 2}
-              preference={playerPreferences[candidate.player.id] ?? null}
-              {onSetPreference}
-              onDiscuss={discussCandidate}
-            />
-          {/each}
-        </div>
-      </div>
-    </details>
-  {/if}
 </article>
 
 <style>
   .recommendation-panel {
     display: grid;
     align-content: start;
-    gap: var(--space-4);
+    gap: 14px;
     padding: var(--space-5);
   }
 
@@ -328,6 +379,24 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 6px;
+  }
+
+  .player-search-trigger {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .player-search-trigger:hover {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--text-primary);
   }
 
   .decision-heading {
@@ -437,6 +506,32 @@
     color: var(--text-primary);
   }
 
+  .decision-actions > button.active {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  .decision-actions > .analysis-trigger,
+  .decision-actions > .analysis-trigger:hover,
+  .decision-actions > .analysis-trigger.active {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .decision-actions > .analysis-trigger:hover,
+  .decision-actions > .analysis-trigger.active {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .decision-actions :global(.preference-trigger) {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
   .evidence-summary span {
     color: var(--text-secondary);
     font-size: var(--text-xs);
@@ -451,34 +546,45 @@
     line-height: 1.55;
   }
 
-  .ai-strategy details {
-    color: var(--text-secondary);
+  .strategy-glance {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 11px;
+    color: var(--text-muted);
     font-size: var(--text-xs);
   }
 
-  .ai-strategy summary,
-  .alternatives-disclosure summary {
-    cursor: pointer;
+  .strategy-glance strong {
+    color: var(--text-secondary);
     font-weight: 800;
   }
 
-  .full-analysis {
-    border-top: 1px solid var(--border);
-    padding-top: 11px;
+  .strategy-glance > button {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    gap: 6px;
+    border: 0;
+    background: transparent;
+    padding: 3px 0;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 800;
   }
 
-  .full-analysis > summary {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .full-analysis[open] > summary {
+  .strategy-glance > button:hover {
+    background: transparent;
     color: var(--text-primary);
   }
 
   .analysis-content {
     display: grid;
     gap: 16px;
+    border-top: 1px solid var(--border);
     padding-top: 14px;
   }
 
@@ -527,33 +633,9 @@
     color: var(--info);
   }
 
-  .alternatives-disclosure {
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-
-  .alternatives-disclosure > summary {
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .alternatives-disclosure > summary strong {
-    margin-right: 6px;
-    color: var(--text-primary);
-  }
-
-  .alternatives-disclosure > summary span {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-  }
-
-  .alternatives-disclosure[open] > summary {
-    margin-bottom: 10px;
-  }
-
   .alternatives-content {
     border-top: 1px solid var(--border);
+    padding-top: 2px;
   }
 
   .candidate-list {
@@ -576,11 +658,6 @@
       justify-content: flex-start;
     }
 
-    .alternatives-disclosure > summary span {
-      display: block;
-      margin-top: 3px;
-    }
-
     .empty-state {
       grid-template-columns: auto 1fr;
     }
@@ -588,6 +665,16 @@
     .empty-state .btn {
       grid-column: 1 / -1;
       width: 100%;
+    }
+
+    .strategy-glance {
+      align-items: flex-start;
+    }
+
+    .strategy-glance > button {
+      width: 100%;
+      margin-left: 0;
+      justify-content: flex-start;
     }
   }
 </style>

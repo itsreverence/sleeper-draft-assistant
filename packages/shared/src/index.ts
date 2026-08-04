@@ -81,6 +81,23 @@ export const AiDraftPlanSchema = z.object({
 });
 export type AiDraftPlan = z.infer<typeof AiDraftPlanSchema>;
 
+export const DraftStrategyInstructionScopeSchema = z.enum(["next-pick", "draft"]);
+export type DraftStrategyInstructionScope = z.infer<typeof DraftStrategyInstructionScopeSchema>;
+export const DraftStrategyInstructionSourceSchema = z.enum(["manual", "ai-chat"]);
+export type DraftStrategyInstructionSource = z.infer<typeof DraftStrategyInstructionSourceSchema>;
+export const DraftStrategyProposalSchema = z.object({
+  text: z.string().trim().min(1).max(280),
+  scope: DraftStrategyInstructionScopeSchema,
+});
+export type DraftStrategyProposal = z.infer<typeof DraftStrategyProposalSchema>;
+export const DraftStrategyInstructionSchema = DraftStrategyProposalSchema.extend({
+  id: z.string().min(1).max(100),
+  source: DraftStrategyInstructionSourceSchema,
+  createdAtPick: z.number().int().positive(),
+  createdAt: z.string().datetime(),
+});
+export type DraftStrategyInstruction = z.infer<typeof DraftStrategyInstructionSchema>;
+
 export const AiDraftDecisionSchema = z.object({
   basedOnPick: z.number().int().positive(),
   recommendedPlayerId: z.string().min(1),
@@ -316,8 +333,25 @@ export const PickSchema = z.object({
   draftSlot: z.number(),
   teamId: z.string(),
   playerId: z.string(),
+  isKeeper: z.boolean().optional(),
 });
 export type Pick = z.infer<typeof PickSchema>;
+
+export const DraftPickOrderEntrySchema = z.object({
+  pickNo: z.number(),
+  round: z.number(),
+  draftSlot: z.number(),
+  teamId: z.string(),
+  originalTeamId: z.string(),
+  isTraded: z.boolean(),
+});
+export type DraftPickOrderEntry = z.infer<typeof DraftPickOrderEntrySchema>;
+
+export const DraftPickOrderSchema = z.object({
+  source: z.enum(["sleeper", "normal_snake_fallback", "unsupported"]),
+  entries: z.array(DraftPickOrderEntrySchema),
+});
+export type DraftPickOrder = z.infer<typeof DraftPickOrderSchema>;
 
 export const DraftSettingsSchema = z.object({
   teams: z.number(),
@@ -340,6 +374,7 @@ export const DraftStateSchema = z.object({
   teams: z.array(TeamSchema),
   players: z.array(PlayerSchema),
   picks: z.array(PickSchema),
+  pickOrder: DraftPickOrderSchema.optional(),
   updatedAt: z.string(),
 });
 export type DraftState = z.infer<typeof DraftStateSchema>;

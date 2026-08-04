@@ -9,6 +9,7 @@ import type {
 import {
   buildAiPanelContextSummary,
   buildCandidateDiscussionQuestion,
+  buildPlayerDiscussionQuestion,
   buildSuggestedQuestions,
   currentAiDraftStrategy,
   shouldRequestAiDraftStrategy,
@@ -49,6 +50,12 @@ describe("AI panel helpers", () => {
     expect(summary.starters).not.toContain("BN");
     expect(summary.data).toBe("ECR · Season projections · Sleeper ADP");
     expect(summary.note).toContain("imported player-value sources");
+  });
+
+  it("builds a neutral player-search question", () => {
+    expect(buildPlayerDiscussionQuestion("Luther Burden")).toBe(
+      "Evaluate Luther Burden for my current pick. Compare them with the strongest available alternatives and explain whether I should draft them now, wait, deprioritize them, or exclude them.",
+    );
   });
 
   it("includes specialist and custom starting slots while excluding reserves", () => {

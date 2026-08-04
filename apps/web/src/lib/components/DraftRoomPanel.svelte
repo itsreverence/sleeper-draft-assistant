@@ -8,7 +8,13 @@
   } from "../draft-board";
   import Icon from "./Icon.svelte";
 
-  let { state: draftState }: { state: DraftState } = $props();
+  let {
+    state: draftState,
+    onSelectTeam,
+  }: {
+    state: DraftState;
+    onSelectTeam?: (teamId: string) => void;
+  } = $props();
 
   let view: DraftBoardView = $state("live");
   let boardScroller: HTMLDivElement;
@@ -101,7 +107,7 @@
   </header>
 
   <div class="progress-row">
-    <span style={`width:${completion}%`}></span>
+    <span style={`transform:scaleX(${completion / 100})`}></span>
   </div>
 
   <div class="board-scroller" bind:this={boardScroller}>
@@ -110,11 +116,18 @@
         <span>Round</span>
       </div>
       {#each teams as team (team.id)}
-        <div class="team-header" class:user-team={team.id === draftState.userTeamId} data-user-slot={team.id === draftState.userTeamId}>
+        <button
+          class="team-header"
+          class:user-team={team.id === draftState.userTeamId}
+          data-user-slot={team.id === draftState.userTeamId}
+          type="button"
+          title={`View ${team.name} roster`}
+          onclick={() => onSelectTeam?.(team.id)}
+        >
           <span>{team.draftSlot}</span>
           <strong title={team.name}>{shortTeamName(team.name)}</strong>
           {#if team.id === draftState.userTeamId}<small>Your team</small>{/if}
-        </div>
+        </button>
       {/each}
 
       {#each rows as boardRow (boardRow.round)}
@@ -234,9 +247,11 @@
 
   .progress-row span {
     display: block;
+    width: 100%;
     height: 100%;
     background: var(--accent);
-    transition: width var(--transition-base);
+    transform-origin: left;
+    transition: transform var(--transition-base);
   }
 
   .board-scroller {
@@ -283,6 +298,23 @@
     column-gap: 6px;
     align-content: center;
     padding: 9px 10px;
+    border-top: 0;
+    border-left: 0;
+    border-radius: 0;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .team-header:hover,
+  .team-header:focus-visible {
+    background: #20262d;
+  }
+
+  .team-header:focus-visible {
+    z-index: 4;
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   .team-header > span {
@@ -360,8 +392,8 @@
 
   .pick-cell.filled::before {
     position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
+    inset: 0 0 auto;
+    height: 2px;
     background: var(--position-color, var(--border-strong));
     content: "";
   }

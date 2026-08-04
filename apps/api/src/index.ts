@@ -15,13 +15,14 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { AdpImportRequestSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import { AdpImportRequestSchema, DraftStrategyInstructionSourceSchema, DraftStrategyProposalSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftQuestionContext, buildDraftStrategyContext } from "./ai/context";
 import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
 import { buildTeamAiContext } from "./ai/team-context";
 import { DecisionLogStore, type DecisionSnapshotTrigger } from "./decision-log-store";
 import { DraftPlanStore } from "./draft-plan-store";
+import { DraftStrategyInstructionStore } from "./draft-strategy-instruction-store";
 import { draftPollDelayMs } from "./draft-refresh";
 import { createEventStreamChannel } from "./event-stream";
 import { AiProviderManager } from "./ai/provider-factory";
@@ -50,6 +51,7 @@ const rosRankingImportStore = new RosRankingImportStore(undefined, appDatabase);
 const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
 const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
 const draftPlanStore = new DraftPlanStore(appDatabase);
+const draftStrategyInstructionStore = new DraftStrategyInstructionStore(appDatabase);
 const settingsStore = new SettingsStore(undefined, appDatabase);
 const aiProviderManager = new AiProviderManager();
 let mockState = createMockDraftState(8);
@@ -135,6 +137,8 @@ app.delete("/data/:category", async (c) => {
       deleted = decisionLogStore.clearAll();
     } else if (category === "draft-plans") {
       deleted = draftPlanStore.clearAll();
+    } else if (category === "strategy-instructions") {
+      deleted = draftStrategyInstructionStore.clearAll();
     } else {
       return c.json({ error: "Unknown local data category." }, 404);
     }
@@ -158,6 +162,7 @@ app.post("/data/reset", async (c) => {
     weeklyProjectionImportStore.clearAll();
     decisionLogStore.clearAll();
     draftPlanStore.clearAll();
+    draftStrategyInstructionStore.clearAll();
     const settings = settingsStore.reset();
     return c.json({ settings, inventory: buildStorageInventory(appDatabase) });
   } catch (error) {
@@ -177,6 +182,73 @@ app.put("/settings", async (c) => {
 });
 
 app.get("/ai/status", (c) => c.json(aiProviderManager.get(settingsStore.get()).status()));
+
+app.get("/drafts/:draftId/strategy-instructions", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    return c.json({
+      instructions: draftStrategyInstructionStore.list(draftId, state.userTeamId, state.currentPick),
+    });
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.post("/drafts/:draftId/strategy-instructions", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const body = await c.req.json<Record<string, unknown>>();
+    const proposal = DraftStrategyProposalSchema.parse(body);
+    const source = DraftStrategyInstructionSourceSchema.parse(body.source ?? "manual");
+    return c.json({
+      instructions: draftStrategyInstructionStore.create(
+        draftId,
+        state.userTeamId,
+        state.currentPick,
+        proposal,
+        source,
+      ),
+    }, 201);
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.put("/drafts/:draftId/strategy-instructions/:instructionId", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const proposal = DraftStrategyProposalSchema.parse(await c.req.json<Record<string, unknown>>());
+    const instructions = draftStrategyInstructionStore.update(
+      draftId,
+      state.userTeamId,
+      state.currentPick,
+      c.req.param("instructionId"),
+      proposal,
+    );
+    return instructions ? c.json({ instructions }) : c.json({ error: "Strategy instruction not found." }, 404);
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
+
+app.delete("/drafts/:draftId/strategy-instructions/:instructionId", async (c) => {
+  try {
+    const draftId = c.req.param("draftId");
+    const state = await loadDraftState(draftId, getUserRosterId(c));
+    const instructions = draftStrategyInstructionStore.delete(
+      draftId,
+      state.userTeamId,
+      state.currentPick,
+      c.req.param("instructionId"),
+    );
+    return instructions ? c.json({ instructions }) : c.json({ error: "Strategy instruction not found." }, 404);
+  } catch (error) {
+    return handleRouteError(c, error);
+  }
+});
 
 app.get("/drafts/mock/state", (c) => {
   return c.json(toDraftPayload(applyDraftData("mock-draft", mockState), "mock-draft"));
@@ -635,12 +707,14 @@ app.post("/drafts/:draftId/strategy", async (c) => {
     const providerStatus = provider.status();
     const storedPlan = draftPlanStore.get(draftId, state.userTeamId, providerStatus.id);
     const previousPlan = storedPlan && storedPlan.updatedAtPick <= state.currentPick ? storedPlan : null;
+    const strategyInstructions = draftStrategyInstructionStore.list(draftId, state.userTeamId, state.currentPick);
     const strategy = await provider.strategizeDraft(
       buildDraftStrategyContext(
         state,
         normalizeUserPreferences(body.userPreferences),
         snapshot,
         previousPlan,
+        strategyInstructions,
       ),
       tools,
     );
@@ -741,8 +815,9 @@ app.post("/drafts/:draftId/ask", async (c) => {
     });
     decisionLogStore.record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
     const aiProvider = aiProviderManager.get(settingsStore.get());
+    const strategyInstructions = draftStrategyInstructionStore.list(draftId, state.userTeamId, state.currentPick);
     const aiAnswer = await aiProvider.answerDraftQuestion(
-      buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot),
+      buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot, [], strategyInstructions),
       createDraftStrategyTools(snapshot),
     );
 
@@ -750,6 +825,7 @@ app.post("/drafts/:draftId/ask", async (c) => {
       provider: aiAnswer.provider,
       question,
       answer: aiAnswer.answer,
+      strategyProposal: aiAnswer.strategyProposal ?? null,
       recommendation,
     });
   } catch (error) {
@@ -772,6 +848,11 @@ app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
       faded: recommendationPreferences?.fadedPlayerIds ?? [],
       excluded: recommendationPreferences?.excludedPlayerIds ?? [],
     };
+    const strategyInstructions = draftStrategyInstructionStore.list(
+      draftId,
+      state.userTeamId,
+      state.currentPick,
+    );
     const snapshot = createDraftPlayerSnapshot(state, userPreferences);
     const candidate = snapshot.players.find(
       (player) => player.id === playerId && !snapshot.preferences.excluded.has(player.id),
@@ -796,7 +877,7 @@ app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
     ].join(" ");
     const aiProvider = aiProviderManager.get(settingsStore.get());
     const aiAnswer = await aiProvider.answerDraftQuestion(
-      buildDraftQuestionContext(state, question, [], userPreferences, snapshot, [playerId]),
+      buildDraftQuestionContext(state, question, [], userPreferences, snapshot, [playerId], strategyInstructions),
       createDraftStrategyTools(snapshot),
     );
     const latestState = await loadDraftState(draftId, getUserRosterId(c));

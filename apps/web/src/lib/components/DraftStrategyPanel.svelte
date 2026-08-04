@@ -8,11 +8,15 @@
     history = [],
     isLoadingHistory = false,
     historyError = "",
+    embedded = false,
+    detailsOpen = false,
   }: {
     strategy: AiDraftStrategyPayload;
     history?: DecisionSnapshot[];
     isLoadingHistory?: boolean;
     historyError?: string;
+    embedded?: boolean;
+    detailsOpen?: boolean;
   } = $props();
 
   const plan = $derived(strategy.decision.plan);
@@ -22,7 +26,7 @@
   );
 </script>
 
-<article class="panel strategy-panel">
+<article class="panel strategy-panel" class:embedded>
   <div class="strategy-heading">
     <div>
       <h2><Icon name="clipboard" size={17} /> Draft strategy</h2>
@@ -35,20 +39,9 @@
     />
   </div>
 
-  <div class="strategy-priorities">
-    <div>
-      <span>Next turn</span>
-      <strong>{plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong>
-    </div>
-    <div>
-      <span>Can wait</span>
-      <strong>{plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong>
-    </div>
-  </div>
-
   <p class="strategy-approach">{plan.approach}</p>
 
-  <details class="strategy-details">
+  <details class="strategy-details" open={detailsOpen}>
     <summary>Plan details</summary>
     <div class="strategy-details-content">
       {#if showChangeSummary}
@@ -86,6 +79,14 @@
     padding: var(--space-4);
   }
 
+  .strategy-panel.embedded {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
   .strategy-heading,
   .strategy-heading > div {
     display: flex;
@@ -114,36 +115,6 @@
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 700;
-  }
-
-  .strategy-priorities {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    border-block: 1px solid var(--border);
-  }
-
-  .strategy-priorities > div {
-    display: grid;
-    gap: 3px;
-    min-width: 0;
-    padding: 9px 8px;
-  }
-
-  .strategy-priorities > div + div {
-    border-left: 1px solid var(--border);
-  }
-
-  .strategy-priorities span {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-
-  .strategy-priorities strong {
-    overflow-wrap: anywhere;
-    color: var(--text-primary);
-    font-size: var(--text-sm);
   }
 
   .strategy-approach,
@@ -196,14 +167,4 @@
     padding-left: 17px;
   }
 
-  @media (max-width: 360px) {
-    .strategy-priorities {
-      grid-template-columns: 1fr;
-    }
-
-    .strategy-priorities > div + div {
-      border-top: 1px solid var(--border);
-      border-left: 0;
-    }
-  }
 </style>

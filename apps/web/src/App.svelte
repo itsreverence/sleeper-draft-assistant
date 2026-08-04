@@ -8,8 +8,10 @@
   import SettingsPanel from "./lib/components/SettingsPanel.svelte";
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
+  import DraftTeamDrawer from "./lib/components/DraftTeamDrawer.svelte";
+  import PlayerSearchDialog from "./lib/components/PlayerSearchDialog.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
-  import DraftStrategyPanel from "./lib/components/DraftStrategyPanel.svelte";
+  import DraftStrategyDrawer from "./lib/components/DraftStrategyDrawer.svelte";
   import RosterPanel from "./lib/components/RosterPanel.svelte";
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
@@ -38,12 +40,15 @@
     clearSeasonProjectionsRequest,
     clearWeeklyProjectionsRequest,
     clearRankingsRequest,
+    createDraftStrategyInstruction,
     createDraftEventSource,
+    deleteDraftStrategyInstruction,
     fetchAiStatus,
     fetchDraftRecommendationRequest,
     fetchDecisionHistory,
     fetchAiDraftStrategyRequest,
     fetchDraftState,
+    fetchDraftStrategyInstructions,
     fetchDiagnostics,
     fetchSettings,
     fetchSleeperConnect,
@@ -54,6 +59,7 @@
     importRosRankingsRequest,
     importSeasonProjectionsRequest,
     updateSettings,
+    updateDraftStrategyInstruction,
   } from "./lib/api";
   import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
   import {
@@ -61,7 +67,7 @@
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
-  import { buildCandidateDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
+  import { buildCandidateDiscussionQuestion, buildPlayerDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import { getImportFreshness } from "./lib/freshness";
   import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
@@ -97,6 +103,9 @@
     PlayerPreferenceSummary,
     PlayerPreferences,
     RecommendationPreferenceRequest,
+    DraftStrategyInstruction,
+    DraftStrategyProposal,
+    DraftAskResult,
   } from "./lib/types";
   let draftState: DraftState | null = $state(null);
   let recommendation: DraftRecommendation | null = $state(null);
@@ -171,9 +180,16 @@
   let decisionHistoryError = $state("");
   let isLoadingDecisionHistory = $state(false);
   let decisionHistoryRequestId = 0;
+  let draftStrategyOpen = $state(false);
+  let selectedDraftTeamId: string | null = $state(null);
+  let playerSearchOpen = $state(false);
   let draftQuestionRequest: { id: number; question: string } | null = $state(null);
   let draftQuestionRequestId = 0;
   let resolvedAiDraftStrategy: { draftId: string; payload: AiDraftStrategyPayload } | null = $state(null);
+  let strategyInstructions: DraftStrategyInstruction[] = $state([]);
+  let strategyInstructionsBusy = $state(false);
+  let strategyInstructionsError = $state("");
+  let strategyInstructionLoadKey = "";
 
   function preferenceStorageKey(draftId: string): string {
     return `playerPreferences:${draftId}`;
@@ -498,6 +514,71 @@
     loadError = "";
     status = selectedDraftId ? "Ready to open" : "No Sleeper drafts found";
     lastEvent = `${league.name} selected`;
+  }
+
+  async function loadStrategyInstructions() {
+    if (!activeDraftId || !draftState) {
+      strategyInstructions = [];
+      strategyInstructionLoadKey = "";
+      return;
+    }
+    const key = `${activeDraftId}:${activeDraftTeamRef ?? ""}:${draftState.currentPick}`;
+    if (key === strategyInstructionLoadKey) return;
+    strategyInstructionLoadKey = key;
+    strategyInstructionsError = "";
+    try {
+      const payload = await fetchDraftStrategyInstructions(activeDraftId, activeDraftTeamRef);
+      if (key === strategyInstructionLoadKey) strategyInstructions = payload.instructions;
+    } catch (error) {
+      if (key === strategyInstructionLoadKey) {
+        strategyInstructionsError = error instanceof Error ? error.message : "Could not load draft strategy guidance.";
+      }
+    }
+  }
+
+  async function addStrategyInstruction(proposal: DraftStrategyProposal, source: "manual" | "ai-chat" = "manual") {
+    if (!activeDraftId) return;
+    strategyInstructionsBusy = true;
+    strategyInstructionsError = "";
+    try {
+      const payload = await createDraftStrategyInstruction(activeDraftId, activeDraftTeamRef, proposal, source);
+      strategyInstructions = payload.instructions;
+    } catch (error) {
+      strategyInstructionsError = error instanceof Error ? error.message : "Could not add draft strategy guidance.";
+      throw error;
+    } finally {
+      strategyInstructionsBusy = false;
+    }
+  }
+
+  async function editStrategyInstruction(instructionId: string, proposal: DraftStrategyProposal) {
+    if (!activeDraftId) return;
+    strategyInstructionsBusy = true;
+    strategyInstructionsError = "";
+    try {
+      const payload = await updateDraftStrategyInstruction(activeDraftId, activeDraftTeamRef, instructionId, proposal);
+      strategyInstructions = payload.instructions;
+    } catch (error) {
+      strategyInstructionsError = error instanceof Error ? error.message : "Could not update draft strategy guidance.";
+      throw error;
+    } finally {
+      strategyInstructionsBusy = false;
+    }
+  }
+
+  async function removeStrategyInstruction(instructionId: string) {
+    if (!activeDraftId) return;
+    strategyInstructionsBusy = true;
+    strategyInstructionsError = "";
+    try {
+      const payload = await deleteDraftStrategyInstruction(activeDraftId, activeDraftTeamRef, instructionId);
+      strategyInstructions = payload.instructions;
+    } catch (error) {
+      strategyInstructionsError = error instanceof Error ? error.message : "Could not remove draft strategy guidance.";
+      throw error;
+    } finally {
+      strategyInstructionsBusy = false;
+    }
   }
 
   function selectDraft(draft: ConnectDraft) {
@@ -1313,7 +1394,7 @@
     applyTeamPayload(payload);
     return payload.answer;
   }
-  async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
+  async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<DraftAskResult> {
     const payload = await askManagerRequest(
       activeDraftId,
       activeDraftTeamRef,
@@ -1324,7 +1405,7 @@
     );
     recommendation = payload.recommendation;
     void loadDecisionHistory();
-    return payload.answer;
+    return { answer: payload.answer, strategyProposal: payload.strategyProposal };
   }
 
   function askAboutCandidate(playerName: string, recommendedPlayerName: string) {
@@ -1367,6 +1448,25 @@
     workspaceMode = "draft";
     reviewingDraftResults = true;
     draftPreparationOpen = true;
+  }
+
+  function askAboutSearchedPlayer(playerName: string) {
+    draftQuestionRequest = {
+      id: ++draftQuestionRequestId,
+      question: buildPlayerDiscussionQuestion(playerName),
+    };
+  }
+
+  function askAboutDraftTeam(teamId: string) {
+    const team = draftState?.teams.find((candidate) => candidate.id === teamId);
+    if (!team) {
+      return;
+    }
+    selectedDraftTeamId = null;
+    draftQuestionRequest = {
+      id: ++draftQuestionRequestId,
+      question: `How should ${team.name}'s current roster and likely positional demand affect my strategy before my next pick?`,
+    };
   }
 
   function viewDraftResults() {
@@ -1590,6 +1690,17 @@
   });
 
   $effect(() => {
+    const currentPick = draftState?.currentPick ?? 0;
+    const draftId = activeDraftId;
+    if (!draftId || !currentPick) {
+      strategyInstructions = [];
+      strategyInstructionLoadKey = "";
+      return;
+    }
+    void loadStrategyInstructions();
+  });
+
+  $effect(() => {
     if (!manageAvailable && workspaceMode === "manage") {
       workspaceMode = "draft";
     }
@@ -1747,7 +1858,13 @@
       />
 
       {#if workspaceMode === "draft"}
-        <DraftRoomPanel state={draftState} />
+        <DraftRoomPanel
+          state={draftState}
+          onSelectTeam={(teamId) => {
+            draftStrategyOpen = false;
+            selectedDraftTeamId = teamId;
+          }}
+        />
         <section class="dashboard-grid draft-grid">
           <div class="primary-column">
             {#if draftPhase === "complete"}
@@ -1771,7 +1888,7 @@
                 aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
                 aiStrategyEnabled={aiDraftStrategyEnabled}
                 shouldRequestAiStrategy={shouldRequestAiStrategy}
-                strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}`}
+                strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
                 onRequestAiStrategy={requestAiDraftStrategy}
                 onAskAboutCandidate={askAboutCandidate}
                 playerPreferences={playerPreferences}
@@ -1780,9 +1897,20 @@
                 onClearPreferences={clearPlayerPreferences}
                 onOpenRankings={openDraftPreparation}
                 onOpenSettings={() => (settingsOpen = true)}
+                onOpenPlayerSearch={() => {
+                  draftStrategyOpen = false;
+                  selectedDraftTeamId = null;
+                  playerSearchOpen = true;
+                }}
+                strategyOpen={draftStrategyOpen}
+                onToggleStrategy={() => {
+                  selectedDraftTeamId = null;
+                  draftStrategyOpen = !draftStrategyOpen;
+                }}
               />
               <AskManagerPanel
                 onAsk={askManager}
+                onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
                 promptRequest={draftQuestionRequest}
                 onOpenSettings={() => (settingsOpen = true)}
                 providerStatus={aiProviderStatus}
@@ -1811,17 +1939,41 @@
             {/if}
             {#if draftPhase !== "complete"}
               <RosterPanel state={draftState} />
-              {#if visibleAiDraftStrategy}
-                <DraftStrategyPanel
-                  strategy={visibleAiDraftStrategy}
-                  history={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
-                  isLoadingHistory={isLoadingDecisionHistory}
-                  historyError={decisionHistoryError}
-                />
-              {/if}
             {/if}
           </div>
         </section>
+        {#if draftStrategyOpen}
+          <DraftStrategyDrawer
+            strategy={visibleAiDraftStrategy}
+            history={decisionSnapshots.filter((snapshot) => snapshot.trigger === "ai-strategy")}
+            isLoadingHistory={isLoadingDecisionHistory}
+            historyError={decisionHistoryError}
+            instructions={strategyInstructions}
+            instructionsBusy={strategyInstructionsBusy}
+            instructionsError={strategyInstructionsError}
+            onCreateInstruction={addStrategyInstruction}
+            onUpdateInstruction={editStrategyInstruction}
+            onDeleteInstruction={removeStrategyInstruction}
+            onClose={() => (draftStrategyOpen = false)}
+          />
+        {/if}
+        {#if selectedDraftTeamId}
+          <DraftTeamDrawer
+            state={draftState}
+            teamId={selectedDraftTeamId}
+            onClose={() => (selectedDraftTeamId = null)}
+            onAsk={askAboutDraftTeam}
+          />
+        {/if}
+        {#if playerSearchOpen}
+          <PlayerSearchDialog
+            state={draftState}
+            preferences={playerPreferences}
+            onSetPreference={setPlayerPreference}
+            onAskAboutPlayer={askAboutSearchedPlayer}
+            onClose={() => (playerSearchOpen = false)}
+          />
+        {/if}
       {:else}
         <TeamRefreshStatus
           lastCheckedAt={teamLastCheckedAt}

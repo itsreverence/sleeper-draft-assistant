@@ -16,6 +16,11 @@
 
   let open = $state(false);
   let menuElement: HTMLDivElement;
+  let triggerElement: HTMLButtonElement;
+  let optionsElement: HTMLDivElement;
+  let menuTop = $state(0);
+  let menuLeft = $state(0);
+  let menuWidth = $state(280);
   const triggerLabel = $derived(
     preference === "pin"
       ? "Prioritized"
@@ -50,7 +55,41 @@
 
   function choose(nextPreference: PlayerPreferenceLevel | null) {
     onSetPreference?.(playerId, nextPreference);
+    closeMenu();
+  }
+
+  function positionMenu() {
+    if (!open || !triggerElement || !optionsElement) return;
+    const trigger = triggerElement.getBoundingClientRect();
+    const viewportPadding = 12;
+    menuWidth = Math.min(280, window.innerWidth - viewportPadding * 2);
+    menuLeft = Math.max(
+      viewportPadding,
+      Math.min(trigger.left, window.innerWidth - menuWidth - viewportPadding),
+    );
+    const menuHeight = optionsElement.offsetHeight;
+    const spaceBelow = window.innerHeight - trigger.bottom;
+    menuTop = spaceBelow >= menuHeight + 8 || trigger.top < menuHeight + 8
+      ? trigger.bottom + 6
+      : trigger.top - menuHeight - 6;
+  }
+
+  function openMenu() {
+    open = true;
+    optionsElement.showPopover();
+    requestAnimationFrame(positionMenu);
+  }
+
+  function closeMenu() {
     open = false;
+    if (optionsElement?.matches(":popover-open")) {
+      optionsElement.hidePopover();
+    }
+  }
+
+  function toggleMenu() {
+    if (open) closeMenu();
+    else openMenu();
   }
 
   $effect(() => {
@@ -60,27 +99,32 @@
 
     function handlePointerDown(event: PointerEvent) {
       if (!menuElement.contains(event.target as Node)) {
-        open = false;
+        closeMenu();
       }
     }
 
     function handleKeydown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        open = false;
+        closeMenu();
       }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeydown);
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
     };
   });
 </script>
 
 <div class="preference-menu" bind:this={menuElement}>
   <button
+    bind:this={triggerElement}
     class:active={preference !== null}
     class="preference-trigger"
     type="button"
@@ -88,15 +132,23 @@
     aria-expanded={open}
     aria-label={`${triggerLabel} for ${playerName}`}
     disabled={!onSetPreference}
-    onclick={() => (open = !open)}
+    onclick={toggleMenu}
   >
     <Icon name="checklist" size={13} />
     {triggerLabel}
     <span class="trigger-chevron"><Icon name="chevron-right" size={11} /></span>
   </button>
 
-  {#if open}
-    <div class="preference-options" role="menu" aria-label={`Preference for ${playerName}`}>
+  <div
+    bind:this={optionsElement}
+    class="preference-options"
+    popover="manual"
+    role="menu"
+    aria-label={`Preference for ${playerName}`}
+    style:top={`${menuTop}px`}
+    style:left={`${menuLeft}px`}
+    style:width={`${menuWidth}px`}
+  >
       {#each options as option}
         <button
           type="button"
@@ -118,8 +170,7 @@
           Clear preference
         </button>
       {/if}
-    </div>
-  {/if}
+  </div>
 </div>
 
 <style>
@@ -166,17 +217,19 @@
   }
 
   .preference-options {
-    position: absolute;
-    z-index: 20;
-    top: calc(100% + 6px);
-    left: 0;
+    position: fixed;
+    z-index: 100;
     display: grid;
-    width: min(280px, calc(100vw - 48px));
+    margin: 0;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
     background: var(--surface-raised);
     box-shadow: 0 10px 24px rgb(0 0 0 / 0.28);
     padding: 5px;
+  }
+
+  .preference-options:not(:popover-open) {
+    display: none;
   }
 
   .preference-options button {

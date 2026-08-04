@@ -13,7 +13,7 @@
     "@hono/node-server": "^2.0.12",
     "@sleeper-draft-assistant/engine": "0.1.0-alpha.5",
     "@sleeper-draft-assistant/shared": "0.1.0-alpha.5",
-    "hono": "^4.10.7",
+    "hono": "4.12.34",
     "sql.js": "^1.14.1"
   },
   "devDependencies": {

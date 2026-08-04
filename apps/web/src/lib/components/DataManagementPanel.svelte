@@ -23,6 +23,7 @@
     { category: "weekly-projections", label: "Weekly projections", description: "FantasyPros projection imports saved by league and week.", count: "weeklyProjectionImports" },
     { category: "decision-history", label: "Decision history", description: "Local recommendation snapshots used for review.", count: "decisionSnapshots" },
     { category: "draft-plans", label: "AI draft plans", description: "Latest AI strategy remembered for each draft team.", count: "draftPlans" },
+    { category: "strategy-instructions", label: "Draft instructions", description: "User-approved strategy guidance saved by draft team.", count: "strategyInstructions" },
   ];
 
   onMount(() => {

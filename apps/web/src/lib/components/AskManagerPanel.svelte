@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
-  import type { AiConversationMessage, AiProviderStatus, DraftRecommendation, DraftState } from "../types";
+  import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
@@ -17,8 +17,9 @@
     recommendation = null,
     onOpenSettings,
     promptRequest = null,
+    onApplyStrategyProposal,
   }: {
-    onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
+    onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<DraftAskResult>;
     providerStatus?: AiProviderStatus | null;
     hasImportedRankings?: boolean;
     hasSeasonProjections?: boolean;
@@ -28,6 +29,7 @@
     recommendation?: DraftRecommendation | null;
     onOpenSettings?: () => void;
     promptRequest?: { id: number; question: string } | null;
+    onApplyStrategyProposal?: (proposal: DraftStrategyProposal) => Promise<void>;
   } = $props();
 
   let question = $state("");
@@ -76,9 +78,11 @@
     messages = [...messages, createMessage("user", trimmed), loadingMessage];
 
     try {
-      const answer = await onAsk(trimmed, conversationHistory);
+      const result = await onAsk(trimmed, conversationHistory);
       messages = messages.map((message) =>
-        message.id === loadingMessage.id ? { ...message, content: answer, status: "complete" } : message,
+        message.id === loadingMessage.id
+          ? { ...message, content: result.answer, status: "complete", strategyProposal: result.strategyProposal }
+          : message,
       );
     } catch (error) {
       const answer = error instanceof Error ? error.message : "The manager could not answer because the draft state is unavailable.";
@@ -125,6 +129,18 @@
     question = "";
     lastQuestion = "";
     conversationPick = null;
+  }
+
+  async function applyStrategyProposal(messageId: string, proposal: DraftStrategyProposal) {
+    if (!onApplyStrategyProposal) return;
+    try {
+      await onApplyStrategyProposal(proposal);
+      messages = messages.map((message) =>
+        message.id === messageId ? { ...message, strategyProposalApplied: true } : message,
+      );
+    } catch {
+      // The strategy drawer surfaces the persistence error and leaves this proposal retryable.
+    }
   }
 
   $effect(() => {
@@ -222,7 +238,12 @@
       {:else}
         <div class="conversation" aria-live="polite">
           {#each messages as message (message.id)}
-            <AiMessageBubble message={message} onCopy={copyMessage} onRetry={() => submit(lastQuestion)} />
+            <AiMessageBubble
+              {message}
+              onCopy={copyMessage}
+              onRetry={() => submit(lastQuestion)}
+              onApplyStrategyProposal={(proposal) => applyStrategyProposal(message.id, proposal)}
+            />
           {/each}
         </div>
         {#if copied}

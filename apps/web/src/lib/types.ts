@@ -1,4 +1,6 @@
-import type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, DraftStrategyInstruction, DraftStrategyInstructionScope, DraftStrategyInstructionSource, DraftStrategyProposal, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+
+export type { DraftStrategyInstruction, DraftStrategyInstructionScope, DraftStrategyInstructionSource, DraftStrategyProposal };
 
 export type DraftPayload = {
   state: DraftState;
@@ -133,6 +135,16 @@ export type WeeklyProjectionStatusPayload = {
 export type AskAnswerPayload = {
   answer: string;
   recommendation: DraftRecommendation;
+  strategyProposal: DraftStrategyProposal | null;
+};
+
+export type DraftStrategyInstructionsPayload = {
+  instructions: DraftStrategyInstruction[];
+};
+
+export type DraftAskResult = {
+  answer: string;
+  strategyProposal: DraftStrategyProposal | null;
 };
 
 export type AiDraftStrategyPayload = {
@@ -214,9 +226,10 @@ export type StorageInventory = {
   weeklyProjectionImports: number;
   decisionSnapshots: number;
   draftPlans: number;
+  strategyInstructions: number;
 };
 
-export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history" | "draft-plans";
+export type LocalDataCategory = "rankings" | "season-projections" | "adp" | "ros-rankings" | "weekly-projections" | "decision-history" | "draft-plans" | "strategy-instructions";
 
 export type DataMutationPayload = {
   deleted: number;

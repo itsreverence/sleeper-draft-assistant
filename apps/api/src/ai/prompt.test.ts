@@ -13,14 +13,20 @@ describe("draft manager prompt", () => {
 
     expect(prompt).toContain("Neutral draft evidence JSON:");
     expect(prompt).toContain("search_available_players");
+    expect(prompt).toContain("compare_players");
+    expect(prompt).toContain("inspect_position_market");
     expect(prompt).toContain("playerEvidenceGroups");
     expect(prompt).toContain("playerEvidence");
     expect(prompt).toContain("openDirectStarterSlots");
+    expect(prompt).toContain("pickOrderSource");
+    expect(prompt).toContain("board.teamRosters");
     expect(prompt).not.toContain("engineLean");
     expect(prompt).not.toContain("draftBrief");
     expect(prompt).not.toContain("toolInstructions");
     expect(prompt).not.toContain('"score"');
     expect(prompt.match(/search_available_players/g)).toHaveLength(1);
+    expect(prompt).toContain("<strategy_proposal>");
+    expect(prompt).toContain("never claim it was applied");
   });
 
   it("keeps reusable draft instructions concise and focused on hard boundaries", () => {
@@ -37,7 +43,10 @@ describe("draft manager prompt", () => {
 
     expect(prompt).toContain("evidence groups are separate raw signals");
     expect(prompt).toContain("Use search_available_players when");
+    expect(prompt).toContain("compare_players");
+    expect(prompt).toContain("inspect_position_market");
     expect(prompt).toContain("openDirectStarterSlots");
+    expect(prompt).toContain("pickOrderSource");
     expect(prompt).not.toContain("engineLean");
     expect(prompt).not.toContain("toolInstructions");
     expect(prompt).not.toContain("The backend will reject");

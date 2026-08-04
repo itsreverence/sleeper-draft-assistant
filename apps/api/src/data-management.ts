@@ -13,6 +13,7 @@ export type StorageInventory = {
   weeklyProjectionImports: number;
   decisionSnapshots: number;
   draftPlans: number;
+  strategyInstructions: number;
 };
 
 export function buildStorageInventory(database: SqliteAppDatabase): StorageInventory {
@@ -26,6 +27,7 @@ export function buildStorageInventory(database: SqliteAppDatabase): StorageInven
     weeklyProjectionImports: database.countJson("weekly_projection_imports"),
     decisionSnapshots: database.countDecisionSnapshots(),
     draftPlans: database.countJson("draft_plans"),
+    strategyInstructions: database.countJson("draft_strategy_instructions"),
   };
 }
 

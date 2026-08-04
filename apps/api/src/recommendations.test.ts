@@ -97,6 +97,40 @@ describe("draft recommendation routes", () => {
     expect(preferred.assumptions.some((assumption) => assumption.includes("User faded"))).toBe(true);
   });
 
+  it("creates, updates, lists, and deletes user strategy guidance", async () => {
+    const createResponse = await app.request("/drafts/mock-draft/strategy-instructions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Favor Bears players when value is close.", scope: "draft", source: "manual" }),
+    });
+    expect(createResponse.status).toBe(201);
+    const created = await createResponse.json() as { instructions: Array<{ id: string; text: string; scope: string }> };
+    const instructionId = created.instructions.at(-1)?.id;
+    expect(instructionId).toBeTruthy();
+
+    const updateResponse = await app.request(`/drafts/mock-draft/strategy-instructions/${instructionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Favor Bears players on this pick.", scope: "next-pick" }),
+    });
+    expect(updateResponse.status).toBe(200);
+    const updated = await updateResponse.json() as { instructions: Array<{ id: string; text: string; scope: string }> };
+    expect(updated.instructions.find((instruction) => instruction.id === instructionId)).toMatchObject({
+      text: "Favor Bears players on this pick.",
+      scope: "next-pick",
+    });
+
+    const listResponse = await app.request("/drafts/mock-draft/strategy-instructions");
+    expect(listResponse.status).toBe(200);
+    const listed = await listResponse.json() as { instructions: Array<{ id: string }> };
+    expect(listed.instructions.some((instruction) => instruction.id === instructionId)).toBe(true);
+
+    const deleteResponse = await app.request(`/drafts/mock-draft/strategy-instructions/${instructionId}`, { method: "DELETE" });
+    expect(deleteResponse.status).toBe(200);
+    const deleted = await deleteResponse.json() as { instructions: Array<{ id: string }> };
+    expect(deleted.instructions.some((instruction) => instruction.id === instructionId)).toBe(false);
+  });
+
   it("supports the draft workflow from state load through import, preferences, and ask", async () => {
     const originalSettings = await getSettings();
 

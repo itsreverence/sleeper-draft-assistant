@@ -1,4 +1,4 @@
-import type { AiDraftDecision, AiDraftPlan, DraftState, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction, DraftStrategyProposal, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -64,6 +64,7 @@ export type TeamAiContext = {
 export type AiAnswer = {
   provider: AiProviderStatus;
   answer: string;
+  strategyProposal?: DraftStrategyProposal;
 };
 
 export type DraftPlayerEvidence = {
@@ -78,6 +79,7 @@ export type DraftPlayerEvidence = {
   sleeperSearchRank: number | null;
   sleeperAdp: number | null;
   realTimeAdp: number | null;
+  ecrVsAdp: number | null;
   tier: number | null;
   byeWeek: number | null;
   riskTags: string[];
@@ -98,6 +100,7 @@ export type DraftStrategyContext = {
   task: "draft_strategy";
   objective: string;
   previousPlan: AiDraftPlan | null;
+  strategyInstructions: DraftStrategyInstruction[];
   userPreferences: PlayerPreferenceSummary;
   dataQuality: {
     availablePlayers: number;
@@ -115,6 +118,8 @@ export type DraftStrategyContext = {
     currentPick: number;
     nextUserPick: number | null;
     picksUntilNextUserPick: number | null;
+    pickOrderSource: NonNullable<DraftState["pickOrder"]>["source"];
+    pickOrderNote: string | null;
     remainingUserSelections: number;
     updatedAt: string;
   };
@@ -150,6 +155,16 @@ export type DraftStrategyContext = {
       team: string;
       draftSlot: number;
       positionCounts: Record<Position, number>;
+    }>;
+    teamRosters: Array<{
+      teamId: string;
+      team: string;
+      draftSlot: number;
+      positionCounts: Record<Position, number>;
+      players: Array<{
+        name: string;
+        position: Position;
+      }>;
     }>;
   };
   playerEvidence: DraftPlayerEvidence[];

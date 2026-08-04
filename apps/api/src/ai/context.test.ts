@@ -23,6 +23,8 @@ describe("AI provider context", () => {
     expect(context.draft.id).toBe(state.id);
     expect(context.roster.teamId).toBe(state.userTeamId);
     expect(context.board.recentPicks).toHaveLength(3);
+    expect(context.board.teamRosters).toHaveLength(state.teams.length);
+    expect(context.board.teamRosters.flatMap((team) => team.players)).toHaveLength(3);
     expect(context.conversationHistory).toHaveLength(8);
     expect(context.focusPlayers[0]?.playerId).toBe(focusPlayer?.id);
     expect(context.playerEvidence[0]).not.toHaveProperty("score");
@@ -79,6 +81,20 @@ describe("AI provider context", () => {
     const context = buildDraftStrategyContext(state, undefined, undefined, previousPlan);
 
     expect(context.previousPlan).toEqual(previousPlan);
+  });
+  it("carries active user guidance into strategy and question packets", () => {
+    const state = createEightTeamTwoFlexState();
+    const instructions = [{
+      id: "instruction-1",
+      text: "Favor Bears players when value is close.",
+      scope: "draft" as const,
+      source: "manual" as const,
+      createdAtPick: state.currentPick,
+      createdAt: "2026-08-03T12:00:00.000Z",
+    }];
+
+    expect(buildDraftStrategyContext(state, undefined, undefined, null, instructions).strategyInstructions).toEqual(instructions);
+    expect(buildDraftQuestionContext(state, "What changes?", [], undefined, undefined, [], instructions).strategyInstructions).toEqual(instructions);
   });
   it("reports raw open slots when one position has consumed direct and flex capacity", () => {
     const state = createEightTeamTwoFlexState();

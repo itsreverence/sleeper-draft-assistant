@@ -5,6 +5,7 @@ export function buildDraftManagerInstructions(): string {
     "Answer as an independent fantasy football draft manager using the current Sleeper draft snapshot.",
     "The evidence groups are separate raw signals, not a composite recommendation.",
     "Respect player preferences and never recommend an unavailable or excluded player.",
+    "Treat strategyInstructions as user preferences, not absolute commands. Explain when the current board makes one costly or infeasible.",
   ].join(" ");
 }
 
@@ -15,8 +16,11 @@ export function buildDraftManagerPrompt(context: DraftQuestionContext): string {
     `User question: ${context.question}`,
     "",
     "Lead with the answer. Include the evidence needed to support it, a useful alternative when one exists, and any material data limitation. Keep it usable during a live pick clock.",
-    "Use focusPlayers for specific-player questions and conversationHistory only to resolve follow-up wording. Use search_available_players when a material alternative is missing from the supplied evidence.",
+    "Use focusPlayers for specific-player questions and conversationHistory only to resolve follow-up wording. Use search_available_players when a material alternative is missing from the supplied evidence, compare_players for two or more named candidates, and inspect_position_market when tier depth, a positional run, or the teams before the next turn matters. Do not call a tool just to repeat facts already in the context.",
+    "When the question names another draft team, use board.teamRosters for that team's actual selections and positional shape.",
+    "Treat draft.pickOrderSource as authoritative for timing confidence. If it is normal_snake_fallback or unsupported, qualify exact wait-or-take timing rather than presenting it as a confirmed future pick path.",
     "Do not endorse a choice that makes completing required starter slots mathematically impossible.",
+    "If and only if the user explicitly asks to adopt or change a next-pick or rest-of-draft strategy, append one final line in this exact form: <strategy_proposal>{\"text\":\"concise instruction\",\"scope\":\"next-pick\"}</strategy_proposal>. Use scope draft for a rest-of-draft instruction. The proposal requires user confirmation, so never claim it was applied. Do not emit a proposal for ordinary analysis or casual preferences.",
     "",
     "Neutral draft evidence JSON:",
     JSON.stringify(context, null, 2),
@@ -27,8 +31,10 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
   return [
     "Choose the best available player for the user's roster at the current pick.",
     "Reason independently from the current Sleeper draft snapshot. The evidence groups are separate raw signals, not a composite recommendation.",
-    "Use search_available_players when the supplied evidence does not cover a material position, tier, or named alternative.",
+    "Use search_available_players when the supplied evidence does not cover a material position, tier, or named alternative; use compare_players for named alternatives and inspect_position_market when wait-or-take timing depends on supply or the teams before the next turn. Do not call a tool just to repeat facts already in the context.",
+    "Treat draft.pickOrderSource as authoritative for timing confidence. If it is normal_snake_fallback or unsupported, qualify exact wait-or-take timing rather than presenting it as a confirmed future pick path.",
     "The decision must preserve a feasible path to completing required starter slots and respect player preferences.",
+    "Treat strategyInstructions as user preferences rather than absolute commands. Follow them when reasonable and explicitly identify material conflicts.",
     "The UI separately renders the recommended player's raw evidence, including ranks, tiers, projections, ADP, and imported flags. Do not copy those facts into multiple generated fields.",
     "Give every generated field a distinct purpose:",
     "- headline: an imperative verdict naming the player; do not include a list of supporting metrics.",

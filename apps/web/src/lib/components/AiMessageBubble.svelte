@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import type { DraftStrategyProposal } from "../types";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
 
   export type AiMessage = {
@@ -6,16 +7,20 @@
     role: "user" | "assistant";
     content: string;
     status?: "loading" | "error" | "complete";
+    strategyProposal?: DraftStrategyProposal | null;
+    strategyProposalApplied?: boolean;
   };
 
   let {
     message,
     onCopy,
     onRetry,
+    onApplyStrategyProposal,
   }: {
     message: AiMessage;
     onCopy?: (content: string) => void;
     onRetry?: () => void;
+    onApplyStrategyProposal?: (proposal: DraftStrategyProposal) => void;
   } = $props();
 </script>
 
@@ -30,6 +35,22 @@
       <ResponseMarkdown content={message.content} />
     {:else}
       <p>{message.content}</p>
+    {/if}
+
+    {#if message.role === "assistant" && message.strategyProposal}
+      <div class="strategy-proposal">
+        <div>
+          <strong>{message.strategyProposal.scope === "next-pick" ? "Next-pick guidance" : "Rest-of-draft guidance"}</strong>
+          <span>{message.strategyProposal.text}</span>
+        </div>
+        <button
+          type="button"
+          disabled={message.strategyProposalApplied}
+          onclick={() => onApplyStrategyProposal?.(message.strategyProposal!)}
+        >
+          {message.strategyProposalApplied ? "Applied" : "Apply to strategy"}
+        </button>
+      </div>
     {/if}
 
     {#if message.role === "assistant" && message.status !== "loading"}
@@ -96,6 +117,47 @@
     justify-content: flex-end;
     gap: 8px;
     margin-top: 9px;
+  }
+
+  .strategy-proposal {
+    display: grid;
+    gap: 9px;
+    margin-top: 11px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  .strategy-proposal > div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .strategy-proposal strong {
+    color: var(--text-primary);
+    font-size: var(--text-xs);
+  }
+
+  .strategy-proposal span {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
+
+  .strategy-proposal button {
+    width: fit-content;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    padding: 6px 8px;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 800;
+  }
+
+  .strategy-proposal button:disabled {
+    cursor: default;
+    opacity: 0.7;
   }
 
   .tiny-action {

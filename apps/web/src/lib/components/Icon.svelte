@@ -23,6 +23,8 @@
     | "database"
     | "download"
     | "settings"
+    | "search"
+    | "close"
     | "trash";
 
   let { name, size = 16 }: { name: IconName; size?: number } = $props();
@@ -63,6 +65,12 @@
     {:else if name === "plus"}
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    {:else if name === "close"}
+      <path d="m6 6 12 12" />
+      <path d="m18 6-12 12" />
+    {:else if name === "search"}
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 4 4" />
     {:else if name === "calendar"}
       <rect x="4" y="5" width="16" height="15" rx="2" />
       <path d="M8 3.5v3M16 3.5v3M4 10h16" />

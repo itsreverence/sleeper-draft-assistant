@@ -140,6 +140,10 @@ export function buildAiPanelContextSummary(
   };
 }
 
+export function buildPlayerDiscussionQuestion(playerName: string): string {
+  return `Evaluate ${playerName} for my current pick. Compare them with the strongest available alternatives and explain whether I should draft them now, wait, deprioritize them, or exclude them.`;
+}
+
 function getRosterNeeds(state: DraftState): Position[] {
   const userTeam = state.teams.find((team) => team.id === state.userTeamId);
   const counts: Record<Position, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };

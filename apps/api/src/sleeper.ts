@@ -1,4 +1,4 @@
-import type { DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
+import type { DraftPickOrder, DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
 
 import { assessFormatCompatibility } from "./format-compatibility";
 
@@ -40,7 +40,16 @@ export type SleeperPick = {
   round?: number | null;
   draft_slot?: number | null;
   pick_no?: number | null;
+  is_keeper?: boolean | null;
   metadata?: JsonRecord | null;
+};
+
+export type SleeperTradedPick = {
+  season?: string | null;
+  round?: number | null;
+  roster_id?: number | string | null;
+  previous_owner_id?: number | string | null;
+  owner_id?: number | string | null;
 };
 
 export type SleeperLeague = {
@@ -141,6 +150,7 @@ export type SleeperTeamWeekContextInput = {
 export type SleeperDraftStateInput = {
   draft: SleeperDraft;
   picks: SleeperPick[];
+  tradedPicks?: SleeperTradedPick[];
   players: SleeperPlayerMap;
   league?: SleeperLeague | null;
   rosters?: SleeperRoster[];
@@ -274,8 +284,9 @@ export class SleeperClient {
       resolvedUserTeamRef = getDraftUserTeamReference(draft, userId);
     }
 
-    const [picks, players, leagueBundle] = await Promise.all([
+    const [picks, tradedPicks, players, leagueBundle] = await Promise.all([
       this.getDraftPicks(draftId),
+      this.getDraftTradedPicks(draftId).catch(() => []),
       this.getPlayers(),
       leagueId ? this.getLeagueBundle(leagueId) : Promise.resolve({ league: null, rosters: [], users: [] }),
     ]);
@@ -283,6 +294,7 @@ export class SleeperClient {
     return normalizeSleeperDraftState({
       draft,
       picks,
+      tradedPicks,
       players,
       league: leagueBundle.league,
       rosters: leagueBundle.rosters,
@@ -297,6 +309,10 @@ export class SleeperClient {
 
   async getDraftPicks(draftId: string): Promise<SleeperPick[]> {
     return this.fetchJson<SleeperPick[]>(`/draft/${encodeURIComponent(draftId)}/picks`);
+  }
+
+  async getDraftTradedPicks(draftId: string): Promise<SleeperTradedPick[]> {
+    return this.fetchJson<SleeperTradedPick[]>(`/draft/${encodeURIComponent(draftId)}/traded_picks`);
   }
 
   async getLeague(leagueId: string): Promise<SleeperLeague> {
@@ -782,6 +798,7 @@ export function normalizeSleeperDraftState(input: SleeperDraftStateInput): Draft
     teams: hydrateTeamRosters(teams, picks),
     players: playerPool,
     picks,
+    pickOrder: buildDraftPickOrder(input, teams, teamsCount, rounds, picks),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -1006,9 +1023,74 @@ function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number, 
         draftSlot,
         teamId: team?.id ?? toSlotTeamId(draftSlot),
         playerId: String(pick.player_id),
+        ...(pick.is_keeper === true ? { isKeeper: true } : {}),
       };
     })
     .sort((a, b) => a.pickNo - b.pickNo);
+}
+
+function buildDraftPickOrder(
+  input: SleeperDraftStateInput,
+  teams: Team[],
+  teamsCount: number,
+  rounds: number,
+  picks: Pick[],
+): DraftPickOrder {
+  if (input.draft.type?.toLowerCase() === "auction") {
+    return { source: "unsupported", entries: [] };
+  }
+
+  const teamBySlot = new Map(teams.map((team) => [team.draftSlot, team]));
+  const teamByRosterId = new Map(
+    teams
+      .filter((team) => team.id.startsWith("roster-"))
+      .map((team) => [team.id.slice("roster-".length), team]),
+  );
+  const tradedOwners = new Map<string, string>();
+  const draftSeason = input.draft.season ? String(input.draft.season) : null;
+
+  for (const tradedPick of input.tradedPicks ?? []) {
+    const season = tradedPick.season ? String(tradedPick.season) : null;
+    const round = numberFrom(tradedPick.round);
+    const originalRosterId = tradedPick.roster_id === undefined || tradedPick.roster_id === null
+      ? null
+      : String(tradedPick.roster_id);
+    const ownerRosterId = tradedPick.owner_id === undefined || tradedPick.owner_id === null
+      ? null
+      : String(tradedPick.owner_id);
+    if (season !== draftSeason || round === null || !originalRosterId || !ownerRosterId) {
+      continue;
+    }
+    tradedOwners.set(`${round}:${originalRosterId}`, ownerRosterId);
+  }
+
+  const pickedByNumber = new Map(picks.map((pick) => [pick.pickNo, pick]));
+  const totalPicks = teamsCount * rounds;
+  const entries = Array.from({ length: totalPicks }, (_, index) => {
+    const pickNo = index + 1;
+    const round = Math.ceil(pickNo / teamsCount);
+    const draftSlot = getDraftSlotFromPickNo(pickNo, teamsCount);
+    const originalTeam = teamBySlot.get(draftSlot);
+    const originalTeamId = originalTeam?.id ?? toSlotTeamId(draftSlot);
+    const originalRosterId = originalTeamId.startsWith("roster-")
+      ? originalTeamId.slice("roster-".length)
+      : null;
+    const tradedRosterId = originalRosterId ? tradedOwners.get(`${round}:${originalRosterId}`) : null;
+    const tradedTeam = tradedRosterId ? teamByRosterId.get(tradedRosterId) : undefined;
+    const picked = pickedByNumber.get(pickNo);
+    const teamId = picked?.teamId ?? tradedTeam?.id ?? originalTeamId;
+
+    return {
+      pickNo,
+      round,
+      draftSlot,
+      teamId,
+      originalTeamId,
+      isTraded: teamId !== originalTeamId,
+    };
+  });
+
+  return { source: "sleeper", entries };
 }
 
 function getDraftSlotFromPickNo(pickNo: number, teamsCount: number): number {
