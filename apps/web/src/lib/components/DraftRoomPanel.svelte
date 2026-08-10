@@ -2,18 +2,29 @@
   import type { DraftState, Position } from "../types";
   import {
     buildDraftBoardRows,
-    currentDraftRound,
     visibleDraftRounds,
     type DraftBoardView,
   } from "../draft-board";
+  import { isUserOnTheClock, picksUntilUserTurn } from "../format";
   import Icon from "./Icon.svelte";
+  import DraftSyncStatus from "./DraftSyncStatus.svelte";
 
   let {
     state: draftState,
     onSelectTeam,
+    draftLastSuccessfulAt = null,
+    draftConsecutiveFailures = 0,
+    draftNextRetryMs = 0,
+    draftReconnecting = false,
+    onReconnectDraft,
   }: {
     state: DraftState;
     onSelectTeam?: (teamId: string) => void;
+    draftLastSuccessfulAt?: number | null;
+    draftConsecutiveFailures?: number;
+    draftNextRetryMs?: number;
+    draftReconnecting?: boolean;
+    onReconnectDraft?: () => void;
   } = $props();
 
   let view: DraftBoardView = $state("live");
@@ -22,18 +33,17 @@
   const teams = $derived([...draftState.teams].sort((a, b) => a.draftSlot - b.draftSlot));
   const visibleRounds = $derived(visibleDraftRounds(draftState, view));
   const rows = $derived(buildDraftBoardRows(draftState, visibleRounds));
-  const round = $derived(currentDraftRound(draftState));
-  const totalPicks = $derived(draftState.settings.teams * draftState.settings.rounds);
-  const completedPicks = $derived(draftState.picks.length);
-  const completion = $derived(totalPicks > 0 ? Math.min(100, Math.round((completedPicks / totalPicks) * 100)) : 0);
-  const boardEyebrow = $derived(
-    draftState.status === "pre_draft"
-      ? "Pre-draft board"
-      : draftState.status === "complete"
-        ? "Draft results"
-        : "Live draft board",
-  );
-
+  const picksAway = $derived(picksUntilUserTurn(draftState));
+  const onTheClock = $derived(isUserOnTheClock(draftState));
+  const syncDegraded = $derived(draftConsecutiveFailures > 0 || draftReconnecting);
+  const contextLabel = $derived.by(() => {
+    if (draftState.status === "complete") return "Draft complete";
+    if (draftState.status === "pre_draft") return null;
+    if (onTheClock) return "Your turn";
+    if (picksAway === null) return "Pick timing unknown";
+    if (picksAway === 1) return "1 pick away";
+    return `${picksAway} picks away`;
+  });
   $effect(() => {
     draftState.currentPick;
     view;
@@ -67,48 +77,18 @@
 </script>
 
 <section class="draft-room" aria-label="Draft room">
-  <header class="room-header">
-    <div class="room-title">
-      <p class="eyebrow">{boardEyebrow}</p>
-      <h2><Icon name="grid" size={19} /> Draft room</h2>
-      <p>
-        {#if draftState.status === "pre_draft"}
-          Board ready for {draftState.settings.teams} teams and {draftState.settings.rounds} rounds.
-        {:else if draftState.status === "complete"}
-          {completedPicks} selections recorded. Review the completed room by team or round.
-        {:else}
-          Round {round} in progress. Pick {draftState.currentPick} of {totalPicks}.
+  {#if contextLabel || syncDegraded}
+    <header class="room-header" aria-label="Draft state">
+      <div class="room-meta">
+        {#if contextLabel}
+          <span class="context-state" class:on-clock={onTheClock}>{contextLabel}</span>
         {/if}
-      </p>
-    </div>
-
-    <div class="room-actions">
-      <div class="view-control" role="tablist" aria-label="Draft board range">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "live"}
-          class:active={view === "live"}
-          onclick={() => (view = "live")}
-        >
-          {draftState.status === "complete" ? "Recent rounds" : "Live rounds"}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "full"}
-          class:active={view === "full"}
-          onclick={() => (view = "full")}
-        >
-          Full board
-        </button>
+        {#if syncDegraded}
+          <DraftSyncStatus lastSuccessfulAt={draftLastSuccessfulAt} consecutiveFailures={draftConsecutiveFailures} nextRetryMs={draftNextRetryMs} reconnecting={draftReconnecting} onReconnect={onReconnectDraft} />
+        {/if}
       </div>
-    </div>
-  </header>
-
-  <div class="progress-row">
-    <span style={`transform:scaleX(${completion / 100})`}></span>
-  </div>
+    </header>
+  {/if}
 
   <div class="board-scroller" bind:this={boardScroller}>
     <div class="board" style={`--team-count:${draftState.settings.teams}`}>
@@ -131,9 +111,12 @@
       {/each}
 
       {#each rows as boardRow (boardRow.round)}
-        <div class="round-cell">
+        <div class="round-cell" title={`Round ${boardRow.round}: ${boardRow.direction === "forward" ? "left to right" : "right to left"}`}>
           <strong>{boardRow.round}</strong>
-          <span>{boardRow.direction === "forward" ? "left to right" : "right to left"}</span>
+          <span class="direction-icon">
+            <Icon name={boardRow.direction === "forward" ? "arrow-right" : "arrow-left"} size={15} />
+          </span>
+          <span class="direction-label">{boardRow.direction === "forward" ? "Left to right" : "Right to left"}</span>
         </div>
         {#each boardRow.cells as cell (cell.pickNo)}
           <div
@@ -168,10 +151,24 @@
   </div>
 
   <footer class="room-legend">
-    <span><i class="legend-user"></i>Your picks</span>
-    <span><i class="legend-current"></i>On the clock</span>
-    <span><i class="legend-traded"></i>Traded pick</span>
-    <span class="scroll-hint">Scroll horizontally to inspect every team</span>
+    <div class="legend-group">
+      <span><i class="legend-user"></i>Your picks</span>
+      <span><i class="legend-current"></i>On the clock</span>
+      <span><i class="legend-traded"></i>Traded pick</span>
+    </div>
+    <div class="footer-actions">
+      <button
+        class="view-action"
+        type="button"
+        aria-pressed={view === "full"}
+        aria-label={view === "live" ? "Show full draft board" : "Return to live draft view"}
+        title={view === "live" ? "Show full draft board" : "Return to live draft view"}
+        onclick={() => (view = view === "live" ? "full" : "live")}
+      >
+        <Icon name={view === "live" ? "expand" : "collapse"} size={14} />
+        <span>{view === "live" ? "Full board" : "Live view"}</span>
+      </button>
+    </div>
   </footer>
 </section>
 
@@ -188,78 +185,40 @@
 
   .room-header {
     display: flex;
-    justify-content: space-between;
-    gap: var(--space-5);
-    align-items: flex-start;
-    padding: 18px 20px 15px;
+    justify-content: flex-start;
+    padding: 10px 20px 0;
   }
 
-  .room-title h2 {
+  .room-meta {
     display: flex;
-    gap: 8px;
+    flex-wrap: wrap;
     align-items: center;
-    font-size: var(--text-xl);
+    justify-content: flex-start;
+    gap: 8px 12px;
+    min-width: 0;
   }
 
-  .room-title > p:last-child {
-    margin-top: 5px;
-    color: var(--text-secondary);
-    font-size: var(--text-sm);
-  }
-
-  .room-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .view-control {
-    display: inline-grid;
-    grid-template-columns: repeat(2, auto);
-    gap: 2px;
+  .context-state {
+    flex: 0 0 auto;
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-pill);
     background: var(--surface-sunken);
-    padding: 3px;
-  }
-
-  .view-control button {
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    padding: 7px 10px;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
+    padding: 5px 8px;
+    color: var(--text-secondary);
     font-weight: 800;
-    cursor: pointer;
   }
 
-  .view-control button.active {
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .progress-row {
-    height: 3px;
-    background: var(--surface-sunken);
-  }
-
-  .progress-row span {
-    display: block;
-    width: 100%;
-    height: 100%;
-    background: var(--accent);
-    transform-origin: left;
-    transition: transform var(--transition-base);
+  .context-state.on-clock {
+    border-color: var(--warning-border);
+    background: var(--warning-soft);
+    color: var(--warning);
   }
 
   .board-scroller {
     min-width: 0;
-    max-height: 620px;
-    overflow: auto;
-    overscroll-behavior: contain;
-    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
     border-bottom: 1px solid var(--border);
     background: var(--surface-sunken);
   }
@@ -287,7 +246,7 @@
     display: grid;
     place-items: center;
     color: var(--text-muted);
-    font-size: var(--text-2xs);
+    font-size: var(--text-xs);
     font-weight: 900;
     text-transform: uppercase;
   }
@@ -339,7 +298,7 @@
 
   .team-header small {
     color: var(--accent);
-    font-size: 8px;
+    font-size: var(--text-xs);
     font-weight: 900;
     text-transform: uppercase;
   }
@@ -365,11 +324,35 @@
     font-size: var(--text-lg);
   }
 
+  .direction-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 18px;
+    color: var(--text-secondary);
+    opacity: 0.9;
+  }
+
+  .direction-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .round-cell[title*="right to left"] .direction-icon {
+    color: var(--info);
+  }
+
+  /* The text label remains available to assistive technology; the icon carries the visual scan. */
   .round-cell span {
     color: var(--text-muted);
-    font-size: 8px;
-    text-transform: uppercase;
-    writing-mode: vertical-rl;
+    font-size: var(--text-xs);
   }
 
   .pick-cell {
@@ -390,6 +373,28 @@
     background: rgba(52, 211, 153, 0.035);
   }
 
+  .pick-cell.user-pick {
+    background: #17382d;
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+
+  .pick-cell.user-pick .pick-number {
+    color: var(--accent);
+  }
+
+  .pick-cell.user-pick > strong {
+    color: #ecfff7;
+  }
+
+  .pick-cell.traded {
+    background-image: linear-gradient(135deg, transparent 78%, color-mix(in srgb, var(--info) 38%, transparent) 78%);
+    box-shadow: inset 0 0 0 1px var(--info);
+  }
+
+  .pick-cell.user-pick.traded {
+    box-shadow: inset 0 0 0 1px var(--info), inset 0 0 0 3px rgba(52, 211, 153, 0.2);
+  }
+
   .pick-cell.filled::before {
     position: absolute;
     inset: 0 0 auto;
@@ -398,19 +403,10 @@
     content: "";
   }
 
-  .pick-cell.user-pick {
-    background: #12261f;
-    box-shadow: inset 0 0 0 1px var(--accent-border);
-  }
-
   .pick-cell.current {
     z-index: 1;
     background: #2a2112;
     box-shadow: inset 0 0 0 2px var(--warning);
-  }
-
-  .pick-cell.traded {
-    background-image: linear-gradient(135deg, transparent 82%, rgba(139, 155, 248, 0.18) 82%);
   }
 
   .pick-number {
@@ -418,7 +414,7 @@
     justify-content: space-between;
     gap: 6px;
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: var(--text-xs);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
@@ -448,7 +444,7 @@
     background: color-mix(in srgb, var(--position-color) 18%, transparent);
     padding: 2px 5px;
     color: var(--position-color);
-    font-size: 9px;
+    font-size: var(--text-xs);
     font-weight: 900;
   }
 
@@ -457,7 +453,7 @@
   .empty-pick {
     overflow: hidden;
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: var(--text-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -465,7 +461,7 @@
   .pick-cell em {
     overflow: hidden;
     color: var(--info);
-    font-size: 8px;
+    font-size: var(--text-xs);
     font-style: normal;
     font-weight: 700;
     text-overflow: ellipsis;
@@ -486,14 +482,27 @@
   .room-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
+    justify-content: space-between;
+    gap: 12px 20px;
     align-items: center;
     padding: 11px 20px;
     color: var(--text-muted);
     font-size: var(--text-xs);
   }
 
-  .room-legend span {
+  .legend-group,
+  .footer-actions {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .legend-group { gap: 14px; }
+  .footer-actions {
+    justify-content: flex-end;
+    gap: 10px 16px;
+  }
+
+  .legend-group span {
     display: inline-flex;
     gap: 6px;
     align-items: center;
@@ -509,31 +518,53 @@
   .legend-current { background: var(--warning); }
   .legend-traded { background: var(--info); }
 
-  .room-legend .scroll-hint {
-    margin-left: auto;
+  .view-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 6px 9px;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .view-action:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+    color: var(--accent);
+  }
+
+  .view-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
   }
 
   @media (max-width: 720px) {
     .room-header {
-      display: grid;
-      padding: 16px;
+      padding: 10px 16px 0;
     }
 
-    .room-actions {
-      justify-content: space-between;
-    }
-
-    .board-scroller {
-      max-height: 540px;
+    .room-meta {
+      justify-content: flex-start;
     }
 
     .room-legend {
       padding-inline: 16px;
     }
 
-    .room-legend .scroll-hint {
+    .legend-group,
+    .footer-actions {
       width: 100%;
       margin-left: 0;
+    }
+
+    .footer-actions {
+      justify-content: flex-end;
     }
   }
 </style>

@@ -16,6 +16,7 @@
     onResetComplete,
     draftDataAvailable = false,
     draftDataStatus = "",
+    embedded = false,
     onManageDraftData,
   }: {
     settings: AppSettings | null;
@@ -29,12 +30,13 @@
     onResetComplete: () => void;
     draftDataAvailable?: boolean;
     draftDataStatus?: string;
+    embedded?: boolean;
     onManageDraftData?: () => void;
   } = $props();
 
 </script>
 
-<section class="panel settings-panel" aria-label="Application settings">
+<section class="panel settings-panel" class:embedded aria-label="Application settings">
   <div class="panel-heading">
     <div>
       <h2>AI provider</h2>
@@ -88,6 +90,15 @@
     display: grid;
     gap: var(--space-4);
     margin-bottom: var(--space-5);
+  }
+
+  .settings-panel.embedded {
+    margin-bottom: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
   }
 
   .settings-actions {

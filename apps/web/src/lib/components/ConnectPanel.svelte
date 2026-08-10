@@ -24,6 +24,7 @@
     onOpenSelectedDraft,
     onConnectSleeperDraft,
     onLoadMockDraft,
+    showDemo = true,
   }: {
     usernameInput?: string;
     seasonInput?: string;
@@ -46,6 +47,7 @@
     onOpenSelectedDraft: () => void;
     onConnectSleeperDraft: () => void;
     onLoadMockDraft: () => void;
+    showDemo?: boolean;
   } = $props();
 
   let leaguePanelOpen = $state(false);
@@ -165,10 +167,12 @@
       </form>
     {/if}
 
-    <div class="demo-row">
-      <button type="button" class="text-link" onclick={onLoadMockDraft}>Try a demo draft</button>
-      <span class="demo-caption">Loads a sample board for testing only, not a source of player values.</span>
-    </div>
+    {#if showDemo}
+      <div class="demo-row">
+        <button type="button" class="text-link" onclick={onLoadMockDraft}>Try a demo draft</button>
+        <span class="demo-caption">Loads a sample board for testing only, not a source of player values.</span>
+      </div>
+    {/if}
     </div>
   {/if}
 

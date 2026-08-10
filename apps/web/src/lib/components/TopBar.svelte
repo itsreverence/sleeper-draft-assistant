@@ -10,12 +10,8 @@
     showChangeDraft = false,
     centered = false,
     settingsOpen = false,
-    draftOptions = [],
-    activeDraftId = "",
-    onSelectDraft,
-    onFindAnotherLeague,
-    onOpenDraftId,
-    onViewDraftResults,
+    draftSwitcherOpen = false,
+    onOpenDraftSwitcher,
     onOpenSettings,
   }: {
     title: string;
@@ -26,114 +22,33 @@
     showChangeDraft?: boolean;
     centered?: boolean;
     settingsOpen?: boolean;
-    draftOptions?: Array<{ draftId: string; name: string; detail: string }>;
-    activeDraftId?: string;
-    onSelectDraft?: (draftId: string) => void | Promise<void>;
-    onFindAnotherLeague?: () => void;
-    onOpenDraftId?: (draftId: string) => void | Promise<void>;
-    onViewDraftResults?: () => void;
+    draftSwitcherOpen?: boolean;
+    onOpenDraftSwitcher?: () => void;
     onOpenSettings?: () => void;
   } = $props();
-
-  let switcherOpen = $state(false);
-  let draftIdEntryOpen = $state(false);
-  let draftIdInput = $state("");
-  let switcherElement: HTMLDetailsElement | undefined = $state();
-
-  function closeSwitcher() {
-    switcherOpen = false;
-    draftIdEntryOpen = false;
-    draftIdInput = "";
-  }
-
-  async function selectDraft(draftId: string) {
-    if (draftId === activeDraftId) return;
-    await onSelectDraft?.(draftId);
-    closeSwitcher();
-  }
-
-  async function submitDraftId(event: SubmitEvent) {
-    event.preventDefault();
-    const draftId = draftIdInput.trim();
-    if (!draftId) return;
-    await onOpenDraftId?.(draftId);
-    closeSwitcher();
-  }
-
-  function handleDocumentPointer(event: PointerEvent) {
-    if (switcherOpen && event.target instanceof Node && !switcherElement?.contains(event.target)) {
-      closeSwitcher();
-    }
-  }
-
-  $effect(() => {
-    if (!switcherOpen) return;
-    document.addEventListener("pointerdown", handleDocumentPointer);
-    return () => document.removeEventListener("pointerdown", handleDocumentPointer);
-  });
 </script>
 
 <section class="topbar" class:centered class:has-draft={showChangeDraft} aria-label="Draft status">
   <div class="brand">
-    <img class="brand-mark" src="./favicon.svg" alt="" aria-hidden="true" />
+    {#if !connected}
+      <img class="brand-mark" src="./favicon.svg" alt="" aria-hidden="true" />
+    {/if}
     <div>
       <div class="title-row">
         {#if showChangeDraft}
-          <details class="league-switcher-menu" bind:this={switcherElement} bind:open={switcherOpen}>
-            <summary class="league-switcher" title="Change draft">
-              <h1>{title}</h1>
-              <Icon name="chevron-right" size={17} />
-            </summary>
-            <div class="switcher-popover">
-              <strong class="switcher-title">Switch draft</strong>
-              <div class="switcher-options">
-                {#each draftOptions as option (option.draftId)}
-                  <button
-                    class:current={option.draftId === activeDraftId}
-                    type="button"
-                    disabled={option.draftId === activeDraftId}
-                    onclick={() => selectDraft(option.draftId)}
-                  >
-                    <span class="option-marker">
-                      {#if option.draftId === activeDraftId}<Icon name="check-circle" size={15} />{/if}
-                    </span>
-                    <span>
-                      <strong>{option.name}</strong>
-                      <small>{option.detail}</small>
-                    </span>
-                  </button>
-                {/each}
-              </div>
-              <div class="switcher-actions">
-                {#if onViewDraftResults}
-                  <button
-                    type="button"
-                    onclick={() => {
-                      closeSwitcher();
-                      onViewDraftResults?.();
-                    }}
-                  >View draft results</button>
-                {/if}
-                <button
-                  type="button"
-                  onclick={() => {
-                    closeSwitcher();
-                    onFindAnotherLeague?.();
-                  }}
-                >Find another league</button>
-                <button type="button" onclick={() => (draftIdEntryOpen = !draftIdEntryOpen)}>Open by draft ID</button>
-              </div>
-              {#if draftIdEntryOpen}
-                <form class="draft-id-form" onsubmit={submitDraftId}>
-                  <label for="switcher-draft-id">Sleeper draft ID</label>
-                  <div>
-                    <input id="switcher-draft-id" bind:value={draftIdInput} type="text" placeholder="Paste a draft ID" />
-                    <button type="submit" disabled={!draftIdInput.trim()}>Open</button>
-                  </div>
-                </form>
-              {/if}
-            </div>
-          </details>
+          <h1>
+            <button
+              class="draft-switch-trigger"
+              type="button"
+              title="Switch league or draft"
+              aria-haspopup="dialog"
+              aria-expanded={draftSwitcherOpen}
+              onclick={onOpenDraftSwitcher}
+            >
+              <span>{title}</span>
+              <Icon name="switch" size={16} />
+            </button>
+          </h1>
         {:else}
           <h1>{title}</h1>
         {/if}
@@ -143,26 +58,28 @@
       {/if}
     </div>
   </div>
-  {#if showStatus}
-    <div class="status-panel" class:connected>
-      <span class="status-dot" aria-hidden="true"></span>
-      <div>
-        <strong>{status}</strong>
-        <span>{lastEvent}</span>
+  <div class="topbar-actions">
+    {#if showStatus}
+      <div class="status-panel" class:connected>
+        <span class="status-dot" aria-hidden="true"></span>
+        <div>
+          <strong>{status}</strong>
+          <span>{lastEvent}</span>
+        </div>
       </div>
-    </div>
-  {/if}
-  <button
-    class="settings-button"
-    class:active={settingsOpen}
-    type="button"
-    aria-label={settingsOpen ? "Close settings" : "Open settings"}
-    aria-pressed={settingsOpen}
-    title={settingsOpen ? "Close settings" : "Open settings"}
-    onclick={onOpenSettings}
-  >
-    <Icon name="settings" size={18} />
-  </button>
+    {/if}
+    <button
+      class="settings-button"
+      class:active={settingsOpen}
+      type="button"
+      aria-label={settingsOpen ? "Close settings" : "Open settings"}
+      aria-pressed={settingsOpen}
+      title={settingsOpen ? "Close settings" : "Open settings"}
+      onclick={onOpenSettings}
+    >
+      <Icon name="settings" size={18} />
+    </button>
+  </div>
 </section>
 
 <style>
@@ -182,6 +99,14 @@
   .brand {
     display: flex;
     align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
     gap: var(--space-3);
     min-width: 0;
   }
@@ -212,200 +137,58 @@
     font-weight: 600;
   }
 
-  .league-switcher {
+  .draft-switch-trigger {
     display: flex;
-    align-items: center;
-    gap: 7px;
-    min-width: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    padding: 3px 5px 3px 0;
-    color: var(--text-primary);
-    cursor: pointer;
-    text-align: left;
-    list-style: none;
-  }
-
-  .league-switcher::-webkit-details-marker {
-    display: none;
-  }
-
-  .league-switcher:hover {
-    color: var(--accent);
-  }
-
-  .league-switcher:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-  }
-
-  .league-switcher :global(.icon) {
-    flex-shrink: 0;
-    transform: rotate(90deg);
-    transition: transform var(--transition-fast);
-  }
-
-  .league-switcher-menu[open] .league-switcher :global(.icon) {
-    transform: rotate(-90deg);
-  }
-
-  .league-switcher-menu {
-    position: relative;
-    min-width: 0;
-  }
-
-  .switcher-popover {
-    position: absolute;
-    z-index: 30;
-    top: calc(100% + 26px);
-    left: 0;
-    display: grid;
-    gap: 10px;
-    width: min(360px, calc(100vw - 48px));
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-md);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-md);
-    padding: 12px;
-  }
-
-  .switcher-title {
-    font-size: var(--text-sm);
-  }
-
-  .switcher-options {
-    display: grid;
-  }
-
-  .switcher-options > button {
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
     align-items: center;
     gap: 8px;
-    width: 100%;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    padding: 9px 8px;
-    color: var(--text-primary);
-    cursor: pointer;
-    text-align: left;
-  }
-
-  .switcher-options > button:hover:not(:disabled) {
-    background: var(--surface-sunken);
-  }
-
-  .switcher-options > button.current {
-    background: var(--accent-soft);
-  }
-
-  .switcher-options > button:disabled {
-    cursor: default;
-  }
-
-  .switcher-options strong,
-  .switcher-options small {
-    display: block;
-  }
-
-  .switcher-options strong {
-    font-size: var(--text-sm);
-  }
-
-  .switcher-options small {
-    margin-top: 2px;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-  }
-
-  .option-marker {
-    color: var(--accent);
-  }
-
-  .switcher-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 16px;
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
-  }
-
-  .switcher-actions button {
+    max-width: 100%;
     border: 0;
     background: transparent;
     padding: 0;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: var(--text-xs);
-    font-weight: 700;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .switcher-actions button:hover {
-    color: var(--text-primary);
-  }
-
-  .draft-id-form {
-    display: grid;
-    gap: 6px;
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
-  }
-
-  .draft-id-form label {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .draft-id-form > div {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-  }
-
-  .draft-id-form input,
-  .draft-id-form button {
-    min-width: 0;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    background: var(--surface-sunken);
-    padding: 8px 9px;
-    color: var(--text-primary);
+    color: inherit;
     font: inherit;
-    font-size: var(--text-sm);
-  }
-
-  .draft-id-form button {
-    background: var(--surface-raised);
     cursor: pointer;
-    font-weight: 700;
+    text-align: left;
   }
 
-  .draft-id-form button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
+  .draft-switch-trigger > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
+  .draft-switch-trigger > :global(.icon) {
+    transform: translateY(2px);
+  }
+
+  .draft-switch-trigger:hover,
+  .draft-switch-trigger[aria-expanded="true"] {
+    color: var(--accent);
+  }
+
+  .draft-switch-trigger:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
   .settings-button {
     display: inline-grid;
     place-items: center;
     width: 34px;
     height: 34px;
     flex-shrink: 0;
-    border: 1px solid var(--border);
+    border: 0;
     border-radius: var(--radius-md);
-    background: var(--surface);
+    background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
   }
 
-  .settings-button:hover,
+  .settings-button:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
   .settings-button.active {
-    border-color: var(--border);
     background: var(--surface-raised);
     color: var(--text-primary);
   }
@@ -420,6 +203,10 @@
     z-index: 20;
     top: var(--space-6);
     right: var(--space-6);
+  }
+
+  .topbar.centered .topbar-actions {
+    display: contents;
   }
 
   .status-panel {
@@ -505,6 +292,10 @@
       flex: 1;
     }
 
+    .topbar-actions {
+      align-self: flex-start;
+    }
+
     .status-panel {
       min-width: 0;
     }
@@ -513,16 +304,14 @@
       min-width: 0;
     }
 
-    .league-switcher {
-      align-items: flex-start;
-    }
-
-    .league-switcher h1 {
+    .topbar.has-draft h1 {
       overflow-wrap: anywhere;
     }
 
-    .switcher-popover {
-      left: calc(-42px - var(--space-3));
+    .draft-switch-trigger span {
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
+
   }
 </style>

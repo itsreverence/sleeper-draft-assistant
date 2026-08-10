@@ -15,3 +15,13 @@ data/*.json
 apps/desktop/out/
 apps/desktop/out-builder/
 data/*.sqlite
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/app-root.json
+**/.impeccable/live/*
+clips/
+.agents/
+.codex/
+.github/agents/
+.github/hooks/
+.github/skills/

@@ -1,5 +1,5 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { createLogger, defineConfig } from "vite";
+import { createLogger, defineConfig, type Plugin } from "vite";
 
 import { redactViteLogMessage } from "./vite-log-redaction";
 
@@ -9,10 +9,27 @@ const defaultWarn = logger.warn.bind(logger);
 logger.error = (message, options) => defaultError(redactViteLogMessage(message), options);
 logger.warn = (message, options) => defaultWarn(redactViteLogMessage(message), options);
 
+// Impeccable's live helper is allowed only in the Vite dev response. The
+// packaged app keeps the strict CSP declared in index.html unchanged.
+const impeccableLiveDevCsp: Plugin = {
+  name: "impeccable-live-dev-csp",
+  transformIndexHtml: {
+    order: "post",
+    handler(html, context) {
+      if (!context.server) return html;
+
+      return html.replace(
+        "script-src 'self';",
+        "script-src 'self' http://localhost:*;",
+      );
+    },
+  },
+};
+
 export default defineConfig({
   base: "./",
   customLogger: logger,
-  plugins: [svelte()],
+  plugins: [svelte(), impeccableLiveDevCsp],
   server: {
     strictPort: true,
     proxy: {

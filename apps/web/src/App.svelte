@@ -5,7 +5,8 @@
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
   import ConnectPanel from "./lib/components/ConnectPanel.svelte";
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
-  import SettingsPanel from "./lib/components/SettingsPanel.svelte";
+  import SettingsDrawer from "./lib/components/SettingsDrawer.svelte";
+  import DraftSwitcherDrawer from "./lib/components/DraftSwitcherDrawer.svelte";
   import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import DraftTeamDrawer from "./lib/components/DraftTeamDrawer.svelte";
@@ -24,7 +25,6 @@
   import RosRankingsImportPanel from "./lib/components/RosRankingsImportPanel.svelte";
   import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
-  import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
@@ -166,6 +166,7 @@
   let isConnecting = $state(false);
   let isSavingSettings = $state(false);
   let settingsOpen = $state(false);
+  let draftSwitcherOpen = $state(false);
   let appSettings: AppSettings | null = $state(null);
   let aiProviderStatus: AiProviderStatus | null = $state(null);
   let settingsError = $state("");
@@ -588,45 +589,34 @@
     lastEvent = `${draft.name} selected`;
   }
 
-  async function openSelectedDraft() {
+  async function openSelectedDraft(): Promise<boolean> {
     if (!selectedLeague || !selectedDraft) {
       loadError = "Choose a league and draft first.";
-      return;
+      return false;
     }
 
     const draftTeamRef = draftTeamReference(selectedDraft, selectedLeague.userRosterId);
-    await loadDraft(selectedDraft.draftId, draftTeamRef, selectedLeague.leagueId, selectedLeague.userRosterId);
+    return loadDraft(selectedDraft.draftId, draftTeamRef, selectedLeague.leagueId, selectedLeague.userRosterId);
   }
 
-  async function switchToKnownDraft(draftId: string) {
+  async function switchToKnownDraft(draftId: string): Promise<boolean> {
     const match = connectPayload?.leagues.flatMap((league) =>
       league.drafts.map((draft) => ({ league, draft })),
     ).find(({ draft }) => draft.draftId === draftId);
-    if (!match) return;
+    if (!match) return false;
     const draftTeamRef = draftTeamReference(match.draft, match.league.userRosterId);
-    await loadDraft(draftId, draftTeamRef, match.league.leagueId, match.league.userRosterId);
+    return loadDraft(draftId, draftTeamRef, match.league.leagueId, match.league.userRosterId);
   }
 
-  async function openDraftIdFromSwitcher(draftId: string) {
-    draftInput = draftId;
-    userRosterIdInput = "";
-    await connectSleeperDraft();
-  }
-
-  function findAnotherLeague() {
-    clearActiveDraft();
-    switchingDraft = true;
-  }
-
-  async function connectSleeperDraft() {
+  async function connectSleeperDraft(): Promise<boolean> {
     const draftId = draftInput.trim();
     if (!draftId) {
       loadError = "Enter a Sleeper draft ID to load a real draft.";
-      return;
+      return false;
     }
 
     const explicitRosterId = userRosterIdInput.trim() || null;
-    await loadDraft(
+    return loadDraft(
       draftId,
       explicitRosterId,
       "",
@@ -686,7 +676,7 @@
     leagueId = "",
     userRosterId: string | null = draftTeamRef,
     userIdentifier: string | null = null,
-  ) {
+  ): Promise<boolean> {
     eventSource?.close();
     resetDraftSyncTracking();
     isLoading = true;
@@ -755,6 +745,7 @@
       }
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
       connectEvents(draftId, resolvedDraftTeamRef);
+      return true;
     } catch (error) {
       loadError = error instanceof Error ? error.message : "Draft load failed.";
       status = "Draft unavailable";
@@ -795,6 +786,7 @@
       window.localStorage.removeItem("lastDraftTeamRef");
       window.localStorage.removeItem("lastUserRosterId");
       window.localStorage.removeItem("lastLeagueId");
+      return false;
     } finally {
       isLoading = false;
     }
@@ -1720,18 +1712,14 @@
     showStatus={hasStartedConnecting && !draftState && !switchingDraft}
     showChangeDraft={Boolean(draftState)}
     centered={isPreconnect || switchingDraft}
+    draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
-    draftOptions={draftSwitcherOptions}
-    {activeDraftId}
-    onSelectDraft={switchToKnownDraft}
-    onFindAnotherLeague={findAnotherLeague}
-    onOpenDraftId={openDraftIdFromSwitcher}
-    onViewDraftResults={draftPhase === "complete" && workspaceMode === "manage" ? viewDraftResults : undefined}
+    onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
     onOpenSettings={() => (settingsOpen = !settingsOpen)}
   />
 
   {#if settingsOpen}
-    <SettingsPanel
+    <SettingsDrawer
       settings={appSettings}
       providerStatus={aiProviderStatus}
       isSaving={isSavingSettings}
@@ -1744,6 +1732,36 @@
       draftDataAvailable={isRealDraftActive}
       draftDataStatus={draftDataSettingsStatus}
       onManageDraftData={manageDraftDataFromSettings}
+      onClose={() => (settingsOpen = false)}
+    />
+  {/if}
+
+  {#if draftSwitcherOpen && draftState}
+    <DraftSwitcherDrawer
+      draftOptions={draftSwitcherOptions}
+      {activeDraftId}
+      bind:usernameInput
+      bind:seasonInput
+      bind:leagueInput
+      bind:draftInput
+      bind:userRosterIdInput
+      {connectPayload}
+      {selectedLeagueId}
+      {selectedDraftId}
+      {isConnecting}
+      {isLoading}
+      {loadError}
+      activeSourceLabel={activeSourceLabel || "Sleeper"}
+      {activeUserRosterId}
+      onFindLeagues={findSleeperLeagues}
+      onResetLookup={resetSleeperLookup}
+      onSelectLeague={selectLeague}
+      onSelectDraft={selectDraft}
+      onSelectKnownDraft={switchToKnownDraft}
+      onOpenSelectedDraft={openSelectedDraft}
+      onConnectSleeperDraft={connectSleeperDraft}
+      onViewDraftResults={draftPhase === "complete" && workspaceMode === "manage" ? () => { draftSwitcherOpen = false; viewDraftResults(); } : undefined}
+      onClose={() => (draftSwitcherOpen = false)}
     />
   {/if}
 
@@ -1781,17 +1799,6 @@
 
   {#if draftState}
     {#key activeDraftId}
-      {#if !draftPreparationOpen && workspaceMode === "draft"}
-        <div class="workspace-toolbar">
-          <DraftSyncStatus
-            lastSuccessfulAt={draftLastSuccessfulAt}
-            consecutiveFailures={draftConsecutiveFailures}
-            nextRetryMs={draftNextRetryMs}
-            reconnecting={draftReconnecting}
-            onReconnect={() => connectEvents(activeDraftId, activeDraftTeamRef)}
-          />
-        </div>
-      {/if}
       {#if draftPreparationOpen && workspaceMode === "draft"}
         <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
         <div class="preparation-flow">
@@ -1850,7 +1857,9 @@
           />
         </div>
       {:else}
-      <DraftSummaryStrip state={draftState} />
+      {#if workspaceMode === "manage"}
+        <DraftSummaryStrip state={draftState} />
+      {/if}
       <FormatCompatibilityNotice
         compatibility={workspaceMode === "manage"
           ? teamManagerState?.league.formatCompatibility
@@ -1860,12 +1869,17 @@
       {#if workspaceMode === "draft"}
         <DraftRoomPanel
           state={draftState}
+          draftLastSuccessfulAt={draftLastSuccessfulAt}
+          draftConsecutiveFailures={draftConsecutiveFailures}
+          draftNextRetryMs={draftNextRetryMs}
+          draftReconnecting={draftReconnecting}
+          onReconnectDraft={() => connectEvents(activeDraftId, activeDraftTeamRef)}
           onSelectTeam={(teamId) => {
             draftStrategyOpen = false;
             selectedDraftTeamId = teamId;
           }}
         />
-        <section class="dashboard-grid draft-grid">
+        <section class="dashboard-grid draft-grid" class:single-column={!draftValuesIncomplete && !limitedDataMode}>
           <div class="primary-column">
             {#if draftPhase === "complete"}
               <article class="panel phase-note">
@@ -1926,8 +1940,8 @@
               <PickFeedPanel state={draftState} />
             {/if}
           </div>
-          <div class="side-column">
-            {#if draftValuesIncomplete || limitedDataMode}
+          {#if draftValuesIncomplete || limitedDataMode}
+            <div class="side-column">
               <DraftDataStatus
                 hasRankings={hasImportedRankings}
                 {rankingsStale}
@@ -1936,11 +1950,8 @@
                 limitedMode={limitedDataMode}
                 onOpen={openDraftPreparation}
               />
-            {/if}
-            {#if draftPhase !== "complete"}
-              <RosterPanel state={draftState} />
-            {/if}
-          </div>
+            </div>
+          {/if}
         </section>
         {#if draftStrategyOpen}
           <DraftStrategyDrawer
@@ -2075,20 +2086,16 @@
     margin-top: var(--space-5);
   }
 
-  .workspace-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-4);
-    margin: 0 0 var(--space-4);
-  }
-
   .dashboard-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
     align-items: start;
     gap: var(--space-5);
     margin-top: var(--space-5);
+  }
+
+  .draft-grid.single-column {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .primary-column,
