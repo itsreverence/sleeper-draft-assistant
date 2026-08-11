@@ -15,6 +15,7 @@
     | "inbox"
     | "grid"
     | "chevron-right"
+    | "switch"
     | "refresh"
     | "history"
     | "clock"
@@ -22,6 +23,10 @@
     | "external"
     | "database"
     | "download"
+    | "expand"
+    | "collapse"
+    | "arrow-left"
+    | "arrow-right"
     | "settings"
     | "search"
     | "close"
@@ -91,6 +96,11 @@
       <path d="M3.5 9.5h17M3.5 15h17M9 4v16M15 4v16" />
     {:else if name === "chevron-right"}
       <path d="m9 5.5 7 6.5-7 6.5" />
+    {:else if name === "switch"}
+      <path d="M4 8h15" />
+      <path d="m15 4 4 4-4 4" />
+      <path d="M20 16H5" />
+      <path d="m9 12-4 4 4 4" />
     {:else if name === "refresh"}
       <path d="M20 7v5h-5" />
       <path d="M4 17v-5h5" />
@@ -116,6 +126,18 @@
       <path d="M12 4v11" />
       <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
       <path d="M5 20h14" />
+    {:else if name === "expand"}
+      <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
+      <path d="m4 4 5 5M20 4l-5 5M20 20l-5-5M4 20l5-5" />
+    {:else if name === "collapse"}
+      <path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5" />
+      <path d="m9 9-5-5M15 9l5-5M15 15l5 5M9 15l-5 5" />
+    {:else if name === "arrow-left"}
+      <path d="M20 12H4" />
+      <path d="m10 6-6 6 6 6" />
+    {:else if name === "arrow-right"}
+      <path d="M4 12h16" />
+      <path d="m14 6 6 6-6 6" />
     {:else if name === "settings"}
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21h-4v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />

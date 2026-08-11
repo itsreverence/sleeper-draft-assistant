@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Draft view switch mocks</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d10;
+        --surface: #14171c;
+        --raised: #1b1f26;
+        --sunken: #0e1013;
+        --border: #262b33;
+        --border-strong: #363c46;
+        --text: #f2f4f6;
+        --secondary: #aab0ba;
+        --muted: #767e8a;
+        --accent: #34d399;
+        --accent-soft: rgba(52, 211, 153, 0.1);
+        --warning: #f5b544;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        min-width: 320px;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.4 Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 48px 0 64px;
+      }
+
+      header { margin-bottom: 28px; }
+      h1, h2, h3, p { margin: 0; }
+      h1 { font-size: clamp(24px, 4vw, 34px); line-height: 1.15; }
+      header p { max-width: 680px; margin-top: 10px; color: var(--secondary); }
+      .eyebrow {
+        margin-bottom: 8px;
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .mock-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+      .option { min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+      .option-copy { min-height: 104px; padding: 18px 18px 14px; }
+      .option-copy h2 { font-size: 17px; }
+      .option-copy p { margin-top: 6px; color: var(--secondary); font-size: 13px; }
+      .tag { display: inline-flex; margin-top: 11px; border: 1px solid var(--border-strong); border-radius: 999px; padding: 3px 7px; color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+
+      .preview { margin: 0 10px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--sunken); overflow: hidden; }
+      .mock-room-header { padding: 14px 14px 12px; }
+      .mock-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .mock-title h3 { font-size: 16px; }
+      .mock-title p { margin-top: 4px; color: var(--secondary); font-size: 11px; }
+      .mock-status { flex: 0 0 auto; border: 1px solid var(--warning); border-radius: 999px; padding: 4px 7px; color: var(--warning); font-size: 10px; font-weight: 800; }
+      .mock-sync { color: var(--accent); font-size: 10px; font-weight: 700; }
+      .mock-tabs { display: inline-flex; gap: 14px; border-bottom: 1px solid var(--border); }
+      .mock-tabs button, .mock-menu button, .mock-toolbar button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 10px; font-weight: 800; }
+      .mock-tabs button { position: relative; padding: 5px 0 7px; }
+      .mock-tabs button.active { color: var(--text); }
+      .mock-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent); content: ""; }
+      .board-strip { display: grid; grid-template-columns: 52px repeat(4, minmax(0, 1fr)); min-height: 76px; border-top: 1px solid var(--border); background: #101318; }
+      .board-strip span { padding: 8px; border-right: 1px solid var(--border); color: var(--muted); font-size: 10px; }
+      .board-strip span:first-child { color: var(--text); font-weight: 800; }
+
+      .option-a .mock-tabs { margin-top: 12px; }
+
+      .mock-menu { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 13px; }
+      .mock-menu button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 8px; color: var(--text); }
+      .mock-menu button span { color: var(--muted); }
+      .mock-menu .menu-open { color: var(--accent); }
+
+      .mock-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding: 8px 10px; }
+      .mock-toolbar button { padding: 4px 5px; }
+      .mock-toolbar button.active { border-radius: 5px; background: var(--raised); color: var(--text); }
+      .mock-toolbar .toolbar-label { color: var(--muted); font-size: 10px; font-weight: 800; }
+      .mock-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding: 8px 10px; color: var(--muted); font-size: 10px; }
+      .mock-action { border: 0; background: transparent; padding: 0; color: var(--secondary); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+      .mock-action:hover { color: var(--accent); }
+      .mock-action::after { margin-left: 4px; color: var(--muted); content: ">"; }
+      .mock-title-action { display: inline-flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 10px; font-weight: 800; white-space: nowrap; }
+      .mock-title-action::after { color: var(--muted); content: ">"; }
+      .mock-edge { display: flex; align-items: center; justify-content: center; gap: 10px; border-top: 1px solid var(--border); padding: 7px 10px; color: var(--muted); font-size: 10px; }
+
+      @media (max-width: 900px) {
+        .mock-grid { grid-template-columns: 1fr; }
+        .option-copy { min-height: 0; }
+        .preview { max-width: 520px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Draft room interaction</p>
+        <h1>One quiet way to open the full board</h1>
+        <p>Live rounds stays primary. These alternatives expose the secondary view only when someone asks for it.</p>
+      </header>
+
+      <div class="mock-grid focus-grid">
+        <section class="option">
+          <div class="option-copy">
+            <h2>A. Footer action</h2>
+            <p>Keep the board header completely clean and place the alternate view beside the legend.</p>
+            <span class="tag">Recommended</span>
+          </div>
+          <div class="preview">
+            <div class="mock-room-header">
+              <div class="mock-title-row">
+                <div class="mock-title"><h3>Draft room</h3><p>Round 2 in progress. Pick 12 of 120.</p></div>
+                <span class="mock-status">Your turn</span>
+              </div>
+            </div>
+            <div class="board-strip"><span>Round</span><span>1.01</span><span>1.02</span><span>1.03</span><span>1.04</span></div>
+            <div class="mock-footer"><span>Your picks &nbsp; On the clock</span><button class="mock-action">Show full board</button></div>
+          </div>
+        </section>
+
+        <section class="option">
+          <div class="option-copy">
+            <h2>B. Title-row action</h2>
+            <p>Keep the action near the board identity, but make it a single quiet link instead of a switch.</p>
+            <span class="tag">Fastest to find</span>
+          </div>
+          <div class="preview">
+            <div class="mock-room-header">
+              <div class="mock-title-row">
+                <div class="mock-title"><h3>Draft room</h3><p>Round 2 in progress. Pick 12 of 120.</p></div>
+                <div class="mock-title-action">Show full board</div>
+              </div>
+            </div>
+            <div class="board-strip"><span>Round</span><span>1.01</span><span>1.02</span><span>1.03</span><span>1.04</span></div>
+            <div class="mock-footer"><span>Your picks &nbsp; On the clock</span><span class="mock-sync">Draft sync connected</span></div>
+          </div>
+        </section>
+
+        <section class="option">
+          <div class="option-copy">
+            <h2>C. Board-edge action</h2>
+            <p>Make the scope explicit with a thin row between the grid and its legend.</p>
+            <span class="tag">Strongest relationship</span>
+          </div>
+          <div class="preview">
+            <div class="mock-room-header">
+              <div class="mock-title-row">
+                <div class="mock-title"><h3>Draft room</h3><p>Round 2 in progress. Pick 12 of 120.</p></div>
+                <span class="mock-status">Your turn</span>
+              </div>
+            </div>
+            <div class="board-strip"><span>Round</span><span>1.01</span><span>1.02</span><span>1.03</span><span>1.04</span></div>
+            <div class="mock-edge"><span>Showing live rounds</span><button class="mock-action">Show full board</button></div>
+            <div class="mock-footer"><span>Your picks &nbsp; On the clock</span><span class="mock-sync">Draft sync connected</span></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="mock-grid">
+        <section class="option option-a">
+          <div class="option-copy">
+            <h2>A. Attached board tabs</h2>
+            <p>Keep the switch in the room header, aligned directly with the board title.</p>
+            <span class="tag">Most discoverable</span>
+          </div>
+          <div class="preview">
+            <div class="mock-room-header">
+              <div class="mock-title-row">
+                <div class="mock-title"><h3>Draft room</h3><p>Round 2 in progress. Pick 12 of 120.</p></div>
+                <span class="mock-status">Your turn</span>
+              </div>
+              <div class="mock-tabs"><button class="active">Live rounds</button><button>Full board</button></div>
+            </div>
+            <div class="board-strip"><span>Round</span><span>1.01</span><span>1.02</span><span>1.03</span><span>1.04</span></div>
+          </div>
+        </section>
+
+        <section class="option option-b">
+          <div class="option-copy">
+            <h2>B. Compact view menu</h2>
+            <p>Make the choice quieter until someone needs to change it.</p>
+            <span class="tag">Least visual weight</span>
+          </div>
+          <div class="preview">
+            <div class="mock-room-header">
+              <div class="mock-title-row">
+                <div class="mock-title"><h3>Draft room</h3><p>Round 2 in progress. Pick 12 of 120.</p></div>
+                <span class="mock-status">Your turn</span>
+              </div>
+              <div class="mock-menu"><span class="mock-sync">Draft sync connected</span><button class="menu-open">Board view <strong>Live rounds</strong> <span>v</span></button></div>
+            </div>
+            <div class="board-strip"><span>Round</span><span>1.01</span><span>1.02</span><span>1.03</span><span>1.04</span></div>
+          </div>
+        </section>
+
+        <section class="option option-c">
+          <div class="option-copy">
+            <h2>C. Board toolbar</h2>
+            <p>Attach the control to the grid itself so it reads as a board filter.</p>
+            <span class="tag">Strongest scope</span>
+          </div>
+          <div class="preview">
+            <div class="mock-room-header">
+              <div class="mock-title-row">
+                <div class="mock-title"><h3>Draft room</h3><p>Round 2 in progress. Pick 12 of 120.</p></div>
+                <span class="mock-sync">Draft sync connected</span>
+              </div>
+            </div>
+            <div class="mock-toolbar"><span class="toolbar-label">Board view</span><div><button class="active">Live rounds</button><button>Full board</button></div></div>
+            <div class="board-strip"><span>Round</span><span>1.01</span><span>1.02</span><span>1.03</span><span>1.04</span></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
