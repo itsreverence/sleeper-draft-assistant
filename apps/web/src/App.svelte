@@ -518,8 +518,8 @@
       return;
     }
 
-    draftSession.disconnect();
     if (isDemoDraftActive) {
+      draftSession.disconnect();
       clearActiveDraft();
     }
     isConnecting = true;

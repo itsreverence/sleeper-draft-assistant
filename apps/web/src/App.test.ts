@@ -13,6 +13,7 @@ import App from "./App.svelte";
 import { DEFAULT_LEAGUE_ID, PIN_PLAYER_ID, createDraftPayloadFixture } from "./lib/testing/draft-fixtures";
 import { createDeferred } from "./lib/testing/deferred";
 import { apiMock } from "./lib/testing/mock-api";
+import type { ConnectPayload } from "./lib/types";
 
 describe("App draft lifecycle", () => {
   beforeEach(() => {
@@ -240,6 +241,159 @@ describe("App draft lifecycle", () => {
     });
     expect(apiMock.getOpenEventSources()).toHaveLength(1);
     expect(apiMock.getOpenEventSources()[0]?.draftId).toBe("draft-2");
+  });
+
+  it("finding leagues from the switcher keeps the active draft stream alive", async () => {
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const connectLookup = createDeferred<ConnectPayload>();
+    apiMock.fetchSleeperConnect.mockImplementationOnce(async () => await connectLookup.promise);
+
+    render(App);
+
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+    const activeSource = apiMock.getOpenEventSources()[0]!;
+
+    await openDraftSwitcher();
+    await fireEvent.input(screen.getByPlaceholderText("e.g. gridiron_gary"), {
+      target: { value: "manager-one" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Find leagues" }));
+
+    await waitFor(() => {
+      expect(apiMock.fetchSleeperConnect).toHaveBeenCalledTimes(1);
+    });
+    expect(activeSource.closeCalls).toBe(0);
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+
+    connectLookup.resolve(createConnectPayloadFixture());
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open draft room" })).toBeTruthy();
+    });
+
+    await closeDraftSwitcher();
+
+    expect(screen.getByText("Sleeper Alpha Draft")).toBeTruthy();
+    expect(activeSource.closeCalls).toBe(0);
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+
+    activeSource.emit("snapshot", createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: De'Von Achane");
+    });
+  });
+
+  it("a rejected league lookup from the switcher keeps the active draft stream alive", async () => {
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const connectLookup = createDeferred<ConnectPayload>();
+    apiMock.fetchSleeperConnect.mockImplementationOnce(async () => await connectLookup.promise);
+
+    render(App);
+
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+    const activeSource = apiMock.getOpenEventSources()[0]!;
+
+    await openDraftSwitcher();
+    await fireEvent.input(screen.getByPlaceholderText("e.g. gridiron_gary"), {
+      target: { value: "manager-one" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Find leagues" }));
+
+    await waitFor(() => {
+      expect(apiMock.fetchSleeperConnect).toHaveBeenCalledTimes(1);
+    });
+    expect(activeSource.closeCalls).toBe(0);
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+
+    connectLookup.reject(new Error("Lookup unavailable"));
+
+    expect(await screen.findByText("Lookup unavailable")).toBeTruthy();
+    await closeDraftSwitcher();
+
+    expect(screen.getByText("Sleeper Alpha Draft")).toBeTruthy();
+    expect(activeSource.closeCalls).toBe(0);
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+
+    activeSource.emit("snapshot", createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: De'Von Achane");
+    });
+  });
+
+  it("opening a different draft after league lookup closes the prior stream once and replaces it", async () => {
+    const firstDraft = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const nextDraft = createDeferred<ReturnType<typeof createDraftPayloadFixture>>();
+    apiMock.fetchSleeperConnect.mockResolvedValueOnce(createConnectPayloadFixture());
+
+    render(App);
+
+    await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
+    apiMock.fetchDraftState.mockImplementationOnce(async () => await nextDraft.promise);
+    const firstSource = apiMock.getOpenEventSources()[0]!;
+
+    await openDraftSwitcher();
+    await fireEvent.input(screen.getByPlaceholderText("e.g. gridiron_gary"), {
+      target: { value: "manager-one" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Find leagues" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open draft room" })).toBeTruthy();
+    });
+    expect(firstSource.closeCalls).toBe(0);
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Open draft room" }));
+
+    await waitFor(() => {
+      expect(apiMock.fetchDraftState).toHaveBeenCalledWith("draft-lookup", "slot-3", null);
+    });
+    expect(firstSource.closeCalls).toBe(1);
+
+    nextDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-lookup",
+      name: "Lookup Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    expect(await screen.findByText("Lookup Draft")).toBeTruthy();
+    await waitFor(() => {
+      expect(apiMock.getOpenEventSources()).toHaveLength(1);
+    });
+    expect(apiMock.getOpenEventSources()[0]?.draftId).toBe("draft-lookup");
+    expect(firstSource.closeCalls).toBe(1);
   });
 
   it("exactly one EventSource and teardown closes", async () => {
@@ -594,6 +748,18 @@ async function openDirectDraftForm() {
   await fireEvent.click(screen.getByText("Paste a draft ID"));
 }
 
+async function openDraftSwitcher() {
+  await fireEvent.click(screen.getByTitle("Switch league or draft"));
+  await screen.findByRole("dialog", { name: "Switch league or draft" });
+}
+
+async function closeDraftSwitcher() {
+  await fireEvent.click(screen.getAllByLabelText("Close draft switcher")[0]!);
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Switch league or draft" })).toBeNull();
+  });
+}
+
 function getDirectDraftForm(): HTMLFormElement {
   return screen.getByPlaceholderText("Paste a draft ID").closest("form") as HTMLFormElement;
 }
@@ -628,4 +794,48 @@ async function uploadDraftDataCsv(container: HTMLElement, inputIndex: number, fi
     value: async () => contents,
   });
   await fireEvent.change(input, { target: { files: [file] } });
+}
+
+function createConnectPayloadFixture(overrides: Partial<ConnectPayload> = {}): ConnectPayload {
+  const base: ConnectPayload = {
+    user: {
+      userId: "user-1",
+      username: "manager-one",
+      displayName: "Manager One",
+    },
+    season: "2026",
+    leagues: [{
+      leagueId: DEFAULT_LEAGUE_ID,
+      name: "Fixture League",
+      season: "2026",
+      status: "in_season",
+      totalRosters: 12,
+      scoring: "PPR",
+      rosterSlots: {
+        QB: 1,
+        RB: 2,
+        WR: 2,
+        TE: 1,
+        FLEX: 1,
+        BN: 6,
+      },
+      userRosterId: "roster-3",
+      recommendedDraftId: "draft-lookup",
+      drafts: [{
+        draftId: "draft-lookup",
+        name: "Fixture Draft",
+        status: "pre_draft",
+        type: "snake",
+        season: "2026",
+        teams: 12,
+        rounds: 15,
+        userDraftSlot: 3,
+      }],
+    }],
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
 }

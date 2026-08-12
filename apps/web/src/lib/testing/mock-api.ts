@@ -110,7 +110,13 @@ class ApiMockController {
   });
   readonly fetchAiDraftStrategyRequest = vi.fn(async () => unexpected("fetchAiDraftStrategyRequest"));
   readonly fetchDiagnostics = vi.fn(async () => unexpected("fetchDiagnostics"));
-  readonly fetchSleeperConnect = vi.fn(async () => unexpected("fetchSleeperConnect"));
+  readonly fetchSleeperConnect = vi.fn<
+    (input: {
+      username: string;
+      season?: string;
+      leagueId?: string;
+    }) => Promise<ConnectPayload>
+  >(async () => unexpected("fetchSleeperConnect"));
   readonly importWeeklyProjectionFilesRequest = vi.fn<
     (input: {
       leagueId: string;
