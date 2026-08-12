@@ -148,11 +148,16 @@ export function createDraftSession({
     eventSource = null;
   }
 
-  function invalidateLifecycle() {
+  function currentActiveIdentity(): string {
+    return activeDraftId ? draftIdentityKey(activeDraftId, activeDraftTeamRef) : "";
+  }
+
+  function invalidateLifecycle(preserveActiveDraft = false) {
     activationEpoch += 1;
     preferenceRevision += 1;
-    pendingIdentity = "";
-    activeIdentity = "";
+    const nextActiveIdentity = preserveActiveDraft ? currentActiveIdentity() : "";
+    pendingIdentity = nextActiveIdentity;
+    activeIdentity = nextActiveIdentity;
   }
 
   function writeDraftStorage(draftId: string, draftTeamRef: string | null, userRosterId: string | null, leagueId: string) {
@@ -385,6 +390,12 @@ export function createDraftSession({
     connectStream(activeDraftId, activeDraftTeamRef);
   }
 
+  function disconnect() {
+    closeEventSource();
+    invalidateLifecycle(true);
+    resetDraftSyncTracking();
+  }
+
   function destroy() {
     closeEventSource();
     invalidateLifecycle();
@@ -447,6 +458,7 @@ export function createDraftSession({
     applyCurrentPreferences,
     clear,
     captureGuard,
+    disconnect,
     isGuardCurrent,
     reconnect,
     destroy,

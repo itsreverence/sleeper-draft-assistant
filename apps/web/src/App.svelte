@@ -154,6 +154,9 @@
   let isClearingSeasonProjections = $state(false);
   let isImportingAdp = $state(false);
   let isClearingAdp = $state(false);
+  let rankingMutationRequestId = 0;
+  let seasonProjectionMutationRequestId = 0;
+  let adpMutationRequestId = 0;
   let isLoading = $state(false);
   let isConnecting = $state(false);
   let isSavingSettings = $state(false);
@@ -258,6 +261,30 @@
 
   function currentDraftGuard(): DraftSessionGuard | null {
     return draftSession.captureGuard();
+  }
+
+  function beginRankingMutation(): number {
+    return ++rankingMutationRequestId;
+  }
+
+  function isCurrentRankingMutation(requestId: number): boolean {
+    return requestId === rankingMutationRequestId;
+  }
+
+  function beginSeasonProjectionMutation(): number {
+    return ++seasonProjectionMutationRequestId;
+  }
+
+  function isCurrentSeasonProjectionMutation(requestId: number): boolean {
+    return requestId === seasonProjectionMutationRequestId;
+  }
+
+  function beginAdpMutation(): number {
+    return ++adpMutationRequestId;
+  }
+
+  function isCurrentAdpMutation(requestId: number): boolean {
+    return requestId === adpMutationRequestId;
   }
 
   function setPlayerPreference(playerId: string, preference: PlayerPreferenceLevel | null) {
@@ -386,7 +413,7 @@
   });
 
   onDestroy(() => {
-    draftSession.destroy();
+    draftSession.disconnect();
     window.removeEventListener("focus", handleTeamRefreshFocus);
     document.removeEventListener("visibilitychange", handleTeamRefreshVisibility);
     if (teamRefreshInterval) {
@@ -667,6 +694,9 @@
 
   function clearActiveDraft() {
     loadDraftRequestId += 1;
+    rankingMutationRequestId += 1;
+    seasonProjectionMutationRequestId += 1;
+    adpMutationRequestId += 1;
     draftSession.clear();
     resetDraftImportState();
     resetTeamRefreshTracking();
@@ -984,6 +1014,7 @@
     const requestTeamLeagueId = teamManagerState?.league.id ?? null;
     const requestUserRosterId = activeUserRosterId;
     const requestScoring = normalizeDraftScoring(draftState?.settings.scoring);
+    const requestId = beginRankingMutation();
     isImportingRankings = true;
     rankingImportError = "";
 
@@ -994,7 +1025,7 @@
         csvText,
         requestScoring,
       );
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentRankingMutation(requestId)) {
         return;
       }
       applyDraftPayload(payload, true);
@@ -1004,12 +1035,12 @@
       status = "FantasyPros rankings imported";
       lastEvent = `${payload.summary.matched} matched from ${payload.summary.rowsParsed} rows`;
     } catch (error) {
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentRankingMutation(requestId)) {
         return;
       }
       rankingImportError = error instanceof Error ? error.message : "Ranking import failed.";
     } finally {
-      if (draftSession.isGuardCurrent(guard)) {
+      if (draftSession.isGuardCurrent(guard) && isCurrentRankingMutation(requestId)) {
         isImportingRankings = false;
       }
     }
@@ -1031,12 +1062,13 @@
     const requestDraftTeamRef = activeDraftTeamRef;
     const requestTeamLeagueId = teamManagerState?.league.id ?? null;
     const requestUserRosterId = activeUserRosterId;
+    const requestId = beginRankingMutation();
     isClearingRankings = true;
     rankingImportError = "";
 
     try {
       const payload = await clearRankingsRequest(requestDraftId, requestDraftTeamRef);
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentRankingMutation(requestId)) {
         return;
       }
       applyDraftPayload(payload, true);
@@ -1050,12 +1082,12 @@
         ? "Expert ranks cleared; season projections remain active"
         : "Recommendations returned to Sleeper placeholder values";
     } catch (error) {
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentRankingMutation(requestId)) {
         return;
       }
       rankingImportError = error instanceof Error ? error.message : "Could not clear imported rankings.";
     } finally {
-      if (draftSession.isGuardCurrent(guard)) {
+      if (draftSession.isGuardCurrent(guard) && isCurrentRankingMutation(requestId)) {
         isClearingRankings = false;
       }
     }
@@ -1078,6 +1110,7 @@
     const requestDraftTeamRef = activeDraftTeamRef;
     const requestTeamLeagueId = teamManagerState?.league.id ?? null;
     const requestUserRosterId = activeUserRosterId;
+    const requestId = beginSeasonProjectionMutation();
     isImportingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
@@ -1087,7 +1120,7 @@
         season: input.season,
         files: input.files,
       });
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentSeasonProjectionMutation(requestId)) {
         return;
       }
       applyDraftPayload(payload, true);
@@ -1097,12 +1130,12 @@
       status = "FantasyPros season projections imported";
       lastEvent = `${payload.summary.matched} projection rows matched`;
     } catch (error) {
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentSeasonProjectionMutation(requestId)) {
         return;
       }
       seasonProjectionImportError = error instanceof Error ? error.message : "Season projection import failed.";
     } finally {
-      if (draftSession.isGuardCurrent(guard)) {
+      if (draftSession.isGuardCurrent(guard) && isCurrentSeasonProjectionMutation(requestId)) {
         isImportingSeasonProjections = false;
       }
     }
@@ -1118,22 +1151,23 @@
     }
     const requestDraftId = activeDraftId;
     const requestDraftTeamRef = activeDraftTeamRef;
+    const requestId = beginSeasonProjectionMutation();
     isClearingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
       const payload = await clearSeasonProjectionsRequest(requestDraftId, requestDraftTeamRef);
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentSeasonProjectionMutation(requestId)) {
         return;
       }
       applyDraftPayload(payload, true);
       status = "Season projections cleared";
     } catch (error) {
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentSeasonProjectionMutation(requestId)) {
         return;
       }
       seasonProjectionImportError = error instanceof Error ? error.message : "Could not clear season projections.";
     } finally {
-      if (draftSession.isGuardCurrent(guard)) {
+      if (draftSession.isGuardCurrent(guard) && isCurrentSeasonProjectionMutation(requestId)) {
         isClearingSeasonProjections = false;
       }
     }
@@ -1151,6 +1185,7 @@
     }
     const requestDraftId = activeDraftId;
     const requestDraftTeamRef = activeDraftTeamRef;
+    const requestId = beginAdpMutation();
     isImportingAdp = true;
     adpImportError = "";
     try {
@@ -1160,19 +1195,19 @@
         season,
         csvText,
       });
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentAdpMutation(requestId)) {
         return;
       }
       applyDraftPayload(payload, true);
       status = "FantasyPros Sleeper ADP imported";
       lastEvent = `${payload.summary.matched} ADP rows matched`;
     } catch (error) {
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentAdpMutation(requestId)) {
         return;
       }
       adpImportError = error instanceof Error ? error.message : "Sleeper ADP import failed.";
     } finally {
-      if (draftSession.isGuardCurrent(guard)) {
+      if (draftSession.isGuardCurrent(guard) && isCurrentAdpMutation(requestId)) {
         isImportingAdp = false;
       }
     }
@@ -1188,22 +1223,23 @@
     }
     const requestDraftId = activeDraftId;
     const requestDraftTeamRef = activeDraftTeamRef;
+    const requestId = beginAdpMutation();
     isClearingAdp = true;
     adpImportError = "";
     try {
       const payload = await clearAdpRequest(requestDraftId, requestDraftTeamRef);
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentAdpMutation(requestId)) {
         return;
       }
       applyDraftPayload(payload, true);
       status = "Sleeper ADP cleared";
     } catch (error) {
-      if (!draftSession.isGuardCurrent(guard)) {
+      if (!draftSession.isGuardCurrent(guard) || !isCurrentAdpMutation(requestId)) {
         return;
       }
       adpImportError = error instanceof Error ? error.message : "Could not clear Sleeper ADP.";
     } finally {
-      if (draftSession.isGuardCurrent(guard)) {
+      if (draftSession.isGuardCurrent(guard) && isCurrentAdpMutation(requestId)) {
         isClearingAdp = false;
       }
     }

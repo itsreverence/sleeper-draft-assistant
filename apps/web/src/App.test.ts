@@ -526,6 +526,8 @@ describe("App draft lifecycle", () => {
     await waitFor(() => {
       expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
       expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
+      expect(screen.getByTestId("ask-manager-answer").textContent).toBe("");
+      expect(screen.getByTestId("ask-manager-error").textContent).toBe("");
     });
   });
 });

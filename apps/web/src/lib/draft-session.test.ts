@@ -186,4 +186,130 @@ describe("draft session", () => {
     expect(session.recommendation?.headline).toBe(originalHeadline);
     expect(onRecommendationCommitted).not.toHaveBeenCalled();
   });
+
+  it("disconnect invalidates pending activation without leaving a reconnectable identity behind", async () => {
+    const pendingDraft = createDeferred<ReturnType<typeof createDraftPayloadFixture>>();
+    const eventSources: FakeEventSource[] = [];
+
+    const session = createDraftSession({
+      fetchDraftState: vi.fn(async () => await pendingDraft.promise),
+      fetchRecommendation: vi.fn(async () => {
+        throw new Error("No recommendation request expected.");
+      }),
+      createEventSource: (draftId, userRosterId) => {
+        const source = new FakeEventSource(draftId, userRosterId);
+        eventSources.push(source);
+        return source as unknown as EventSource;
+      },
+      getPlayerPreferences: () => ({}),
+      isMockDraft: () => false,
+      now: () => 1_000,
+      storage: window.localStorage,
+    });
+
+    const activation = session.activate({
+      draftId: "draft-1",
+      draftTeamRef: null,
+      leagueId: DEFAULT_LEAGUE_ID,
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    session.disconnect();
+    pendingDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    await expect(activation).resolves.toBeNull();
+    expect(session.activeDraftId).toBe("");
+    expect(session.captureGuard()).toBeNull();
+    expect(eventSources).toHaveLength(0);
+  });
+
+  it("disconnect preserves the active draft for reconnect while invalidating pre-disconnect work", async () => {
+    const pendingRecommendation = createDeferred<ReturnType<typeof createDraftPayloadFixture>["recommendation"]>();
+    const eventSources: FakeEventSource[] = [];
+
+    const session = createDraftSession({
+      fetchDraftState: vi.fn(async () => createDraftPayloadFixture({
+        draftId: "draft-1",
+        name: "Sleeper Alpha Draft",
+        leagueId: DEFAULT_LEAGUE_ID,
+      })),
+      fetchRecommendation: vi.fn(async () => await pendingRecommendation.promise),
+      createEventSource: (draftId, userRosterId) => {
+        const source = new FakeEventSource(draftId, userRosterId);
+        eventSources.push(source);
+        return source as unknown as EventSource;
+      },
+      getPlayerPreferences: () => ({ "p-achane": "pin" }),
+      isMockDraft: () => false,
+      now: () => 1_000,
+      storage: window.localStorage,
+    });
+
+    await session.activate({
+      draftId: "draft-1",
+      draftTeamRef: null,
+      leagueId: DEFAULT_LEAGUE_ID,
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    const firstSource = eventSources[0]!;
+    const originalHeadline = session.recommendation?.headline;
+    const refresh = session.applyCurrentPreferences({ "p-achane": "pin" });
+
+    session.disconnect();
+
+    expect(session.activeDraftId).toBe("draft-1");
+    expect(session.captureGuard()).not.toBeNull();
+
+    firstSource.emit("snapshot", createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }));
+
+    expect(session.recommendation?.headline).toBe(originalHeadline);
+
+    session.reconnect();
+    expect(firstSource.closeCalls).toBe(1);
+    expect(eventSources).toHaveLength(2);
+
+    const reconnectSource = eventSources[1]!;
+    reconnectSource.emit("snapshot", createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }));
+
+    expect(session.recommendation?.headline).toContain("De'Von Achane");
+
+    pendingRecommendation.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }).recommendation);
+
+    await expect(refresh).resolves.toBe(false);
+    expect(session.recommendation?.headline).toContain("De'Von Achane");
+  });
 });

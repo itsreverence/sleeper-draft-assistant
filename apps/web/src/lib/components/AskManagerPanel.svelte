@@ -40,6 +40,8 @@
   let expanded = $state(false);
   let conversationPick: number | null = $state(null);
   let conversationDraftId = $state("");
+  let askRequestSequence = 0;
+  let activeAskRequestId = 0;
   let handledPromptRequestId = 0;
   let panelElement: HTMLElement;
 
@@ -62,12 +64,25 @@
     };
   }
 
+  function currentDraftIdentity(): string {
+    return draftState?.id ?? "";
+  }
+
+  function invalidateAskRequests() {
+    askRequestSequence += 1;
+    activeAskRequestId = 0;
+    isAsking = false;
+  }
+
   async function submit(overrideQuestion?: string) {
     const trimmed = (overrideQuestion ?? question).trim();
     if (!trimmed || isAsking || !providerReady) {
       return;
     }
 
+    const requestDraftId = currentDraftIdentity();
+    const requestId = ++askRequestSequence;
+    activeAskRequestId = requestId;
     isAsking = true;
     lastQuestion = trimmed;
     question = "";
@@ -79,18 +94,26 @@
 
     try {
       const result = await onAsk(trimmed, conversationHistory);
+      if (requestId !== activeAskRequestId || requestDraftId !== currentDraftIdentity()) {
+        return;
+      }
       messages = messages.map((message) =>
         message.id === loadingMessage.id
           ? { ...message, content: result.answer, status: "complete", strategyProposal: result.strategyProposal }
           : message,
       );
     } catch (error) {
+      if (requestId !== activeAskRequestId || requestDraftId !== currentDraftIdentity()) {
+        return;
+      }
       const answer = error instanceof Error ? error.message : "The manager could not answer because the draft state is unavailable.";
       messages = messages.map((message) =>
         message.id === loadingMessage.id ? { ...message, content: answer, status: "error" } : message,
       );
     } finally {
-      isAsking = false;
+      if (requestId === activeAskRequestId && requestDraftId === currentDraftIdentity()) {
+        isAsking = false;
+      }
     }
   }
 
@@ -124,7 +147,10 @@
       .slice(-8);
   }
 
-  function clearConversation() {
+  function clearConversation(invalidatePendingAsk = false) {
+    if (invalidatePendingAsk) {
+      invalidateAskRequests();
+    }
     messages = [];
     question = "";
     lastQuestion = "";
@@ -146,8 +172,7 @@
   $effect(() => {
     const draftId = draftState?.id ?? "";
     if (conversationDraftId && draftId !== conversationDraftId) {
-      clearConversation();
-      isAsking = false;
+      clearConversation(true);
     }
     conversationDraftId = draftId;
   });
@@ -230,7 +255,7 @@
             <strong>Board changed since the last answer</strong>
             <span>New questions use pick {draftState?.currentPick}. Earlier answers remain visible for context.</span>
           </div>
-          <button type="button" onclick={clearConversation}>Start fresh</button>
+          <button type="button" onclick={() => clearConversation(true)}>Start fresh</button>
         </div>
       {/if}
 
