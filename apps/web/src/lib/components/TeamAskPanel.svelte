@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SuggestedQuestion } from "../ai-panel";
+  import { isAiProviderAvailable } from "../types";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "../types";
   import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
@@ -31,8 +32,8 @@
   let copied = $state(false);
   let lastQuestion = $state("");
 
-  const providerLabel = $derived(providerStatus?.label ?? "AI manager");
-  const providerReady = $derived(Boolean(providerStatus?.configured));
+  const providerReady = $derived(providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus));
+  const providerLabel = $derived(providerReady ? providerStatus?.label ?? "AI manager" : "No AI provider");
   const suggestions = $derived(buildTeamQuestions(teamState, teamNeeds, lineupSummary, weekContext, waiverSummary, activitySummary));
   const hasWeeklyProjections = $derived(
     Boolean(
@@ -67,7 +68,7 @@
 
   async function submit(overrideQuestion?: string) {
     const trimmed = (overrideQuestion ?? question).trim();
-    if (!trimmed || isAsking || !teamState) {
+    if (!trimmed || isAsking || !teamState || !providerReady) {
       return;
     }
 
@@ -198,7 +199,7 @@
   </p>
 
   {#if messages.length === 0}
-    <SuggestedQuestions questions={suggestions} disabled={isAsking || !teamState} onChoose={(nextQuestion) => submit(nextQuestion)} />
+    <SuggestedQuestions questions={suggestions} disabled={isAsking || !teamState || !providerReady} onChoose={(nextQuestion) => submit(nextQuestion)} />
   {:else}
     <div class="conversation" aria-live="polite">
       {#each messages as message (message.id)}
@@ -208,7 +209,7 @@
     {#if copied}
       <p class="copy-note">Copied response.</p>
     {/if}
-    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={isAsking || !teamState} onChoose={(nextQuestion) => submit(nextQuestion)} />
+    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={isAsking || !teamState || !providerReady} onChoose={(nextQuestion) => submit(nextQuestion)} />
   {/if}
 
   <textarea
@@ -217,9 +218,9 @@
     onkeydown={handleKeydown}
     rows="4"
     placeholder="Ask about starters, weak spots, bench depth, or post-draft priorities."
-    disabled={!teamState}
+    disabled={!teamState || !providerReady}
   ></textarea>
-  <button class="btn btn-primary btn-block" type="button" disabled={isAsking || !question.trim() || !teamState} onclick={() => submit()}>
+  <button class="btn btn-primary btn-block" type="button" disabled={isAsking || !question.trim() || !teamState || !providerReady} onclick={() => submit()}>
     {#if isAsking}<span class="spinner"></span>{/if}
     {isAsking ? "Asking" : "Ask team manager"}
   </button>
@@ -288,8 +289,6 @@
     color: var(--danger);
   }
 </style>
-
-
 
 
 

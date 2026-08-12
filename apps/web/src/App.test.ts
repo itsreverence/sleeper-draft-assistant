@@ -112,6 +112,135 @@ describe("App draft lifecycle", () => {
     });
   });
 
+  it("latest preference update wins and stale recommendation responses do not overwrite it", async () => {
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const pinnedRecommendation = apiMock.deferRecommendation({
+      draftId: "draft-1",
+      userRosterId: "slot-3",
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    });
+    const fadedRecommendation = apiMock.deferRecommendation({
+      draftId: "draft-1",
+      userRosterId: "slot-3",
+      recommendationPreferences: {
+        pinnedPlayerIds: [],
+        fadedPlayerIds: [PIN_PLAYER_ID],
+        excludedPlayerIds: [],
+      },
+    });
+
+    render(App);
+
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+    expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: A.J. Brown");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Prioritize De'Von Achane" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Deprioritize De'Von Achane" }));
+
+    fadedRecommendation.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [],
+        fadedPlayerIds: [PIN_PLAYER_ID],
+        excludedPlayerIds: [],
+      },
+    }).recommendation);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: A.J. Brown");
+    });
+
+    pinnedRecommendation.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }).recommendation);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
+    });
+    expect(window.localStorage.getItem("playerPreferences:draft-1")).toBe(JSON.stringify({
+      [PIN_PLAYER_ID]: "fade",
+    }));
+  });
+
+  it("stale prior-draft recommendation responses do not overwrite the next active draft", async () => {
+    const firstDraft = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const secondDraft = apiMock.deferDraftState({
+      draftId: "draft-2",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const pinnedRecommendation = apiMock.deferRecommendation({
+      draftId: "draft-1",
+      userRosterId: "slot-3",
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    });
+
+    render(App);
+
+    await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
+    await fireEvent.click(screen.getByRole("button", { name: "Prioritize De'Von Achane" }));
+    await fireEvent.click(screen.getByTitle("Switch league or draft"));
+    await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);
+    await fireEvent.input(screen.getAllByPlaceholderText("Paste a draft ID")[0]!, {
+      target: { value: "draft-2" },
+    });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Load draft" })[0]!);
+
+    secondDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-2",
+      name: "Sleeper Beta Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    expect(await screen.findByText("Sleeper Beta Draft")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: A.J. Brown");
+    });
+
+    pinnedRecommendation.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }).recommendation);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
+    });
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+    expect(apiMock.getOpenEventSources()[0]?.draftId).toBe("draft-2");
+  });
+
   it("exactly one EventSource and teardown closes", async () => {
     const firstDraft = apiMock.deferDraftState({
       draftId: "draft-1",
@@ -146,6 +275,27 @@ describe("App draft lifecycle", () => {
     });
 
     const reconnectSource = apiMock.getOpenEventSources()[0]!;
+    reconnectSource.emit("snapshot", createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }));
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: De'Von Achane");
+    });
+    firstSource.emit("snapshot", createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+    await waitFor(() => {
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: De'Von Achane");
+    });
 
     await fireEvent.click(screen.getByTitle("Switch league or draft"));
     await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);

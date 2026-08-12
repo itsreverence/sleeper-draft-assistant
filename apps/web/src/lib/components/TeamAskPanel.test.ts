@@ -36,4 +36,35 @@ describe("Team ask panel", () => {
     });
     expect(await screen.findByText("Start your best running backs first.")).toBeTruthy();
   });
+
+  it("noop provider stays disabled even when configured", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const onAsk = vi.fn(async () => "This should stay unavailable.");
+
+    render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      teamNeeds: teamPayload.needs,
+      lineupSummary: teamPayload.lineupSummary,
+      weekContext: teamPayload.weekContext,
+      waiverSummary: teamPayload.waiverSummary,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "noop",
+        label: "No AI provider",
+        configured: true,
+        availability: "disabled",
+      }),
+      onAsk,
+    });
+
+    const textbox = screen.getByPlaceholderText("Ask about starters, weak spots, bench depth, or post-draft priorities.");
+    const button = screen.getByRole("button", { name: "Ask team manager" });
+
+    expect(screen.getByText("No AI provider")).toBeTruthy();
+    expect(textbox.getAttribute("disabled")).not.toBeNull();
+    expect(button.getAttribute("disabled")).not.toBeNull();
+
+    await fireEvent.click(button);
+    expect(onAsk).not.toHaveBeenCalled();
+  });
 });

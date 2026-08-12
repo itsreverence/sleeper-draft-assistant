@@ -164,13 +164,40 @@ export type ReadinessItem = {
   tone: Tone;
 };
 
+export type AiProviderAvailability = "disabled" | "available" | "unavailable";
+
 export type AiProviderStatus = {
   id: AppSettings["aiProvider"];
   label: string;
   configured: boolean;
+  availability?: AiProviderAvailability;
   experimental?: boolean;
   detail?: string;
 };
+
+export function aiProviderAvailability(status: AiProviderStatus | null | undefined): AiProviderAvailability {
+  if (status?.availability) {
+    return status.availability;
+  }
+  if (status?.id === "noop") {
+    return "disabled";
+  }
+  return status?.configured ? "available" : "unavailable";
+}
+
+export function isAiProviderAvailable(status: AiProviderStatus | null | undefined): boolean {
+  return aiProviderAvailability(status) === "available";
+}
+
+export function conversationalAiProviderStatus(status: AiProviderStatus | null | undefined): AiProviderStatus | null {
+  if (!status) {
+    return null;
+  }
+  return {
+    ...status,
+    configured: isAiProviderAvailable(status),
+  };
+}
 
 export type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 

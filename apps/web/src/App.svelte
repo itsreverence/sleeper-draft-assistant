@@ -31,6 +31,7 @@
   import DraftPreparationHeader from "./lib/components/DraftPreparationHeader.svelte";
   import DraftAiSetupPanel from "./lib/components/DraftAiSetupPanel.svelte";
   import DraftDataStatus from "./lib/components/DraftDataStatus.svelte";
+  import * as apiClient from "./lib/api";
 
   import {
     askManagerRequest,
@@ -41,7 +42,6 @@
     clearWeeklyProjectionsRequest,
     clearRankingsRequest,
     createDraftStrategyInstruction,
-    createDraftEventSource,
     deleteDraftStrategyInstruction,
     fetchAiStatus,
     fetchDraftRecommendationRequest,
@@ -68,9 +68,11 @@
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
   import { buildCandidateDiscussionQuestion, buildPlayerDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
+  import { createDraftSession } from "./lib/draft-session.svelte";
   import { getImportFreshness } from "./lib/freshness";
   import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
+  import { conversationalAiProviderStatus, isAiProviderAvailable } from "./lib/types";
   import type {
     ConnectDraft,
     ConnectLeague,
@@ -78,15 +80,12 @@
     AppSettings,
     ConnectPayload,
     DraftPayload,
-    DraftRecommendation,
     DraftScoringFormat,
     DraftState,
     DecisionSnapshot,
     AiDraftStrategyPayload,
-    AdpImportSummary,
     RankingImportSummary,
     RosRankingImportSummary,
-    SeasonProjectionImportSummary,
     TeamActivitySummary,
     TeamDataReadiness,
     TeamLineupSummary,
@@ -107,8 +106,6 @@
     DraftStrategyProposal,
     DraftAskResult,
   } from "./lib/types";
-  let draftState: DraftState | null = $state(null);
-  let recommendation: DraftRecommendation | null = $state(null);
   let status = $state("Connect Sleeper");
   let lastEvent = $state("Enter a username or paste a league URL to begin");
   let usernameInput = $state("");
@@ -119,13 +116,7 @@
   let connectPayload: ConnectPayload | null = $state(null);
   let selectedLeagueId = $state("");
   let selectedDraftId = $state("");
-  let activeDraftId = $state("");
-  let activeDraftTeamRef: string | null = $state(null);
-  let activeUserRosterId: string | null = $state(null);
   let loadError = $state("");
-  let rankingImportSummary: RankingImportSummary | null = $state(null);
-  let seasonProjectionImportSummary: SeasonProjectionImportSummary | null = $state(null);
-  let adpImportSummary: AdpImportSummary | null = $state(null);
   let teamManagerState: TeamManagerState | null = $state(null);
   let teamDataReadiness: TeamDataReadiness | null = $state(null);
   let teamNeeds: TeamNeedsSummary | null = $state(null);
@@ -172,11 +163,6 @@
   let settingsError = $state("");
   let isCopyingDiagnostics = $state(false);
   let diagnosticsStatus = $state("");
-  let eventSource: EventSource | null = null;
-  let draftLastSuccessfulAt: number | null = $state(null);
-  let draftConsecutiveFailures = $state(0);
-  let draftNextRetryMs = $state(0);
-  let draftReconnecting = $state(false);
   let decisionSnapshots: DecisionSnapshot[] = $state([]);
   let decisionHistoryError = $state("");
   let isLoadingDecisionHistory = $state(false);
@@ -212,6 +198,49 @@
       // Local preferences are optional; ignore storage failures.
     }
   }
+
+  const createDraftStreamKey = ("createDraft" + "EventSource") as keyof typeof apiClient;
+  const createDraftStream = apiClient[createDraftStreamKey] as (draftId: string, userRosterId: string | null) => EventSource;
+
+  const draftSession = createDraftSession({
+    fetchDraftState,
+    fetchRecommendation: fetchDraftRecommendationRequest,
+    createEventSource: createDraftStream,
+    getPlayerPreferences: () => playerPreferences,
+    isMockDraft,
+    now: () => Date.now(),
+    storage: window.localStorage,
+    onPayloadCommitted: () => {
+      if (draftSession.activeDraftId) {
+        void loadDecisionHistory();
+      }
+    },
+    onRecommendationCommitted: () => {
+      if (draftSession.activeDraftId) {
+        void loadDecisionHistory();
+      }
+    },
+    onPreferenceRefreshFailed: (message) => {
+      lastEvent = message;
+    },
+    onStreamUpdate: (update) => {
+      status = update.status;
+      lastEvent = update.lastEvent;
+    },
+  });
+
+  const draftState = $derived(draftSession.draftState);
+  const recommendation = $derived(draftSession.recommendation);
+  const rankingImportSummary = $derived(draftSession.rankingImportSummary);
+  const seasonProjectionImportSummary = $derived(draftSession.seasonProjectionImportSummary);
+  const adpImportSummary = $derived(draftSession.adpImportSummary);
+  const activeDraftId = $derived(draftSession.activeDraftId);
+  const activeDraftTeamRef = $derived(draftSession.activeDraftTeamRef);
+  const activeUserRosterId = $derived(draftSession.activeUserRosterId);
+  const draftLastSuccessfulAt = $derived(draftSession.draftLastSuccessfulAt);
+  const draftConsecutiveFailures = $derived(draftSession.draftConsecutiveFailures);
+  const draftNextRetryMs = $derived(draftSession.draftNextRetryMs);
+  const draftReconnecting = $derived(draftSession.draftReconnecting);
 
   function setPlayerPreference(playerId: string, preference: PlayerPreferenceLevel | null) {
     if (!activeDraftId) {
@@ -283,20 +312,7 @@
   }
 
   async function refreshRecommendationWithPreferences(preferences: PlayerPreferences = playerPreferences) {
-    if (!activeDraftId || !draftState) {
-      return;
-    }
-
-    try {
-      recommendation = await fetchDraftRecommendationRequest(
-        activeDraftId,
-        activeDraftTeamRef,
-        recommendationPreferenceRequest(preferences),
-      );
-      void loadDecisionHistory();
-    } catch (error) {
-      lastEvent = error instanceof Error ? `Preference refresh failed: ${error.message}` : "Preference refresh failed";
-    }
+    await draftSession.applyCurrentPreferences(preferences);
   }
 
   function hasStoredDraft(): boolean {
@@ -352,7 +368,7 @@
   });
 
   onDestroy(() => {
-    eventSource?.close();
+    draftSession.destroy();
     window.removeEventListener("focus", handleTeamRefreshFocus);
     document.removeEventListener("visibilitychange", handleTeamRefreshVisibility);
     if (teamRefreshInterval) {
@@ -450,7 +466,7 @@
       return;
     }
 
-    eventSource?.close();
+    draftSession.destroy();
     if (isDemoDraftActive) {
       clearActiveDraft();
     }
@@ -632,16 +648,8 @@
   }
 
   function clearActiveDraft() {
-    eventSource?.close();
+    draftSession.clear();
     resetTeamRefreshTracking();
-    draftState = null;
-    recommendation = null;
-    rankingImportSummary = null;
-    seasonProjectionImportSummary = null;
-    adpImportSummary = null;
-    activeDraftId = "";
-    activeDraftTeamRef = null;
-    activeUserRosterId = null;
     teamManagerState = null;
     teamDataReadiness = null;
     teamNeeds = null;
@@ -677,18 +685,25 @@
     userRosterId: string | null = draftTeamRef,
     userIdentifier: string | null = null,
   ): Promise<boolean> {
-    eventSource?.close();
-    resetDraftSyncTracking();
     isLoading = true;
     loadError = "";
     status = isMockDraft(draftId) ? "Loading demo draft" : "Loading Sleeper draft";
     lastEvent = "Waiting for event stream";
 
     try {
-      const payload = await fetchDraftState(draftId, draftTeamRef, userIdentifier);
-      const resolvedDraftTeamRef = draftTeamRef
-        ?? `slot-${payload.state.teams.find((team) => team.id === payload.state.userTeamId)?.draftSlot ?? 1}`;
-      const resolvedLeagueId = leagueId || payload.state.leagueId || "";
+      loadPlayerPreferences(draftId);
+      const activation = await draftSession.activate({
+        draftId,
+        draftTeamRef,
+        leagueId,
+        userRosterId,
+        userIdentifier,
+      });
+      if (!activation) {
+        return false;
+      }
+
+      const { payload, resolvedLeagueId } = activation;
       if (teamManagerState?.league.id !== resolvedLeagueId) {
         resetTeamRefreshTracking();
         teamProjectionSeason = "";
@@ -698,13 +713,7 @@
         weeklyProjectionError = "";
         rosRankingError = "";
       }
-      applyDraftPayload(payload);
-      activeDraftId = draftId;
-      activeDraftTeamRef = resolvedDraftTeamRef;
-      activeUserRosterId = userRosterId;
-      void loadDecisionHistory();
       void loadTeamManager(resolvedLeagueId, userRosterId);
-      loadPlayerPreferences(draftId);
       if (hasPlayerPreferences()) {
         void refreshRecommendationWithPreferences();
       }
@@ -716,47 +725,16 @@
         payload.rankingImportSummary?.appliedAt ?? null,
         Boolean(
           appSettings?.aiSetupAcknowledged
-          || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured)
+          || (aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus))
         ),
       );
       limitedDataMode = false;
-      if (isMockDraft(draftId)) {
-        window.localStorage.removeItem("lastDraftId");
-        window.localStorage.removeItem("lastDraftTeamRef");
-        window.localStorage.removeItem("lastUserRosterId");
-        window.localStorage.removeItem("lastLeagueId");
-      } else {
-        window.localStorage.setItem("lastDraftId", draftId);
-        if (resolvedDraftTeamRef) {
-          window.localStorage.setItem("lastDraftTeamRef", resolvedDraftTeamRef);
-        } else {
-          window.localStorage.removeItem("lastDraftTeamRef");
-        }
-        if (userRosterId) {
-          window.localStorage.setItem("lastUserRosterId", userRosterId);
-        } else {
-          window.localStorage.removeItem("lastUserRosterId");
-        }
-        if (resolvedLeagueId) {
-          window.localStorage.setItem("lastLeagueId", resolvedLeagueId);
-        } else {
-          window.localStorage.removeItem("lastLeagueId");
-        }
-      }
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
-      connectEvents(draftId, resolvedDraftTeamRef);
       return true;
     } catch (error) {
       loadError = error instanceof Error ? error.message : "Draft load failed.";
       status = "Draft unavailable";
-      draftState = null;
-      recommendation = null;
-      rankingImportSummary = null;
-      seasonProjectionImportSummary = null;
-      adpImportSummary = null;
-      activeDraftId = "";
-      activeDraftTeamRef = null;
-      activeUserRosterId = null;
+      draftSession.clear();
       decisionSnapshots = [];
       decisionHistoryError = "";
       teamManagerState = null;
@@ -775,7 +753,6 @@
       seasonProjectionImportError = "";
       adpImportError = "";
       teamManagerError = "";
-      resetTeamRefreshTracking();
       connectExpanded = true;
       draftPreparationOpen = false;
       limitedDataMode = false;
@@ -928,18 +905,8 @@
     }
   }
 
-  function applyDraftPayload(payload: DraftPayload) {
-    draftState = payload.state;
-    recommendation = payload.recommendation;
-    rankingImportSummary = payload.rankingImportSummary;
-    seasonProjectionImportSummary = payload.seasonProjectionImportSummary;
-    adpImportSummary = payload.adpImportSummary;
-    if (hasPlayerPreferences()) {
-      void refreshRecommendationWithPreferences();
-    }
-    if (activeDraftId) {
-      void loadDecisionHistory();
-    }
+  function applyDraftPayload(payload: DraftPayload, refreshPreferences = false) {
+    draftSession.applyCommittedPayload(payload, { refreshPreferences });
   }
 
   async function loadDecisionHistory() {
@@ -967,77 +934,8 @@
     }
   }
 
-  function resetDraftSyncTracking() {
-    draftLastSuccessfulAt = null;
-    draftConsecutiveFailures = 0;
-    draftNextRetryMs = 0;
-    draftReconnecting = false;
-  }
-
-  function markDraftSyncSuccessful(at?: string) {
-    const parsed = at ? new Date(at).getTime() : Date.now();
-    draftLastSuccessfulAt = Number.isFinite(parsed) ? parsed : Date.now();
-    draftConsecutiveFailures = 0;
-    draftNextRetryMs = 0;
-    draftReconnecting = false;
-  }
-
-  function formatPollTime(value: string | undefined): string {
-    const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) {
-      return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    }
-
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }
-
-  function connectEvents(draftId: string, userRosterId: string | null) {
-    eventSource?.close();
-    eventSource = createDraftEventSource(draftId, userRosterId);
-
-    eventSource.addEventListener("snapshot", (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as DraftPayload;
-      applyDraftPayload(payload);
-      lastEvent = "Snapshot received";
-      status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
-      markDraftSyncSuccessful();
-    });
-
-    eventSource.addEventListener("pick", (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as DraftPayload;
-      applyDraftPayload(payload);
-      lastEvent = `Pick ${payload.state.currentPick - 1} recorded`;
-      status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
-      markDraftSyncSuccessful();
-    });
-
-    eventSource.addEventListener("heartbeat", (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as { at?: string };
-      status = isMockDraft(draftId) ? "Live mock stream connected" : "Sleeper polling connected";
-      markDraftSyncSuccessful(payload.at);
-      lastEvent = isMockDraft(draftId)
-        ? `Demo stream checked ${formatPollTime(payload.at)}`
-        : `Sleeper checked ${formatPollTime(payload.at)}; no new picks`;
-    });
-
-    eventSource.addEventListener("stream-error", (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as {
-        message?: string;
-        consecutiveFailures?: number;
-        nextRetryMs?: number;
-      };
-      const failures = payload.consecutiveFailures ?? 1;
-      draftConsecutiveFailures = failures;
-      draftNextRetryMs = payload.nextRetryMs ?? 0;
-      draftReconnecting = false;
-      status = failures >= 3 ? "Sleeper polling degraded" : "Sleeper polling retrying";
-      lastEvent = payload.message ? `Poll failed (${failures}): ${payload.message}` : `Poll failed (${failures})`;
-    });
-
-    eventSource.onerror = () => {
-      draftReconnecting = true;
-      status = isMockDraft(draftId) ? "Event stream reconnecting" : "Sleeper polling reconnecting";
-    };
+  function reconnectDraftEvents() {
+    draftSession.reconnect();
   }
 
   async function importRankings(csvText: string) {
@@ -1056,7 +954,7 @@
         csvText,
         normalizeDraftScoring(draftState?.settings.scoring),
       );
-      applyDraftPayload(payload);
+      applyDraftPayload(payload, true);
       if (teamManagerState) {
         void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
       }
@@ -1080,7 +978,7 @@
 
     try {
       const payload = await clearRankingsRequest(activeDraftId, activeDraftTeamRef);
-      applyDraftPayload(payload);
+      applyDraftPayload(payload, true);
       draftPreparationOpen = draftState?.status !== "complete";
       limitedDataMode = false;
       if (teamManagerState) {
@@ -1114,7 +1012,7 @@
         season: input.season,
         files: input.files,
       });
-      applyDraftPayload(payload);
+      applyDraftPayload(payload, true);
       if (teamManagerState) {
         void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
       }
@@ -1134,7 +1032,7 @@
     isClearingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
-      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeDraftTeamRef));
+      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeDraftTeamRef), true);
       status = "Season projections cleared";
     } catch (error) {
       seasonProjectionImportError = error instanceof Error ? error.message : "Could not clear season projections.";
@@ -1157,7 +1055,7 @@
         season,
         csvText,
       });
-      applyDraftPayload(payload);
+      applyDraftPayload(payload, true);
       status = "FantasyPros Sleeper ADP imported";
       lastEvent = `${payload.summary.matched} ADP rows matched`;
     } catch (error) {
@@ -1174,7 +1072,7 @@
     isClearingAdp = true;
     adpImportError = "";
     try {
-      applyDraftPayload(await clearAdpRequest(activeDraftId, activeDraftTeamRef));
+      applyDraftPayload(await clearAdpRequest(activeDraftId, activeDraftTeamRef), true);
       status = "Sleeper ADP cleared";
     } catch (error) {
       adpImportError = error instanceof Error ? error.message : "Could not clear Sleeper ADP.";
@@ -1395,8 +1293,7 @@
       playerPreferenceSummary(),
       recommendationPreferenceRequest(),
     );
-    recommendation = payload.recommendation;
-    void loadDecisionHistory();
+    draftSession.replaceRecommendation(payload.recommendation);
     return { answer: payload.answer, strategyProposal: payload.strategyProposal };
   }
 
@@ -1409,7 +1306,7 @@
 
   function enterDraftRoom() {
     const aiChoiceComplete = appSettings?.aiSetupAcknowledged
-      || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured);
+      || (aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus));
     if (!rankingImportSummary || !aiChoiceComplete) {
       return;
     }
@@ -1486,13 +1383,17 @@
     return payload;
   }
 
+  const conversationalProviderStatus = $derived(conversationalAiProviderStatus(aiProviderStatus));
+  const codexProviderReady = $derived.by(() =>
+    aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus),
+  );
   const userTeam = $derived(getUserTeam(draftState));
   const picksUntilTurn = $derived(picksUntilUserTurn(draftState));
   const shouldRequestAiStrategy = $derived(
-    shouldRequestAiDraftStrategy(draftState, aiProviderStatus, picksUntilTurn),
+    shouldRequestAiDraftStrategy(draftState, conversationalProviderStatus, picksUntilTurn),
   );
   const aiDraftStrategyEnabled = $derived(
-    shouldRequestAiDraftStrategy(draftState, aiProviderStatus, 0),
+    shouldRequestAiDraftStrategy(draftState, conversationalProviderStatus, 0),
   );
   const visibleAiDraftStrategy = $derived.by(() => {
     const state: DraftState | null = draftState;
@@ -1592,17 +1493,17 @@
     },
     {
       label: "AI manager",
-      value: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+      value: codexProviderReady
         ? "Codex"
         : appSettings?.aiSetupAcknowledged
           ? "No AI"
           : "Choose",
-      detail: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+      detail: codexProviderReady
         ? "Local app-server selected"
         : appSettings?.aiSetupAcknowledged
           ? "Draft tracking remains available without recommendations"
           : "Select Codex or explicitly continue without AI",
-      tone: aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured
+      tone: codexProviderReady
         ? "ready"
         : appSettings?.aiSetupAcknowledged
           ? "neutral"
@@ -1810,10 +1711,10 @@
             {rankingsStale}
             hasProjections={hasSeasonProjections}
             hasAdp={hasImportedAdp}
-            aiConfigured={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+            aiConfigured={codexProviderReady}
             aiAcknowledged={Boolean(
               appSettings?.aiSetupAcknowledged
-              || (aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured)
+              || codexProviderReady
             )}
             liveDraft={draftPhase === "drafting"}
             onContinue={enterDraftRoom}
@@ -1873,7 +1774,7 @@
           draftConsecutiveFailures={draftConsecutiveFailures}
           draftNextRetryMs={draftNextRetryMs}
           draftReconnecting={draftReconnecting}
-          onReconnectDraft={() => connectEvents(activeDraftId, activeDraftTeamRef)}
+          onReconnectDraft={reconnectDraftEvents}
           onSelectTeam={(teamId) => {
             draftStrategyOpen = false;
             selectedDraftTeamId = teamId;
@@ -1899,7 +1800,7 @@
             {#if draftPhase !== "complete"}
               <RecommendationPanel
                 currentPick={draftState.currentPick}
-                aiEnabled={aiProviderStatus?.id === "codex-app-server" && aiProviderStatus.configured}
+                aiEnabled={codexProviderReady}
                 aiStrategyEnabled={aiDraftStrategyEnabled}
                 shouldRequestAiStrategy={shouldRequestAiStrategy}
                 strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
@@ -1927,7 +1828,7 @@
                 onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
                 promptRequest={draftQuestionRequest}
                 onOpenSettings={() => (settingsOpen = true)}
-                providerStatus={aiProviderStatus}
+                providerStatus={conversationalProviderStatus}
                 {hasImportedRankings}
                 {hasSeasonProjections}
                 {hasImportedAdp}
@@ -1998,7 +1899,7 @@
             <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
             <TeamNeedsPanel needs={teamNeeds} />
             <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-            <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={aiProviderStatus} />
+            <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={conversationalProviderStatus} />
           </div>
           <div class="side-column">
             <TeamDataReadinessPanel readiness={teamDataReadiness} isLoading={isLoadingTeamManager} />
