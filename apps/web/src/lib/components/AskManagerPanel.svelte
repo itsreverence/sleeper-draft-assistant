@@ -14,6 +14,7 @@
     hasImportedAdp = false,
     showPlaceholderWarning = false,
     draftState = null,
+    draftIdentity = "",
     recommendation = null,
     onOpenSettings,
     promptRequest = null,
@@ -26,6 +27,7 @@
     hasImportedAdp?: boolean;
     showPlaceholderWarning?: boolean;
     draftState?: DraftState | null;
+    draftIdentity?: string;
     recommendation?: DraftRecommendation | null;
     onOpenSettings?: () => void;
     promptRequest?: { id: number; question: string } | null;
@@ -39,7 +41,7 @@
   let lastQuestion = $state("");
   let expanded = $state(false);
   let conversationPick: number | null = $state(null);
-  let conversationDraftId = $state("");
+  let conversationDraftIdentity = $state("");
   let askRequestSequence = 0;
   let activeAskRequestId = 0;
   let handledPromptRequestId = 0;
@@ -65,7 +67,7 @@
   }
 
   function currentDraftIdentity(): string {
-    return draftState?.id ?? "";
+    return draftIdentity;
   }
 
   function invalidateAskRequests() {
@@ -170,11 +172,11 @@
   }
 
   $effect(() => {
-    const draftId = draftState?.id ?? "";
-    if (conversationDraftId && draftId !== conversationDraftId) {
+    const nextDraftIdentity = currentDraftIdentity();
+    if (conversationDraftIdentity && nextDraftIdentity !== conversationDraftIdentity) {
       clearConversation(true);
     }
-    conversationDraftId = draftId;
+    conversationDraftIdentity = nextDraftIdentity;
   });
 
   $effect(() => {

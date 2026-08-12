@@ -463,6 +463,64 @@ describe("App draft lifecycle", () => {
     });
   });
 
+  it("rankings import then clear overlap leaves no stuck busy flag and the stale import cannot win", async () => {
+    apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+
+    const importPayload = createDeferred<Awaited<ReturnType<typeof apiMock.importRankingsRequest>>>();
+    const clearPayload = createDeferred<ReturnType<typeof createDraftPayloadFixture>>();
+    apiMock.importRankingsRequest.mockImplementationOnce(async () => await importPayload.promise);
+    apiMock.clearRankingsRequest.mockImplementationOnce(async () => await clearPayload.promise);
+
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    const view = render(App);
+
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+    await uploadDraftDataCsv(view.container, 0, "rankings.csv", "name,team\nPlayer,ABC");
+
+    await waitFor(() => {
+      expect(apiMock.importRankingsRequest).toHaveBeenCalledTimes(1);
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    const clearedPayload = createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    });
+    clearPayload.resolve({
+      ...clearedPayload,
+      rankingImportSummary: null,
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Upload CSV").length).toBeGreaterThan(0);
+      expect(screen.queryAllByText("Importing")).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+    });
+
+    const staleImportPayload = createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    });
+    importPayload.resolve({
+      ...staleImportPayload,
+      summary: staleImportPayload.rankingImportSummary!,
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Upload CSV").length).toBeGreaterThan(0);
+      expect(screen.queryAllByText("Importing")).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+    });
+  });
+
   it("a stale ask response does not overwrite the next active draft recommendation", async () => {
     apiMock.aiStatus = {
       id: "codex-app-server",

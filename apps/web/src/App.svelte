@@ -237,6 +237,7 @@
   const adpImportSummary = $derived(draftSession.adpImportSummary);
   const activeDraftId = $derived(draftSession.activeDraftId);
   const activeDraftTeamRef = $derived(draftSession.activeDraftTeamRef);
+  const activeDraftIdentity = $derived(activeDraftId ? `${activeDraftId}:${activeDraftTeamRef ?? ""}` : "");
   const activeUserRosterId = $derived(draftSession.activeUserRosterId);
   const draftLastSuccessfulAt = $derived(draftSession.draftLastSuccessfulAt);
   const draftConsecutiveFailures = $derived(draftSession.draftConsecutiveFailures);
@@ -264,6 +265,8 @@
   }
 
   function beginRankingMutation(): number {
+    isImportingRankings = false;
+    isClearingRankings = false;
     return ++rankingMutationRequestId;
   }
 
@@ -272,6 +275,8 @@
   }
 
   function beginSeasonProjectionMutation(): number {
+    isImportingSeasonProjections = false;
+    isClearingSeasonProjections = false;
     return ++seasonProjectionMutationRequestId;
   }
 
@@ -280,6 +285,8 @@
   }
 
   function beginAdpMutation(): number {
+    isImportingAdp = false;
+    isClearingAdp = false;
     return ++adpMutationRequestId;
   }
 
@@ -413,7 +420,7 @@
   });
 
   onDestroy(() => {
-    draftSession.disconnect();
+    draftSession.destroy();
     window.removeEventListener("focus", handleTeamRefreshFocus);
     document.removeEventListener("visibilitychange", handleTeamRefreshVisibility);
     if (teamRefreshInterval) {
@@ -511,7 +518,7 @@
       return;
     }
 
-    draftSession.destroy();
+    draftSession.disconnect();
     if (isDemoDraftActive) {
       clearActiveDraft();
     }
@@ -2007,6 +2014,7 @@
                 {hasImportedAdp}
                 showPlaceholderWarning={draftValuesIncomplete}
                 {draftState}
+                draftIdentity={activeDraftIdentity}
                 {recommendation}
               />
             {:else}

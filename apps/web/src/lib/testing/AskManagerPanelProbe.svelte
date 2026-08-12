@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { AiConversationMessage, DraftAskResult, DraftRecommendation, DraftState } from "../types";
+  import type { AiConversationMessage, DraftAskResult, DraftRecommendation } from "../types";
 
   let {
     recommendation = null,
-    draftState = null,
+    draftIdentity = "",
     onAsk,
   }: {
     recommendation?: DraftRecommendation | null;
-    draftState?: DraftState | null;
+    draftIdentity?: string;
     onAsk?: (question: string, conversationHistory: AiConversationMessage[]) => Promise<DraftAskResult>;
   } = $props();
 
@@ -16,10 +16,10 @@
   let lastError = $state("");
   let askRequestSequence = 0;
   let activeAskRequestId = 0;
-  let conversationDraftId = $state("");
+  let conversationDraftIdentity = $state("");
 
   function currentDraftIdentity(): string {
-    return draftState?.id ?? "";
+    return draftIdentity;
   }
 
   async function askQuestion() {
@@ -52,15 +52,15 @@
   }
 
   $effect(() => {
-    const draftId = currentDraftIdentity();
-    if (conversationDraftId && draftId !== conversationDraftId) {
+    const nextDraftIdentity = currentDraftIdentity();
+    if (conversationDraftIdentity && nextDraftIdentity !== conversationDraftIdentity) {
       askRequestSequence += 1;
       activeAskRequestId = 0;
       isAsking = false;
       lastAnswer = "";
       lastError = "";
     }
-    conversationDraftId = draftId;
+    conversationDraftIdentity = nextDraftIdentity;
   });
 </script>
 
