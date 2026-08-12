@@ -15,6 +15,7 @@ import type {
   DraftStrategyInstructionsPayload,
   DraftStrategyProposal,
   Position,
+  RankingImportPayload,
   RecommendationPreferenceRequest,
   RosRankingImportPayload,
   SeasonProjectionImportPayload,
@@ -110,18 +111,82 @@ class ApiMockController {
   readonly fetchAiDraftStrategyRequest = vi.fn(async () => unexpected("fetchAiDraftStrategyRequest"));
   readonly fetchDiagnostics = vi.fn(async () => unexpected("fetchDiagnostics"));
   readonly fetchSleeperConnect = vi.fn(async () => unexpected("fetchSleeperConnect"));
-  readonly importWeeklyProjectionFilesRequest = vi.fn(async () => unexpected("importWeeklyProjectionFilesRequest"));
-  readonly importAdpRequest = vi.fn(async () => unexpected("importAdpRequest"));
-  readonly importRankingsRequest = vi.fn(async () => unexpected("importRankingsRequest"));
-  readonly importRosRankingsRequest = vi.fn(async () => unexpected("importRosRankingsRequest"));
-  readonly importSeasonProjectionsRequest = vi.fn(async () => unexpected("importSeasonProjectionsRequest"));
-  readonly clearAdpRequest = vi.fn(async () => unexpected("clearAdpRequest"));
-  readonly clearRankingsRequest = vi.fn(async () => unexpected("clearRankingsRequest"));
-  readonly clearRosRankingsRequest = vi.fn(async () => unexpected("clearRosRankingsRequest"));
-  readonly clearSeasonProjectionsRequest = vi.fn(async () => unexpected("clearSeasonProjectionsRequest"));
-  readonly clearWeeklyProjectionsRequest = vi.fn(async () => unexpected("clearWeeklyProjectionsRequest"));
-  readonly askManagerRequest = vi.fn(async () => unexpected("askManagerRequest"));
-  readonly askTeamManagerRequest = vi.fn(async () => unexpected("askTeamManagerRequest"));
+  readonly importWeeklyProjectionFilesRequest = vi.fn<
+    (input: {
+      leagueId: string;
+      season: string;
+      week: number;
+      files: Array<{ position: Position; csvText: string }>;
+      userRosterId?: string | null;
+      draftId?: string | null;
+    }) => Promise<WeeklyProjectionImportPayload>
+  >(async () => unexpected("importWeeklyProjectionFilesRequest"));
+  readonly importAdpRequest = vi.fn<
+    (input: {
+      draftId: string;
+      userRosterId: string | null;
+      season: string;
+      csvText: string;
+    }) => Promise<AdpImportPayload>
+  >(async () => unexpected("importAdpRequest"));
+  readonly importRankingsRequest = vi.fn<
+    (draftId: string, userRosterId: string | null, csvText: string, scoring: string) => Promise<RankingImportPayload>
+  >(async () => unexpected("importRankingsRequest"));
+  readonly importRosRankingsRequest = vi.fn<
+    (input: {
+      leagueId: string;
+      season: string;
+      scoring: DraftScoringFormat;
+      csvText: string;
+      userRosterId?: string | null;
+      draftId?: string | null;
+      week?: number | null;
+    }) => Promise<RosRankingImportPayload>
+  >(async () => unexpected("importRosRankingsRequest"));
+  readonly importSeasonProjectionsRequest = vi.fn<
+    (input: {
+      draftId: string;
+      userRosterId: string | null;
+      season: string;
+      files: Array<{ position: Position; csvText: string }>;
+    }) => Promise<SeasonProjectionImportPayload>
+  >(async () => unexpected("importSeasonProjectionsRequest"));
+  readonly clearAdpRequest = vi.fn<(draftId: string, userRosterId: string | null) => Promise<DraftPayload>>(
+    async () => unexpected("clearAdpRequest"),
+  );
+  readonly clearRankingsRequest = vi.fn<(draftId: string, userRosterId: string | null) => Promise<DraftPayload>>(
+    async () => unexpected("clearRankingsRequest"),
+  );
+  readonly clearRosRankingsRequest = vi.fn<
+    (leagueId: string, season: string, scoring: DraftScoringFormat) => Promise<{ deleted: boolean }>
+  >(async () => unexpected("clearRosRankingsRequest"));
+  readonly clearSeasonProjectionsRequest = vi.fn<(draftId: string, userRosterId: string | null) => Promise<DraftPayload>>(
+    async () => unexpected("clearSeasonProjectionsRequest"),
+  );
+  readonly clearWeeklyProjectionsRequest = vi.fn<
+    (leagueId: string, season: string, week: number) => Promise<{ deleted: boolean }>
+  >(async () => unexpected("clearWeeklyProjectionsRequest"));
+  readonly askManagerRequest = vi.fn<
+    (
+      draftId: string,
+      userRosterId: string | null,
+      question: string,
+      conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>,
+      userPreferences?: { pinned: string[]; faded: string[]; excluded: string[] },
+      recommendationPreferences?: RecommendationPreferenceRequest,
+    ) => Promise<AskAnswerPayload>
+  >(async () => unexpected("askManagerRequest"));
+  readonly askTeamManagerRequest = vi.fn<
+    (
+      leagueId: string,
+      userRosterId: string | null,
+      draftId: string | null,
+      question: string,
+      conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>,
+      season?: string | null,
+      week?: number | null,
+    ) => Promise<TeamAskAnswerPayload>
+  >(async () => unexpected("askTeamManagerRequest"));
 
   reset() {
     this.settings = createAppSettingsFixture();

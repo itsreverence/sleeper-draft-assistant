@@ -11,6 +11,7 @@ vi.mock("./lib/components/AskManagerPanel.svelte", async () => ({
 
 import App from "./App.svelte";
 import { DEFAULT_LEAGUE_ID, PIN_PLAYER_ID, createDraftPayloadFixture } from "./lib/testing/draft-fixtures";
+import { createDeferred } from "./lib/testing/deferred";
 import { apiMock } from "./lib/testing/mock-api";
 
 describe("App draft lifecycle", () => {
@@ -323,10 +324,218 @@ describe("App draft lifecycle", () => {
     view.unmount();
     expect(activeSource.closeCalls).toBe(1);
   });
+
+  it("a stale activation failure does not clear a newer successful draft", async () => {
+    const firstDraft = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const secondDraft = apiMock.deferDraftState({
+      draftId: "draft-2",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    render(App);
+
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-1" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-2" },
+    });
+    await fireEvent.submit(getDirectDraftForm());
+
+    secondDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-2",
+      name: "Sleeper Beta Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    expect(await screen.findByText("Sleeper Beta Draft")).toBeTruthy();
+
+    firstDraft.reject(new Error("Draft 1 unavailable"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
+      expect(screen.queryByText("Draft 1 unavailable")).toBeNull();
+    });
+    expect(window.localStorage.getItem("lastDraftId")).toBe("draft-2");
+    expect(apiMock.getOpenEventSources()).toHaveLength(1);
+    expect(apiMock.getOpenEventSources()[0]?.draftId).toBe("draft-2");
+  });
+
+  it("a stale activation completion does not clear loading while a newer draft is still pending", async () => {
+    const firstDraft = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const secondDraft = apiMock.deferDraftState({
+      draftId: "draft-2",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    render(App);
+
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-1" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-2" },
+    });
+    await fireEvent.submit(getDirectDraftForm());
+
+    firstDraft.reject(new Error("Draft 1 unavailable"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Loading" })).toBeTruthy();
+      expect(screen.queryByText("Draft 1 unavailable")).toBeNull();
+    });
+
+    secondDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-2",
+      name: "Sleeper Beta Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    expect(await screen.findByText("Sleeper Beta Draft")).toBeTruthy();
+  });
+
+  it("a stale rankings import response does not overwrite the next active draft", async () => {
+    apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+
+    const importPayload = createDeferred<Awaited<ReturnType<typeof apiMock.importRankingsRequest>>>();
+    apiMock.importRankingsRequest.mockImplementationOnce(async () => await importPayload.promise);
+
+    const firstDraft = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const secondDraft = apiMock.deferDraftState({
+      draftId: "draft-2",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    const view = render(App);
+
+    await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
+    await uploadDraftDataCsv(view.container, 0, "rankings.csv", "name,team\nPlayer,ABC");
+
+    await fireEvent.click(screen.getByTitle("Switch league or draft"));
+    await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);
+    await fireEvent.input(screen.getAllByPlaceholderText("Paste a draft ID")[0]!, {
+      target: { value: "draft-2" },
+    });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Load draft" })[0]!);
+
+    secondDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-2",
+      name: "Sleeper Beta Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    expect(await screen.findByText("Sleeper Beta Draft")).toBeTruthy();
+
+    const staleImportPayload = createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    });
+    importPayload.resolve({
+      ...staleImportPayload,
+      summary: staleImportPayload.rankingImportSummary!,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
+      expect(screen.queryByText("Sleeper Alpha Draft")).toBeNull();
+    });
+  });
+
+  it("a stale ask response does not overwrite the next active draft recommendation", async () => {
+    apiMock.aiStatus = {
+      id: "codex-app-server",
+      label: "Codex",
+      configured: true,
+    };
+
+    const askPayload = createDeferred<{
+      answer: string;
+      recommendation: ReturnType<typeof createDraftPayloadFixture>["recommendation"];
+      strategyProposal: null;
+    }>();
+    apiMock.askManagerRequest.mockImplementationOnce(async () => await askPayload.promise);
+
+    const firstDraft = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const secondDraft = apiMock.deferDraftState({
+      draftId: "draft-2",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    render(App);
+
+    await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    await fireEvent.click(screen.getByTitle("Switch league or draft"));
+    await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);
+    await fireEvent.input(screen.getAllByPlaceholderText("Paste a draft ID")[0]!, {
+      target: { value: "draft-2" },
+    });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Load draft" })[0]!);
+
+    secondDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-2",
+      name: "Sleeper Beta Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    expect(await screen.findByText("Sleeper Beta Draft")).toBeTruthy();
+
+    askPayload.resolve({
+      answer: "Take Achane.",
+      recommendation: createDraftPayloadFixture({
+        draftId: "draft-1",
+        name: "Sleeper Alpha Draft",
+        leagueId: DEFAULT_LEAGUE_ID,
+        recommendationPreferences: {
+          pinnedPlayerIds: [PIN_PLAYER_ID],
+          fadedPlayerIds: [],
+          excludedPlayerIds: [],
+        },
+      }).recommendation,
+      strategyProposal: null,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
+      expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
+    });
+  });
 });
 
 async function openDirectDraftForm() {
   await fireEvent.click(screen.getByText("Paste a draft ID"));
+}
+
+function getDirectDraftForm(): HTMLFormElement {
+  return screen.getByPlaceholderText("Paste a draft ID").closest("form") as HTMLFormElement;
 }
 
 async function openAndResolveDraft(
@@ -345,4 +554,18 @@ async function openAndResolveDraft(
     leagueId: DEFAULT_LEAGUE_ID,
   }));
   expect(await screen.findByText(name)).toBeTruthy();
+}
+
+async function uploadDraftDataCsv(container: HTMLElement, inputIndex: number, fileName: string, contents: string) {
+  const fileInputs = Array.from(container.querySelectorAll('input[type="file"]'));
+  const input = fileInputs[inputIndex] as HTMLInputElement | undefined;
+  if (!input) {
+    throw new Error(`No file input found at index ${inputIndex}.`);
+  }
+
+  const file = new File([contents], fileName, { type: "text/csv" });
+  Object.defineProperty(file, "text", {
+    value: async () => contents,
+  });
+  await fireEvent.change(input, { target: { files: [file] } });
 }

@@ -48,6 +48,11 @@ type CommitPayloadOptions = {
   refreshPreferences?: boolean;
 };
 
+type DraftSessionGuard = {
+  epoch: number;
+  identity: string;
+};
+
 function recommendationPreferenceRequest(preferences: PlayerPreferences): RecommendationPreferenceRequest {
   const request: RecommendationPreferenceRequest = {
     pinnedPlayerIds: [],
@@ -141,6 +146,13 @@ export function createDraftSession({
     streamConnectionId += 1;
     eventSource?.close();
     eventSource = null;
+  }
+
+  function invalidateLifecycle() {
+    activationEpoch += 1;
+    preferenceRevision += 1;
+    pendingIdentity = "";
+    activeIdentity = "";
   }
 
   function writeDraftStorage(draftId: string, draftTeamRef: string | null, userRosterId: string | null, leagueId: string) {
@@ -256,7 +268,7 @@ export function createDraftSession({
       draftReconnecting = true;
       onStreamUpdate?.({
         status: isMockDraft(draftId) ? "Event stream reconnecting" : "Sleeper polling reconnecting",
-        lastEvent: draftState ? "Waiting for event stream" : "Waiting for event stream",
+        lastEvent: "Waiting for event stream",
       });
     };
   }
@@ -329,10 +341,7 @@ export function createDraftSession({
     activeDraftId = "";
     activeDraftTeamRef = null;
     activeUserRosterId = null;
-    activeIdentity = "";
-    pendingIdentity = "";
-    activationEpoch += 1;
-    preferenceRevision += 1;
+    invalidateLifecycle();
     resetDraftSyncTracking();
   }
 
@@ -378,6 +387,22 @@ export function createDraftSession({
 
   function destroy() {
     closeEventSource();
+    invalidateLifecycle();
+  }
+
+  function captureGuard(): DraftSessionGuard | null {
+    if (!activeDraftId || !activeIdentity) {
+      return null;
+    }
+
+    return {
+      epoch: activationEpoch,
+      identity: activeIdentity,
+    };
+  }
+
+  function isGuardCurrent(guard: DraftSessionGuard | null): guard is DraftSessionGuard {
+    return Boolean(guard && guard.epoch === activationEpoch && guard.identity !== "" && guard.identity === activeIdentity);
   }
 
   return {
@@ -421,6 +446,8 @@ export function createDraftSession({
     applyCommittedPayload,
     applyCurrentPreferences,
     clear,
+    captureGuard,
+    isGuardCurrent,
     reconnect,
     destroy,
     replaceRecommendation(nextRecommendation: DraftRecommendation) {
@@ -430,4 +457,4 @@ export function createDraftSession({
   };
 }
 
-export type { ActivateDraftInput, ActivateDraftResult, DraftSessionDependencies };
+export type { ActivateDraftInput, ActivateDraftResult, DraftSessionDependencies, DraftSessionGuard };

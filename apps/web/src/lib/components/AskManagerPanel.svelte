@@ -147,6 +147,7 @@
     const draftId = draftState?.id ?? "";
     if (conversationDraftId && draftId !== conversationDraftId) {
       clearConversation();
+      isAsking = false;
     }
     conversationDraftId = draftId;
   });
@@ -484,4 +485,3 @@
     }
   }
 </style>
-

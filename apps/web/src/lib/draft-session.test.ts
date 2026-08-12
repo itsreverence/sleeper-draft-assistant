@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createDraftSession } from "./draft-session.svelte";
-import { createDraftPayloadFixture, DEFAULT_LEAGUE_ID } from "./testing/draft-fixtures";
+import { createDraftPayloadFixture, DEFAULT_LEAGUE_ID, PIN_PLAYER_ID } from "./testing/draft-fixtures";
 import { createDeferred } from "./testing/deferred";
 import { FakeEventSource } from "./testing/fake-event-source";
 
@@ -88,5 +88,102 @@ describe("draft session", () => {
     expect(eventSources).toHaveLength(1);
     expect(eventSources[0]?.draftId).toBe("draft-2");
     expect(committedDraftIds).toEqual(["draft-2"]);
+  });
+
+  it("destroy invalidates a pending activation before it can commit state, storage, or stream ownership", async () => {
+    const pendingDraft = createDeferred<ReturnType<typeof createDraftPayloadFixture>>();
+    const eventSources: FakeEventSource[] = [];
+    const storage = {
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    const onPayloadCommitted = vi.fn();
+
+    const session = createDraftSession({
+      fetchDraftState: vi.fn(async () => await pendingDraft.promise),
+      fetchRecommendation: vi.fn(async () => {
+        throw new Error("No recommendation request expected.");
+      }),
+      createEventSource: (draftId, userRosterId) => {
+        const source = new FakeEventSource(draftId, userRosterId);
+        eventSources.push(source);
+        return source as unknown as EventSource;
+      },
+      getPlayerPreferences: () => ({}),
+      isMockDraft: () => false,
+      now: () => 1_000,
+      storage,
+      onPayloadCommitted,
+    });
+
+    const activation = session.activate({
+      draftId: "draft-1",
+      draftTeamRef: null,
+      leagueId: DEFAULT_LEAGUE_ID,
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    session.destroy();
+    pendingDraft.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    }));
+
+    await expect(activation).resolves.toBeNull();
+    expect(session.draftState).toBeNull();
+    expect(session.activeDraftId).toBe("");
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    expect(eventSources).toHaveLength(0);
+    expect(onPayloadCommitted).not.toHaveBeenCalled();
+  });
+
+  it("destroy invalidates a pending preference refresh before it can commit a recommendation", async () => {
+    const pendingRecommendation = createDeferred<ReturnType<typeof createDraftPayloadFixture>["recommendation"]>();
+    const onRecommendationCommitted = vi.fn();
+
+    const session = createDraftSession({
+      fetchDraftState: vi.fn(async () => createDraftPayloadFixture({
+        draftId: "draft-1",
+        name: "Sleeper Alpha Draft",
+        leagueId: DEFAULT_LEAGUE_ID,
+      })),
+      fetchRecommendation: vi.fn(async () => await pendingRecommendation.promise),
+      createEventSource: () => new FakeEventSource("draft-1", "slot-3") as unknown as EventSource,
+      getPlayerPreferences: () => ({ "p-achane": "pin" }),
+      isMockDraft: () => false,
+      now: () => 1_000,
+      storage: window.localStorage,
+      onRecommendationCommitted,
+    });
+
+    await session.activate({
+      draftId: "draft-1",
+      draftTeamRef: null,
+      leagueId: DEFAULT_LEAGUE_ID,
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    const originalHeadline = session.recommendation?.headline;
+    const refresh = session.applyCurrentPreferences({ "p-achane": "pin" });
+    session.destroy();
+
+    pendingRecommendation.resolve(createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+      recommendationPreferences: {
+        pinnedPlayerIds: [PIN_PLAYER_ID],
+        fadedPlayerIds: [],
+        excludedPlayerIds: [],
+      },
+    }).recommendation);
+
+    await expect(refresh).resolves.toBe(false);
+    expect(session.recommendation?.headline).toBe(originalHeadline);
+    expect(onRecommendationCommitted).not.toHaveBeenCalled();
   });
 });

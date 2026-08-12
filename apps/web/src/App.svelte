@@ -31,7 +31,6 @@
   import DraftPreparationHeader from "./lib/components/DraftPreparationHeader.svelte";
   import DraftAiSetupPanel from "./lib/components/DraftAiSetupPanel.svelte";
   import DraftDataStatus from "./lib/components/DraftDataStatus.svelte";
-  import * as apiClient from "./lib/api";
 
   import {
     askManagerRequest,
@@ -41,6 +40,7 @@
     clearSeasonProjectionsRequest,
     clearWeeklyProjectionsRequest,
     clearRankingsRequest,
+    createDraftEventSource as openDraftEventStream,
     createDraftStrategyInstruction,
     deleteDraftStrategyInstruction,
     fetchAiStatus,
@@ -68,7 +68,7 @@
     teamPayloadFingerprint,
   } from "./lib/team-refresh";
   import { buildCandidateDiscussionQuestion, buildPlayerDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
-  import { createDraftSession } from "./lib/draft-session.svelte";
+  import { createDraftSession, type DraftSessionGuard } from "./lib/draft-session.svelte";
   import { getImportFreshness } from "./lib/freshness";
   import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
@@ -142,6 +142,7 @@
   let teamLastChangedAt: number | null = $state(null);
   let teamPayloadHash = "";
   let teamManagerRequestId = 0;
+  let loadDraftRequestId = 0;
   let teamRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let playerPreferences: PlayerPreferences = $state({});
   let rankingImportError = $state("");
@@ -199,13 +200,10 @@
     }
   }
 
-  const createDraftStreamKey = ("createDraft" + "EventSource") as keyof typeof apiClient;
-  const createDraftStream = apiClient[createDraftStreamKey] as (draftId: string, userRosterId: string | null) => EventSource;
-
   const draftSession = createDraftSession({
     fetchDraftState,
     fetchRecommendation: fetchDraftRecommendationRequest,
-    createEventSource: createDraftStream,
+    createEventSource: openDraftEventStream,
     getPlayerPreferences: () => playerPreferences,
     isMockDraft,
     now: () => Date.now(),
@@ -241,6 +239,26 @@
   const draftConsecutiveFailures = $derived(draftSession.draftConsecutiveFailures);
   const draftNextRetryMs = $derived(draftSession.draftNextRetryMs);
   const draftReconnecting = $derived(draftSession.draftReconnecting);
+
+  function isCurrentLoadDraftRequest(requestId: number): boolean {
+    return requestId === loadDraftRequestId;
+  }
+
+  function resetDraftImportState() {
+    rankingImportError = "";
+    seasonProjectionImportError = "";
+    adpImportError = "";
+    isImportingRankings = false;
+    isClearingRankings = false;
+    isImportingSeasonProjections = false;
+    isClearingSeasonProjections = false;
+    isImportingAdp = false;
+    isClearingAdp = false;
+  }
+
+  function currentDraftGuard(): DraftSessionGuard | null {
+    return draftSession.captureGuard();
+  }
 
   function setPlayerPreference(playerId: string, preference: PlayerPreferenceLevel | null) {
     if (!activeDraftId) {
@@ -648,7 +666,9 @@
   }
 
   function clearActiveDraft() {
+    loadDraftRequestId += 1;
     draftSession.clear();
+    resetDraftImportState();
     resetTeamRefreshTracking();
     teamManagerState = null;
     teamDataReadiness = null;
@@ -666,6 +686,8 @@
     seasonProjectionImportError = "";
     adpImportError = "";
     teamManagerError = "";
+    loadError = "";
+    isLoading = false;
     connectExpanded = true;
     draftPreparationOpen = false;
     limitedDataMode = false;
@@ -685,8 +707,10 @@
     userRosterId: string | null = draftTeamRef,
     userIdentifier: string | null = null,
   ): Promise<boolean> {
+    const requestId = ++loadDraftRequestId;
     isLoading = true;
     loadError = "";
+    resetDraftImportState();
     status = isMockDraft(draftId) ? "Loading demo draft" : "Loading Sleeper draft";
     lastEvent = "Waiting for event stream";
 
@@ -699,7 +723,7 @@
         userRosterId,
         userIdentifier,
       });
-      if (!activation) {
+      if (!activation || !isCurrentLoadDraftRequest(requestId)) {
         return false;
       }
 
@@ -732,6 +756,9 @@
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
       return true;
     } catch (error) {
+      if (!isCurrentLoadDraftRequest(requestId)) {
+        return false;
+      }
       loadError = error instanceof Error ? error.message : "Draft load failed.";
       status = "Draft unavailable";
       draftSession.clear();
@@ -765,7 +792,9 @@
       window.localStorage.removeItem("lastLeagueId");
       return false;
     } finally {
-      isLoading = false;
+      if (isCurrentLoadDraftRequest(requestId)) {
+        isLoading = false;
+      }
     }
   }
 
@@ -944,26 +973,45 @@
       return;
     }
 
+    const guard = currentDraftGuard();
+    if (!guard) {
+      rankingImportError = "Open a draft before importing rankings.";
+      return;
+    }
+
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
+    const requestTeamLeagueId = teamManagerState?.league.id ?? null;
+    const requestUserRosterId = activeUserRosterId;
+    const requestScoring = normalizeDraftScoring(draftState?.settings.scoring);
     isImportingRankings = true;
     rankingImportError = "";
 
     try {
       const payload = await importRankingsRequest(
-        activeDraftId,
-        activeDraftTeamRef,
+        requestDraftId,
+        requestDraftTeamRef,
         csvText,
-        normalizeDraftScoring(draftState?.settings.scoring),
+        requestScoring,
       );
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       applyDraftPayload(payload, true);
-      if (teamManagerState) {
-        void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
+      if (requestTeamLeagueId) {
+        void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
       }
       status = "FantasyPros rankings imported";
       lastEvent = `${payload.summary.matched} matched from ${payload.summary.rowsParsed} rows`;
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       rankingImportError = error instanceof Error ? error.message : "Ranking import failed.";
     } finally {
-      isImportingRankings = false;
+      if (draftSession.isGuardCurrent(guard)) {
+        isImportingRankings = false;
+      }
     }
   }
 
@@ -973,25 +1021,43 @@
       return;
     }
 
+    const guard = currentDraftGuard();
+    if (!guard) {
+      rankingImportError = "Open a draft before clearing rankings.";
+      return;
+    }
+
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
+    const requestTeamLeagueId = teamManagerState?.league.id ?? null;
+    const requestUserRosterId = activeUserRosterId;
     isClearingRankings = true;
     rankingImportError = "";
 
     try {
-      const payload = await clearRankingsRequest(activeDraftId, activeDraftTeamRef);
+      const payload = await clearRankingsRequest(requestDraftId, requestDraftTeamRef);
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       applyDraftPayload(payload, true);
       draftPreparationOpen = draftState?.status !== "complete";
       limitedDataMode = false;
-      if (teamManagerState) {
-        void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
+      if (requestTeamLeagueId) {
+        void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
       }
       status = "FantasyPros rankings cleared";
       lastEvent = seasonProjectionImportSummary
         ? "Expert ranks cleared; season projections remain active"
         : "Recommendations returned to Sleeper placeholder values";
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       rankingImportError = error instanceof Error ? error.message : "Could not clear imported rankings.";
     } finally {
-      isClearingRankings = false;
+      if (draftSession.isGuardCurrent(guard)) {
+        isClearingRankings = false;
+      }
     }
   }
 
@@ -1003,25 +1069,42 @@
       seasonProjectionImportError = "Select a draft, season, and at least one projection CSV.";
       return;
     }
+    const guard = currentDraftGuard();
+    if (!guard) {
+      seasonProjectionImportError = "Open a draft before importing projections.";
+      return;
+    }
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
+    const requestTeamLeagueId = teamManagerState?.league.id ?? null;
+    const requestUserRosterId = activeUserRosterId;
     isImportingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
       const payload = await importSeasonProjectionsRequest({
-        draftId: activeDraftId,
-        userRosterId: activeDraftTeamRef,
+        draftId: requestDraftId,
+        userRosterId: requestDraftTeamRef,
         season: input.season,
         files: input.files,
       });
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       applyDraftPayload(payload, true);
-      if (teamManagerState) {
-        void loadTeamManager(teamManagerState.league.id, activeUserRosterId);
+      if (requestTeamLeagueId) {
+        void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
       }
       status = "FantasyPros season projections imported";
       lastEvent = `${payload.summary.matched} projection rows matched`;
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       seasonProjectionImportError = error instanceof Error ? error.message : "Season projection import failed.";
     } finally {
-      isImportingSeasonProjections = false;
+      if (draftSession.isGuardCurrent(guard)) {
+        isImportingSeasonProjections = false;
+      }
     }
   }
 
@@ -1029,15 +1112,30 @@
     if (!activeDraftId) {
       return;
     }
+    const guard = currentDraftGuard();
+    if (!guard) {
+      return;
+    }
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
     isClearingSeasonProjections = true;
     seasonProjectionImportError = "";
     try {
-      applyDraftPayload(await clearSeasonProjectionsRequest(activeDraftId, activeDraftTeamRef), true);
+      const payload = await clearSeasonProjectionsRequest(requestDraftId, requestDraftTeamRef);
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
+      applyDraftPayload(payload, true);
       status = "Season projections cleared";
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       seasonProjectionImportError = error instanceof Error ? error.message : "Could not clear season projections.";
     } finally {
-      isClearingSeasonProjections = false;
+      if (draftSession.isGuardCurrent(guard)) {
+        isClearingSeasonProjections = false;
+      }
     }
   }
 
@@ -1046,22 +1144,37 @@
       adpImportError = "Select a draft and upload the FantasyPros overall ADP CSV.";
       return;
     }
+    const guard = currentDraftGuard();
+    if (!guard) {
+      adpImportError = "Open a draft before importing Sleeper ADP.";
+      return;
+    }
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
     isImportingAdp = true;
     adpImportError = "";
     try {
       const payload = await importAdpRequest({
-        draftId: activeDraftId,
-        userRosterId: activeDraftTeamRef,
+        draftId: requestDraftId,
+        userRosterId: requestDraftTeamRef,
         season,
         csvText,
       });
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       applyDraftPayload(payload, true);
       status = "FantasyPros Sleeper ADP imported";
       lastEvent = `${payload.summary.matched} ADP rows matched`;
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       adpImportError = error instanceof Error ? error.message : "Sleeper ADP import failed.";
     } finally {
-      isImportingAdp = false;
+      if (draftSession.isGuardCurrent(guard)) {
+        isImportingAdp = false;
+      }
     }
   }
 
@@ -1069,15 +1182,30 @@
     if (!activeDraftId) {
       return;
     }
+    const guard = currentDraftGuard();
+    if (!guard) {
+      return;
+    }
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
     isClearingAdp = true;
     adpImportError = "";
     try {
-      applyDraftPayload(await clearAdpRequest(activeDraftId, activeDraftTeamRef), true);
+      const payload = await clearAdpRequest(requestDraftId, requestDraftTeamRef);
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
+      applyDraftPayload(payload, true);
       status = "Sleeper ADP cleared";
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) {
+        return;
+      }
       adpImportError = error instanceof Error ? error.message : "Could not clear Sleeper ADP.";
     } finally {
-      isClearingAdp = false;
+      if (draftSession.isGuardCurrent(guard)) {
+        isClearingAdp = false;
+      }
     }
   }
 
@@ -1285,15 +1413,24 @@
     return payload.answer;
   }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<DraftAskResult> {
+    const guard = currentDraftGuard();
+    if (!guard) {
+      throw new Error("Open a draft before asking draft questions.");
+    }
+
+    const requestDraftId = activeDraftId;
+    const requestDraftTeamRef = activeDraftTeamRef;
     const payload = await askManagerRequest(
-      activeDraftId,
-      activeDraftTeamRef,
+      requestDraftId,
+      requestDraftTeamRef,
       question,
       conversationHistory,
       playerPreferenceSummary(),
       recommendationPreferenceRequest(),
     );
-    draftSession.replaceRecommendation(payload.recommendation);
+    if (draftSession.isGuardCurrent(guard)) {
+      draftSession.replaceRecommendation(payload.recommendation);
+    }
     return { answer: payload.answer, strategyProposal: payload.strategyProposal };
   }
 
