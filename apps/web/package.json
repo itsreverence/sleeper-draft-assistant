@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@testing-library/svelte": "^5.4.2",
-    "jsdom": "^30.0.1",
+    "jsdom": "^26.1.0",
     "svelte-check": "^4.3.4"
   }
 }
