@@ -30,6 +30,13 @@ export default defineConfig({
   base: "./",
   customLogger: logger,
   plugins: [svelte(), impeccableLiveDevCsp],
+  resolve: process.env.VITEST ? {
+    conditions: ["browser"],
+  } : undefined,
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/lib/testing/setup-component-tests.ts"],
+  },
   server: {
     strictPort: true,
     proxy: {
