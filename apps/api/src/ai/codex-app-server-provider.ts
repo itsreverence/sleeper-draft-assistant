@@ -248,12 +248,16 @@ class CodexJsonRpcClient {
     private readonly timeoutMs: number,
   ) {}
 
-  static async start(codexBin: string, timeoutMs: number): Promise<CodexJsonRpcClient> {
+  static async start(codexBin: string, timeoutMs: number): Promise<CodexAppServerClient> {
     const launch = resolveCodexLaunch(codexBin);
     const proc = spawn(launch.command, [...launch.args, "app-server"], {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
+    return attachCodexAppServerProcess(proc, timeoutMs);
+  }
+
+  static attachProcess(proc: ChildProcessWithoutNullStreams, timeoutMs: number): CodexAppServerClient {
     const client = new CodexJsonRpcClient(proc, timeoutMs);
     client.attach();
     return client;
@@ -368,6 +372,7 @@ class CodexJsonRpcClient {
   private attach() {
     const lines = readline.createInterface({ input: this.proc.stdout });
     lines.on("line", (line) => void this.handleLine(line));
+    this.proc.stderr.resume();
 
     this.proc.once("error", (error) => this.rejectAll(error instanceof Error ? error : new Error(String(error))));
     this.proc.once("exit", (code, signal) => {
@@ -455,6 +460,13 @@ class CodexJsonRpcClient {
     this.pending.clear();
     this.turnFailed?.(error);
   }
+}
+
+export function attachCodexAppServerProcess(
+  proc: ChildProcessWithoutNullStreams,
+  timeoutMs: number,
+): CodexAppServerClient {
+  return CodexJsonRpcClient.attachProcess(proc, timeoutMs);
 }
 
 export function toDynamicToolDefinitions(tools: AiTool[]): AiToolDefinition[] {
@@ -578,6 +590,4 @@ function getNestedValue(value: unknown, path: string[]): unknown {
   }
   return current;
 }
-
-
 

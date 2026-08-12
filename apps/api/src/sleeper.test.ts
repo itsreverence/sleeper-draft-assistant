@@ -29,6 +29,80 @@ describe("Sleeper client resilience", () => {
         message: expect.stringContaining("Could not reach Sleeper"),
       }));
   });
+
+  it("preserves the retryable Sleeper status after retries are exhausted", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = new SleeperClient("https://example.test").getUser("alpha");
+    const expectation = expect(request).rejects.toEqual(expect.objectContaining<SleeperApiError>({
+      name: "SleeperApiError",
+      status: 503,
+      message: expect.stringContaining("Sleeper API returned 503"),
+    }));
+
+    await vi.runAllTimersAsync();
+    await expectation;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries rejected response bodies and translates the final failure", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockRejectedValue(new SyntaxError("private upstream response detail")),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = new SleeperClient("https://example.test").getUser("alpha");
+    const settled = request.then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+
+    await vi.runAllTimersAsync();
+    const error = await settled;
+
+    expect(error).toEqual(expect.objectContaining<SleeperApiError>({
+      name: "SleeperApiError",
+      message: expect.stringContaining("Could not reach Sleeper"),
+    }));
+    expect((error as Error).message).not.toContain("private upstream response detail");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the timeout active while a successful response body is read", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => Promise.resolve({
+      ok: true,
+      json: () => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("private upstream timeout detail", "AbortError"));
+        }, { once: true });
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    let outcome: { state: "pending" | "resolved" | "rejected"; error?: unknown } = { state: "pending" };
+    void new SleeperClient("https://example.test").getUser("alpha").then(
+      () => { outcome = { state: "resolved" }; },
+      (error: unknown) => { outcome = { state: "rejected", error }; },
+    );
+
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    expect(outcome.state).toBe("rejected");
+    expect(outcome.error).toEqual(expect.objectContaining<SleeperApiError>({
+      name: "SleeperApiError",
+      message: expect.stringContaining("request timed out"),
+    }));
+    expect((outcome.error as Error).message).not.toContain("private upstream timeout detail");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });
 
 const fixture: SleeperDraftStateInput = {
@@ -447,4 +521,3 @@ describe("Sleeper activity normalization", () => {
     expect(summary.facts).toContain("Top global add: Player Two (42 adds).");
   });
 });
-

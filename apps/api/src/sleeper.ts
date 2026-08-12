@@ -385,7 +385,7 @@ export class SleeperClient {
           }
           lastError = error;
         } else {
-          return response.json() as Promise<T>;
+          return await response.json() as T;
         }
       } catch (error) {
         if (error instanceof SleeperApiError && !isRetryableSleeperStatus(error.status)) {
@@ -400,6 +400,10 @@ export class SleeperClient {
       }
 
       await delay(150 * attempt);
+    }
+
+    if (lastError instanceof SleeperApiError) {
+      throw lastError;
     }
 
     const reason = lastError instanceof Error && lastError.name === "AbortError"
@@ -1307,8 +1311,6 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
-
-
 
 
 

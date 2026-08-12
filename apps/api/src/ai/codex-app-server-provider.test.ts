@@ -1,8 +1,10 @@
+import { spawn } from "node:child_process";
+
 import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDraftQuestionContext } from "./context";
-import { CodexAppServerProvider, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
+import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -167,6 +169,31 @@ describe("Codex app-server executable resolution", () => {
     expect(clientFactory).toHaveBeenCalledTimes(2);
     expect(secondClient.threadStartCalls).toBe(1);
   });
+
+  it("drains large app-server stderr output without retaining diagnostics", async () => {
+    const fixture = String.raw`
+      const fs = require("node:fs");
+      const readline = require("node:readline");
+      const chunk = Buffer.alloc(64 * 1024, 120);
+      for (let index = 0; index < 64; index += 1) fs.writeSync(2, chunk);
+      const lines = readline.createInterface({ input: process.stdin });
+      lines.on("line", (line) => {
+        const message = JSON.parse(line);
+        if (typeof message.id === "number") {
+          process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\n");
+        }
+      });
+    `;
+    const proc = spawn(process.execPath, ["-e", fixture], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const client = attachCodexAppServerProcess(proc, 2_000);
+
+    await client.initialize();
+
+    expect(client.isClosed()).toBe(false);
+    client.close();
+  }, 5_000);
 });
 
 class FakeCodexClient implements CodexAppServerClient {
