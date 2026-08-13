@@ -1605,6 +1605,13 @@
     const league = selectedLeague;
     return league?.drafts.find((draft) => draft.draftId === selectedDraftId) ?? null;
   });
+  const userDraftSlot = $derived(
+    userTeam?.draftSlot
+      ?? selectedDraft?.userDraftSlot
+      ?? (activeDraftTeamRef?.startsWith("slot-")
+        ? Number(activeDraftTeamRef.replace("slot-", "")) || null
+        : null),
+  );
 
   const readinessItems: ReadinessItem[] = $derived.by(() => [
     {
@@ -1627,23 +1634,25 @@
     },
     {
       label: "Your team",
-      value: activeUserRosterId
-        ? `Roster ${activeUserRosterId}`
-        : activeDraftTeamRef?.startsWith("slot-")
-          ? `Draft slot ${activeDraftTeamRef.replace("slot-", "")}`
+      value: userTeam
+        ? `${userTeam.name}${userDraftSlot ? ` · Slot ${userDraftSlot}` : ""}`
+        : userDraftSlot
+          ? `Draft slot ${userDraftSlot}`
         : selectedLeague?.userRosterId
           ? `Roster ${selectedLeague.userRosterId}`
           : draftState
             ? "Unmatched"
             : "Pending",
-      detail: userTeam
-        ? userTeam.name
+      detail: userTeam && activeUserRosterId
+        ? `Matched to Sleeper roster ${activeUserRosterId}`
+        : userTeam
+          ? "Matched from draft ownership"
         : selectedLeague?.userRosterId
           ? "Matched from Sleeper rosters"
           : draftState
             ? "Recommendations may miss roster needs"
             : "Matched after draft selection",
-      tone: activeUserRosterId || activeDraftTeamRef || selectedLeague?.userRosterId ? "ready" : isRealDraftActive ? "warning" : "neutral",
+      tone: userTeam || activeUserRosterId || activeDraftTeamRef || selectedLeague?.userRosterId ? "ready" : isRealDraftActive ? "warning" : "neutral",
     },
     {
       label: "Player values",

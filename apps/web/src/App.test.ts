@@ -64,6 +64,54 @@ describe("App draft lifecycle", () => {
     expect(window.localStorage.getItem("lastLeagueId")).toBe(DEFAULT_LEAGUE_ID);
   });
 
+  it("shows the resolved team name and draft slot instead of the Sleeper roster ID", async () => {
+    apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    const view = render(App);
+
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+
+    const teamStatus = view.container.querySelector('[title^="Your team:"]');
+    expect(teamStatus?.textContent).toContain("Your Team");
+    expect(teamStatus?.textContent).toContain("Slot 3");
+    expect(teamStatus?.textContent).not.toContain("Roster 3");
+  });
+
+  it("falls back to the assigned draft slot when the team name is unresolved", async () => {
+    apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: "slot-3",
+      userIdentifier: null,
+    });
+    const view = render(App);
+
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-1" },
+    });
+    await fireEvent.input(screen.getByPlaceholderText("Optional"), {
+      target: { value: "slot-3" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const payload = createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    });
+    payload.state.userTeamId = "unresolved-team";
+    draftLoad.resolve(payload);
+
+    expect(await screen.findByText("Sleeper Alpha Draft")).toBeTruthy();
+    const teamStatus = view.container.querySelector('[title^="Your team:"]');
+    expect(teamStatus?.textContent).toContain("Draft slot 3");
+    expect(teamStatus?.textContent).not.toContain("Your Team");
+  });
+
   it("one preference update commits recommendation", async () => {
     const draftLoad = apiMock.deferDraftState({
       draftId: "draft-1",
