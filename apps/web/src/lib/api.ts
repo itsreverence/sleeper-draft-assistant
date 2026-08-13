@@ -1,15 +1,24 @@
 import type { AdpImportPayload, AiConversationMessage, AiDraftStrategyPayload, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, DraftStrategyInstructionSource, DraftStrategyInstructionsPayload, DraftStrategyProposal, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
-import { resolvePackagedApiPort } from "./api-config";
+import { resolvePackagedApiConfiguration } from "./api-config";
 
 const packagedParameters = window.location.protocol === "file:"
   ? new URLSearchParams(window.location.search)
   : null;
-const packagedApiToken = packagedParameters?.get("apiToken") ?? null;
-const packagedApiPort = resolvePackagedApiPort(packagedParameters?.get("apiPort") ?? null);
+let packagedSessionStorage: Storage | null = null;
+try {
+  packagedSessionStorage = window.sessionStorage;
+} catch {
+  // The launch query still configures the packaged renderer if storage is unavailable.
+}
+const packagedConfiguration = packagedParameters
+  ? resolvePackagedApiConfiguration(packagedParameters, packagedSessionStorage)
+  : { apiToken: null, apiPort: 8787 };
+const packagedApiToken = packagedConfiguration.apiToken;
+const packagedApiPort = packagedConfiguration.apiPort;
 export const apiBase = window.location.protocol === "file:" ? `http://127.0.0.1:${packagedApiPort}` : "/api";
 const apiToken = packagedApiToken ?? import.meta.env.VITE_SLEEPER_AI_API_TOKEN ?? "";
 
-if (packagedApiToken) {
+if (packagedParameters?.has("apiToken")) {
   try {
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
   } catch {
@@ -573,5 +582,4 @@ export async function askTeamManagerRequest(
 
   return (await response.json()) as TeamAskAnswerPayload;
 }
-
 

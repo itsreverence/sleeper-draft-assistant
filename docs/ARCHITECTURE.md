@@ -28,7 +28,7 @@ Svelte renderer
 
 ## Trust boundary
 
-The API binds explicitly to `127.0.0.1`. Every route except `GET /health` requires a high-entropy bearer token generated for that application launch. The renderer receives it at startup and retains it in memory; SSE uses the same token because browser `EventSource` cannot set an authorization header.
+The API binds explicitly to `127.0.0.1`. Every route except `GET /health` requires a high-entropy bearer token generated for that application launch. The renderer receives it at startup and retains it in renderer session storage so a renderer reload can recover without persisting the capability across application sessions; SSE uses the same token because browser `EventSource` cannot set an authorization header.
 
 CORS permits the packaged `file://` renderer compatibility case, but CORS is not authorization. Requests without the capability token are rejected. This boundary protects against ordinary drive-by browser requests; it does not protect against code already running as the same OS user.
 
