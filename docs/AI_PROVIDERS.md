@@ -1,14 +1,14 @@
 # AI providers
 
-AI is optional. Draft strategy is AI-first when Codex is configured, but every model decision is grounded in locally computed Sleeper state and imported evidence.
+Codex powers the core draft and Team Manager assistant experience. Every model decision is grounded in locally computed Sleeper state and imported evidence.
 
 ## No-provider mode
 
-This is the default when no provider is configured. It makes no external AI request and requires no account, API key, or model installation. Draft tracking, imports, and roster context remain available, but the renderer does not present a local pick recommendation. A narrow backend fallback contract remains for offline reliability and tests; it is not a product strategy surface. Hard feasibility checks remain active when validating AI choices.
+This is the default before Codex is configured. It makes no external AI request and requires no account, API key, or model installation. Data import and demo surfaces remain available, but real drafts cannot enter the normal assistant workspace. If Sleeper reports that a draft is already active, the user may explicitly open emergency board-only mode for live pick tracking; the renderer does not mount recommendation or draft-question features in that mode. A narrow backend fallback contract remains for offline reliability and tests; it is not a product strategy surface.
 
 ## Local Codex app-server
 
-The supported optional provider runs a user-installed Codex CLI as a local subprocess and sends it a compact context prompt. The API reuses one app-server process for the active provider configuration and one ephemeral thread per draft/team scope while the app is running.
+The supported provider runs a user-installed Codex CLI as a local subprocess and sends it a compact context prompt. The API reuses one app-server process for the active provider configuration and one ephemeral thread per draft/team scope while the app is running.
 
 1. Install Codex CLI through its official instructions.
 2. Run `codex login` or `codex login --device-auth` separately.
@@ -43,7 +43,7 @@ The adapter uses app-server's supported JSONL-over-stdio transport rather than i
 
 When Codex app-server is configured, the app automatically requests strategy near the user's turn. The model receives neutral facts: league and scoring settings, current and next-pick timing, remaining selections, roster counts and open slots, recent and aggregate positional drafting, teams selecting before the next turn, user preferences, data coverage, and grouped player evidence. The primary strategy packet does not include a local strategic lean, composite score, qualitative value labels, return-probability estimate, or engine-authored strategy reasons.
 
-Real drafts normally enter the AI workspace after current ECR is imported. Season projections and ADP are recommended additional signals. An explicit limited-data path remains available for draft-clock recovery; the AI still receives the data limitations and the renderer keeps the quality warning visible.
+Real drafts enter the AI workspace only after current ECR, season projections, Sleeper ADP, and Codex are ready. There is no pre-draft bypass and no reduced-evidence AI mode. After a draft becomes active, emergency board-only recovery can preserve live pick tracking, but AI strategy and draft questions remain disabled until setup is complete.
 
 The prompt contains one alphabetically ordered, deduplicated player catalog plus separate ID groups for pinned targets, ECR leaders, season-projection leaders, Sleeper ADP leaders, Real-Time ADP leaders, Sleeper search-rank placeholders, and position coverage. A signal group contains only players with that signal. Ordering within a signal group reflects only that raw signal; catalog order is explicitly not a recommendation.
 

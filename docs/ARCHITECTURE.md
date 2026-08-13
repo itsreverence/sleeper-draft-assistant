@@ -14,7 +14,7 @@ Svelte renderer
        ├─ ranking CSV importer
        ├─ weekly projection CSV importer
        ├─ grounded evidence and safety engine
-       ├─ optional local Codex app-server adapter
+       ├─ local Codex app-server adapter
        └─ sql.js SQLite persistence
 ```
 
@@ -47,8 +47,8 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 9. User-supplied weekly projection files add provider-scored week-specific points to lineup and waiver analysis. Weekly points drive immediate lineup ordering; rest-of-season ECR informs longer-term add, drop, and stash value.
 10. Rest-of-season rankings are scoped to a league, season, and scoring format. Weekly projections are scoped to a league, season, and week. Stored historical or mismatched data cannot influence current advice.
 11. The local engine evaluates import coverage, matching quality, format compatibility, player availability, and lineup feasibility. Its draft board uses a documented raw ordering of ECR, season projection, Sleeper ADP, Real-Time ADP, and finally Sleeper placeholder rank; it does not calculate a composite strategy score.
-12. Real active drafts without current ECR open in a preparation workspace. Returning drafts with fresh matching ECR bypass it, while stale ECR is surfaced for review. Users can explicitly enter limited-data mode, but the renderer keeps a visible grounding warning.
-13. Draft preparation records an explicit AI choice in addition to data readiness. Codex is recommended for the AI-first workflow, but users can continue without AI so provider installation or availability never blocks the read-only draft board.
+12. Real drafts open in a preparation workspace unless current matching ECR, season projections, Sleeper ADP, and a ready Codex provider are all present. There is no pre-draft bypass into a degraded assistant experience.
+13. Once Sleeper reports that a draft is actively drafting, incomplete setup may use an explicit emergency board-only path. That path preserves live board tracking but does not mount AI recommendations or draft questions; completing setup returns the user to the normal assistant contract.
 14. When Codex is configured, the AI strategist receives neutral league, roster, board, and raw player evidence rather than a local strategic lean.
 15. The provider can call backend-owned, read-only tools against an immutable current-pick snapshot: `search_available_players` for bounded player retrieval, `compare_players` for named alternatives, and `inspect_position_market` for positional supply and tier depth. These tools expose raw facts without applying recommendation-engine filtering or assigning scores. Sleeper draft normalization also preserves pick order, traded-pick ownership, and keeper metadata; market timing is labeled as exact Sleeper order, normal-snake fallback, or unsupported.
 16. The backend validates the response pick, availability, exclusions, and player IDs; it also rejects choices that worsen a critical starter deficit or make an otherwise feasible required lineup impossible to complete.
@@ -73,7 +73,7 @@ The renderer can clear draft rankings, season projections, draft ADP, rest-of-se
 `AiProvider` keeps provider-specific behavior out of route and renderer code. Its draft strategy method returns a validated structured decision rather than prose:
 
 - `noop`: narrow offline response used to preserve the provider contract; default and not rendered as draft advice.
-- `codex-app-server`: supported optional local integration with a user-installed Codex CLI.
+- `codex-app-server`: supported local integration with a user-installed Codex CLI and required provider for normal real-draft assistant entry.
 
 The provider-neutral `AiTool` boundary keeps draft search logic in the API domain layer. The Codex adapter maps those definitions to experimental app-server dynamic tools; future providers can expose the same read-only tools through their own function-calling protocol.
 

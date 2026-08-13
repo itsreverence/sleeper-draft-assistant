@@ -13,12 +13,12 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Tracks live and completed draft boards.
 - Tracks active Sleeper drafts with lightweight two-second pick checks, while preserving the last valid board during transient failures with visible sync age and bounded retries.
 - Keeps imported ECR, projections, and ADP as grounding evidence for AI strategy rather than presenting a local ranking as draft advice.
-- Guides real drafts through a preparation stage before opening AI tools; current ECR is the normal-entry requirement, with an explicit limited-data escape path.
+- Guides real drafts through a preparation stage and opens the AI workspace only after current ECR, season projections, Sleeper ADP, and Codex are ready.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
 - Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
-- Offers an optional local Codex app-server provider for conversational analysis.
+- Uses a local Codex app-server provider for the core draft and team-assistant experience.
 - Reuses one local Codex app-server process and scoped draft/team threads during each run, preserving conversational continuity without resending prior chat messages from the UI.
 - Uses a configured AI provider as the primary draft strategist near your turn, reasoning from neutral draft evidence and searching the full available-player snapshot through a read-only tool.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
@@ -61,20 +61,20 @@ Open `http://127.0.0.1:5173`, then choose **Load demo draft**. The demo uses syn
 1. Enter your Sleeper username or user ID.
 2. If needed, paste a Sleeper league URL or league ID.
 3. Select the draft and confirm your team or draft slot.
-4. Complete Draft preparation by choosing Codex or explicitly continuing without AI, then export rankings for your scoring format from FantasyPros and import the CSV as the required ECR and tier signal.
+4. Select Codex, then export rankings for your scoring format from FantasyPros and import the CSV as the required ECR and tier signal.
 5. Export the season projection files for QB, RB, WR, TE, K, and DST and import them together. The FLX file is not needed because it duplicates players from RB, WR, and TE.
 6. Export FantasyPros Overall ADP and import it for the Sleeper and Real-Time market columns. A separate Real-Time ADP download is not required.
 7. During the season, export the overall rest-of-season rankings for your scoring format and import the single CSV from Team Manager.
 8. Export the six weekly projection files for QB, RB, WR, TE, K, and DST, then import them together from Team Manager.
-9. Enter the draft room after minimum readiness is met, then review the recommendation evidence before making a pick or changing your team.
+9. Enter the draft room after all three draft sources and Codex are ready, then review the recommendation evidence before making a pick or changing your team. If an active draft has already started before setup can be completed, emergency board-only access preserves live pick tracking without AI advice.
 
 The app reads Sleeper data but does not submit picks, change lineups, or modify your Sleeper account.
 
 ## AI providers
 
-AI is optional for draft tracking and data imports. Without a configured provider, the app does not generate pick recommendations. When Codex app-server is configured, AI-first draft strategy runs automatically near the user's turn.
+Codex is required for the normal draft-assistant workspace. Draft tracking and data imports do not themselves make AI requests, and an active draft can use emergency board-only recovery when Codex is unavailable. That recovery mode never presents pick recommendations or draft questions.
 
-The supported optional integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. No provider credentials are stored by Sleeper Draft Assistant.
+The supported integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. No provider credentials are stored by Sleeper Draft Assistant.
 
 See [AI providers](docs/AI_PROVIDERS.md) for setup and limitations.
 

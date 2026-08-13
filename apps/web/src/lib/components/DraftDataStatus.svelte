@@ -6,14 +6,14 @@
     rankingsStale = false,
     hasProjections,
     hasAdp,
-    limitedMode = false,
+    emergencyMode = false,
     onOpen,
   }: {
     hasRankings: boolean;
     rankingsStale?: boolean;
     hasProjections: boolean;
     hasAdp: boolean;
-    limitedMode?: boolean;
+    emergencyMode?: boolean;
     onOpen: () => void;
   } = $props();
 
@@ -22,15 +22,15 @@
   );
 </script>
 
-<button class="panel data-status" class:warning={!hasRankings || rankingsStale} type="button" onclick={onOpen}>
+<button class="panel data-status" class:warning={emergencyMode || !hasRankings || rankingsStale || !hasProjections || !hasAdp} type="button" onclick={onOpen}>
   <Icon name={hasRankings && !rankingsStale ? "check-circle" : "alert"} size={17} />
   <span>
     <strong>Draft data</strong>
     <small>
       {rankingsStale
         ? "ECR needs refresh"
-        : limitedMode && !hasRankings
-        ? "Limited mode"
+        : emergencyMode
+        ? "Emergency board only"
         : loadedCount === 3
           ? "3/3 sources ready"
           : `${loadedCount}/3 sources ready`}

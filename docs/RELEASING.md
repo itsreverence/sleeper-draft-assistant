@@ -41,7 +41,7 @@ State plainly:
 - that artifacts are unsigned and may trigger SmartScreen;
 - Sleeper-only support and tokenless read-only behavior;
 - requirement to supply your own rankings export;
-- AI-first draft strategy when the optional local Codex provider is configured, plus the no-AI fallback;
+- the local Codex requirement for the normal assistant workflow and active-draft emergency board-only recovery;
 - local-data location/deletion guidance;
 - known limitations and rollback instructions.
 

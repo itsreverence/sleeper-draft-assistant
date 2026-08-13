@@ -2,9 +2,11 @@ import { buildDraftRecommendation, createMockDraftState, type DraftRecommendatio
 
 import type {
   AiProviderStatus,
+  AdpImportSummary,
   AppSettings,
   DraftPayload,
   RankingImportSummary,
+  SeasonProjectionImportSummary,
   TeamActivitySummary,
   TeamDataReadiness,
   TeamLineupSummary,
@@ -62,14 +64,40 @@ export function createDraftPayloadFixture(input: {
     appliedAt: "2026-08-12T11:45:00.000Z",
   } as unknown as RankingImportSummary;
 
+  const seasonProjectionImportSummary: SeasonProjectionImportSummary = {
+    source: "fantasypros",
+    season: "2026",
+    scoring: "PPR",
+    positions: ["QB", "RB", "WR", "TE", "K", "DEF"],
+    rowsParsed: 6,
+    matched: 6,
+    unmatched: [],
+    ambiguous: [],
+    approximatePositions: [],
+    warnings: [],
+    appliedAt: "2026-08-12T11:46:00.000Z",
+  };
+
+  const adpImportSummary: AdpImportSummary = {
+    source: "fantasypros",
+    market: "Sleeper",
+    season: "2026",
+    rowsParsed: 1,
+    matched: 1,
+    unmatched: [],
+    ambiguous: [],
+    includesRealTime: true,
+    appliedAt: "2026-08-12T11:47:00.000Z",
+  };
+
   return {
     state,
     recommendation: buildDraftRecommendation(state, {
       preferences: input.recommendationPreferences,
     }),
     rankingImportSummary,
-    seasonProjectionImportSummary: null,
-    adpImportSummary: null,
+    seasonProjectionImportSummary,
+    adpImportSummary,
   };
 }
 

@@ -4,7 +4,7 @@
 
 - Node.js 22.12 or later
 - npm 11.x
-- Optional: Codex CLI for the local app-server provider
+- Codex CLI for real draft and Team Manager AI workflows
 - Windows when validating Windows installers
 
 ## Setup and development
@@ -16,7 +16,7 @@ npm run dev
 
 The development launcher creates one random API token and passes it to both the API and Vite. Use `http://127.0.0.1:5173` and choose **Load demo draft** for a synthetic-data smoke test.
 
-For a real draft smoke test, confirm that a draft without current ECR opens **Draft preparation**, that normal entry remains disabled until ECR exists, and that the fallback entry opens the workspace with a visible data warning. A new installation must also require an explicit Codex or no-AI choice; that choice should not be requested again after it is saved. A returning draft with fresh ECR and an acknowledged AI choice should bypass preparation and show no persistent data card. **Settings > Manage draft data** must reopen the dedicated preparation workspace; the draft workspace status appears only when data needs attention.
+For a real draft smoke test, confirm that any missing or stale ECR, missing season projections, missing Sleeper ADP, or unavailable Codex provider opens **Draft preparation** and keeps normal entry disabled. A fully ready returning draft should bypass preparation. Before the draft starts there must be no bypass. Once Sleeper reports the draft as actively drafting, incomplete setup may expose **Open emergency board only**; confirm the warning and verify that live pick tracking opens while AI recommendations and draft questions remain absent. **Settings > Manage draft data** must reopen the dedicated preparation workspace.
 
 Running the API or web workspace separately requires coordinating `SLEEPER_AI_API_TOKEN` and `VITE_SLEEPER_AI_API_TOKEN`; the root launcher is the supported path.
 
@@ -68,7 +68,7 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Codex cannot start:** verify the configured executable is `codex`, `codex.exe`, or `codex.cmd`, then run `codex login` separately.
 - **Windows Codex launcher:** prefer the default `codex` setting. The backend resolves the npm launcher without invoking `cmd.exe`; explicit non-npm `.cmd` wrappers are unsupported.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
-- **Recommendations warn about placeholder values:** import the scoring-specific ECR CSV first, then season projections and Overall ADP for full draft context.
+- **Draft room entry remains disabled:** import current scoring-specific ECR, season projections, and Overall ADP, then confirm the Codex provider is ready.
 - **League format warning:** standard, half-PPR, PPR, FLEX, and superflex are supported. Custom scoring and TE premium require matching imports; IDP and auction advice is unsupported.
 - **Ranking import is rejected:** choose the FantasyPros ECR or ROS export matching the connected league's standard, half-PPR, or PPR scoring.
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.

@@ -12,7 +12,7 @@ This is a direction document, not a promise or release schedule.
 - transparent draft evidence and weekly data confidence
 - current-versus-optimized lineup totals and projected swap deltas
 - roster, lineup, waiver, week, and activity views
-- optional local Codex app-server analysis
+- local Codex app-server analysis for the core assistant workflow
 - local SQLite persistence and Electron packaging
 - explicit format compatibility warnings for custom scoring, TE premium, IDP, and auction leagues
 - draft sync age, bounded retry backoff, and last-valid-state messaging

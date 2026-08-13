@@ -8,10 +8,9 @@
     hasProjections,
     hasAdp,
     aiConfigured,
-    aiAcknowledged,
     liveDraft = false,
     onContinue,
-    onContinueFallback,
+    onOpenEmergency,
   }: {
     draftName: string;
     scoring: string;
@@ -21,10 +20,9 @@
     hasProjections: boolean;
     hasAdp: boolean;
     aiConfigured: boolean;
-    aiAcknowledged: boolean;
     liveDraft?: boolean;
     onContinue: () => void;
-    onContinueFallback: () => void;
+    onOpenEmergency: () => void;
   } = $props();
 
   const loadedCount = $derived(
@@ -40,22 +38,23 @@
     { label: "Projections ready", pending: "Projections", ready: hasProjections },
     { label: "ADP ready", pending: "ADP", ready: hasAdp },
     {
-      label: aiConfigured ? "AI manager ready" : "AI manager skipped",
-      pending: "AI manager",
-      ready: aiConfigured || aiAcknowledged,
+      label: "AI manager ready",
+      pending: "Codex required",
+      ready: aiConfigured,
     },
   ]);
 
+  const fullyReady = $derived(
+    hasRankings && !rankingsStale && hasProjections && hasAdp && aiConfigured,
+  );
+
   const helperText = $derived.by(() => {
-    if (!aiAcknowledged) return "Choose an AI manager below, or continue without one.";
-    if (hasRankings && !rankingsStale) {
-      return loadedCount === 3
-        ? "All grounding sources are ready."
-        : "Minimum readiness met - add the recommended sources now or later.";
+    if (fullyReady) return "All grounding sources and Codex are ready.";
+    if (liveDraft) {
+      return "Emergency access keeps the live board available, but disables AI advice until setup is complete.";
     }
-    if (rankingsStale) return "Your previous rankings are available, but a current export is recommended.";
-    if (liveDraft) return "Already on the clock - limited mode carries a data-quality warning.";
-    return "Limited mode is available, but normal AI strategy starts after ECR is imported.";
+    if (rankingsStale) return "Import a current ECR export before entering the AI draft room.";
+    return "Complete all three data imports and connect Codex before entering the draft room.";
   });
 </script>
 
@@ -74,12 +73,12 @@
   </div>
 
   <div class="preparation-actions">
-    <button class="btn btn-primary" type="button" disabled={!hasRankings || !aiAcknowledged} onclick={onContinue}>
+    <button class="btn btn-primary" type="button" disabled={!fullyReady} onclick={onContinue}>
       Enter draft room
     </button>
-    {#if !hasRankings || !aiAcknowledged}
-      <button class="limited-action" type="button" onclick={onContinueFallback}>
-        {hasRankings ? "Continue without AI" : aiAcknowledged ? "Continue with limited data" : "Continue with limited data and no AI"}
+    {#if liveDraft && !fullyReady}
+      <button class="emergency-action" type="button" onclick={onOpenEmergency}>
+        Open emergency board only
       </button>
     {/if}
     <span class="helper-text">{helperText}</span>
@@ -164,7 +163,7 @@
     line-height: 1.45;
   }
 
-  .limited-action {
+  .emergency-action {
     border: 0;
     background: transparent;
     color: var(--text-secondary);
@@ -175,7 +174,7 @@
     text-underline-offset: 3px;
   }
 
-  .limited-action:hover {
+  .emergency-action:hover {
     color: var(--text-primary);
   }
 

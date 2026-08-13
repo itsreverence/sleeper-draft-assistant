@@ -379,7 +379,7 @@
   let connectExpanded = $state(!hasStoredDraft());
   let switchingDraft = $state(false);
   let draftPreparationOpen = $state(false);
-  let limitedDataMode = $state(false);
+  let emergencyBoardMode = $state(false);
   let workspaceMode: WorkspaceMode = $state("draft");
   let reviewingDraftResults = $state(false);
   let phaseSyncKey = $state("");
@@ -727,7 +727,7 @@
     isLoading = false;
     connectExpanded = true;
     draftPreparationOpen = false;
-    limitedDataMode = false;
+    emergencyBoardMode = false;
     workspaceMode = "draft";
     reviewingDraftResults = false;
     phaseSyncKey = "";
@@ -783,13 +783,14 @@
       draftPreparationOpen = shouldOpenDraftPreparation(
         draftId,
         payload.state.status,
-        payload.rankingImportSummary?.appliedAt ?? null,
-        Boolean(
-          appSettings?.aiSetupAcknowledged
-          || (aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus))
-        ),
+        {
+          rankingsAppliedAt: payload.rankingImportSummary?.appliedAt ?? null,
+          hasProjections: Boolean(payload.seasonProjectionImportSummary),
+          hasAdp: Boolean(payload.adpImportSummary),
+          aiReady: aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus),
+        },
       );
-      limitedDataMode = false;
+      emergencyBoardMode = false;
       status = isMockDraft(draftId) ? "Demo draft loaded" : "Sleeper draft loaded";
       return true;
     } catch (error) {
@@ -819,7 +820,7 @@
       teamManagerError = "";
       connectExpanded = true;
       draftPreparationOpen = false;
-      limitedDataMode = false;
+      emergencyBoardMode = false;
       workspaceMode = "draft";
       reviewingDraftResults = false;
       phaseSyncKey = "";
@@ -1080,7 +1081,7 @@
       }
       applyDraftPayload(payload, true);
       draftPreparationOpen = draftState?.status !== "complete";
-      limitedDataMode = false;
+      emergencyBoardMode = false;
       if (requestTeamLeagueId) {
         void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
       }
@@ -1485,26 +1486,22 @@
   }
 
   function enterDraftRoom() {
-    const aiChoiceComplete = appSettings?.aiSetupAcknowledged
-      || (aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus));
-    if (!rankingImportSummary || !aiChoiceComplete) {
+    if (!draftAssistantReady) {
       return;
     }
-    limitedDataMode = false;
+    emergencyBoardMode = false;
     draftPreparationOpen = false;
   }
 
-  async function enterDraftRoomWithFallback() {
-    if (appSettings && !appSettings.aiSetupAcknowledged) {
-      const saved = await saveSettings({
-        ...appSettings,
-        aiSetupAcknowledged: true,
-      });
-      if (!saved) {
-        return;
-      }
+  function openEmergencyBoard() {
+    if (draftState?.status !== "drafting" || draftAssistantReady) {
+      return;
     }
-    limitedDataMode = !rankingImportSummary;
+    const confirmed = window.confirm(
+      "Open emergency board-only mode? AI recommendations and draft questions will stay disabled until setup is complete.",
+    );
+    if (!confirmed) return;
+    emergencyBoardMode = true;
     draftPreparationOpen = false;
   }
 
@@ -1596,7 +1593,17 @@
   const draftDataSignalCount = $derived(
     Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
   );
-  const draftValuesIncomplete = $derived(isRealDraftActive && (!hasImportedRankings || rankingsStale));
+  const draftValuesIncomplete = $derived(
+    isRealDraftActive
+    && (!hasImportedRankings || rankingsStale || !hasSeasonProjections || !hasImportedAdp),
+  );
+  const draftAssistantReady = $derived(
+    hasImportedRankings
+    && !rankingsStale
+    && hasSeasonProjections
+    && hasImportedAdp
+    && codexProviderReady,
+  );
   const selectedLeague = $derived.by(() => {
     const payload = connectPayload;
     return payload?.leagues.find((league) => league.leagueId === selectedLeagueId) ?? null;
@@ -1668,9 +1675,9 @@
         : draftDataSignalCount === 3
         ? "ECR, season projections, and Sleeper ADP loaded"
         : hasImportedRankings
-          ? "Add season projections and Sleeper ADP for full-quality advice"
+          ? "Season projections and Sleeper ADP are required for AI draft advice"
         : isRealDraftActive
-          ? "FantasyPros CSV required for real advice"
+          ? "FantasyPros ECR, projections, and Sleeper ADP are required"
           : isDemoDraftActive
             ? "Demo projections active"
             : "Available after draft selection",
@@ -1682,23 +1689,11 @@
     },
     {
       label: "AI manager",
-      value: codexProviderReady
-        ? "Codex"
-        : appSettings?.aiSetupAcknowledged
-          ? "No AI"
-          : "Choose",
+      value: codexProviderReady ? "Codex" : "Required",
       detail: codexProviderReady
         ? "Local app-server selected"
-        : appSettings?.aiSetupAcknowledged
-          ? "Draft tracking remains available without recommendations"
-          : "Select Codex or explicitly continue without AI",
-      tone: codexProviderReady
-        ? "ready"
-        : appSettings?.aiSetupAcknowledged
-          ? "neutral"
-          : isRealDraftActive
-            ? "warning"
-            : "neutral",
+        : "Connect a ready Codex app-server before entering the AI draft room",
+      tone: codexProviderReady ? "ready" : isRealDraftActive ? "warning" : "neutral",
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
@@ -1901,15 +1896,9 @@
             hasProjections={hasSeasonProjections}
             hasAdp={hasImportedAdp}
             aiConfigured={codexProviderReady}
-            aiAcknowledged={Boolean(
-              appSettings?.aiSetupAcknowledged
-              || codexProviderReady
-            )}
             liveDraft={draftPhase === "drafting"}
             onContinue={enterDraftRoom}
-            onContinueFallback={() => {
-              void enterDraftRoomWithFallback();
-            }}
+            onOpenEmergency={openEmergencyBoard}
           />
           <RankingsImportPanel
             hasDraft={true}
@@ -1969,7 +1958,7 @@
             selectedDraftTeamId = teamId;
           }}
         />
-        <section class="dashboard-grid draft-grid" class:single-column={!draftValuesIncomplete && !limitedDataMode}>
+        <section class="dashboard-grid draft-grid" class:single-column={!draftValuesIncomplete && !emergencyBoardMode}>
           <div class="primary-column">
             {#if draftPhase === "complete"}
               <article class="panel phase-note">
@@ -1987,58 +1976,68 @@
               </article>
             {/if}
             {#if draftPhase !== "complete"}
-              <RecommendationPanel
-                currentPick={draftState.currentPick}
-                aiEnabled={codexProviderReady}
-                aiStrategyEnabled={aiDraftStrategyEnabled}
-                shouldRequestAiStrategy={shouldRequestAiStrategy}
-                strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
-                onRequestAiStrategy={requestAiDraftStrategy}
-                onAskAboutCandidate={askAboutCandidate}
-                playerPreferences={playerPreferences}
-                showPlaceholderWarning={draftValuesIncomplete}
-                onSetPreference={setPlayerPreference}
-                onClearPreferences={clearPlayerPreferences}
-                onOpenRankings={openDraftPreparation}
-                onOpenSettings={() => (settingsOpen = true)}
-                onOpenPlayerSearch={() => {
-                  draftStrategyOpen = false;
-                  selectedDraftTeamId = null;
-                  playerSearchOpen = true;
-                }}
-                strategyOpen={draftStrategyOpen}
-                onToggleStrategy={() => {
-                  selectedDraftTeamId = null;
-                  draftStrategyOpen = !draftStrategyOpen;
-                }}
-              />
-              <AskManagerPanel
-                onAsk={askManager}
-                onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
-                promptRequest={draftQuestionRequest}
-                onOpenSettings={() => (settingsOpen = true)}
-                providerStatus={conversationalProviderStatus}
-                {hasImportedRankings}
-                {hasSeasonProjections}
-                {hasImportedAdp}
-                showPlaceholderWarning={draftValuesIncomplete}
-                {draftState}
-                draftIdentity={activeDraftIdentity}
-                {recommendation}
-              />
+              {#if emergencyBoardMode}
+                <article class="panel phase-note">
+                  <h2>Emergency board-only mode</h2>
+                  <p>Live pick tracking remains available. AI recommendations and draft questions are disabled until all required data and Codex are ready.</p>
+                  <button class="btn btn-secondary" type="button" onclick={openDraftPreparation}>
+                    Finish draft setup
+                  </button>
+                </article>
+              {:else}
+                <RecommendationPanel
+                  currentPick={draftState.currentPick}
+                  aiEnabled={codexProviderReady}
+                  aiStrategyEnabled={aiDraftStrategyEnabled}
+                  shouldRequestAiStrategy={shouldRequestAiStrategy}
+                  strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
+                  onRequestAiStrategy={requestAiDraftStrategy}
+                  onAskAboutCandidate={askAboutCandidate}
+                  playerPreferences={playerPreferences}
+                  showPlaceholderWarning={draftValuesIncomplete}
+                  onSetPreference={setPlayerPreference}
+                  onClearPreferences={clearPlayerPreferences}
+                  onOpenRankings={openDraftPreparation}
+                  onOpenSettings={() => (settingsOpen = true)}
+                  onOpenPlayerSearch={() => {
+                    draftStrategyOpen = false;
+                    selectedDraftTeamId = null;
+                    playerSearchOpen = true;
+                  }}
+                  strategyOpen={draftStrategyOpen}
+                  onToggleStrategy={() => {
+                    selectedDraftTeamId = null;
+                    draftStrategyOpen = !draftStrategyOpen;
+                  }}
+                />
+                <AskManagerPanel
+                  onAsk={askManager}
+                  onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
+                  promptRequest={draftQuestionRequest}
+                  onOpenSettings={() => (settingsOpen = true)}
+                  providerStatus={conversationalProviderStatus}
+                  {hasImportedRankings}
+                  {hasSeasonProjections}
+                  {hasImportedAdp}
+                  showPlaceholderWarning={draftValuesIncomplete}
+                  {draftState}
+                  draftIdentity={activeDraftIdentity}
+                  {recommendation}
+                />
+              {/if}
             {:else}
               <RosterPanel state={draftState} />
               <PickFeedPanel state={draftState} />
             {/if}
           </div>
-          {#if draftValuesIncomplete || limitedDataMode}
+          {#if draftValuesIncomplete || emergencyBoardMode}
             <div class="side-column">
               <DraftDataStatus
                 hasRankings={hasImportedRankings}
                 {rankingsStale}
                 hasProjections={hasSeasonProjections}
                 hasAdp={hasImportedAdp}
-                limitedMode={limitedDataMode}
+                emergencyMode={emergencyBoardMode}
                 onOpen={openDraftPreparation}
               />
             </div>

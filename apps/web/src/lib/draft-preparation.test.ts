@@ -4,25 +4,26 @@ import { shouldOpenDraftPreparation } from "./draft-preparation";
 
 describe("draft preparation", () => {
   const now = new Date("2026-08-20T12:00:00.000Z").getTime();
+  const ready = {
+    rankingsAppliedAt: "2026-08-19T12:00:00.000Z",
+    hasProjections: true,
+    hasAdp: true,
+    aiReady: true,
+  };
 
-  it("opens for a real active draft without current rankings", () => {
-    expect(shouldOpenDraftPreparation("draft-1", "pre_draft", null, true, now)).toBe(true);
+  it("opens for a real draft when any required input is missing or stale", () => {
+    expect(shouldOpenDraftPreparation("draft-1", "pre_draft", { ...ready, rankingsAppliedAt: null }, now)).toBe(true);
     expect(
-      shouldOpenDraftPreparation("draft-1", "drafting", "2026-08-01T12:00:00.000Z", true, now),
+      shouldOpenDraftPreparation("draft-1", "drafting", { ...ready, rankingsAppliedAt: "2026-08-01T12:00:00.000Z" }, now),
     ).toBe(true);
+    expect(shouldOpenDraftPreparation("draft-1", "pre_draft", { ...ready, hasProjections: false }, now)).toBe(true);
+    expect(shouldOpenDraftPreparation("draft-1", "pre_draft", { ...ready, hasAdp: false }, now)).toBe(true);
+    expect(shouldOpenDraftPreparation("draft-1", "pre_draft", { ...ready, aiReady: false }, now)).toBe(true);
   });
 
-  it("opens once for an unacknowledged AI choice", () => {
-    expect(
-      shouldOpenDraftPreparation("draft-1", "pre_draft", "2026-08-19T12:00:00.000Z", false, now),
-    ).toBe(true);
-  });
-
-  it("bypasses preparation for acknowledged current rankings, demos, and completed drafts", () => {
-    expect(
-      shouldOpenDraftPreparation("draft-1", "pre_draft", "2026-08-19T12:00:00.000Z", true, now),
-    ).toBe(false);
-    expect(shouldOpenDraftPreparation("mock-draft", "pre_draft", null, false, now)).toBe(false);
-    expect(shouldOpenDraftPreparation("draft-1", "complete", null, false, now)).toBe(false);
+  it("bypasses preparation only for full readiness, demos, and completed drafts", () => {
+    expect(shouldOpenDraftPreparation("draft-1", "pre_draft", ready, now)).toBe(false);
+    expect(shouldOpenDraftPreparation("mock-draft", "pre_draft", { ...ready, rankingsAppliedAt: null }, now)).toBe(false);
+    expect(shouldOpenDraftPreparation("draft-1", "complete", { ...ready, aiReady: false }, now)).toBe(false);
   });
 });

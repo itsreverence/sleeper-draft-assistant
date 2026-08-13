@@ -66,6 +66,7 @@ describe("App draft lifecycle", () => {
 
   it("shows the resolved team name and draft slot instead of the Sleeper roster ID", async () => {
     apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    apiMock.aiStatus = createDisabledAiStatus();
     const draftLoad = apiMock.deferDraftState({
       draftId: "draft-1",
       userRosterId: null,
@@ -83,6 +84,7 @@ describe("App draft lifecycle", () => {
 
   it("falls back to the assigned draft slot when the team name is unresolved", async () => {
     apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    apiMock.aiStatus = createDisabledAiStatus();
     const draftLoad = apiMock.deferDraftState({
       draftId: "draft-1",
       userRosterId: "slot-3",
@@ -110,6 +112,28 @@ describe("App draft lifecycle", () => {
     const teamStatus = view.container.querySelector('[title^="Your team:"]');
     expect(teamStatus?.textContent).toContain("Draft slot 3");
     expect(teamStatus?.textContent).not.toContain("Your Team");
+  });
+
+  it("offers active-draft emergency access without mounting AI features", async () => {
+    apiMock.aiStatus = createDisabledAiStatus();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    render(App);
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+
+    expect((screen.getByRole("button", { name: "Enter draft room" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Open emergency board only" }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Emergency board-only mode")).toBeTruthy();
+    expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
+    expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
   });
 
   it("one preference update commits recommendation", async () => {
@@ -614,6 +638,7 @@ describe("App draft lifecycle", () => {
 
   it("a stale rankings import response does not overwrite the next active draft", async () => {
     apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    apiMock.aiStatus = createDisabledAiStatus();
 
     const importPayload = createDeferred<Awaited<ReturnType<typeof apiMock.importRankingsRequest>>>();
     apiMock.importRankingsRequest.mockImplementationOnce(async () => await importPayload.promise);
@@ -667,6 +692,7 @@ describe("App draft lifecycle", () => {
 
   it("rankings import then clear overlap leaves no stuck busy flag and the stale import cannot win", async () => {
     apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    apiMock.aiStatus = createDisabledAiStatus();
 
     const importPayload = createDeferred<Awaited<ReturnType<typeof apiMock.importRankingsRequest>>>();
     const clearPayload = createDeferred<ReturnType<typeof createDraftPayloadFixture>>();
@@ -681,14 +707,32 @@ describe("App draft lifecycle", () => {
 
     const view = render(App);
 
-    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-1" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const initialPayload = createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Sleeper Alpha Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    });
+    draftLoad.resolve({
+      ...initialPayload,
+      seasonProjectionImportSummary: null,
+      adpImportSummary: null,
+    });
+    expect(await screen.findByText("Sleeper Alpha Draft")).toBeTruthy();
+    await waitFor(() => {
+      expect(view.container.querySelectorAll('input[type="file"]').length).toBeGreaterThan(0);
+    });
     await uploadDraftDataCsv(view.container, 0, "rankings.csv", "name,team\nPlayer,ABC");
 
     await waitFor(() => {
       expect(apiMock.importRankingsRequest).toHaveBeenCalledTimes(1);
     });
 
-    await fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    await fireEvent.click(screen.getAllByRole("button", { name: "Clear" })[0]!);
 
     const clearedPayload = createDraftPayloadFixture({
       draftId: "draft-1",
@@ -698,6 +742,8 @@ describe("App draft lifecycle", () => {
     clearPayload.resolve({
       ...clearedPayload,
       rankingImportSummary: null,
+      seasonProjectionImportSummary: null,
+      adpImportSummary: null,
     });
 
     await waitFor(() => {
@@ -885,5 +931,14 @@ function createConnectPayloadFixture(overrides: Partial<ConnectPayload> = {}): C
   return {
     ...base,
     ...overrides,
+  };
+}
+
+function createDisabledAiStatus() {
+  return {
+    id: "noop" as const,
+    label: "No AI provider",
+    configured: false,
+    availability: "disabled" as const,
   };
 }

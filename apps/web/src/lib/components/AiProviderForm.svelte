@@ -9,6 +9,7 @@
     isSaving,
     error = "",
     submitLabel = "Save AI settings",
+    requireCodex = false,
     onSave,
   }: {
     settings: AppSettings | null;
@@ -16,6 +17,7 @@
     isSaving: boolean;
     error?: string;
     submitLabel?: string;
+    requireCodex?: boolean;
     onSave: (settings: AppSettings) => void;
   } = $props();
 
@@ -29,7 +31,7 @@
       return;
     }
 
-    aiProvider = settings.aiProvider;
+    aiProvider = requireCodex ? "codex-app-server" : settings.aiProvider;
     codexBin = settings.codexBin;
     codexModel = settings.codexModel;
     codexTimeoutMs = settings.codexTimeoutMs;
@@ -52,7 +54,9 @@
   <label class="field">
     <span>Provider</span>
     <select class="input" bind:value={aiProvider}>
-      <option value="noop">Continue without AI</option>
+      {#if !requireCodex}
+        <option value="noop">Disable AI</option>
+      {/if}
       <option value="codex-app-server">Codex app-server</option>
     </select>
   </label>
@@ -81,7 +85,7 @@
     <p class="form-note">Requires the Codex CLI to be installed and signed in on this machine. Authentication remains in Codex.</p>
     <p class="form-note">The backend keeps one local app-server session active and reuses draft conversations while the app is running.</p>
   {:else}
-    <p class="form-note">The live board and imported data remain available, but AI recommendations and draft questions stay disabled.</p>
+    <p class="form-note">AI recommendations and assistant questions are disabled.</p>
   {/if}
 
   {#if providerStatus?.detail}

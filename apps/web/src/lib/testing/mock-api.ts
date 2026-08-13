@@ -53,7 +53,12 @@ function unexpected(name: string): never {
 
 class ApiMockController {
   settings: AppSettings = createAppSettingsFixture();
-  aiStatus = createAiProviderStatusFixture();
+  aiStatus = createAiProviderStatusFixture({
+    id: "codex-app-server",
+    label: "Codex app-server",
+    configured: true,
+    availability: "available",
+  });
   decisionHistory: DecisionHistoryPayload = { snapshots: [] };
   draftStrategyInstructions: DraftStrategyInstructionsPayload = { instructions: [] };
   teamPayload: TeamPayload = createTeamPayloadFixture();
@@ -196,7 +201,12 @@ class ApiMockController {
 
   reset() {
     this.settings = createAppSettingsFixture();
-    this.aiStatus = createAiProviderStatusFixture();
+    this.aiStatus = createAiProviderStatusFixture({
+      id: "codex-app-server",
+      label: "Codex app-server",
+      configured: true,
+      availability: "available",
+    });
     this.decisionHistory = { snapshots: [] };
     this.draftStrategyInstructions = { instructions: [] };
     this.teamPayload = createTeamPayloadFixture();

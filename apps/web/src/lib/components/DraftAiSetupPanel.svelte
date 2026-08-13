@@ -1,7 +1,7 @@
 <script lang="ts">
   import AiProviderForm from "./AiProviderForm.svelte";
   import Icon from "./Icon.svelte";
-  import type { AiProviderStatus, AppSettings } from "../types";
+  import { isAiProviderAvailable, type AiProviderStatus, type AppSettings } from "../types";
 
   let {
     settings,
@@ -19,7 +19,7 @@
 
   let editing = $state(false);
   const aiReady = $derived(
-    providerStatus?.id === "codex-app-server" && providerStatus.configured,
+    providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus),
   );
 </script>
 
@@ -30,11 +30,11 @@
     </div>
     <div>
       <span class="section-label">AI manager</span>
-      <h2 id="ai-setup-title">{aiReady ? "Codex is selected" : "Choose how draft advice works"}</h2>
+      <h2 id="ai-setup-title">{aiReady ? "Codex is selected" : "Connect the AI manager"}</h2>
       <p>
         {aiReady
           ? "Draft strategy and follow-up questions will use your local Codex login."
-          : "Connect Codex for AI recommendations, or explicitly continue with the live board and imported data only."}
+          : "Codex is required for AI recommendations and draft questions."}
       </p>
     </div>
     {#if aiReady && !editing}
@@ -51,7 +51,8 @@
         {providerStatus}
         {isSaving}
         {error}
-        submitLabel={aiReady ? "Save AI settings" : "Confirm AI choice"}
+        submitLabel={aiReady ? "Save AI settings" : "Confirm Codex settings"}
+        requireCodex={true}
         {onSave}
       />
     </div>
