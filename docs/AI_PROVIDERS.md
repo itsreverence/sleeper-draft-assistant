@@ -23,11 +23,13 @@ Development defaults are optional:
 
 ```bash
 SLEEPER_AI_PROVIDER=codex-app-server \
-SLEEPER_AI_CODEX_MODEL=gpt-5.4 \
+SLEEPER_AI_CODEX_MODEL=gpt-5.6-terra \
 SLEEPER_AI_CODEX_TIMEOUT_MS=60000 \
 CODEX_BIN=/path/to/codex \
 npm run dev
 ```
+
+The default model is `gpt-5.6-terra`, which balances intelligence and cost for repeated live-draft turns. Users can select `gpt-5.6-luna` for greater efficiency or `gpt-5.6-sol` for frontier capability. Model access still depends on the locally authenticated Codex account.
 
 Codex installation, login state, model availability, subscription requirements, and provider terms remain the user's responsibility. This project is not endorsed by OpenAI.
 

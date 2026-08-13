@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { AiProviderStatus, AppSettings } from "../types";
 
+  const defaultCodexModel = "gpt-5.6-terra";
+
   let {
     settings,
     providerStatus,
@@ -19,7 +21,7 @@
 
   let aiProvider: AppSettings["aiProvider"] = $state("noop");
   let codexBin = $state("codex");
-  let codexModel = $state("gpt-5.4");
+  let codexModel = $state(defaultCodexModel);
   let codexTimeoutMs = $state(60000);
 
   $effect(() => {
@@ -38,7 +40,7 @@
     onSave({
       aiProvider,
       codexBin: codexBin.trim() || "codex",
-      codexModel: codexModel.trim() || "gpt-5.4",
+      codexModel: codexModel.trim() || defaultCodexModel,
       codexTimeoutMs: Number(codexTimeoutMs),
       automaticAiAudit: settings?.automaticAiAudit ?? "off",
       aiSetupAcknowledged: true,
@@ -63,13 +65,19 @@
       </label>
       <label class="field">
         <span>Model</span>
-        <input class="input" bind:value={codexModel} type="text" placeholder="gpt-5.4" />
+        <input class="input" bind:value={codexModel} type="text" list="codex-model-options" placeholder={defaultCodexModel} />
+        <datalist id="codex-model-options">
+          <option value="gpt-5.6-luna">Luna - efficient</option>
+          <option value="gpt-5.6-terra">Terra - balanced</option>
+          <option value="gpt-5.6-sol">Sol - frontier</option>
+        </datalist>
       </label>
       <label class="field">
         <span>Timeout ms</span>
         <input class="input" bind:value={codexTimeoutMs} type="number" min="5000" max="300000" step="1000" />
       </label>
     </div>
+    <p class="form-note">Terra is the balanced default. Choose Luna for efficiency or Sol for maximum capability.</p>
     <p class="form-note">Requires the Codex CLI to be installed and signed in on this machine. Authentication remains in Codex.</p>
     <p class="form-note">The backend keeps one local app-server session active and reuses draft conversations while the app is running.</p>
   {:else}

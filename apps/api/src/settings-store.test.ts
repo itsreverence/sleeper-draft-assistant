@@ -96,6 +96,29 @@ describe("SettingsStore", () => {
     expect(migrated.aiProvider).toBe("noop");
   });
 
+  it("updates the unconfirmed former default model without replacing an intentional model choice", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-model-migration-"));
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+    database.setJson("settings", "app", {
+      aiProvider: "noop",
+      codexBin: "codex",
+      codexModel: "gpt-5.4",
+      codexTimeoutMs: 60000,
+      aiSetupAcknowledged: false,
+    });
+
+    const migratedStore = new SettingsStore(path.join(dir, "settings.json"), database);
+    expect(migratedStore.get().codexModel).toBe("gpt-5.6-terra");
+
+    migratedStore.update({
+      aiProvider: "codex-app-server",
+      codexModel: "gpt-5.4",
+      aiSetupAcknowledged: true,
+    });
+    const reopenedStore = new SettingsStore(path.join(dir, "settings.json"), database);
+    expect(reopenedStore.get().codexModel).toBe("gpt-5.4");
+  });
+
   it("rejects arbitrary subprocess commands", () => {
     const filePath = path.join(mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-command-")), "settings.json");
     const store = new SettingsStore(filePath);

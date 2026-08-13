@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-import { AiDraftDecisionSchema, DraftStrategyProposalSchema, type AiDraftDecision, type DraftStrategyProposal } from "@sleeper-draft-assistant/shared";
+import { AiDraftDecisionSchema, DEFAULT_CODEX_MODEL, DraftStrategyProposalSchema, type AiDraftDecision, type DraftStrategyProposal } from "@sleeper-draft-assistant/shared";
 
 import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
@@ -54,7 +54,7 @@ export class CodexAppServerProvider implements AiProvider {
 
   constructor(options: CodexAppServerProviderOptions = {}) {
     this.codexBin = options.codexBin ?? process.env.CODEX_BIN ?? "codex";
-    this.model = options.model ?? process.env.SLEEPER_AI_CODEX_MODEL ?? "gpt-5.4";
+    this.model = options.model ?? process.env.SLEEPER_AI_CODEX_MODEL ?? DEFAULT_CODEX_MODEL;
     this.timeoutMs = options.timeoutMs ?? Number(process.env.SLEEPER_AI_CODEX_TIMEOUT_MS ?? 60000);
     this.clientFactory = options.clientFactory ?? CodexJsonRpcClient.start;
   }
@@ -590,4 +590,3 @@ function getNestedValue(value: unknown, path: string[]): unknown {
   }
   return current;
 }
-

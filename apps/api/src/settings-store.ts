@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AppSettingsSchema, AppSettingsUpdateSchema, type AppSettings, type AppSettingsUpdate } from "@sleeper-draft-assistant/shared";
+import { AppSettingsSchema, AppSettingsUpdateSchema, DEFAULT_CODEX_MODEL, type AppSettings, type AppSettingsUpdate } from "@sleeper-draft-assistant/shared";
 
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -99,14 +99,26 @@ function getDefaultSettings(): AppSettings {
 }
 
 function migrateLegacyProviderSettings(input: unknown): { value: unknown; changed: boolean } {
-  if (typeof input !== "object" || input === null || !("aiProvider" in input)) {
+  if (typeof input !== "object" || input === null) {
     return { value: input, changed: false };
   }
 
   const settings = input as Record<string, unknown>;
-  return settings.aiProvider === LEGACY_DIRECT_PROVIDER_ID
-    ? { value: { ...settings, aiProvider: "noop" }, changed: true }
-    : { value: input, changed: false };
+  let migrated = settings;
+  let changed = false;
+  if (settings.aiProvider === LEGACY_DIRECT_PROVIDER_ID) {
+    migrated = { ...migrated, aiProvider: "noop" };
+    changed = true;
+  }
+  if (
+    settings.codexModel === "gpt-5.4"
+    && settings.aiSetupAcknowledged !== true
+    && settings.aiProvider !== "codex-app-server"
+  ) {
+    migrated = { ...migrated, codexModel: DEFAULT_CODEX_MODEL };
+    changed = true;
+  }
+  return { value: migrated, changed };
 }
 
 function removeLegacyProviderTokenFile(dataDirectory: string): void {

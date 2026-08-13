@@ -117,12 +117,14 @@ export function isCodexExecutableReference(value: string): boolean {
   return executableName === "codex" || executableName === "codex.exe" || executableName === "codex.cmd";
 }
 
+export const DEFAULT_CODEX_MODEL = "gpt-5.6-terra";
+
 export const AppSettingsSchema = z.object({
   aiProvider: AiProviderIdSchema.default("noop"),
   codexBin: z.string().trim().min(1).max(4_096).refine(isCodexExecutableReference, {
     message: "Codex command must resolve to codex, codex.exe, or codex.cmd.",
   }).default("codex"),
-  codexModel: z.string().trim().min(1).default("gpt-5.4"),
+  codexModel: z.string().trim().min(1).default(DEFAULT_CODEX_MODEL),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
   automaticAiAudit: AutomaticAiAuditModeSchema.default("off"),
   aiSetupAcknowledged: z.boolean().default(false),
@@ -623,7 +625,6 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
-
 
 
 

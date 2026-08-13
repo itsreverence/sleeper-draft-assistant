@@ -21,7 +21,7 @@ export function createAppSettingsFixture(overrides: Partial<AppSettings> = {}): 
   return {
     aiProvider: "noop",
     codexBin: "codex",
-    codexModel: "gpt-5.4",
+    codexModel: "gpt-5.6-terra",
     codexTimeoutMs: 60_000,
     automaticAiAudit: "off",
     aiSetupAcknowledged: true,
