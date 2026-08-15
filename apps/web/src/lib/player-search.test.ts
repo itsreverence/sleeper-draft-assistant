@@ -15,6 +15,25 @@ describe("player search", () => {
     expect(searchDraftPlayers(state, compressed, null, {}).some((result) => result.player.id === player.id)).toBe(true);
   });
 
+  it("does not flood short name queries with subsequence-only matches", () => {
+    const state = createMockDraftState(0);
+    state.players.push({
+      ...state.players[0]!,
+      id: "ceedee-lamb",
+      sleeperId: "ceedee-lamb",
+      name: "CeeDee Lamb",
+    }, {
+      ...state.players[0]!,
+      id: "davis-cheek",
+      sleeperId: "davis-cheek",
+      name: "Davis Cheek",
+    });
+
+    const results = searchDraftPlayers(state, "Cee", null, {});
+    expect(results.map((result) => result.player.name)).toContain("CeeDee Lamb");
+    expect(results.map((result) => result.player.name)).not.toContain("Davis Cheek");
+  });
+
   it("shows saved preferences when the query is empty", () => {
     const state = createMockDraftState(0);
     const [prioritized, excluded] = state.players;

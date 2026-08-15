@@ -60,6 +60,9 @@ describe("AI provider context", () => {
     expect(context.playerEvidenceGroups.projectionLeaders.length).toBeGreaterThan(0);
     expect(context.roster.openDirectStarterSlots.K).toBe(0);
     expect(context.roster.openSuperFlexSlots).toBe(0);
+    expect(context.draft.nextUserPick).toBe(1);
+    expect(context.draft.followingUserPick).toBe(16);
+    expect(context.draft.picksBetweenUserTurns).toBe(14);
     expect(strategy.decision.basedOnPick).toBe(state.currentPick);
     expect(strategy.decision.recommendedPlayerId).toBe(context.playerEvidenceGroups.projectionLeaders[0]);
     expect(strategy.decision.alternativePlayerIds.length).toBeGreaterThan(0);
@@ -175,5 +178,4 @@ function contextPlayer(
     riskTags: [],
   };
 }
-
 

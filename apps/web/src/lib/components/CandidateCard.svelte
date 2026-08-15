@@ -7,12 +7,14 @@
   let {
     candidate,
     rank,
+    strategyLabel = "AI alternative",
     preference = null,
     onSetPreference,
     onDiscuss,
   }: {
     candidate: DraftOption;
     rank: number;
+    strategyLabel?: string;
     preference?: PlayerPreferenceLevel | null;
     onSetPreference?: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
     onDiscuss?: (playerName: string) => void;
@@ -35,7 +37,7 @@
     <div class="candidate-copy">
       <div class="name-row">
         <h3>{candidate.player.name}</h3>
-        <span class="strategy-badge">AI alternative</span>
+        <span class="strategy-badge">{strategyLabel}</span>
         {#if preference}
           <span class="preference-badge preference-{preference}">{preference === "pin" ? "prioritized" : preference === "fade" ? "deprioritized" : "excluded"}</span>
         {/if}

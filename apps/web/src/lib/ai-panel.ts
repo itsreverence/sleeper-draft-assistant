@@ -5,6 +5,7 @@ import type {
   DraftState,
   Position,
 } from "./types";
+import { formatDraftPick, upcomingUserPicks } from "./format";
 
 export type AiPanelContextSummary = {
   league: string;
@@ -18,14 +19,54 @@ export type SuggestedQuestion = {
   prompt: string;
 };
 
+export type RecommendationTurnPresentation = {
+  headline: string;
+  timing: string | null;
+  contingent: boolean;
+  nextUserPick: number | null;
+};
+
+export function recommendationTurnPresentation(
+  state: DraftState,
+  playerName: string,
+  onClockHeadline: string,
+): RecommendationTurnPresentation {
+  const [nextUserPick = null, followingUserPick = null] = upcomingUserPicks(state);
+  if (nextUserPick === null) {
+    return { headline: onClockHeadline, timing: null, contingent: false, nextUserPick };
+  }
+  const picksUntilTurn = nextUserPick - state.currentPick;
+  const nextLabel = formatDraftPick(nextUserPick, state.settings.teams);
+  if (picksUntilTurn === 0) {
+    return {
+      headline: onClockHeadline,
+      timing: `You are on the clock at ${nextLabel}`,
+      contingent: false,
+      nextUserPick,
+    };
+  }
+  const waitLabel = `${picksUntilTurn} selection${picksUntilTurn === 1 ? "" : "s"} before your ${nextLabel} pick`;
+  const followingTiming = followingUserPick === null
+    ? ""
+    : followingUserPick - nextUserPick - 1 === 0
+      ? ` · ${formatDraftPick(followingUserPick, state.settings.teams)} follows immediately`
+      : ` · ${followingUserPick - nextUserPick - 1} picks before ${formatDraftPick(followingUserPick, state.settings.teams)}`;
+  return {
+    headline: `Target ${playerName} at ${nextLabel} if available`,
+    timing: `${waitLabel}${followingTiming}`,
+    contingent: true,
+    nextUserPick,
+  };
+}
+
 export function buildCandidateDiscussionQuestion(
   playerName: string,
   recommendedPlayerName: string,
 ): string {
   if (playerName === recommendedPlayerName) {
-    return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} with this pick? Validate that choice against the strongest available alternatives.`;
+    return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} with my upcoming pick? Validate that choice against the strongest available contingencies.`;
   }
-  return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} instead? Compare both players with the strongest available alternatives.`;
+  return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} instead? Compare both players with the strongest available contingencies. If ${playerName} should replace ${recommendedPlayerName}, propose that next-pick strategy change for my confirmation.`;
 }
 
 export function currentAiDraftStrategy(
@@ -58,7 +99,7 @@ export function buildSuggestedQuestions(
   usingPlaceholderRanks: boolean,
 ): SuggestedQuestion[] {
   const fallback: SuggestedQuestion[] = [
-    { label: "Best pick now", prompt: "Who should I draft if I pick right now?" },
+    { label: "Best target", prompt: "Who should I target for my upcoming selection from the current board?" },
     { label: "Compare top options", prompt: "Compare my top 3 options." },
     { label: "QB priority?", prompt: "Should I prioritize QB here?" },
     { label: "Biggest roster need", prompt: "What roster need matters most?" },
@@ -70,7 +111,7 @@ export function buildSuggestedQuestions(
 
   const rosterNeeds = getRosterNeeds(state);
   const questions: SuggestedQuestion[] = [
-    { label: "Best pick now", prompt: "Who should I draft if I pick right now?" },
+    { label: "Best target", prompt: "Who should I target for my upcoming selection from the current board?" },
     { label: "Compare best options", prompt: "Search the available players and compare the best options." },
   ];
 
@@ -140,8 +181,11 @@ export function buildAiPanelContextSummary(
   };
 }
 
-export function buildPlayerDiscussionQuestion(playerName: string): string {
-  return `Evaluate ${playerName} for my current pick. Compare them with the strongest available alternatives and explain whether I should draft them now, wait, deprioritize them, or exclude them.`;
+export function buildPlayerDiscussionQuestion(playerName: string, recommendedPlayerName?: string): string {
+  const comparison = recommendedPlayerName
+    ? ` Compare them with the current ${recommendedPlayerName} recommendation and the strongest available contingencies. If ${playerName} should replace ${recommendedPlayerName}, propose that next-pick strategy change for my confirmation.`
+    : " Compare them with the strongest available contingencies.";
+  return `Evaluate ${playerName} for my upcoming pick.${comparison} Explain whether I should target them, wait, deprioritize them, or exclude them.`;
 }
 
 function getRosterNeeds(state: DraftState): Position[] {
@@ -215,4 +259,3 @@ function formatStarterSlots(rosterSlots: Record<string, number>): string {
 function uniqueSuggestedQuestions(source: SuggestedQuestion[]): SuggestedQuestion[] {
   return source.filter((question, index) => question.prompt && source.findIndex((candidate) => candidate.prompt === question.prompt) === index);
 }
-

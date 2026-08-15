@@ -708,14 +708,15 @@ app.post("/drafts/:draftId/strategy", async (c) => {
     const storedPlan = draftPlanStore.get(draftId, state.userTeamId, providerStatus.id);
     const previousPlan = storedPlan && storedPlan.updatedAtPick <= state.currentPick ? storedPlan : null;
     const strategyInstructions = draftStrategyInstructionStore.list(draftId, state.userTeamId, state.currentPick);
+    const strategyContext = buildDraftStrategyContext(
+      state,
+      normalizeUserPreferences(body.userPreferences),
+      snapshot,
+      previousPlan,
+      strategyInstructions,
+    );
     const strategy = await provider.strategizeDraft(
-      buildDraftStrategyContext(
-        state,
-        normalizeUserPreferences(body.userPreferences),
-        snapshot,
-        previousPlan,
-        strategyInstructions,
-      ),
+      strategyContext,
       tools,
     );
     const latestState = await loadDraftState(draftId, getUserRosterId(c));
@@ -750,7 +751,11 @@ app.post("/drafts/:draftId/strategy", async (c) => {
     ])).slice(0, 3);
     const decision = {
       ...strategy.decision,
-      headline: `Take ${recommendedCandidate.player.name}`,
+      headline: strategyContext.draft.picksUntilNextUserPick !== null
+        && strategyContext.draft.picksUntilNextUserPick > 0
+        && strategyContext.draft.nextUserPick !== null
+        ? `Target ${recommendedCandidate.player.name} at ${formatDraftPick(strategyContext.draft.nextUserPick, state.settings.teams)} if available`
+        : `Take ${recommendedCandidate.player.name}`,
       alternativePlayerIds: alternativeCandidates.map((candidate) => candidate.player.id),
       plan: {
         ...strategy.decision.plan,
@@ -1292,6 +1297,12 @@ function logRouteErrorMessage(context: string, error: unknown) {
   console.error(`[api] ${context} failed: ${message}`);
 }
 
+function formatDraftPick(pickNo: number, teamCount: number): string {
+  const round = Math.floor((pickNo - 1) / teamCount) + 1;
+  const pickInRound = ((pickNo - 1) % teamCount) + 1;
+  return `${round}.${String(pickInRound).padStart(2, "0")}`;
+}
+
 function createEventStreamResponse(stream: ReadableStream<Uint8Array>): Response {
   return new Response(stream, {
     headers: {
@@ -1321,8 +1332,6 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
-
-
 
 
 

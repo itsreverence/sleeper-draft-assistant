@@ -118,6 +118,8 @@ export type DraftStrategyContext = {
     currentPick: number;
     nextUserPick: number | null;
     picksUntilNextUserPick: number | null;
+    followingUserPick: number | null;
+    picksBetweenUserTurns: number | null;
     pickOrderSource: NonNullable<DraftState["pickOrder"]>["source"];
     pickOrderNote: string | null;
     remainingUserSelections: number;
@@ -202,7 +204,6 @@ export interface AiProvider {
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
   close?(): void;
 }
-
 
 
 

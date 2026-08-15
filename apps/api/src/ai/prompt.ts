@@ -29,7 +29,9 @@ export function buildDraftManagerPrompt(context: DraftQuestionContext): string {
 
 export function buildDraftStrategyPrompt(context: DraftStrategyContext): string {
   return [
-    "Choose the best available player for the user's roster at the current pick.",
+    "Choose the best target for the user's next selection from the current board.",
+    "When draft.picksUntilNextUserPick is greater than zero, treat the recommendation as contingent: distinguish the current manager's pick from the user's upcoming pick, say that the player must remain available, and do not imply the user is on the clock.",
+    "Use draft.followingUserPick and draft.picksBetweenUserTurns to distinguish the wait before the user's next selection from the gap after it. A snake-turn pair may have zero intervening selections.",
     "Reason independently from the current Sleeper draft snapshot. The evidence groups are separate raw signals, not a composite recommendation.",
     "Use search_available_players when the supplied evidence does not cover a material position, tier, or named alternative; use compare_players for named alternatives and inspect_position_market when wait-or-take timing depends on supply or the teams before the next turn. Do not call a tool just to repeat facts already in the context.",
     "Treat draft.pickOrderSource as authoritative for timing confidence. If it is normal_snake_fallback or unsupported, qualify exact wait-or-take timing rather than presenting it as a confirmed future pick path.",
@@ -45,6 +47,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
     "Return a complete but non-redundant living draft plan with every decision. Treat previousPlan as the prior model strategy, not as authoritative evidence. Revise it from the current board and explain only the most material change in changeSummary. When previousPlan is null, establish the initial plan without repeating the current-pick rationale.",
     "currentPickFocus must include the recommended player's position. Do not put a current-pick focus position in positionsThatCanWait.",
     "Keep the explanation concise enough for a live pick clock.",
+    "Choose alternatives as useful contingencies for the user's next selection. When the user is waiting multiple picks, include elite fallers plus at least two credible turn-range options supported by ECR or ADP near or after draft.nextUserPick; do not return only players likely to be selected before the user.",
     "",
     "Return JSON only, with no markdown fence or surrounding prose.",
     "Required JSON shape:",
@@ -115,7 +118,6 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     JSON.stringify(context, null, 2),
   ].join("\n");
 }
-
 
 
 

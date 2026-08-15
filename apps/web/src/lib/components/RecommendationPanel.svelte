@@ -2,9 +2,9 @@
   import Icon from "./Icon.svelte";
   import CandidateCard from "./CandidateCard.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
-  import { currentAiDraftStrategy } from "../ai-panel";
-  import { rosterFitLabel, sourceLabel } from "../format";
-  import type { AiDraftStrategyPayload, PlayerPreferenceLevel, PlayerPreferences } from "../types";
+  import { currentAiDraftStrategy, recommendationTurnPresentation } from "../ai-panel";
+  import { formatDraftPick, rosterFitLabel, sourceLabel } from "../format";
+  import type { AiDraftStrategyPayload, DraftOption, DraftState, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
     showPlaceholderWarning = false,
@@ -23,6 +23,7 @@
     onRequestAiStrategy,
     strategyOpen = false,
     onToggleStrategy,
+    draftState,
   }: {
     showPlaceholderWarning?: boolean;
     playerPreferences?: PlayerPreferences;
@@ -40,6 +41,7 @@
     onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
     strategyOpen?: boolean;
     onToggleStrategy?: () => void;
+    draftState: DraftState;
   } = $props();
 
   const preferenceCounts = $derived.by(() => {
@@ -82,11 +84,33 @@
       ).values(),
     );
   });
-  const activeHeadline = $derived(currentAiStrategy?.decision.headline ?? "AI draft assistant");
+  const turnPresentation = $derived.by(() => {
+    const strategy = currentAiStrategy;
+    return strategy
+      ? recommendationTurnPresentation(
+        draftState,
+        strategy.recommendedCandidate.player.name,
+        strategy.decision.headline,
+      )
+      : null;
+  });
+  const activeHeadline = $derived(turnPresentation?.headline ?? "AI draft assistant");
+  const timingSummary = $derived(turnPresentation?.timing ?? null);
   const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
   const confidenceTone = $derived(
     activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
   );
+  function contingencyLabel(candidate: DraftOption): string {
+    const nextUserPick = turnPresentation?.nextUserPick;
+    if (nextUserPick === null || nextUserPick === undefined || !turnPresentation?.contingent) return "AI alternative";
+    const turnRangeStart = Math.max(currentPick, nextUserPick - 2);
+    const marketPoint = candidate.player.importedRank
+      ?? candidate.player.realTimeAdp
+      ?? candidate.player.adp;
+    return marketPoint !== null && marketPoint !== undefined && marketPoint >= turnRangeStart
+      ? `${formatDraftPick(nextUserPick, draftState.settings.teams)} range`
+      : "Elite faller";
+  }
   function retryAiStrategy() {
     aiStrategyError = "";
     lastAiStrategyKey = "";
@@ -162,7 +186,7 @@
         </button>
       {/if}
       {#if activeConfidence}
-        <span class="pill pill-{confidenceTone}">{activeConfidence} confidence</span>
+        <span class="pill pill-{confidenceTone}">{activeConfidence} confidence{turnPresentation?.contingent ? " if available" : ""}</span>
       {/if}
       {#if currentAiStrategy && currentAiStrategy.decision.risks.length > 0}
         <span class="pill pill-warning">
@@ -187,6 +211,7 @@
 
   {#if currentAiStrategy}
     <div class="ai-strategy" aria-live="polite">
+      {#if timingSummary}<p class="turn-context">{timingSummary}</p>{/if}
       <p class="decision-summary">{currentAiStrategy.decision.summary}</p>
       <div class="decision-actions">
         <PlayerPreferenceMenu
@@ -210,7 +235,7 @@
             aria-expanded={alternativesOpen}
             onclick={() => (alternativesOpen = !alternativesOpen)}
           >
-            {alternativeAiCandidates.length} alternatives
+            {alternativeAiCandidates.length} contingencies
           </button>
         {/if}
         <button
@@ -278,6 +303,7 @@
               <CandidateCard
                 {candidate}
                 rank={index + 2}
+                strategyLabel={contingencyLabel(candidate)}
                 preference={playerPreferences[candidate.player.id] ?? null}
                 {onSetPreference}
                 onDiscuss={discussCandidate}
@@ -468,6 +494,17 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
+  }
+
+  .ai-strategy .turn-context {
+    width: fit-content;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    padding: 5px 9px;
+    color: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: 750;
   }
 
   .ai-strategy .decision-summary {

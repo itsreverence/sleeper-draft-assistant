@@ -70,6 +70,7 @@ function playerMatchScore(player: Player, query: string): number | null {
   if (name.split(" ").some((part) => part.startsWith(query))) return 10;
   if (name.includes(query)) return 15;
   if (team === query || position === query) return 20;
+  if (query.length < 4) return null;
   const subsequenceScore = subsequenceDistance(name, query);
   return subsequenceScore === null ? null : 30 + subsequenceScore;
 }

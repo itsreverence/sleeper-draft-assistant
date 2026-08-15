@@ -18,14 +18,14 @@ export function buildDraftStrategyContext(
   }
   const positionCounts = countRosterPositions(userTeam, playersById);
   const openDirectStarterSlots = getOpenDirectStarterSlots(state, positionCounts);
-  const nextUserPick = findNextUserPick(state);
+  const [nextUserPick = null, followingUserPick = null] = findUpcomingUserPicks(state, 2);
   const recentPicks = [...state.picks].reverse().slice(0, 12);
   const availablePlayers = snapshot.players.filter((player) => !snapshot.preferences.excluded.has(player.id));
   const groupedPlayerEvidence = buildGroupedPlayerEvidence(snapshot, openDirectStarterSlots);
 
   return {
     task: "draft_strategy",
-    objective: "Choose the best available player for the user's roster at the current pick.",
+    objective: "Choose the best target for the user's next selection from the current board.",
     previousPlan,
     strategyInstructions,
     userPreferences,
@@ -45,6 +45,10 @@ export function buildDraftStrategyContext(
       currentPick: state.currentPick,
       nextUserPick,
       picksUntilNextUserPick: nextUserPick === null ? null : nextUserPick - state.currentPick,
+      followingUserPick,
+      picksBetweenUserTurns: nextUserPick === null || followingUserPick === null
+        ? null
+        : followingUserPick - nextUserPick - 1,
       pickOrderSource: getPickOrderSource(state),
       pickOrderNote: getPickOrderNote(state),
       remainingUserSelections: countUserPicksFrom(state, state.currentPick),
@@ -165,26 +169,28 @@ function getOpenFlexSlots(state: DraftState, counts: Record<Position, number>): 
   return Math.max(0, flexSlots - surplus);
 }
 
-function findNextUserPick(state: DraftState): number | null {
+function findUpcomingUserPicks(state: DraftState, limit: number): number[] {
   const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot;
   if (!userSlot) {
-    return null;
+    return [];
   }
   if (state.pickOrder?.source === "unsupported") {
-    return null;
+    return [];
   }
-  const currentSlot = draftSlotForPick(state.currentPick, state.settings.teams);
-  const start = currentSlot === userSlot ? state.currentPick + 1 : state.currentPick;
   if (state.pickOrder?.entries.length) {
-    return state.pickOrder.entries.find((entry) => entry.pickNo >= start && entry.teamId === state.userTeamId)?.pickNo ?? null;
+    return state.pickOrder.entries
+      .filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId)
+      .slice(0, limit)
+      .map((entry) => entry.pickNo);
   }
+  const picks: number[] = [];
   const totalPicks = state.settings.teams * state.settings.rounds;
-  for (let pickNo = start; pickNo <= totalPicks; pickNo += 1) {
+  for (let pickNo = state.currentPick; pickNo <= totalPicks && picks.length < limit; pickNo += 1) {
     if (draftSlotForPick(pickNo, state.settings.teams) === userSlot) {
-      return pickNo;
+      picks.push(pickNo);
     }
   }
-  return null;
+  return picks;
 }
 
 function countUserPicksFrom(state: DraftState, fromPick: number): number {
@@ -293,5 +299,4 @@ function countRosterPositions(
 
   return counts;
 }
-
 

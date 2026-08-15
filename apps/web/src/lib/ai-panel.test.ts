@@ -12,6 +12,7 @@ import {
   buildPlayerDiscussionQuestion,
   buildSuggestedQuestions,
   currentAiDraftStrategy,
+  recommendationTurnPresentation,
   shouldRequestAiDraftStrategy,
 } from "./ai-panel";
 
@@ -21,10 +22,10 @@ const recommendation = createRecommendation();
 describe("AI panel helpers", () => {
   it("builds a candidate question for the shared draft conversation", () => {
     expect(buildCandidateDiscussionQuestion("Jahmyr Gibbs", "Jahmyr Gibbs")).toBe(
-      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Jahmyr Gibbs with this pick? Validate that choice against the strongest available alternatives.",
+      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Jahmyr Gibbs with my upcoming pick? Validate that choice against the strongest available contingencies.",
     );
     expect(buildCandidateDiscussionQuestion("Ja'Marr Chase", "Jahmyr Gibbs")).toBe(
-      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Ja'Marr Chase instead? Compare both players with the strongest available alternatives.",
+      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Ja'Marr Chase instead? Compare both players with the strongest available contingencies. If Ja'Marr Chase should replace Jahmyr Gibbs, propose that next-pick strategy change for my confirmation.",
     );
   });
 
@@ -54,7 +55,10 @@ describe("AI panel helpers", () => {
 
   it("builds a neutral player-search question", () => {
     expect(buildPlayerDiscussionQuestion("Luther Burden")).toBe(
-      "Evaluate Luther Burden for my current pick. Compare them with the strongest available alternatives and explain whether I should draft them now, wait, deprioritize them, or exclude them.",
+      "Evaluate Luther Burden for my upcoming pick. Compare them with the strongest available contingencies. Explain whether I should target them, wait, deprioritize them, or exclude them.",
+    );
+    expect(buildPlayerDiscussionQuestion("Luther Burden", "Jahmyr Gibbs")).toContain(
+      "propose that next-pick strategy change for my confirmation",
     );
   });
 
@@ -130,6 +134,18 @@ describe("AI panel helpers", () => {
     };
     expect(currentAiDraftStrategy(strategy, 12)).toBe(strategy);
     expect(currentAiDraftStrategy(strategy, 13)).toBeNull();
+  });
+
+  it("frames an early recommendation as a contingent snake-turn target", () => {
+    const waitingState = createState();
+    waitingState.userTeamId = "team-8";
+
+    expect(recommendationTurnPresentation(waitingState, "Ja'Marr Chase", "Take Ja'Marr Chase")).toEqual({
+      headline: "Target Ja'Marr Chase at 1.08 if available",
+      timing: "7 selections before your 1.08 pick · 2.01 follows immediately",
+      contingent: true,
+      nextUserPick: 8,
+    });
   });
 });
 
@@ -207,4 +223,3 @@ function player(id: string, name: string, team: string, position: Position): Pla
     importedRank: 1,
   };
 }
-

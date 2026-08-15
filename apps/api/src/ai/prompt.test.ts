@@ -19,6 +19,7 @@ describe("draft manager prompt", () => {
     expect(prompt).toContain("playerEvidence");
     expect(prompt).toContain("openDirectStarterSlots");
     expect(prompt).toContain("pickOrderSource");
+    expect(prompt).toContain("picksBetweenUserTurns");
     expect(prompt).toContain("board.teamRosters");
     expect(prompt).not.toContain("engineLean");
     expect(prompt).not.toContain("draftBrief");
@@ -47,6 +48,9 @@ describe("draft manager prompt", () => {
     expect(prompt).toContain("inspect_position_market");
     expect(prompt).toContain("openDirectStarterSlots");
     expect(prompt).toContain("pickOrderSource");
+    expect(prompt).toContain("picksBetweenUserTurns");
+    expect(prompt).toContain("treat the recommendation as contingent");
+    expect(prompt).toContain("credible turn-range options");
     expect(prompt).not.toContain("engineLean");
     expect(prompt).not.toContain("toolInstructions");
     expect(prompt).not.toContain("The backend will reject");

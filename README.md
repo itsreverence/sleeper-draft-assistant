@@ -21,6 +21,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Uses a local Codex app-server provider for the core draft and team-assistant experience.
 - Reuses one local Codex app-server process and scoped draft/team threads during each run, preserving conversational continuity without resending prior chat messages from the UI.
 - Uses a configured AI provider as the primary draft strategist near your turn, reasoning from neutral draft evidence and searching the full available-player snapshot through a read-only tool.
+- Labels recommendations as contingent targets until your team is on the clock, shows the exact wait and snake-turn pairing, and separates elite fallers from turn-range contingencies.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
 - Lets users add next-pick or rest-of-draft guidance, and lets AI chat propose guidance that is persisted only after explicit user confirmation.

@@ -255,7 +255,9 @@ describe("draft recommendation routes", () => {
       expect(strategy.provider.id).toBe("noop");
       expect(strategy.decision.basedOnPick).toBe(strategy.pickNumber);
       expect(strategy.decision.recommendedPlayerId).toBe(strategy.recommendedCandidate.player.id);
-      expect(strategy.decision.headline).toBe(`Take ${strategy.recommendedCandidate.player.name}`);
+      expect(strategy.decision.headline).toBe(
+        `Target ${strategy.recommendedCandidate.player.name} at 2.08 if available`,
+      );
       expect(strategy.recommendedCandidate.player.id).not.toBe(excludedId);
       expect(strategy.alternativeCandidates.every((candidate) =>
         strategy.decision.alternativePlayerIds.includes(candidate.player.id)

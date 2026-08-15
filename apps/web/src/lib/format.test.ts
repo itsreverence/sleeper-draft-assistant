@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DraftState } from "./types";
-import { draftSlotForPick, draftTeamReference, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode } from "./format";
+import { draftSlotForPick, draftTeamReference, formatDraftPick, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
 
 describe("draft team identity", () => {
   it("prefers the draft-specific slot over the league roster ID", () => {
@@ -35,6 +35,27 @@ describe("draft turn helpers", () => {
     const state = createState({ currentPick: 1, userSlot: 1 });
     expect(picksUntilUserTurn(state)).toBe(0);
     expect(isUserOnTheClock(state)).toBe(true);
+  });
+
+  it("describes consecutive picks at the snake turn", () => {
+    const state = createState({ currentPick: 1, userSlot: 8 });
+    expect(upcomingUserPicks(state)).toEqual([8, 9]);
+    expect(picksUntilUserTurn(state)).toBe(7);
+    expect(formatDraftPick(8, 8)).toBe("1.08");
+    expect(formatDraftPick(9, 8)).toBe("2.01");
+  });
+
+  it("uses explicit Sleeper ownership for traded picks", () => {
+    const state = createState({ currentPick: 1, userSlot: 8 });
+    state.pickOrder = {
+      source: "sleeper",
+      entries: [
+        { pickNo: 4, round: 1, draftSlot: 4, teamId: state.userTeamId, originalTeamId: "team-4", isTraded: true },
+        { pickNo: 9, round: 2, draftSlot: 8, teamId: state.userTeamId, originalTeamId: state.userTeamId, isTraded: false },
+      ],
+    };
+    expect(upcomingUserPicks(state)).toEqual([4, 9]);
+    expect(picksUntilUserTurn(state)).toBe(3);
   });
 });
 

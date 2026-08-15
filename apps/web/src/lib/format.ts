@@ -77,20 +77,39 @@ export function draftSlotForPick(pickNo: number, teamCount: number): number {
 }
 
 export function picksUntilUserTurn(state: DraftState | null): number | null {
-  const userTeam = getUserTeam(state);
-  if (!state || !userTeam || state.status === "complete") {
+  const nextPick = upcomingUserPicks(state, 1)[0];
+  if (!state || nextPick === undefined) {
     return null;
   }
+  return nextPick - state.currentPick;
+}
 
-  const teamCount = state.settings.teams;
-  const totalPicks = teamCount * state.settings.rounds;
-  for (let pickNo = state.currentPick; pickNo <= totalPicks; pickNo += 1) {
-    if (draftSlotForPick(pickNo, teamCount) === userTeam.draftSlot) {
-      return pickNo - state.currentPick;
-    }
+export function upcomingUserPicks(state: DraftState | null, limit = 2): number[] {
+  const userTeam = getUserTeam(state);
+  if (!state || !userTeam || state.status === "complete" || limit <= 0 || state.pickOrder?.source === "unsupported") {
+    return [];
+  }
+  if (state.pickOrder?.entries.length) {
+    return state.pickOrder.entries
+      .filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId)
+      .slice(0, limit)
+      .map((entry) => entry.pickNo);
   }
 
-  return null;
+  const picks: number[] = [];
+  const totalPicks = state.settings.teams * state.settings.rounds;
+  for (let pickNo = state.currentPick; pickNo <= totalPicks && picks.length < limit; pickNo += 1) {
+    if (draftSlotForPick(pickNo, state.settings.teams) === userTeam.draftSlot) {
+      picks.push(pickNo);
+    }
+  }
+  return picks;
+}
+
+export function formatDraftPick(pickNo: number, teamCount: number): string {
+  const round = Math.floor((pickNo - 1) / teamCount) + 1;
+  const pickInRound = ((pickNo - 1) % teamCount) + 1;
+  return `${round}.${String(pickInRound).padStart(2, "0")}`;
 }
 
 export function isUserOnTheClock(state: DraftState | null): boolean {

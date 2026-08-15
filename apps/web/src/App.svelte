@@ -1517,9 +1517,10 @@
   }
 
   function askAboutSearchedPlayer(playerName: string) {
+    const recommendedPlayerName = visibleAiDraftStrategy?.recommendedCandidate.player.name;
     draftQuestionRequest = {
       id: ++draftQuestionRequestId,
-      question: buildPlayerDiscussionQuestion(playerName),
+      question: buildPlayerDiscussionQuestion(playerName, recommendedPlayerName),
     };
   }
 
@@ -1986,6 +1987,7 @@
                 </article>
               {:else}
                 <RecommendationPanel
+                  draftState={draftState}
                   currentPick={draftState.currentPick}
                   aiEnabled={codexProviderReady}
                   aiStrategyEnabled={aiDraftStrategyEnabled}
