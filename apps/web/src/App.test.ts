@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./lib/api", async () => await import("./lib/testing/mock-api"));
@@ -134,6 +134,64 @@ describe("App draft lifecycle", () => {
     expect(await screen.findByText("Emergency board-only mode")).toBeTruthy();
     expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
     expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
+  });
+
+  it.each([
+    ["disabled", createDisabledAiStatus(), "noop"],
+    ["unavailable", createUnavailableAiStatus(), "codex-app-server"],
+  ] as const)("returns an active draft to preparation when Codex becomes %s after entry", async (
+    _availability,
+    providerStatus,
+    providerValue,
+  ) => {
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+
+    render(App);
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+
+    expect(screen.getByTestId("ask-manager-recommendation")).toBeTruthy();
+    expect(screen.getByTestId("ask-manager-answer")).toBeTruthy();
+
+    apiMock.aiStatus = providerStatus;
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    const settingsDialog = screen.getByRole("dialog", { name: "Application settings" });
+    await fireEvent.change(within(settingsDialog).getByLabelText("Provider"), {
+      target: { value: providerValue },
+    });
+    await fireEvent.click(within(settingsDialog).getByRole("button", { name: "Save settings" }));
+    await fireEvent.click(within(settingsDialog).getByRole("button", { name: "Close settings" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open emergency board only" })).toBeTruthy();
+      expect((screen.getByRole("button", { name: "Enter draft room" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
+      expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
+    });
+  });
+
+  it("returns an active draft to preparation when a failed AI request reveals Codex is unavailable", async () => {
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    apiMock.askManagerRequest.mockRejectedValueOnce(new Error("The AI manager is temporarily unavailable."));
+
+    render(App);
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+
+    apiMock.aiStatus = createUnavailableAiStatus();
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open emergency board only" })).toBeTruthy();
+      expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
+      expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
+    });
   });
 
   it("one preference update commits recommendation", async () => {
@@ -940,5 +998,15 @@ function createDisabledAiStatus() {
     label: "No AI provider",
     configured: false,
     availability: "disabled" as const,
+  };
+}
+
+function createUnavailableAiStatus() {
+  return {
+    id: "codex-app-server" as const,
+    label: "Codex app-server",
+    configured: false,
+    availability: "unavailable" as const,
+    detail: "Codex app-server is unavailable.",
   };
 }

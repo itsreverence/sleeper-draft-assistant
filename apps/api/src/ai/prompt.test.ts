@@ -64,7 +64,7 @@ describe("draft manager prompt", () => {
 
     expect(prompt).toContain("UI separately renders the recommended player's raw evidence");
     expect(prompt).toContain("Give every generated field a distinct purpose");
-    expect(prompt).toContain("summary: one or two live-pick-clock sentences");
+    expect(prompt).toContain("summary: one live-pick-clock sentence of 18-30 words");
     expect(prompt).toContain("reasons: two or three distinct comparative or strategic reasons");
     expect(prompt).toContain("do not re-list ranks, projections, ADP, tiers, or flags");
     expect(prompt).toContain("risks: only material decision implications");

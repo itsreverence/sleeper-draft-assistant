@@ -142,9 +142,20 @@ describe("AI panel helpers", () => {
 
     expect(recommendationTurnPresentation(waitingState, "Ja'Marr Chase", "Take Ja'Marr Chase")).toEqual({
       headline: "Target Ja'Marr Chase at 1.08 if available",
-      timing: "7 selections before your 1.08 pick · 2.01 follows immediately",
+      timing: "7 picks away · Back-to-back: 1.08 / 2.01",
       contingent: true,
       nextUserPick: 8,
+    });
+  });
+
+  it("keeps the first slot contingent until a pre-draft board actually starts", () => {
+    const preDraftState = createState();
+
+    expect(recommendationTurnPresentation(preDraftState, "Ja'Marr Chase", "Take Ja'Marr Chase")).toEqual({
+      headline: "Target Ja'Marr Chase at 1.01 if available",
+      timing: "Draft not started · First pick 1.01",
+      contingent: true,
+      nextUserPick: 1,
     });
   });
 });

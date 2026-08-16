@@ -53,6 +53,11 @@
   const providerLabel = $derived(providerReady ? providerStatus?.label ?? "AI manager" : "No AI provider");
   const suggestedQuestions = $derived(buildSuggestedQuestions(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
   const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, hasSeasonProjections, hasImportedAdp, showPlaceholderWarning));
+  const providerContextTitle = $derived(
+    providerReady
+      ? `Board context: ${contextSummary.league}; ${contextSummary.starters}; ${contextSummary.data}`
+      : providerLabel,
+  );
   const boardChanged = $derived(
     Boolean(messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
   );
@@ -120,9 +125,9 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    if (event.key === "Enter") {
       event.preventDefault();
-      submit();
+      void submit();
     }
   }
 
@@ -198,16 +203,18 @@
 </script>
 
 <article class="panel ask-panel" bind:this={panelElement}>
-  <button class="ask-toggle" type="button" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+  <button class="ask-toggle" type="button" aria-label="Ask about this draft" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
     <div class="ask-heading">
       <Icon name="message" size={17} />
       <div>
-        <h2>Ask about this draft</h2>
-        <span>Challenge the plan, compare players, or explore what-ifs</span>
+        <h2>Ask Codex</h2>
+        <span>Compare picks or test a scenario</span>
       </div>
     </div>
     <div class="ask-status">
-      <span class:offline={!providerReady} class="pill pill-info">{providerLabel}</span>
+      <span class:offline={!providerReady} class="provider-readiness" title={providerContextTitle}>
+        {providerReady ? "Context ready" : providerLabel}
+      </span>
       <Icon name="chevron-right" size={14} />
     </div>
   </button>
@@ -225,30 +232,10 @@
           {/if}
         </div>
       {:else}
-      <div class="context-strip" aria-label="AI context">
-        <span class="context-label">AI context</span>
-        <div class="context-groups">
-          <div class="context-group">
-            <strong>League</strong>
-            <span>{contextSummary.league}</span>
-          </div>
-          <div class="context-group">
-            <strong>Starters</strong>
-            <span>{contextSummary.starters}</span>
-          </div>
-          <div class="context-group">
-            <strong>Data</strong>
-            <span>{contextSummary.data}</span>
-          </div>
-        </div>
-      </div>
-
       {#if showPlaceholderWarning}
         <p class="callout callout-warning compact-callout">
           Player values are using Sleeper search ranks until rankings are imported.
         </p>
-      {:else if contextSummary.note}
-        <p class="context-note">{contextSummary.note}</p>
       {/if}
 
       {#if boardChanged}
@@ -261,10 +248,9 @@
         </div>
       {/if}
 
-      {#if messages.length === 0}
-        <SuggestedQuestions questions={suggestedQuestions} disabled={isAsking} onChoose={chooseSuggestion} />
-      {:else}
-        <div class="conversation" aria-live="polite">
+      <div class:has-conversation={messages.length > 0} class="chat-workspace">
+        {#if messages.length > 0}
+        <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite">
           {#each messages as message (message.id)}
             <AiMessageBubble
               {message}
@@ -277,20 +263,32 @@
         {#if copied}
           <p class="copy-note">Copied response.</p>
         {/if}
-        <SuggestedQuestions questions={suggestedQuestions.slice(0, 3)} disabled={isAsking} onChoose={chooseSuggestion} />
-      {/if}
-
-      <textarea
-        class="input"
-        bind:value={question}
-        onkeydown={handleKeydown}
-        rows="3"
-        placeholder="Ask who to draft, compare players, or test a what-if."
-      ></textarea>
-      <button class="btn btn-primary btn-block" type="button" disabled={isAsking || !question.trim()} onclick={() => submit()}>
-        {#if isAsking}<span class="spinner"></span>{/if}
-        {isAsking ? "Asking" : "Ask AI"}
-      </button>
+        {/if}
+        <div class="command-bar">
+          {#if messages.length === 0}
+            <SuggestedQuestions questions={suggestedQuestions.slice(0, 3)} disabled={isAsking} onChoose={chooseSuggestion} />
+          {/if}
+          <div class="composer">
+            <input
+              bind:value={question}
+              onkeydown={handleKeydown}
+              placeholder={messages.length > 0
+                ? "Ask a follow-up about this draft."
+                : "Ask who to draft, compare players, or test a what-if."}
+            />
+            <button
+              class="composer-send"
+              aria-label={isAsking ? "Asking" : "Ask AI"}
+              type="button"
+              disabled={isAsking || !question.trim()}
+              onclick={() => submit()}
+            >
+              {#if isAsking}<span class="spinner"></span>{/if}
+              {isAsking ? "Asking" : "Send"}
+            </button>
+          </div>
+        </div>
+      </div>
       {/if}
     </div>
   {/if}
@@ -355,13 +353,9 @@
 
   .ask-content {
     display: grid;
-    gap: 10px;
+    gap: 0;
     border-top: 1px solid var(--border);
-    padding: var(--space-4) var(--space-5) var(--space-5);
-  }
-
-  .ask-content textarea {
-    min-height: 82px;
+    padding: 0;
   }
 
   .provider-empty {
@@ -369,6 +363,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    padding: var(--space-4) var(--space-5);
   }
 
   .provider-empty > div {
@@ -390,53 +385,13 @@
   }
 
   .compact-callout {
-    margin: 0;
+    margin: 12px var(--space-5) 0;
     font-size: var(--text-xs);
   }
 
-  .context-strip {
-    display: grid;
-    gap: 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-    padding: 9px 10px;
-  }
-
-  .context-label {
-    color: var(--text-muted);
-    font-size: var(--text-2xs);
-    font-weight: 900;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .context-groups {
-    display: grid;
-    gap: 5px;
-  }
-
-  .context-group {
-    display: grid;
-    grid-template-columns: 58px minmax(0, 1fr);
-    gap: 8px;
-    align-items: baseline;
-  }
-
-  .context-group strong {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .context-group span {
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-  }
-
-  .context-note,
   .copy-note {
+    margin: 0;
+    padding: 0 var(--space-5) 10px;
     color: var(--text-muted);
     font-size: var(--text-xs);
     line-height: 1.45;
@@ -451,6 +406,7 @@
     border-radius: var(--radius-md);
     background: var(--warning-soft);
     padding: 9px 10px;
+    margin: 12px var(--space-5) 0;
   }
 
   .board-change-note > div {
@@ -481,15 +437,102 @@
   .conversation {
     display: grid;
     gap: 10px;
-    max-height: 420px;
+    max-height: 310px;
     overflow: auto;
-    padding-right: 3px;
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .chat-workspace,
+  .command-bar {
+    display: grid;
+  }
+
+  .command-bar {
+    grid-template-columns: auto minmax(300px, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 14px var(--space-5) var(--space-4);
+  }
+
+  .has-conversation .command-bar {
+    grid-template-columns: 1fr;
+    border-top: 1px solid var(--border);
+  }
+
+  .composer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: 5px 6px 5px 12px;
+  }
+
+  .composer:focus-within {
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 1px var(--accent-border);
+  }
+
+  .composer input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+  }
+
+  .composer input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .composer-send {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 58px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    padding: 8px 12px;
+    color: var(--text-on-accent);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 850;
+  }
+
+  .composer-send:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .provider-readiness {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 750;
+  }
+
+  .provider-readiness::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    content: "";
   }
 
   .offline {
-    border-color: var(--danger-border);
-    background: var(--danger-soft);
     color: var(--danger);
+  }
+
+  .offline::before {
+    background: var(--danger);
   }
 
   @media (max-width: 560px) {
@@ -498,17 +541,26 @@
       padding: var(--space-4);
     }
 
-    .ask-status .pill {
+    .ask-status .provider-readiness {
       display: none;
     }
 
     .ask-content {
-      padding: var(--space-4);
+      padding: 0;
     }
 
     .board-change-note {
       align-items: flex-start;
       flex-direction: column;
+    }
+
+    .command-bar {
+      grid-template-columns: 1fr;
+      padding: var(--space-4);
+    }
+
+    .conversation {
+      padding: var(--space-4);
     }
   }
 </style>

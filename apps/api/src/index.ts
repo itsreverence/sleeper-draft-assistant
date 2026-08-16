@@ -751,8 +751,9 @@ app.post("/drafts/:draftId/strategy", async (c) => {
     ])).slice(0, 3);
     const decision = {
       ...strategy.decision,
-      headline: strategyContext.draft.picksUntilNextUserPick !== null
-        && strategyContext.draft.picksUntilNextUserPick > 0
+      headline: (state.status === "pre_draft"
+        || (strategyContext.draft.picksUntilNextUserPick !== null
+          && strategyContext.draft.picksUntilNextUserPick > 0))
         && strategyContext.draft.nextUserPick !== null
         ? `Target ${recommendedCandidate.player.name} at ${formatDraftPick(strategyContext.draft.nextUserPick, state.settings.teams)} if available`
         : `Take ${recommendedCandidate.player.name}`,
@@ -1332,7 +1333,6 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
-
 
 
 

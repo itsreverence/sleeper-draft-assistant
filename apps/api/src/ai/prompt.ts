@@ -40,7 +40,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
     "The UI separately renders the recommended player's raw evidence, including ranks, tiers, projections, ADP, and imported flags. Do not copy those facts into multiple generated fields.",
     "Give every generated field a distinct purpose:",
     "- headline: an imperative verdict naming the player; do not include a list of supporting metrics.",
-    "- summary: one or two live-pick-clock sentences explaining the decisive strategic advantage over the closest alternative and the roster-construction consequence; do not restate raw evidence values.",
+    "- summary: one live-pick-clock sentence of 18-30 words stating the decisive strategic advantage and the immediate roster-construction consequence; do not restate raw evidence values.",
     "- reasons: two or three distinct comparative or strategic reasons that add information beyond summary and raw evidence; do not re-list ranks, projections, ADP, tiers, or flags.",
     "- risks: only material decision implications, each paired with its consequence or mitigation; do not merely repeat an imported flag and do not invent a risk when none is material.",
     "- plan.approach, plan.rosterGoals, and plan.watchItems: begin after the recommended selection and describe future picks, contingencies, and board developments; do not re-justify or restate the current recommendation.",
@@ -58,7 +58,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
       verdict: "strong | reasonable | avoid",
       confidence: "high | medium | low",
       headline: "imperative verdict naming the recommended player",
-      summary: "decisive comparative rationale and roster consequence, without raw evidence values",
+      summary: "one 18-30 word sentence with the decisive advantage and immediate roster consequence, without raw evidence values",
       reasons: ["2-3 non-overlapping comparative or strategic reasons"],
       risks: ["0-4 material implications with consequences or mitigations"],
       plan: {
@@ -118,6 +118,5 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     JSON.stringify(context, null, 2),
   ].join("\n");
 }
-
 
 

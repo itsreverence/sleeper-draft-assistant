@@ -37,6 +37,14 @@ export function recommendationTurnPresentation(
   }
   const picksUntilTurn = nextUserPick - state.currentPick;
   const nextLabel = formatDraftPick(nextUserPick, state.settings.teams);
+  if (state.status === "pre_draft" && picksUntilTurn === 0) {
+    return {
+      headline: `Target ${playerName} at ${nextLabel} if available`,
+      timing: `Draft not started · First pick ${nextLabel}`,
+      contingent: true,
+      nextUserPick,
+    };
+  }
   if (picksUntilTurn === 0) {
     return {
       headline: onClockHeadline,
@@ -45,12 +53,12 @@ export function recommendationTurnPresentation(
       nextUserPick,
     };
   }
-  const waitLabel = `${picksUntilTurn} selection${picksUntilTurn === 1 ? "" : "s"} before your ${nextLabel} pick`;
+  const waitLabel = `${picksUntilTurn} pick${picksUntilTurn === 1 ? "" : "s"} away`;
   const followingTiming = followingUserPick === null
     ? ""
     : followingUserPick - nextUserPick - 1 === 0
-      ? ` · ${formatDraftPick(followingUserPick, state.settings.teams)} follows immediately`
-      : ` · ${followingUserPick - nextUserPick - 1} picks before ${formatDraftPick(followingUserPick, state.settings.teams)}`;
+      ? ` · Back-to-back: ${nextLabel} / ${formatDraftPick(followingUserPick, state.settings.teams)}`
+      : ` · ${followingUserPick - nextUserPick - 1} between your picks`;
   return {
     headline: `Target ${playerName} at ${nextLabel} if available`,
     timing: `${waitLabel}${followingTiming}`,

@@ -1,6 +1,5 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
-  import CandidateCard from "./CandidateCard.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
   import { currentAiDraftStrategy, recommendationTurnPresentation } from "../ai-panel";
   import { formatDraftPick, rosterFitLabel, sourceLabel } from "../format";
@@ -65,14 +64,20 @@
   let aiStrategyError = $state("");
   let isLoadingAiStrategy = $state(false);
   let analysisOpen = $state(false);
-  let alternativesOpen = $state(false);
   let lastAiStrategyKey = $state("");
   let aiStrategyRequestId = 0;
   const currentAiStrategy = $derived(
     aiEnabled ? currentAiDraftStrategy(aiStrategy, currentPick) : null,
   );
+  const displayedAiStrategy = $derived(aiEnabled ? (currentAiStrategy ?? aiStrategy) : null);
+  const isPreviousRecommendation = $derived(
+    displayedAiStrategy !== null && displayedAiStrategy.pickNumber !== currentPick,
+  );
+  const strategyInteractionDisabled = $derived(
+    isLoadingAiStrategy || isPreviousRecommendation || aiStrategyError.length > 0,
+  );
   const alternativeAiCandidates = $derived.by(() => {
-    const strategy = currentAiStrategy;
+    const strategy = displayedAiStrategy;
     if (!strategy) {
       return [];
     }
@@ -85,8 +90,8 @@
     );
   });
   const turnPresentation = $derived.by(() => {
-    const strategy = currentAiStrategy;
-    return strategy
+    const strategy = displayedAiStrategy;
+    return strategy && !isPreviousRecommendation
       ? recommendationTurnPresentation(
         draftState,
         strategy.recommendedCandidate.player.name,
@@ -94,12 +99,24 @@
       )
       : null;
   });
-  const activeHeadline = $derived(turnPresentation?.headline ?? "AI draft assistant");
-  const timingSummary = $derived(turnPresentation?.timing ?? null);
-  const activeConfidence = $derived(currentAiStrategy?.decision.confidence ?? null);
-  const confidenceTone = $derived(
-    activeConfidence === "high" ? "ready" : activeConfidence === "medium" ? "info" : "warning",
+  const activeHeadline = $derived(
+    isPreviousRecommendation
+      ? `Previous: ${displayedAiStrategy?.decision.headline ?? "recommendation"}`
+      : turnPresentation?.headline ?? "AI draft assistant",
   );
+  const timingSummary = $derived(turnPresentation?.timing ?? null);
+  const activeConfidence = $derived(
+    isPreviousRecommendation ? null : displayedAiStrategy?.decision.confidence ?? null,
+  );
+  const turnContext = $derived.by(() => {
+    const confidence = activeConfidence
+      ? `${activeConfidence.charAt(0).toUpperCase()}${activeConfidence.slice(1)} confidence`
+      : null;
+    if (!timingSummary) return confidence;
+    if (!confidence) return timingSummary;
+    const [lead, ...rest] = timingSummary.split(" · ");
+    return [lead, confidence, ...rest].join(" · ");
+  });
   function contingencyLabel(candidate: DraftOption): string {
     const nextUserPick = turnPresentation?.nextUserPick;
     if (nextUserPick === null || nextUserPick === undefined || !turnPresentation?.contingent) return "AI alternative";
@@ -117,7 +134,7 @@
   }
 
   function discussCandidate(playerName: string) {
-    const recommendedPlayerName = currentAiStrategy?.recommendedCandidate.player.name;
+    const recommendedPlayerName = displayedAiStrategy?.recommendedCandidate.player.name;
     if (recommendedPlayerName) {
       onAskAboutCandidate?.(playerName, recommendedPlayerName);
     }
@@ -135,7 +152,6 @@
       const requestId = ++aiStrategyRequestId;
       isLoadingAiStrategy = true;
       aiStrategyError = "";
-      aiStrategy = null;
       void onRequestAiStrategy()
         .then((payload) => {
           if (requestId === aiStrategyRequestId && payload.pickNumber === currentPick) {
@@ -160,39 +176,7 @@
   <div class="panel-heading">
     <div class="decision-heading">
       <span>AI call</span>
-      <h2><Icon name="target" size={18} /> {activeHeadline}</h2>
-    </div>
-    <div class="decision-status">
-      {#if onOpenPlayerSearch}
-        <button
-          class="player-search-trigger"
-          type="button"
-          title="Find a player"
-          aria-label="Find a player"
-          onclick={onOpenPlayerSearch}
-        >
-          <Icon name="search" size={15} />
-        </button>
-      {/if}
-      {#if onToggleStrategy}
-        <button
-          class="player-search-trigger"
-          type="button"
-          title="Guide draft strategy"
-          aria-label="Guide draft strategy"
-          onclick={onToggleStrategy}
-        >
-          <Icon name="clipboard" size={15} />
-        </button>
-      {/if}
-      {#if activeConfidence}
-        <span class="pill pill-{confidenceTone}">{activeConfidence} confidence{turnPresentation?.contingent ? " if available" : ""}</span>
-      {/if}
-      {#if currentAiStrategy && currentAiStrategy.decision.risks.length > 0}
-        <span class="pill pill-warning">
-          {currentAiStrategy.decision.risks.length} consideration{currentAiStrategy.decision.risks.length === 1 ? "" : "s"}
-        </span>
-      {/if}
+      <h2>{activeHeadline}</h2>
     </div>
   </div>
 
@@ -209,59 +193,89 @@
     </div>
   {/if}
 
-  {#if currentAiStrategy}
-    <div class="ai-strategy" aria-live="polite">
-      {#if timingSummary}<p class="turn-context">{timingSummary}</p>{/if}
-      <p class="decision-summary">{currentAiStrategy.decision.summary}</p>
-      <div class="decision-actions">
-        <PlayerPreferenceMenu
-          playerId={currentAiStrategy.recommendedCandidate.player.id}
-          playerName={currentAiStrategy.recommendedCandidate.player.name}
-          preference={playerPreferences[currentAiStrategy.recommendedCandidate.player.id] ?? null}
-          {onSetPreference}
-        />
-        <button
-          type="button"
-          title={`Ask about drafting ${currentAiStrategy.recommendedCandidate.player.name}`}
-          onclick={() => discussCandidate(currentAiStrategy.recommendedCandidate.player.name)}
-        >
-          <Icon name="message" size={13} />
-          Ask about pick
-        </button>
-        {#if alternativeAiCandidates.length > 0}
-          <button
-            class:active={alternativesOpen}
-            type="button"
-            aria-expanded={alternativesOpen}
-            onclick={() => (alternativesOpen = !alternativesOpen)}
-          >
-            {alternativeAiCandidates.length} contingencies
-          </button>
-        {/if}
-        <button
-          class="analysis-trigger"
-          class:active={analysisOpen}
-          type="button"
-          aria-expanded={analysisOpen}
-          onclick={() => (analysisOpen = !analysisOpen)}
-        >
-          Analysis
-        </button>
-      </div>
-      {#if preferenceCount > 0}
-        <div class="preference-summary" aria-label="Draft preferences">
-          <span>{preferenceSummary}</span>
-          {#if onClearPreferences}
-            <button type="button" onclick={onClearPreferences}>Clear</button>
+  {#if displayedAiStrategy}
+    <div class:previous={isPreviousRecommendation} class="ai-strategy" aria-live="polite" aria-busy={isLoadingAiStrategy}>
+      <div class="decision-layout">
+        <div class="decision-main">
+          {#if isPreviousRecommendation}
+            <span class="previous-recommendation-label">Previous recommendation</span>
+          {/if}
+          {#if isLoadingAiStrategy}
+            <div class="strategy-refresh-status">
+              <span class="spinner"></span>
+              <strong>{isPreviousRecommendation ? "Reviewing latest board…" : "Updating recommendation…"}</strong>
+            </div>
+          {/if}
+          {#if aiStrategyError}
+            <div class="strategy-refresh-error">
+              <div>
+                <strong>Recommendation update failed</strong>
+                <span>{aiStrategyError}</span>
+              </div>
+              <button type="button" onclick={retryAiStrategy}>Retry recommendation</button>
+            </div>
+          {/if}
+          {#if turnContext}<p class="turn-context">{turnContext}</p>{/if}
+          <p class="decision-summary">{displayedAiStrategy.decision.summary}</p>
+          <div class="decision-actions">
+            <PlayerPreferenceMenu
+              playerId={displayedAiStrategy.recommendedCandidate.player.id}
+              playerName={displayedAiStrategy.recommendedCandidate.player.name}
+              preference={playerPreferences[displayedAiStrategy.recommendedCandidate.player.id] ?? null}
+              onSetPreference={strategyInteractionDisabled ? undefined : onSetPreference}
+            />
+            <button
+              type="button"
+              disabled={strategyInteractionDisabled}
+              title={`Ask about drafting ${displayedAiStrategy.recommendedCandidate.player.name}`}
+              onclick={() => discussCandidate(displayedAiStrategy.recommendedCandidate.player.name)}
+            >
+              <Icon name="message" size={13} />
+              Ask Codex
+            </button>
+            <button
+              class="analysis-trigger"
+              class:active={analysisOpen}
+              type="button"
+              disabled={strategyInteractionDisabled}
+              aria-expanded={analysisOpen}
+              onclick={() => (analysisOpen = !analysisOpen)}
+            >
+              Why
+            </button>
+          </div>
+          {#if preferenceCount > 0}
+            <div class="preference-summary" aria-label="Draft preferences">
+              <span>{preferenceSummary}</span>
+              {#if onClearPreferences}
+                <button type="button" onclick={onClearPreferences}>Clear</button>
+              {/if}
+            </div>
           {/if}
         </div>
-      {/if}
+        {#if alternativeAiCandidates.length > 0}
+          <aside class="fallback-ladder" aria-label="Fallback order">
+            <h3>If unavailable</h3>
+            <ol>
+              {#each alternativeAiCandidates as candidate, index (candidate.player.id)}
+                <li>
+                  <span class="fallback-rank">{index + 1}</span>
+                  <span class="fallback-player">
+                    <strong>{candidate.player.name}</strong>
+                    <small>{candidate.player.team} · {candidate.player.position} · {contingencyLabel(candidate)}</small>
+                  </span>
+                </li>
+              {/each}
+            </ol>
+          </aside>
+        {/if}
+      </div>
       {#if analysisOpen}
         <div class="analysis-content">
           <section>
             <h3>Why this call</h3>
             <ul>
-              {#each currentAiStrategy.decision.reasons as reason}
+              {#each displayedAiStrategy.decision.reasons as reason}
                 <li>{reason}</li>
               {/each}
             </ul>
@@ -270,25 +284,25 @@
             <h3>Evidence</h3>
             <div class="evidence-summary">
               <span>
-                {currentAiStrategy.recommendedCandidate.player.team} -
-                {currentAiStrategy.recommendedCandidate.player.position}
+                {displayedAiStrategy.recommendedCandidate.player.team} -
+                {displayedAiStrategy.recommendedCandidate.player.position}
               </span>
-              <span>{rosterFitLabel(currentAiStrategy.recommendedCandidate.rosterFit)}</span>
-              <span>{sourceLabel(currentAiStrategy.recommendedCandidate)}</span>
+              <span>{rosterFitLabel(displayedAiStrategy.recommendedCandidate.rosterFit)}</span>
+              <span>{sourceLabel(displayedAiStrategy.recommendedCandidate)}</span>
             </div>
-            {#if currentAiStrategy.recommendedCandidate.evidence.length > 0}
+            {#if displayedAiStrategy.recommendedCandidate.evidence.length > 0}
               <ul>
-                {#each currentAiStrategy.recommendedCandidate.evidence as evidence}
+                {#each displayedAiStrategy.recommendedCandidate.evidence as evidence}
                   <li>{evidence}</li>
                 {/each}
               </ul>
             {/if}
           </section>
-          {#if currentAiStrategy.decision.risks.length > 0}
+          {#if displayedAiStrategy.decision.risks.length > 0}
             <section>
               <h3>Risks and constraints</h3>
               <ul>
-                {#each currentAiStrategy.decision.risks as risk}
+                {#each displayedAiStrategy.decision.risks as risk}
                   <li>{risk}</li>
                 {/each}
               </ul>
@@ -296,35 +310,27 @@
           {/if}
         </div>
       {/if}
-      {#if alternativesOpen && alternativeAiCandidates.length > 0}
-        <div class="alternatives-content">
-          <div class="candidate-list">
-            {#each alternativeAiCandidates as candidate, index (candidate.player.id)}
-              <CandidateCard
-                {candidate}
-                rank={index + 2}
-                strategyLabel={contingencyLabel(candidate)}
-                preference={playerPreferences[candidate.player.id] ?? null}
-                {onSetPreference}
-                onDiscuss={discussCandidate}
-              />
-            {/each}
-          </div>
-        </div>
-      {/if}
       <div class="strategy-glance" aria-label="Draft strategy summary">
-        <span>Next: <strong>{currentAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong></span>
-        <span>Wait: <strong>{currentAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong></span>
-        {#if onToggleStrategy}
-          <button
-            type="button"
-            aria-expanded={strategyOpen}
-            onclick={onToggleStrategy}
-          >
-            {strategyOpen ? "Close draft plan" : "Open draft plan"}
-            <Icon name="chevron-right" size={12} />
-          </button>
-        {/if}
+        <span>Next: <strong>{displayedAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong></span>
+        <span>Wait: <strong>{displayedAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong></span>
+        <div class="strategy-utilities">
+          {#if onOpenPlayerSearch}
+            <button type="button" onclick={onOpenPlayerSearch}>
+              <Icon name="search" size={12} />
+              Find player
+            </button>
+          {/if}
+          {#if onToggleStrategy}
+            <button
+              type="button"
+              aria-expanded={strategyOpen}
+              onclick={onToggleStrategy}
+            >
+              {strategyOpen ? "Close plan" : "Draft plan"}
+              <Icon name="chevron-right" size={12} />
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
   {:else if !aiEnabled}
@@ -393,36 +399,8 @@
   }
 
   .panel-heading h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     margin-top: 3px;
     font-size: var(--text-xl);
-  }
-
-  .decision-status {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .player-search-trigger {
-    display: grid;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .player-search-trigger:hover {
-    border-color: var(--accent-border);
-    background: var(--accent-soft);
-    color: var(--text-primary);
   }
 
   .decision-heading {
@@ -476,6 +454,143 @@
     gap: 10px;
   }
 
+  .decision-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .decision-main {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .strategy-refresh-status,
+  .previous-recommendation-label {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 7px;
+    color: var(--info);
+    font-size: var(--text-xs);
+  }
+
+  .strategy-refresh-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+    padding: 9px 10px;
+  }
+
+  .strategy-refresh-error > div {
+    display: grid;
+    gap: 2px;
+  }
+
+  .strategy-refresh-error strong,
+  .strategy-refresh-error span {
+    font-size: var(--text-xs);
+  }
+
+  .strategy-refresh-error span {
+    color: var(--text-secondary);
+  }
+
+  .strategy-refresh-error button {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    padding: 3px;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 800;
+  }
+
+  .previous-recommendation-label {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    padding: 4px 8px;
+    color: var(--text-secondary);
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .ai-strategy.previous .decision-main > :not(.strategy-refresh-status, .strategy-refresh-error, .previous-recommendation-label),
+  .ai-strategy.previous .fallback-ladder,
+  .ai-strategy.previous .strategy-glance {
+    opacity: 0.58;
+  }
+
+  .fallback-ladder {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  .fallback-ladder h3 {
+    margin: 0 0 10px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .fallback-ladder ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .fallback-ladder li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    border-left: 1px solid var(--border);
+    padding: 2px 14px;
+  }
+
+  .fallback-ladder li:first-child {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .fallback-rank {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 800;
+  }
+
+  .fallback-player {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .fallback-player strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .fallback-player small {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .ai-strategy-pending {
     display: grid;
     gap: 9px;
@@ -498,13 +613,21 @@
 
   .ai-strategy .turn-context {
     width: fit-content;
-    border: 1px solid var(--accent-border);
-    border-radius: var(--radius-pill);
-    background: var(--accent-soft);
-    padding: 5px 9px;
-    color: var(--accent);
+    padding: 0;
+    color: var(--text-secondary);
     font-size: var(--text-xs);
     font-weight: 750;
+  }
+
+  .ai-strategy .turn-context::before {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    content: "";
+    vertical-align: 1px;
   }
 
   .ai-strategy .decision-summary {
@@ -520,17 +643,16 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 18px;
   }
 
   .decision-actions > button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
+    border: 0;
     background: transparent;
-    padding: 7px 10px;
+    padding: 3px 0;
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-xs);
@@ -538,35 +660,27 @@
   }
 
   .decision-actions > button:hover {
-    border-color: var(--accent-border);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    background: transparent;
     color: var(--text-primary);
   }
 
   .decision-actions > button.active {
-    border-color: var(--accent-border);
-    background: var(--accent-soft);
-    color: var(--text-primary);
-  }
-
-  .decision-actions > .analysis-trigger,
-  .decision-actions > .analysis-trigger:hover,
-  .decision-actions > .analysis-trigger.active {
-    border-color: transparent;
     background: transparent;
-  }
-
-  .decision-actions > .analysis-trigger:hover,
-  .decision-actions > .analysis-trigger.active {
-    color: var(--text-primary);
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    color: var(--accent);
   }
 
   .decision-actions :global(.preference-trigger) {
-    border-color: var(--accent-border);
-    background: var(--accent-soft);
-    color: var(--text-primary);
+    border: 0;
+    background: transparent;
+    padding: 3px 0;
+    color: var(--text-secondary);
+  }
+
+  .decision-actions :global(.preference-trigger:hover),
+  .decision-actions :global(.preference-trigger.active),
+  .decision-actions :global(.preference-trigger[aria-expanded="true"]) {
+    background: transparent;
+    color: var(--accent);
   }
 
   .evidence-summary span {
@@ -599,10 +713,16 @@
     font-weight: 800;
   }
 
-  .strategy-glance > button {
-    display: inline-flex;
+  .strategy-utilities {
+    display: flex;
     align-items: center;
     margin-left: auto;
+    gap: 16px;
+  }
+
+  .strategy-utilities button {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
     border: 0;
     background: transparent;
@@ -613,7 +733,7 @@
     font-weight: 800;
   }
 
-  .strategy-glance > button:hover {
+  .strategy-utilities button:hover {
     background: transparent;
     color: var(--text-primary);
   }
@@ -670,14 +790,21 @@
     color: var(--info);
   }
 
-  .alternatives-content {
-    border-top: 1px solid var(--border);
-    padding-top: 2px;
-  }
+  @media (max-width: 860px) {
+    .fallback-ladder ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 
-  .candidate-list {
-    display: grid;
-    gap: 0;
+    .fallback-ladder li:nth-child(odd) {
+      border-left: 0;
+      padding-left: 0;
+    }
+
+    .fallback-ladder li:nth-child(n + 3) {
+      border-top: 1px solid var(--border);
+      margin-top: 9px;
+      padding-top: 9px;
+    }
   }
 
   @media (max-width: 560px) {
@@ -689,10 +816,6 @@
     .panel-heading h2 {
       font-size: var(--text-lg);
       line-height: 1.3;
-    }
-
-    .decision-status {
-      justify-content: flex-start;
     }
 
     .empty-state {
@@ -708,10 +831,24 @@
       align-items: flex-start;
     }
 
-    .strategy-glance > button {
+    .strategy-utilities {
       width: 100%;
       margin-left: 0;
       justify-content: flex-start;
+    }
+
+    .fallback-ladder ol {
+      grid-template-columns: 1fr;
+    }
+
+    .fallback-ladder li,
+    .fallback-ladder li:first-child,
+    .fallback-ladder li:nth-child(odd),
+    .fallback-ladder li:nth-child(n + 3) {
+      border-top: 1px solid var(--border);
+      border-left: 0;
+      margin-top: 0;
+      padding: 9px 0;
     }
   }
 </style>

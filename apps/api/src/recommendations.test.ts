@@ -8,7 +8,7 @@ import type {
   RankingImportSummary,
   SeasonProjectionImportSummary,
 } from "@sleeper-draft-assistant/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { app } from "./index";
 
@@ -53,6 +53,73 @@ const fantasyProsAdpCsv = `Rank,Player (Bye),POS,Sleeper,RTSports,AVG,Real-Time
 2,Josh Allen BUF (7),QB1,18,-,18.0,16`;
 
 describe("draft recommendation routes", () => {
+  it("keeps a slot-one strategy contingent before the draft starts", async () => {
+    const originalSettings = await getSettings();
+    const players = Object.fromEntries(
+      Array.from({ length: 24 }, (_, index) => {
+        const position = (["RB", "WR", "QB", "TE"] as const)[index % 4]!;
+        const id = `pre-player-${index + 1}`;
+        return [id, {
+          player_id: id,
+          full_name: `Pre Draft Player ${index + 1}`,
+          team: "FA",
+          position,
+          fantasy_positions: [position],
+          status: "Active",
+          search_rank: index + 1,
+          sport: "nfl",
+        }];
+      }),
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/v1/draft/pre-draft-slot-one") {
+        return Response.json({
+          draft_id: "pre-draft-slot-one",
+          status: "pre_draft",
+          type: "snake",
+          metadata: { name: "Pre-Draft Slot One", scoring_type: "ppr" },
+          settings: {
+            teams: 8,
+            rounds: 15,
+            slots_qb: 1,
+            slots_rb: 2,
+            slots_wr: 2,
+            slots_te: 1,
+            slots_flex: 2,
+            slots_bn: 7,
+          },
+          slot_to_roster_id: Object.fromEntries(Array.from({ length: 8 }, (_, index) => [String(index + 1), index + 1])),
+        });
+      }
+      if (path === "/v1/draft/pre-draft-slot-one/picks" || path === "/v1/draft/pre-draft-slot-one/traded_picks") {
+        return Response.json([]);
+      }
+      if (path === "/v1/players/nfl") {
+        return Response.json(players);
+      }
+      return Response.json({ error: "Unexpected test URL" }, { status: 404 });
+    }));
+
+    try {
+      await updateSettings({ ...originalSettings, aiProvider: "noop" });
+      const response = await app.request("/drafts/pre-draft-slot-one/strategy?userRosterId=slot-1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(response.status).toBe(200);
+      const strategy = (await response.json()) as StrategyPayload;
+      expect(strategy.pickNumber).toBe(1);
+      expect(strategy.decision.headline).toBe(
+        `Target ${strategy.recommendedCandidate.player.name} at 1.01 if available`,
+      );
+    } finally {
+      await updateSettings(originalSettings);
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("rejects rankings for a different scoring format", async () => {
     const response = await app.request("/drafts/mock-draft/rankings/import", {
       method: "POST",

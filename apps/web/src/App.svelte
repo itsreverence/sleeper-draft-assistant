@@ -444,7 +444,15 @@
     settingsError = "";
     try {
       appSettings = await updateSettings(settings);
-      aiProviderStatus = await fetchAiStatus();
+      const nextProviderStatus = await fetchAiStatus();
+      aiProviderStatus = nextProviderStatus;
+      const codexReady = nextProviderStatus.id === "codex-app-server"
+        && isAiProviderAvailable(nextProviderStatus);
+      if (draftState && draftState.status !== "complete" && !codexReady) {
+        workspaceMode = "draft";
+        emergencyBoardMode = false;
+        draftPreparationOpen = true;
+      }
       return true;
     } catch (error) {
       settingsError = error instanceof Error ? error.message : "Could not save settings.";
@@ -1464,14 +1472,30 @@
 
     const requestDraftId = activeDraftId;
     const requestDraftTeamRef = activeDraftTeamRef;
-    const payload = await askManagerRequest(
-      requestDraftId,
-      requestDraftTeamRef,
-      question,
-      conversationHistory,
-      playerPreferenceSummary(),
-      recommendationPreferenceRequest(),
-    );
+    let payload;
+    try {
+      payload = await askManagerRequest(
+        requestDraftId,
+        requestDraftTeamRef,
+        question,
+        conversationHistory,
+        playerPreferenceSummary(),
+        recommendationPreferenceRequest(),
+      );
+    } catch (error) {
+      try {
+        const nextProviderStatus = await fetchAiStatus();
+        aiProviderStatus = nextProviderStatus;
+        if (!isAiProviderAvailable(nextProviderStatus)) {
+          workspaceMode = "draft";
+          emergencyBoardMode = false;
+          draftPreparationOpen = true;
+        }
+      } catch {
+        // Preserve the original, more useful AI request error if the status check also fails.
+      }
+      throw error;
+    }
     if (draftSession.isGuardCurrent(guard)) {
       draftSession.replaceRecommendation(payload.recommendation);
     }
