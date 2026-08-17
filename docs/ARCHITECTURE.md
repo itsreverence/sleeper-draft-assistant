@@ -22,7 +22,7 @@ Svelte renderer
 
 - `apps/desktop`: Electron lifecycle, process startup, window containment, packaging.
 - `apps/web`: Svelte UI and authenticated local API client.
-- `apps/api`: Hono routes, Sleeper normalization, persistence, provider adapters, SSE.
+- `apps/api`: Hono composition plus domain route registrars, Sleeper normalization, persistence, provider adapters, and SSE. `index.ts` owns process-scoped construction, global capability-token/CORS middleware, centralized error redaction, loopback serving, and shutdown; route workflows live under `apps/api/src/routes/` with explicit domain dependencies.
 - `packages/engine`: transparent draft evidence ordering, roster feasibility safeguards, and team-data readiness calculations with no network or persistence dependency.
 - `packages/shared`: Zod schemas and shared TypeScript types.
 

@@ -22,7 +22,7 @@ and the distinction between deterministic evidence/safety checks and AI advice.
 | 004 | Make database mutations atomic and batchable | P2 | M | 001–003 | DONE — canonical gates passed 2026-08-16 |
 | 007 | Make reset atomic and invalidate stale asynchronous writes | P2 | M | 004 | DONE — canonical gates passed 2026-08-16 |
 | 008 | Version and decode persisted domain records | P2 | M | 004, 007 | DONE — canonical gates and API smoke passed 2026-08-16 |
-| 005 | Split API routes mechanically by domain | P2 | M | 001, 004, 007, 008 | TODO |
+| 005 | Split API routes mechanically by domain | P2 | M | 001, 004, 007, 008 | DONE — canonical gates and API security smoke passed 2026-08-16 |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) |
 REJECTED (with one-line rationale).

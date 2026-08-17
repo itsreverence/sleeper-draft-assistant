@@ -16,6 +16,7 @@
 - **Depends on**: plans 001 and 004
 - **Category**: tech-debt
 - **Planned at**: commit `b097275`, 2026-08-12
+- **Status**: DONE — canonical gates and API security smoke passed 2026-08-16
 
 ## Why this matters
 
@@ -148,12 +149,12 @@ health access, token enforcement, CORS behavior, and POSIX permissions.
 
 ## Done criteria
 
-- [ ] `index.ts` contains composition and cross-cutting middleware, not domain workflows.
-- [ ] Route method/path/status/response inventory is unchanged.
-- [ ] Every non-health route remains capability-token protected.
-- [ ] Every route module receives only dependencies it uses.
-- [ ] No service locator, generic DI framework, or giant dependency container exists.
-- [ ] Canonical gates and API security smoke pass.
+- [x] `index.ts` contains composition and cross-cutting middleware, not domain workflows.
+- [x] Route method/path/status/response inventory is unchanged.
+- [x] Every non-health route remains capability-token protected.
+- [x] Every route module receives only dependencies it uses.
+- [x] No service locator, generic DI framework, or giant dependency container exists.
+- [x] Canonical gates and API security smoke pass.
 
 ## STOP conditions
 
@@ -169,3 +170,10 @@ Future routes should be added to the owning domain registrar and route inventory
 Reviewers should scrutinize middleware mounting order and dependency breadth more
 than line counts.
 
+The completion review explicitly reassessed the dependency-breadth stop condition.
+`data-routes.ts` necessarily spans every persisted category because it owns aggregate
+inventory, category deletion, and atomic full reset. `draft-routes.ts` spans the
+draft-only stores, provider, reset generation, and database batch used by the existing
+strategy transaction, but does not receive Team Manager's ROS or weekly stores. These
+dependencies remain individually named and reset-safe; splitting them behind a common
+container would hide rather than reduce the observed domain coupling.
