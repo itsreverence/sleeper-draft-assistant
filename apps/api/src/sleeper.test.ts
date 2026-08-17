@@ -369,6 +369,84 @@ describe("Sleeper draft normalization", () => {
 
 
 describe("Sleeper team manager normalization", () => {
+  it("does not treat a preseason display week as a regular-season fantasy matchup", async () => {
+    const rosters = [
+      { roster_id: 12, owner_id: "user-2", players: ["p3", "p2"], starters: ["p3", "p2"] },
+      { roster_id: 13, owner_id: "user-3", players: ["p1", "p4"], starters: ["p1", "p4"] },
+    ];
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/league/league-1") return Response.json(fixture.league);
+      if (path === "/league/league-1/rosters") return Response.json(rosters);
+      if (path === "/league/league-1/users") return Response.json(fixture.users);
+      if (path === "/players/nfl") return Response.json(fixture.players);
+      if (path === "/state/nfl") {
+        return Response.json({ season: "2026", season_type: "pre", display_week: 2, week: 2, leg: 0 });
+      }
+      if (path === "/league/league-1/matchups/2") {
+        return Response.json([
+          { roster_id: 12, matchup_id: 7, players: ["p3", "p2"], starters: ["p3", "p2"] },
+          { roster_id: 13, matchup_id: 7, players: ["p1", "p4"], starters: ["p1", "p4"] },
+        ]);
+      }
+      if (path.startsWith("/players/nfl/trending/")) return Response.json([]);
+      return Response.json({ error: `Unexpected test path: ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new SleeperClient("https://example.test");
+
+    const state = await client.getTeamManagerState("league-1", "12");
+    const weekContext = await client.getTeamWeekContext("league-1", null, "12");
+    const activity = await client.getTeamActivitySummary("league-1");
+
+    expect(state.seasonPhase).toBe("preseason");
+    expect(state.week).toBeNull();
+    expect(weekContext).toBeNull();
+    expect(activity.week).toBeNull();
+    expect(fetchMock.mock.calls.some(([input]) => new URL(String(input)).pathname.includes("/matchups/"))).toBe(false);
+    expect(fetchMock.mock.calls.some(([input]) => new URL(String(input)).pathname.includes("/transactions/"))).toBe(false);
+  });
+
+  it("uses current matchup roster data when league rosters lag after the draft", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/league/league-1") {
+        return Response.json(fixture.league);
+      }
+      if (path === "/league/league-1/rosters") {
+        return Response.json([{ roster_id: 12, owner_id: "user-2", players: null, starters: null }]);
+      }
+      if (path === "/league/league-1/users") {
+        return Response.json(fixture.users);
+      }
+      if (path === "/players/nfl") {
+        return Response.json(fixture.players);
+      }
+      if (path === "/state/nfl") {
+        return Response.json({ display_week: 1, week: 1 });
+      }
+      if (path === "/league/league-1/matchups/1") {
+        return Response.json([{
+          roster_id: 12,
+          matchup_id: 7,
+          players: ["p3", "p2", "p1", "p4"],
+          starters: ["p3", "p2", "p1"],
+        }]);
+      }
+      return Response.json({ error: `Unexpected test path: ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new SleeperClient("https://example.test");
+    const state = await client.getTeamManagerState("league-1", "12");
+    const availablePlayers = await client.getAvailablePlayers("league-1");
+
+    expect(state.roster.starters.slice(0, 3).map((slot) => slot.player?.id)).toEqual(["p3", "p2", "p1"]);
+    expect(state.roster.bench.map((player) => player.id)).toEqual(["p4"]);
+    expect(state.roster.positionCounts).toMatchObject({ QB: 1, RB: 1, WR: 1, TE: 1 });
+    expect(availablePlayers).toEqual([]);
+  });
+
   it("maps Sleeper league roster data into a team manager state", () => {
     const state = normalizeSleeperTeamManagerState({
       league: fixture.league!,

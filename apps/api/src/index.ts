@@ -4,9 +4,6 @@ import {
   buildDraftOptionForPlayer,
   buildDraftRecommendation,
   buildTeamDataReadiness,
-  buildTeamLineupSummary,
-  buildTeamNeedsSummary,
-  buildTeamWaiverSummary,
   createMockDraftState,
   isDraftChoiceRosterFeasible,
   type DraftRecommendationOptions,
@@ -15,7 +12,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 
-import { AdpImportRequestSchema, DraftStrategyInstructionSourceSchema, DraftStrategyProposalSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamLineupSummary, type TeamManagerState, type TeamNeedsSummary, type TeamWaiverSummary, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import { AdpImportRequestSchema, DraftStrategyInstructionSourceSchema, DraftStrategyProposalSchema, RankingImportRequestSchema, RosRankingImportRequestSchema, SeasonProjectionImportRequestSchema, WeeklyProjectionBatchImportRequestSchema, WeeklyProjectionImportRequestSchema, type AdpImportSummary, type AppSettings, type DraftRecommendation, type DraftState, type RankingImportSummary, type Player, type RosRankingImportSummary, type SeasonProjectionImportSummary, type TeamActivitySummary, type TeamDataReadiness, type TeamManagerState, type TeamWeekContext, type WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import { buildDraftQuestionContext, buildDraftStrategyContext } from "./ai/context";
 import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
@@ -73,10 +70,7 @@ type DraftPayloadOptions = {
 type TeamPayload = {
   state: TeamManagerState;
   dataReadiness: TeamDataReadiness;
-  needs: TeamNeedsSummary;
-  lineupSummary: TeamLineupSummary;
   weekContext: TeamWeekContext | null;
-  waiverSummary: TeamWaiverSummary;
   activitySummary: TeamActivitySummary;
   rosRankingSummary: RosRankingImportSummary | null;
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null;
@@ -274,10 +268,9 @@ app.get("/leagues/:leagueId/team", async (c) => {
   try {
     const leagueId = c.req.param("leagueId");
     const userRosterId = getUserRosterId(c);
-    const [state, weekContext, availablePlayers, activitySummary] = await Promise.all([
+    const [state, weekContext, activitySummary] = await Promise.all([
       sleeperClient.getTeamManagerState(leagueId, userRosterId),
       sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
-      sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
     ]);
     const selectedWeek = getWeek(c) ?? state.week ?? 1;
@@ -287,13 +280,9 @@ app.get("/leagues/:leagueId/team", async (c) => {
     const activeRosImport = isRosRankingImportActive(state, rosImport) ? rosImport : null;
     const rankedState = applyRosRankingsToTeamState(state, activeRosImport);
     const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
-    const availableWithRanks = applyTeamRankingImport(c, availablePlayers);
-    const availableWithRos = applyRosRankingsToPlayers(availableWithRanks, activeRosImport);
-    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
     return c.json(toTeamPayload(
       projectedState,
       weekContext,
-      projectedAvailablePlayers,
       activitySummary,
       weeklyImport?.summary ?? null,
       rosImport?.summary ?? null,
@@ -332,11 +321,9 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
     const availableWithRos = applyRosRankingsToPlayers(rankedAvailablePlayers, activeRosImport);
     const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
     const aiProvider = aiProviderManager.get(settingsStore.get());
-    const waiverSummary = buildTeamWaiverSummary(projectedState, projectedAvailablePlayers);
-    const lineupSummary = buildTeamLineupSummary(projectedState);
     const dataReadiness = buildTeamDataReadiness(projectedState, weeklyImport?.summary ?? null);
     const aiAnswer = await aiProvider.answerTeamQuestion(
-      buildTeamAiContext(projectedState, question, normalizeConversationHistory(body.conversationHistory), weekContext, waiverSummary, lineupSummary, activitySummary, dataReadiness),
+      buildTeamAiContext(projectedState, question, normalizeConversationHistory(body.conversationHistory), weekContext, projectedAvailablePlayers, activitySummary, dataReadiness),
     );
 
     return c.json({
@@ -346,7 +333,6 @@ app.post("/leagues/:leagueId/team/ask", async (c) => {
       ...toTeamPayload(
         projectedState,
         weekContext,
-        projectedAvailablePlayers,
         activitySummary,
         weeklyImport?.summary ?? null,
         rosImport?.summary ?? null,
@@ -381,10 +367,9 @@ app.post("/leagues/:leagueId/rankings/ros/import", async (c) => {
     const leagueId = c.req.param("leagueId");
     const userRosterId = getUserRosterId(c);
     const body = RosRankingImportRequestSchema.parse(await c.req.json());
-    const [state, weekContext, availablePlayers, activitySummary, importPlayers] = await Promise.all([
+    const [state, weekContext, activitySummary, importPlayers] = await Promise.all([
       sleeperClient.getTeamManagerState(leagueId, userRosterId),
       sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
-      sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
       sleeperClient.getProjectionImportPlayers(),
     ]);
@@ -412,16 +397,12 @@ app.post("/leagues/:leagueId/rankings/ros/import", async (c) => {
     const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
     const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
     const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
-    const availableWithDraftValues = applyTeamRankingImport(c, availablePlayers);
-    const availableWithRos = applyRosRankingsToPlayers(availableWithDraftValues, activeRosImport);
-    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
 
     return c.json({
       summary: storedImport.summary,
       ...toTeamPayload(
         projectedState,
         weekContext,
-        projectedAvailablePlayers,
         activitySummary,
         weeklyImport?.summary ?? null,
         storedImport.summary,
@@ -480,10 +461,9 @@ app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
     const files = batchBody.success
       ? batchBody.data.files
       : [{ position: singleBody!.position ?? null, csvText: singleBody!.csvText }];
-    const [state, weekContext, availablePlayers, activitySummary, projectionImportPlayers] = await Promise.all([
+    const [state, weekContext, activitySummary, projectionImportPlayers] = await Promise.all([
       sleeperClient.getTeamManagerState(leagueId, userRosterId),
       sleeperClient.getTeamWeekContext(leagueId, week, userRosterId).catch(() => null),
-      sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
       sleeperClient.getTeamActivitySummary(leagueId, week).catch(() => null),
       sleeperClient.getProjectionImportPlayers(),
     ]);
@@ -506,16 +486,12 @@ app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
     const activeRosImport = isRosRankingImportActive(state, rosImport) ? rosImport : null;
     const rankedState = applyRosRankingsToTeamState(state, activeRosImport);
     const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
-    const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
-    const availableWithRos = applyRosRankingsToPlayers(rankedAvailablePlayers, activeRosImport);
-    const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
 
     return c.json({
       summary: storedImport!.summary,
       ...toTeamPayload(
         projectedState,
         weekContext,
-        projectedAvailablePlayers,
         activitySummary,
         storedImport!.summary,
         rosImport?.summary ?? null,
@@ -946,7 +922,6 @@ function applyDraftData(draftId: string, state: DraftState): DraftState {
 function toTeamPayload(
   state: TeamManagerState,
   weekContext: TeamWeekContext | null = null,
-  availablePlayers: Player[] = [],
   activitySummary: TeamActivitySummary | null = null,
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null = null,
   rosRankingSummary: RosRankingImportSummary | null = null,
@@ -954,10 +929,7 @@ function toTeamPayload(
   return {
     state,
     dataReadiness: buildTeamDataReadiness(state, weeklyProjectionSummary),
-    needs: buildTeamNeedsSummary(state),
-    lineupSummary: buildTeamLineupSummary(state),
     weekContext,
-    waiverSummary: buildTeamWaiverSummary(state, availablePlayers),
     activitySummary: activitySummary ?? emptyActivitySummary(),
     rosRankingSummary,
     weeklyProjectionSummary,
@@ -1039,6 +1011,7 @@ function redactSettings(settings: AppSettings) {
     aiProvider: settings.aiProvider,
     codexBinConfigured: settings.codexBin.trim().length > 0,
     codexModel: settings.codexModel,
+    codexServiceTier: settings.codexServiceTier,
     codexTimeoutMs: settings.codexTimeoutMs,
   };
 }
@@ -1333,10 +1306,6 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
-
-
-
-
 
 
 

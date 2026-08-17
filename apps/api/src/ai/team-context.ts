@@ -1,130 +1,191 @@
-import { buildTeamLineupSummary, buildTeamNeedsSummary, buildTeamWaiverSummary } from "@sleeper-draft-assistant/engine";
-import type { TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { Player, Position, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
-import type { AiConversationMessage, TeamAiContext } from "./types";
+import type { AiConversationMessage, TeamAiContext, TeamAvailablePlayerEvidence } from "./types";
+
+const fantasyPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
 export function buildTeamAiContext(
   state: TeamManagerState,
   question: string,
   conversationHistory: AiConversationMessage[] = [],
   weekContext: TeamWeekContext | null = null,
-  waiverSummary: TeamWaiverSummary | null = null,
-  lineupSummary: TeamLineupSummary | null = null,
+  availablePlayers: Player[] = [],
   activitySummary: TeamActivitySummary | null = null,
   dataReadiness: TeamDataReadiness | null = null,
 ): TeamAiContext {
-  const teamNeeds = buildTeamNeedsSummary(state);
-  const resolvedWaiverSummary = waiverSummary ?? buildTeamWaiverSummary(state, []);
-  const resolvedLineupSummary = lineupSummary ?? buildTeamLineupSummary(state);
   const resolvedActivitySummary = activitySummary ?? emptyActivitySummary();
+  const { evidence, groups } = buildAvailablePlayerEvidence(availablePlayers);
   return {
     task: "team_question",
     question,
     conversationHistory: conversationHistory.slice(-8),
-    teamNeeds,
-    lineupSummary: resolvedLineupSummary,
-    teamBrief: buildTeamBrief(state, teamNeeds, weekContext, resolvedWaiverSummary, resolvedLineupSummary, resolvedActivitySummary, dataReadiness),
+    teamBrief: buildTeamBrief(state, weekContext, resolvedActivitySummary, dataReadiness),
     teamState: state,
     dataReadiness,
     weekContext,
-    waiverSummary: resolvedWaiverSummary,
     activitySummary: resolvedActivitySummary,
+    availablePlayerEvidence: evidence,
+    availablePlayerGroups: groups,
   };
 }
 
-function buildTeamBrief(state: TeamManagerState, teamNeeds: TeamNeedsSummary, weekContext: TeamWeekContext | null, waiverSummary: TeamWaiverSummary, lineupSummary: TeamLineupSummary, activitySummary: TeamActivitySummary, dataReadiness: TeamDataReadiness | null): TeamAiContext["teamBrief"] {
+function buildTeamBrief(
+  state: TeamManagerState,
+  weekContext: TeamWeekContext | null,
+  activitySummary: TeamActivitySummary,
+  dataReadiness: TeamDataReadiness | null,
+): TeamAiContext["teamBrief"] {
   const openStarterSlots = state.roster.starters
     .filter((slot) => !slot.player)
     .map((slot) => `${slot.slot} (${slot.eligiblePositions.join("/")})`);
   const starterCandidates = state.roster.starters.map((slot) =>
     slot.player
-      ? `${slot.slot}: ${slot.player.name} (${slot.player.team} ${slot.player.position})`
+      ? `${slot.slot}: ${formatPlayer(slot.player)}`
       : `${slot.slot}: open (${slot.eligiblePositions.join("/")})`,
   );
-  const benchPlayers = state.roster.bench.map((player) => `${player.name} (${player.team} ${player.position})`);
-  const hasWeeklyProjections = teamHasWeeklyProjections(state) || waiverSummary.candidates.some((candidate) => candidate.player.projectionSource === "weekly_projection");
-  const hasRosRankings = teamHasRosRankings(state) || waiverSummary.candidates.some((candidate) => Boolean(candidate.player.rosRank));
+  const benchPlayers = state.roster.bench.map(formatPlayer);
+  const hasWeeklyProjections = teamHasWeeklyProjections(state);
+  const hasRosRankings = teamHasRosRankings(state);
 
   return {
     leagueFormat: `${state.league.teams}-team ${state.league.scoring}, slots ${formatRosterSlots(state.league.rosterSlots)}`,
     teamName: state.userTeam.name,
-    week: state.week ? `Week ${state.week}` : "Week unavailable",
+    week: state.seasonPhase === "preseason"
+      ? "Preseason"
+      : state.week
+        ? `Week ${state.week}`
+        : "Week unavailable",
     rosterSummary: formatRosterCounts(state),
     lineupStatus: `${state.roster.starters.filter((slot) => slot.player).length}/${state.roster.starters.length} starter slots filled, ${state.roster.bench.length} bench players, ${state.roster.injuredReserve.length} IR, ${state.roster.taxi.length} taxi.`,
-    lineupFacts: lineupSummary.facts,
-    lineupDecisions: lineupSummary.decisions.slice(0, 8).map((decision) => `${decision.slot}: ${decision.status}; current ${decision.currentPlayer?.name ?? "open"}; recommended ${decision.recommendedPlayer?.name ?? "none"}; ${decision.reasons.join(" ")}`),
     dataReadinessFacts: dataReadiness
       ? [dataReadiness.headline, ...dataReadiness.facts, ...dataReadiness.warnings]
       : ["Weekly data readiness was not provided."],
     openStarterSlots,
-    depthSignals: teamNeeds.facts,
-    deterministicFacts: teamNeeds.facts,
-    matchupFacts: weekContext?.facts ?? ["No Sleeper weekly matchup context is loaded."],
-    waiverFacts: waiverSummary.facts,
-    topWaiverCandidates: waiverSummary.candidates.slice(0, 5).map((candidate) => `${candidate.player.name} (${candidate.player.team} ${candidate.player.position}) - ${candidate.valueLabel}; ${candidate.reasons.join(" ")}`),
-    topDropCandidates: waiverSummary.dropCandidates.slice(0, 4).map((candidate) => `${candidate.player.name} (${candidate.player.team} ${candidate.player.position}) - ${candidate.reasons.join(" ")}`),
+    matchupFacts: weekContext?.facts ?? ["No current Sleeper weekly matchup context is loaded."],
     activityFacts: activitySummary.facts,
     recentTransactions: activitySummary.recentTransactions.slice(0, 5).map((transaction) => transaction.description),
-    trendingAdds: activitySummary.trendingAdds.slice(0, 5).map((item) => `${item.player.name} (${item.player.team} ${item.player.position})${item.count !== null ? ` - ${item.count} adds` : ""}`),
-    trendingDrops: activitySummary.trendingDrops.slice(0, 5).map((item) => `${item.player.name} (${item.player.team} ${item.player.position})${item.count !== null ? ` - ${item.count} drops` : ""}`),
+    trendingAdds: activitySummary.trendingAdds.slice(0, 5).map((item) => `${formatPlayer(item.player)}${item.count !== null ? ` - ${item.count} adds` : ""}`),
+    trendingDrops: activitySummary.trendingDrops.slice(0, 5).map((item) => `${formatPlayer(item.player)}${item.count !== null ? ` - ${item.count} drops` : ""}`),
     opponent: weekContext?.opponentTeamName ?? null,
-    weakestPositions: teamNeeds.weakestPositions,
     starterCandidates,
     benchPlayers,
-    dataWarnings: [...(dataReadiness?.warnings ?? []), ...state.dataQuality.limitations, ...teamNeeds.limitations, ...lineupSummary.limitations, ...(weekContext?.limitations ?? []), ...waiverSummary.limitations, ...activitySummary.limitations],
+    dataWarnings: [
+      ...(dataReadiness?.warnings ?? []),
+      ...state.dataQuality.limitations,
+      ...(weekContext?.limitations ?? []),
+      ...activitySummary.limitations,
+      "Available-player status is inferred from players not currently rostered in the Sleeper league.",
+    ],
     responseRules: [
-      "Answer only from the provided Sleeper team context.",
+      "Answer only from the supplied Sleeper state and separate raw evidence signals.",
+      "Reason independently. No local lineup, waiver, drop, or roster-priority recommendation has been supplied.",
       hasWeeklyProjections
-        ? "Use imported weekly projections when they are present; do not invent injuries, waiver-wire availability, or player news."
-        : "Do not invent projections, injuries, waiver-wire availability, or player news.",
-      "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
-      "For start/sit and lineup optimization questions, use lineupSummary and lineupDecisions before general roster-shape advice.",
+        ? "Use imported weekly projections as one current-week signal; do not invent injuries, news, or projections."
+        : "Current weekly projections are incomplete or absent; do not invent them.",
       hasRosRankings
-        ? "For adds, drops, and stashes, use rest-of-season rank as the long-term value signal and weekly projections as the immediate-week signal."
-        : "For adds, drops, and stashes, state that current rest-of-season rankings are unavailable.",
-      "Use dataReadinessFacts to qualify confidence; never present incomplete or mismatched projection data as current.",
-      "For add/drop questions, use waiverSummary, activitySummary, topWaiverCandidates, and trendingAdds before general roster-shape advice.",
-      "If a starter slot is open, prioritize filling that slot before bench-upgrade advice.",
+        ? "Use rest-of-season ranks as a separate long-term signal rather than combining them into a hidden score."
+        : "Current rest-of-season rankings are incomplete or absent; say so when long-term value matters.",
+      "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
+      "For add/drop questions, verify that an add appears in availablePlayerEvidence and that a drop appears on the user's roster.",
+      "For lineup questions, verify slot eligibility from teamState before recommending a change.",
+      "Qualify confidence using dataReadinessFacts and dataWarnings.",
       "Keep the answer concise and action-oriented.",
     ],
   };
 }
 
+function buildAvailablePlayerEvidence(players: Player[]): {
+  evidence: TeamAvailablePlayerEvidence[];
+  groups: TeamAiContext["availablePlayerGroups"];
+} {
+  const eligible = uniquePlayers(players.filter((player) => fantasyPositions.includes(player.position)));
+  const weeklyProjectionLeaders = eligible
+    .filter((player) => player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined)
+    .sort((a, b) => (b.weeklyProjectedPoints ?? 0) - (a.weeklyProjectedPoints ?? 0) || a.name.localeCompare(b.name))
+    .slice(0, 30)
+    .map((player) => player.id);
+  const restOfSeasonRankLeaders = eligible
+    .filter((player) => player.rosRank !== null && player.rosRank !== undefined)
+    .sort((a, b) => (a.rosRank ?? Number.MAX_SAFE_INTEGER) - (b.rosRank ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
+    .slice(0, 30)
+    .map((player) => player.id);
+  const positionCoverage = Object.fromEntries(fantasyPositions.map((position) => [
+    position,
+    eligible
+      .filter((player) => player.position === position)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 12)
+      .map((player) => player.id),
+  ])) as Record<Position, string[]>;
+  const includedIds = new Set([
+    ...weeklyProjectionLeaders,
+    ...restOfSeasonRankLeaders,
+    ...Object.values(positionCoverage).flat(),
+  ]);
+
+  return {
+    evidence: eligible
+      .filter((player) => includedIds.has(player.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(toAvailablePlayerEvidence),
+    groups: { weeklyProjectionLeaders, restOfSeasonRankLeaders, positionCoverage },
+  };
+}
+
+function toAvailablePlayerEvidence(player: Player): TeamAvailablePlayerEvidence {
+  return {
+    playerId: player.id,
+    name: player.name,
+    team: player.team,
+    position: player.position,
+    weeklyProjectedPoints: player.weeklyProjectedPoints ?? null,
+    weeklyProjectionWeek: player.weeklyProjectionWeek ?? null,
+    restOfSeasonRank: player.rosRank ?? null,
+    restOfSeasonBestRank: player.rosBestRank ?? null,
+    restOfSeasonWorstRank: player.rosWorstRank ?? null,
+    riskTags: player.riskTags,
+  };
+}
+
+function formatPlayer(player: Player): string {
+  const signals = [
+    player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
+      ? `weekly ${player.weeklyProjectedPoints.toFixed(1)}`
+      : null,
+    player.rosRank ? `ROS ${player.rosRank}` : null,
+    player.riskTags.length ? `flags ${player.riskTags.join(", ")}` : null,
+  ].filter(Boolean);
+  return `${player.name} (${player.team} ${player.position})${signals.length ? ` - ${signals.join("; ")}` : ""}`;
+}
+
+function uniquePlayers(players: Player[]): Player[] {
+  return Array.from(new Map(players.map((player) => [player.id, player])).values());
+}
 
 function teamHasWeeklyProjections(state: TeamManagerState): boolean {
-  return [
-    ...state.roster.starters.map((slot) => slot.player),
-    ...state.roster.bench,
-    ...state.roster.injuredReserve,
-    ...state.roster.taxi,
-  ].some((player) => player?.projectionSource === "weekly_projection");
+  return teamPlayers(state).some((player) => player.projectionSource === "weekly_projection");
 }
 
 function teamHasRosRankings(state: TeamManagerState): boolean {
+  return teamPlayers(state).some((player) => Boolean(player.rosRank));
+}
+
+function teamPlayers(state: TeamManagerState): Player[] {
   return [
     ...state.roster.starters.map((slot) => slot.player),
     ...state.roster.bench,
     ...state.roster.injuredReserve,
     ...state.roster.taxi,
-  ].some((player) => Boolean(player?.rosRank));
+  ].filter((player): player is Player => player !== null);
 }
 
 function formatRosterCounts(state: TeamManagerState): string {
-  return (["QB", "RB", "WR", "TE", "K", "DEF"] as const)
-    .map((position) => `${position}:${state.roster.positionCounts[position] ?? 0}`)
-    .join(" ");
+  return fantasyPositions.map((position) => `${position}:${state.roster.positionCounts[position] ?? 0}`).join(" ");
 }
 
 function formatRosterSlots(slots: Record<string, number>): string {
-  return Object.entries(slots)
-    .filter(([, count]) => count > 0)
-    .map(([slot, count]) => `${slot}:${count}`)
-    .join("/");
+  return Object.entries(slots).filter(([, count]) => count > 0).map(([slot, count]) => `${slot}:${count}`).join("/");
 }
-
-
-
-
 
 function emptyActivitySummary(): TeamActivitySummary {
   return {

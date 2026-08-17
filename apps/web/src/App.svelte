@@ -17,13 +17,8 @@
   import MyTeamPanel from "./lib/components/MyTeamPanel.svelte";
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import TeamActivityPanel from "./lib/components/TeamActivityPanel.svelte";
-  import TeamNeedsPanel from "./lib/components/TeamNeedsPanel.svelte";
-  import TeamDataReadinessPanel from "./lib/components/TeamDataReadinessPanel.svelte";
-  import TeamLineupPanel from "./lib/components/TeamLineupPanel.svelte";
-  import TeamWeekPanel from "./lib/components/TeamWeekPanel.svelte";
-  import TeamWaiverPanel from "./lib/components/TeamWaiverPanel.svelte";
-  import RosRankingsImportPanel from "./lib/components/RosRankingsImportPanel.svelte";
-  import WeeklyProjectionsImportPanel from "./lib/components/WeeklyProjectionsImportPanel.svelte";
+  import TeamDataDrawer from "./lib/components/TeamDataDrawer.svelte";
+  import TeamWorkspaceStatus from "./lib/components/TeamWorkspaceStatus.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
@@ -88,10 +83,7 @@
     RosRankingImportSummary,
     TeamActivitySummary,
     TeamDataReadiness,
-    TeamLineupSummary,
     TeamManagerState,
-    TeamNeedsSummary,
-    TeamWaiverSummary,
     TeamWeekContext,
     TeamPayload,
     Position,
@@ -119,10 +111,7 @@
   let loadError = $state("");
   let teamManagerState: TeamManagerState | null = $state(null);
   let teamDataReadiness: TeamDataReadiness | null = $state(null);
-  let teamNeeds: TeamNeedsSummary | null = $state(null);
-  let teamLineupSummary: TeamLineupSummary | null = $state(null);
   let teamWeekContext: TeamWeekContext | null = $state(null);
-  let teamWaiverSummary: TeamWaiverSummary | null = $state(null);
   let teamActivitySummary: TeamActivitySummary | null = $state(null);
   let weeklyProjectionSummary: WeeklyProjectionImportSummary | null = $state(null);
   let rosRankingSummary: RosRankingImportSummary | null = $state(null);
@@ -162,6 +151,7 @@
   let isSavingSettings = $state(false);
   let settingsOpen = $state(false);
   let draftSwitcherOpen = $state(false);
+  let teamDataOpen = $state(false);
   let appSettings: AppSettings | null = $state(null);
   let aiProviderStatus: AiProviderStatus | null = $state(null);
   let settingsError = $state("");
@@ -715,12 +705,10 @@
     draftSession.clear();
     resetDraftImportState();
     resetTeamRefreshTracking();
+    teamDataOpen = false;
     teamManagerState = null;
     teamDataReadiness = null;
-    teamNeeds = null;
-    teamLineupSummary = null;
     teamWeekContext = null;
-    teamWaiverSummary = null;
     teamActivitySummary = null;
     weeklyProjectionSummary = null;
     rosRankingSummary = null;
@@ -812,10 +800,7 @@
       decisionHistoryError = "";
       teamManagerState = null;
       teamDataReadiness = null;
-      teamNeeds = null;
-      teamLineupSummary = null;
       teamWeekContext = null;
-      teamWaiverSummary = null;
       teamActivitySummary = null;
       weeklyProjectionSummary = null;
       rosRankingSummary = null;
@@ -855,10 +840,7 @@
       resetTeamRefreshTracking();
       teamManagerState = null;
       teamDataReadiness = null;
-      teamNeeds = null;
-      teamLineupSummary = null;
       teamWeekContext = null;
-      teamWaiverSummary = null;
       teamActivitySummary = null;
       weeklyProjectionSummary = null;
       rosRankingSummary = null;
@@ -912,10 +894,7 @@
       } else {
         teamManagerState = null;
         teamDataReadiness = null;
-        teamNeeds = null;
-        teamLineupSummary = null;
         teamWeekContext = null;
-        teamWaiverSummary = null;
         teamActivitySummary = null;
         weeklyProjectionSummary = null;
         rosRankingSummary = null;
@@ -965,10 +944,7 @@
   function applyTeamPayload(payload: TeamPayload) {
     teamManagerState = payload.state;
     teamDataReadiness = payload.dataReadiness;
-    teamNeeds = payload.needs;
-    teamLineupSummary = payload.lineupSummary;
     teamWeekContext = payload.weekContext;
-    teamWaiverSummary = payload.waiverSummary;
     teamActivitySummary = payload.activitySummary;
     rosRankingSummary = payload.rosRankingSummary;
     weeklyProjectionSummary = payload.weeklyProjectionSummary;
@@ -2109,50 +2085,46 @@
           error={teamRefreshError}
           onRefresh={() => refreshTeamManagerIfEligible(true)}
         />
-        <section class="dashboard-grid manage-grid">
-          <div class="primary-column">
-            <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
-            <TeamNeedsPanel needs={teamNeeds} />
-            <TeamLineupPanel lineupSummary={teamLineupSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-            <TeamAskPanel teamState={teamManagerState} teamNeeds={teamNeeds} lineupSummary={teamLineupSummary} weekContext={teamWeekContext} waiverSummary={teamWaiverSummary} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={conversationalProviderStatus} />
-          </div>
-          <div class="side-column">
-            <TeamDataReadinessPanel readiness={teamDataReadiness} isLoading={isLoadingTeamManager} />
-            <TeamWeekPanel weekContext={teamWeekContext} isLoading={isLoadingTeamManager} />
-            <RosRankingsImportPanel
-              hasTeam={Boolean(teamManagerState)}
-              defaultSeason={weeklyProjectionDefaultSeason}
-              leagueSeason={teamManagerState?.league.season ?? ""}
-              scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
-              summary={rosRankingSummary}
-              weeklyLoaded={Boolean(weeklyProjectionSummary)}
-              error={rosRankingError}
-              isImporting={isImportingRosRankings}
-              isClearing={isClearingRosRankings}
-              onImport={importRosRankings}
-              onClear={clearRosRankings}
-              onOpenFantasyPros={openFantasyProsRosRankings}
-            />
-            <WeeklyProjectionsImportPanel
-              hasTeam={Boolean(teamManagerState)}
-              defaultSeason={weeklyProjectionDefaultSeason}
-              defaultWeek={weeklyProjectionDefaultWeek}
-              leagueSeason={teamManagerState?.league.season ?? ""}
-              currentWeek={teamManagerState?.week ?? 0}
-              summary={weeklyProjectionSummary}
-              rosLoaded={Boolean(rosRankingSummary)}
-              error={weeklyProjectionError}
-              isImporting={isImportingWeeklyProjections}
-              isClearing={isClearingWeeklyProjections}
-              onImport={importWeeklyProjections}
-              onLoadContext={loadWeeklyProjectionContext}
-              onClear={clearWeeklyProjections}
-              onOpenFantasyPros={openFantasyProsWeeklyProjections}
-            />
-            <TeamWaiverPanel waiverSummary={teamWaiverSummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-            <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
-          </div>
+        <TeamWorkspaceStatus
+          state={teamManagerState}
+          readiness={teamDataReadiness}
+          weekContext={teamWeekContext}
+          rosSummary={rosRankingSummary}
+          weeklySummary={weeklyProjectionSummary}
+          isLoading={isLoadingTeamManager}
+          onManageData={() => (teamDataOpen = true)}
+        />
+        <section class="team-workspace">
+          <TeamAskPanel teamState={teamManagerState} weekContext={teamWeekContext} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={conversationalProviderStatus} />
+          <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
+          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
         </section>
+        {#if teamDataOpen}
+          <TeamDataDrawer
+            teamState={teamManagerState}
+            readiness={teamDataReadiness}
+            rosSummary={rosRankingSummary}
+            weeklySummary={weeklyProjectionSummary}
+            defaultSeason={weeklyProjectionDefaultSeason}
+            defaultWeek={weeklyProjectionDefaultWeek}
+            scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
+            rosError={rosRankingError}
+            weeklyError={weeklyProjectionError}
+            isLoading={isLoadingTeamManager}
+            isImportingRos={isImportingRosRankings}
+            isClearingRos={isClearingRosRankings}
+            isImportingWeekly={isImportingWeeklyProjections}
+            isClearingWeekly={isClearingWeeklyProjections}
+            onImportRos={importRosRankings}
+            onClearRos={clearRosRankings}
+            onOpenRos={openFantasyProsRosRankings}
+            onImportWeekly={importWeeklyProjections}
+            onLoadWeek={loadWeeklyProjectionContext}
+            onClearWeekly={clearWeeklyProjections}
+            onOpenWeekly={openFantasyProsWeeklyProjections}
+            onClose={() => (teamDataOpen = false)}
+          />
+        {/if}
       {/if}
       {/if}
     {/key}
@@ -2183,6 +2155,13 @@
   .primary-column,
   .side-column {
     min-width: 0;
+  }
+
+  .team-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+    margin-top: var(--space-5);
   }
 
   .connect-editor {

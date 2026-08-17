@@ -1,12 +1,14 @@
 <script lang="ts">
-  import type { TeamDataReadiness } from "../types";
+  import type { TeamDataReadiness, TeamManagerState } from "../types";
   import Icon from "./Icon.svelte";
 
   let {
     readiness,
+    seasonPhase = "unknown",
     isLoading = false,
   }: {
     readiness: TeamDataReadiness | null;
+    seasonPhase?: TeamManagerState["seasonPhase"];
     isLoading?: boolean;
   } = $props();
 
@@ -20,9 +22,9 @@
   <div class="panel-heading compact">
     <div>
       <p class="eyebrow">Decision data</p>
-      <h2><Icon name="checklist" size={17} /> Weekly readiness</h2>
+      <h2><Icon name="checklist" size={17} /> {seasonPhase === "preseason" ? "Season readiness" : "Weekly readiness"}</h2>
     </div>
-    {#if readiness}
+    {#if readiness && seasonPhase !== "preseason"}
       <span class="pill" class:pill-ready={readiness.status === "ready"} class:pill-warning={readiness.status !== "ready"}>
         {readiness.confidence} confidence
       </span>
@@ -31,6 +33,9 @@
 
   {#if isLoading}
     <p class="muted">Checking weekly data...</p>
+  {:else if seasonPhase === "preseason"}
+    <p class="headline">Regular-season weekly advice is not active yet.</p>
+    <p class="context">Your roster is available for structure and depth review. Matchups and weekly readiness begin with Week 1.</p>
   {:else if !readiness}
     <p class="muted">Open a Sleeper team to evaluate weekly data readiness.</p>
   {:else}

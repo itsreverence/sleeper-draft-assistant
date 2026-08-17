@@ -150,6 +150,20 @@ describe("Codex app-server executable resolution", () => {
     expect(client.closed).toBe(true);
   });
 
+  it.each(["fast", "default"] as const)("starts Codex threads with the %s response speed", async (serviceTier) => {
+    const client = new FakeCodexClient();
+    const provider = new CodexAppServerProvider({
+      serviceTier,
+      clientFactory: async () => client,
+    });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Who should I draft?");
+
+    await provider.answerDraftQuestion(context);
+
+    expect(client.threadStartParams).toHaveLength(1);
+    expect(client.threadStartParams[0]).toMatchObject({ serviceTier });
+  });
+
   it("restarts with a fresh thread after a failed turn", async () => {
     const firstClient = new FakeCodexClient();
     firstClient.failNextTurn = true;
@@ -201,6 +215,7 @@ class FakeCodexClient implements CodexAppServerClient {
   threadStartCalls = 0;
   turnThreadIds: string[] = [];
   prompts: string[] = [];
+  threadStartParams: Array<Record<string, unknown>> = [];
   closed = false;
   failNextTurn = false;
 
@@ -208,9 +223,10 @@ class FakeCodexClient implements CodexAppServerClient {
     this.initializeCalls += 1;
   }
 
-  async request<T>(method: string): Promise<T> {
+  async request<T>(method: string, params: unknown): Promise<T> {
     if (method === "thread/start") {
       this.threadStartCalls += 1;
+      this.threadStartParams.push(params as Record<string, unknown>);
       return { thread: { id: `thread-${this.threadStartCalls}` } } as T;
     }
     return {} as T;

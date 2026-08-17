@@ -7,6 +7,15 @@
 
   const starterCount = $derived(state?.roster.starters.filter((slot) => slot.player).length ?? 0);
   const starterSlots = $derived(state?.roster.starters.length ?? 0);
+  const periodLabel = $derived(
+    state?.seasonPhase === "preseason"
+      ? "Preseason"
+      : state?.seasonPhase === "postseason"
+        ? "Postseason"
+        : state?.week
+          ? `Week ${state.week}`
+          : "",
+  );
 </script>
 
 <article class="panel">
@@ -14,8 +23,8 @@
     <div>
       <h2><Icon name="users" size={17} /> {state?.userTeam.name ?? "My Team"}</h2>
     </div>
-    {#if state?.week}
-      <span class="status-pill">Week {state.week}</span>
+    {#if periodLabel}
+      <span class="status-pill">{periodLabel}</span>
     {/if}
   </div>
 

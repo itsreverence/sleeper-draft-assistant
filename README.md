@@ -16,7 +16,9 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Guides real drafts through a preparation stage and opens the AI workspace only after current ECR, season projections, Sleeper ADP, and Codex are ready.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
-- Shows weekly data readiness, current-versus-optimized lineup totals, roster needs, waiver context, weekly context, and league activity.
+- Gives Codex the live roster, inferred availability, weekly projections, rest-of-season ranks, matchup state, and league activity as separate evidence for team-management advice.
+- Keeps Team Manager compact: AI conversation and the actual Sleeper roster are primary, matchup and readiness stay glanceable, and detailed import controls open only when managing data.
+- Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Uses a local Codex app-server provider for the core draft and team-assistant experience.
 - Reuses one local Codex app-server process and scoped draft/team threads during each run, preserving conversational continuity without resending prior chat messages from the UI.
@@ -76,6 +78,8 @@ The app reads Sleeper data but does not submit picks, change lineups, or modify 
 Codex is required for the normal draft-assistant workspace. Draft tracking and data imports do not themselves make AI requests, and an active draft can use emergency board-only recovery when Codex is unavailable. That recovery mode never presents pick recommendations or draft questions.
 
 The supported integration runs a locally installed Codex CLI through `codex app-server`. Provider communication stays in the local API process rather than the renderer. No provider credentials are stored by Sleeper Draft Assistant.
+
+Fast responses are enabled by default for lower live-draft latency and can be disabled in Settings. On GPT-5.6, Fast uses 2.5× ChatGPT credits.
 
 See [AI providers](docs/AI_PROVIDERS.md) for setup and limitations.
 

@@ -36,28 +36,32 @@
   {:else if !activitySummary}
     <p class="muted">No activity context is loaded yet.</p>
   {:else}
-    <p class="summary">{activitySummary.headline}</p>
+    <div class="activity-overview">
+      <p class="summary">{activitySummary.headline}</p>
 
-    {#if adds.length > 0}
-      <div class="activity-section">
-        <span>Trending adds</span>
-        {#each adds as item}
-          <div class="activity-row">
-            <strong>{item.player.name}</strong>
-            <em>{item.player.team} {item.player.position}{item.count !== null ? ` - ${item.count}` : ""}</em>
+      <div class="signal-grid">
+        {#if adds.length > 0}
+          <div class="activity-section">
+            <span>Trending adds</span>
+            {#each adds as item}
+              <div class="activity-row">
+                <strong>{item.player.name}</strong>
+                <em>{item.player.team} {item.player.position}{item.count !== null ? ` - ${item.count}` : ""}</em>
+              </div>
+            {/each}
           </div>
-        {/each}
-      </div>
-    {/if}
+        {/if}
 
-    {#if recent.length > 0}
-      <div class="activity-section">
-        <span>League transactions</span>
-        {#each recent as transaction}
-          <p>{transaction.description}</p>
-        {/each}
+        {#if recent.length > 0}
+          <div class="activity-section">
+            <span>League transactions</span>
+            {#each recent as transaction}
+              <p>{transaction.description}</p>
+            {/each}
+          </div>
+        {/if}
       </div>
-    {/if}
+    </div>
 
     <p class="muted compact-copy">Trending counts are global Sleeper activity, not projections.</p>
   {/if}
@@ -83,6 +87,16 @@
 
   .compact-copy {
     font-size: var(--text-xs);
+  }
+
+  .activity-overview,
+  .signal-grid {
+    display: grid;
+    gap: 10px;
+  }
+
+  .signal-grid:has(.activity-section:nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .activity-section {
@@ -120,5 +134,11 @@
     font-size: var(--text-xs);
     font-style: normal;
     white-space: nowrap;
+  }
+
+  @media (max-width: 720px) {
+    .signal-grid:has(.activity-section:nth-child(2)) {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

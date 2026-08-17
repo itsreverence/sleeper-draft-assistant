@@ -11,10 +11,7 @@ describe("Team ask panel", () => {
 
     render(TeamAskPanel, {
       teamState: teamPayload.state,
-      teamNeeds: teamPayload.needs,
-      lineupSummary: teamPayload.lineupSummary,
       weekContext: teamPayload.weekContext,
-      waiverSummary: teamPayload.waiverSummary,
       activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
@@ -25,11 +22,11 @@ describe("Team ask panel", () => {
     });
 
     expect(screen.getByText("Codex app-server")).toBeTruthy();
-    expect(screen.getByText("Fix RB/WR")).toBeTruthy();
+    expect(screen.getByText("Roster plan")).toBeTruthy();
 
-    const textbox = screen.getByPlaceholderText("Ask about starters, weak spots, bench depth, or post-draft priorities.");
+    const textbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
     await fireEvent.input(textbox, { target: { value: "What should I fix first?" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask team manager" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenCalledWith("What should I fix first?", []);
@@ -43,10 +40,7 @@ describe("Team ask panel", () => {
 
     render(TeamAskPanel, {
       teamState: teamPayload.state,
-      teamNeeds: teamPayload.needs,
-      lineupSummary: teamPayload.lineupSummary,
       weekContext: teamPayload.weekContext,
-      waiverSummary: teamPayload.waiverSummary,
       activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "noop",
@@ -57,10 +51,10 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const textbox = screen.getByPlaceholderText("Ask about starters, weak spots, bench depth, or post-draft priorities.");
-    const button = screen.getByRole("button", { name: "Ask team manager" });
+    const textbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    const button = screen.getByRole("button", { name: "Ask Codex" });
 
-    expect(screen.getByText("No AI provider")).toBeTruthy();
+    expect(screen.getByText("Codex unavailable")).toBeTruthy();
     expect(textbox.getAttribute("disabled")).not.toBeNull();
     expect(button.getAttribute("disabled")).not.toBeNull();
 

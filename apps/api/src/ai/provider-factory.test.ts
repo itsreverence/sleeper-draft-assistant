@@ -25,7 +25,14 @@ describe("AiProviderManager", () => {
     expect(close).toHaveBeenCalledTimes(1);
     expect(factory).toHaveBeenCalledTimes(2);
 
-    manager.close();
+    const fast = manager.get({ ...settings, codexModel: "gpt-test", codexServiceTier: "fast" });
+    const standard = manager.get({ ...settings, codexModel: "gpt-test", codexServiceTier: "default" });
+    expect(fast).toBe(second);
+    expect(standard).not.toBe(fast);
     expect(close).toHaveBeenCalledTimes(2);
+    expect(factory).toHaveBeenCalledTimes(3);
+
+    manager.close();
+    expect(close).toHaveBeenCalledTimes(3);
   });
 });

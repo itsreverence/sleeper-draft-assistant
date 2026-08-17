@@ -9,6 +9,7 @@ export function createAiProvider(settings: AppSettings): AiProvider {
     return new CodexAppServerProvider({
       codexBin: settings.codexBin,
       model: settings.codexModel,
+      serviceTier: settings.codexServiceTier,
       timeoutMs: settings.codexTimeoutMs,
     });
   }
@@ -46,6 +47,7 @@ function providerSettingsKey(settings: AppSettings): string {
     aiProvider: settings.aiProvider,
     codexBin: settings.codexBin,
     codexModel: settings.codexModel,
+    codexServiceTier: settings.codexServiceTier,
     codexTimeoutMs: settings.codexTimeoutMs,
   });
 }

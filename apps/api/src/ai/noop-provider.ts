@@ -65,16 +65,14 @@ export class NoopAiProvider implements AiProvider {
   }
 
   async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
-    const topSignal = context.teamBrief.depthSignals[0] ?? "No obvious roster-structure weakness is visible from Sleeper roster data alone.";
-
     return {
       provider: this.status(),
       answer: [
-        "AI provider is not connected yet, so this answer is using the deterministic Sleeper team context.",
+        "AI provider is not connected, so no team-management recommendation is available.",
         `Question: ${context.question}`,
         `Team: ${context.teamBrief.teamName} (${context.teamBrief.leagueFormat})`,
-        topSignal,
         context.teamBrief.lineupStatus,
+        "Connect Codex for an independent strategy assessment.",
       ].join("\n\n"),
     };
   }

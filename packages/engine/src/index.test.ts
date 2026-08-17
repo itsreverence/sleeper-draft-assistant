@@ -6,9 +6,6 @@ import {
   buildDraftOptions,
   buildDraftRecommendation,
   buildTeamDataReadiness,
-  buildTeamLineupSummary,
-  buildTeamNeedsSummary,
-  buildTeamWaiverSummary,
   createMockDraftState,
   getAvailablePlayers,
   isDraftChoiceRosterFeasible,
@@ -476,201 +473,22 @@ describe("full draft simulations", () => {
   });
 });
 
-describe("team needs engine", () => {
-  it("summarizes open starters, thin depth, and flex pressure", () => {
-    const state = createTeamManagerState();
-    const summary = buildTeamNeedsSummary(state);
-
-    expect(summary.weakestPositions).toContain("RB");
-    expect(summary.openStarterSlots).toEqual(["RB", "WR", "FLEX", "FLEX"]);
-    expect(summary.thinPositions).toEqual(expect.arrayContaining(["RB", "WR"]));
-    expect(summary.flexPressure).toContain("short");
-    expect(summary.facts).toContain("Open starter slots: RB, WR, FLEX, FLEX.");
-  });
-
-
-
-  it("recommends lineup swaps and open slot fills", () => {
-    const betterWr = teamPlayer("bench-wr-elite", "Elite Bench WR", "WR", 250, 3);
-    const state = createTeamManagerState({ bench: [betterWr] });
-    const summary = buildTeamLineupSummary(state);
-
-    expect(summary.openSlots).toEqual(expect.arrayContaining(["RB", "FLEX", "FLEX"]));
-    expect(summary.swapRecommendations.some((decision) => decision.currentPlayer?.id === "wr-1" && decision.recommendedPlayer?.id === "bench-wr-elite")).toBe(true);
-    expect(summary.facts.some((fact) => fact.includes("Elite Bench WR over Starter WR"))).toBe(true);
-  });
-
-  it("flags risky recommended starters", () => {
-    const riskyRb = { ...teamPlayer("bench-rb-risk", "Risky Bench RB", "RB", 260, 3), riskTags: ["injury: Questionable"] };
-    const summary = buildTeamLineupSummary(createTeamManagerState({ bench: [riskyRb] }));
-
-    expect(summary.riskyStarters.map((player) => player.id)).toContain("bench-rb-risk");
-    expect(summary.facts.some((fact) => fact.includes("Risky Bench RB"))).toBe(true);
-  });
-  it("uses weekly projections to recommend a lineup swap", () => {
-    const state = createTeamManagerState();
-    const starterWr = state.roster.starters.find((slot) => slot.slot === "WR")?.player;
-    if (!starterWr) {
-      throw new Error("Expected a starting WR fixture.");
-    }
-    Object.assign(starterWr, {
-      projectedPoints: 14.2,
-      projectionSource: "weekly_projection",
-      weeklyProjectedPoints: 14.2,
-      weeklyProjectionSource: "FantasyPros",
-      weeklyProjectionSeason: "2026",
-      weeklyProjectionWeek: 1,
-    });
-    const weeklyBenchWr = {
-      ...teamPlayer("bench-wr-weekly", "Weekly Breakout WR", "WR", 28.4, 150),
-      projectionSource: "weekly_projection" as const,
-      weeklyProjectedPoints: 28.4,
-      weeklyProjectionSource: "FantasyPros",
-      weeklyProjectionSeason: "2026",
-      weeklyProjectionWeek: 1,
-    };
-    state.roster.bench = [weeklyBenchWr];
-    state.roster.positionCounts.WR = 2;
-    const summary = buildTeamLineupSummary(state);
-    const swap = summary.swapRecommendations.find((decision) => decision.currentPlayer?.id === "wr-1");
-
-    expect(swap?.recommendedPlayer?.id).toBe("bench-wr-weekly");
-    expect(swap?.reasons.some((reason) => reason.includes("28.4 points"))).toBe(true);
-  });
-  it("suppresses weekly projection swaps that are effectively a toss-up", () => {
-    const state = createTeamManagerState();
-    const starterWr = state.roster.starters.find((slot) => slot.slot === "WR")?.player;
-    if (!starterWr) {
-      throw new Error("Expected a starting WR fixture.");
-    }
-    Object.assign(starterWr, weeklyProjectionFields(14.2));
-    state.roster.bench = [{ ...teamPlayer("bench-wr-close", "Close Bench WR", "WR", 14.4, 100), ...weeklyProjectionFields(14.4) }];
-
-    const summary = buildTeamLineupSummary(state);
-    const decision = summary.decisions.find((item) => item.currentPlayer?.id === "wr-1");
-
-    expect(decision?.status).toBe("locked");
-    expect(decision?.confidence).toBe("low");
-    expect(decision?.projectedPointDelta).toBeCloseTo(0.2);
-    expect(decision?.reasons.some((reason) => reason.includes("toss-up"))).toBe(true);
-  });
-  it("compares complete current and optimized weekly lineup totals", () => {
-    const state = createTeamManagerState();
-    const openPlayers = [
-      { ...teamPlayer("rb-2", "Current RB Two", "RB", 10, 50), ...weeklyProjectionFields(10) },
-      { ...teamPlayer("wr-2", "Current WR Two", "WR", 10, 60), ...weeklyProjectionFields(10) },
-      { ...teamPlayer("flex-rb", "Current Flex RB", "RB", 9, 70), ...weeklyProjectionFields(9) },
-      { ...teamPlayer("flex-wr", "Current Flex WR", "WR", 8, 80), ...weeklyProjectionFields(8) },
-    ];
-    const existingStarters = state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player));
-    existingStarters.forEach((player, index) => Object.assign(player, weeklyProjectionFields(12 + index)));
-    let openIndex = 0;
-    for (const slot of state.roster.starters) {
-      if (!slot.player) {
-        slot.player = openPlayers[openIndex++] ?? null;
-      }
-    }
-    state.roster.bench = [{ ...teamPlayer("bench-wr-elite", "Elite Weekly WR", "WR", 20, 10), ...weeklyProjectionFields(20) }];
-
-    const summary = buildTeamLineupSummary(state);
-
-    expect(summary.currentProjectionCoverage).toBe(1);
-    expect(summary.recommendedProjectionCoverage).toBe(1);
-    expect(summary.currentProjectedPoints).not.toBeNull();
-    expect(summary.recommendedProjectedPoints).not.toBeNull();
-    expect(summary.projectedPointDelta).toBeGreaterThan(0);
-    expect(summary.headline).toContain("projected points");
-  });
-  it("reports weekly data readiness and missing position coverage", () => {
+describe("team data readiness", () => {
+  it("reports weekly evidence coverage without making a lineup recommendation", () => {
     const state = createTeamManagerState();
     for (const player of state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player))) {
       Object.assign(player, weeklyProjectionFields(12));
     }
-    const completeSummary = weeklyImportSummary(["QB", "RB", "WR", "TE"]);
-    const ready = buildTeamDataReadiness(state, completeSummary);
+    const ready = buildTeamDataReadiness(state, weeklyImportSummary(["QB", "RB", "WR", "TE"]));
     const partial = buildTeamDataReadiness(state, weeklyImportSummary(["QB"]));
 
     expect(ready.status).toBe("ready");
     expect(ready.confidence).toBe("high");
     expect(ready.rosterProjectionCoverage).toBe(1);
+    expect(ready.headline).toBe("Weekly evidence is ready for Codex.");
     expect(partial.status).toBe("partial");
     expect(partial.missingPositions).toEqual(["RB", "WR", "TE"]);
     expect(partial.warnings.some((warning) => warning.includes("Missing projection files"))).toBe(true);
-  });
-  it("scores weekly waiver projections on a weekly scale", () => {
-    const state = createTeamManagerState();
-    const weeklyCandidate = {
-      ...teamPlayer("fa-weekly", "Projected Breakout", "RB", 24, 150),
-      projectionSource: "weekly_projection" as const,
-      weeklyProjectedPoints: 24,
-      weeklyProjectionSource: "FantasyPros",
-      weeklyProjectionSeason: "2026",
-      weeklyProjectionWeek: 1,
-    };
-    const fallbackCandidate = teamPlayer("fa-fallback", "Sleeper Placeholder", "RB", 399, 1);
-    const summary = buildTeamWaiverSummary(state, [fallbackCandidate, weeklyCandidate]);
-
-    expect(summary.candidates[0]?.player.id).toBe("fa-weekly");
-    expect(summary.candidates[0]?.valueLabel).toBe("24.0 weekly pts");
-  });
-  it("balances weekly projections with rest-of-season value for waivers", () => {
-    const state = createTeamManagerState();
-    const streamer = {
-      ...teamPlayer("fa-streamer", "One Week Streamer", "RB", 18, 180),
-      ...weeklyProjectionFields(18),
-      rosRank: 200,
-      rosAverageRank: 200,
-      rosBestRank: 170,
-      rosWorstRank: 230,
-      rosSource: "FantasyPros",
-      rosSeason: "2026",
-      rosScoring: "PPR" as const,
-    };
-    const longTerm = {
-      ...teamPlayer("fa-long-term", "Long Term Starter", "RB", 16, 20),
-      ...weeklyProjectionFields(16),
-      rosRank: 20,
-      rosAverageRank: 20,
-      rosBestRank: 15,
-      rosWorstRank: 26,
-      rosSource: "FantasyPros",
-      rosSeason: "2026",
-      rosScoring: "PPR" as const,
-    };
-
-    const summary = buildTeamWaiverSummary(state, [streamer, longTerm]);
-
-    expect(summary.candidates[0]?.player.id).toBe("fa-long-term");
-    expect(summary.candidates[0]?.valueLabel).toBe("16.0 weekly pts - ROS 20");
-    expect(summary.candidates[0]?.reasons.some((reason) => reason.includes("expert range 15-26"))).toBe(true);
-  });
-  it("summarizes available add and drop candidates", () => {
-    const state = createTeamManagerState({
-      bench: [teamPlayer("bench-k", "Bench K", "K", 100, 260)],
-    });
-    const summary = buildTeamWaiverSummary(state, [
-      { ...teamPlayer("fa-rb", "Free RB", "RB", 220, 24), importedRank: 24, importedSource: "FantasyPros" },
-      teamPlayer("fa-qb", "Free QB", "QB", 260, 80),
-    ]);
-
-    expect(summary.candidates[0]?.player.id).toBe("fa-rb");
-    expect(summary.candidates[0]?.rosterFit).toBe("starter_need");
-    expect(summary.dropCandidates[0]?.player.id).toBe("bench-k");
-    expect(summary.facts).toContain("Top add candidate: Free RB (RB).");
-  });
-  it("assigns fixed slots before flex slots deterministically", () => {
-    const state = createTeamManagerState({
-      bench: [
-        teamPlayer("bench-rb", "Bench RB", "RB", 205, 22),
-        teamPlayer("bench-wr", "Bench WR", "WR", 195, 18),
-      ],
-    });
-    const summary = buildTeamNeedsSummary(state);
-
-    expect(summary.lineup.find((slot) => slot.slot === "QB")?.player?.id).toBe("qb-1");
-    expect(summary.lineup.filter((slot) => slot.slot === "RB").map((slot) => slot.player?.id)).toEqual(["rb-1", "bench-rb"]);
-    expect(summary.lineup.find((slot) => slot.slot === "TE")?.player?.id).toBe("te-1");
-    expect(summary.lineup.filter((slot) => slot.slot === "FLEX").map((slot) => slot.player?.id)).toEqual([undefined, undefined]);
   });
 });
 
@@ -714,6 +532,7 @@ function createTeamManagerState(overrides: { bench?: Player[] } = {}): TeamManag
         DEF: 0,
       },
     },
+    seasonPhase: "regular",
     week: 1,
     updatedAt: "2026-07-08T00:00:00.000Z",
     dataQuality: {

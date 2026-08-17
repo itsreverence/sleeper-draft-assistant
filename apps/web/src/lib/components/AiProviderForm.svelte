@@ -24,6 +24,7 @@
   let aiProvider: AppSettings["aiProvider"] = $state("noop");
   let codexBin = $state("codex");
   let codexModel = $state(defaultCodexModel);
+  let fastResponses = $state(true);
   let codexTimeoutMs = $state(60000);
 
   $effect(() => {
@@ -34,6 +35,7 @@
     aiProvider = requireCodex ? "codex-app-server" : settings.aiProvider;
     codexBin = settings.codexBin;
     codexModel = settings.codexModel;
+    fastResponses = settings.codexServiceTier === "fast";
     codexTimeoutMs = settings.codexTimeoutMs;
   });
 
@@ -43,6 +45,7 @@
       aiProvider,
       codexBin: codexBin.trim() || "codex",
       codexModel: codexModel.trim() || defaultCodexModel,
+      codexServiceTier: fastResponses ? "fast" : "default",
       codexTimeoutMs: Number(codexTimeoutMs),
       automaticAiAudit: settings?.automaticAiAudit ?? "off",
       aiSetupAcknowledged: true,
@@ -81,6 +84,13 @@
         <input class="input" bind:value={codexTimeoutMs} type="number" min="5000" max="300000" step="1000" />
       </label>
     </div>
+    <label class="fast-mode-control">
+      <input bind:checked={fastResponses} type="checkbox" aria-label="Fast responses" />
+      <span>
+        <strong>Fast responses</strong>
+        <small>About 1.5× faster. GPT-5.6 uses 2.5× ChatGPT credits while enabled.</small>
+      </span>
+    </label>
     <p class="form-note">Terra is the balanced default. Choose Luna for efficiency or Sol for maximum capability.</p>
     <p class="form-note">Requires the Codex CLI to be installed and signed in on this machine. Authentication remains in Codex.</p>
     <p class="form-note">The backend keeps one local app-server session active and reuses draft conversations while the app is running.</p>
@@ -116,6 +126,31 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
+  }
+
+  .fast-mode-control {
+    align-items: flex-start;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .fast-mode-control input {
+    margin-top: 0.2rem;
+  }
+
+  .fast-mode-control span {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .fast-mode-control small {
+    color: var(--text-secondary);
+    line-height: 1.4;
   }
 
   .provider-form > .btn {

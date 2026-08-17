@@ -92,6 +92,7 @@ function getDefaultSettings(): AppSettings {
     aiProvider: process.env.SLEEPER_AI_PROVIDER,
     codexBin: process.env.CODEX_BIN,
     codexModel: process.env.SLEEPER_AI_CODEX_MODEL,
+    codexServiceTier: process.env.SLEEPER_AI_CODEX_SERVICE_TIER,
     codexTimeoutMs: process.env.SLEEPER_AI_CODEX_TIMEOUT_MS
       ? Number(process.env.SLEEPER_AI_CODEX_TIMEOUT_MS)
       : undefined,

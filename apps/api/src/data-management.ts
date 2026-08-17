@@ -44,6 +44,7 @@ export function buildRedactedSupportReport(input: {
     provider: {
       id: input.settings.aiProvider,
       model: input.settings.codexModel,
+      serviceTier: input.settings.codexServiceTier,
       timeoutMs: input.settings.codexTimeoutMs,
     },
     decisionHistory: snapshots.map((snapshot) => ({

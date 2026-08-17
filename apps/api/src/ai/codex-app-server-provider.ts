@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-import { AiDraftDecisionSchema, DEFAULT_CODEX_MODEL, DraftStrategyProposalSchema, type AiDraftDecision, type DraftStrategyProposal } from "@sleeper-draft-assistant/shared";
+import { AiDraftDecisionSchema, DEFAULT_CODEX_MODEL, DraftStrategyProposalSchema, type AiDraftDecision, type CodexServiceTier, type DraftStrategyProposal } from "@sleeper-draft-assistant/shared";
 
 import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
@@ -24,6 +24,7 @@ type PendingRequest = {
 export type CodexAppServerProviderOptions = {
   codexBin?: string;
   model?: string;
+  serviceTier?: CodexServiceTier;
   timeoutMs?: number;
   clientFactory?: CodexClientFactory;
 };
@@ -44,6 +45,7 @@ export type CodexClientFactory = (
 export class CodexAppServerProvider implements AiProvider {
   private readonly codexBin: string;
   private readonly model: string;
+  private readonly serviceTier: CodexServiceTier;
   private readonly timeoutMs: number;
   private readonly clientFactory: CodexClientFactory;
   private client: CodexAppServerClient | null = null;
@@ -55,6 +57,7 @@ export class CodexAppServerProvider implements AiProvider {
   constructor(options: CodexAppServerProviderOptions = {}) {
     this.codexBin = options.codexBin ?? process.env.CODEX_BIN ?? "codex";
     this.model = options.model ?? process.env.SLEEPER_AI_CODEX_MODEL ?? DEFAULT_CODEX_MODEL;
+    this.serviceTier = options.serviceTier ?? "fast";
     this.timeoutMs = options.timeoutMs ?? Number(process.env.SLEEPER_AI_CODEX_TIMEOUT_MS ?? 60000);
     this.clientFactory = options.clientFactory ?? CodexJsonRpcClient.start;
   }
@@ -65,7 +68,7 @@ export class CodexAppServerProvider implements AiProvider {
       label: "Codex app-server",
       configured: true,
       experimental: true,
-      detail: `Runs ${this.codexBin} app-server with model ${this.model}. Requires local Codex login/session.`,
+      detail: `Runs ${this.codexBin} app-server with model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}. Requires local Codex login/session.`,
     };
   }
 
@@ -138,6 +141,7 @@ export class CodexAppServerProvider implements AiProvider {
         if (!threadId) {
           const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
             model: this.model,
+            serviceTier: this.serviceTier,
             ephemeral: true,
             approvalPolicy: "never",
             sandbox: "read-only",

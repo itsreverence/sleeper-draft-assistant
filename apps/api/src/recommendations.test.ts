@@ -400,7 +400,13 @@ describe("draft recommendation routes", () => {
       ok: boolean;
       service: string;
       capabilities: { sqliteStorage?: boolean };
-      settings: { aiProvider: string; codexBinConfigured: boolean; codexModel: string; codexTimeoutMs: number };
+      settings: {
+        aiProvider: string;
+        codexBinConfigured: boolean;
+        codexModel: string;
+        codexServiceTier: "default" | "fast";
+        codexTimeoutMs: number;
+      };
       storage: { sqliteStorage: boolean; settingsRecords: number; rankingImportRecords: number; decisionSnapshots: number };
       runtime: { node: string; platform: string; arch: string; packagedDataDir: boolean };
     };
@@ -409,6 +415,7 @@ describe("draft recommendation routes", () => {
     expect(payload.service).toBe("sleeper-ai-api");
     expect(payload.capabilities.sqliteStorage).toBe(true);
     expect(payload.settings.codexBinConfigured).toBe(true);
+    expect(["default", "fast"]).toContain(payload.settings.codexServiceTier);
     expect(payload.storage.sqliteStorage).toBe(true);
     expect(payload.storage.settingsRecords).toBeGreaterThanOrEqual(1);
     expect(payload.runtime.node).toMatch(/^v/);

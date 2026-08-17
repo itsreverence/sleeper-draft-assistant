@@ -118,6 +118,8 @@ export function isCodexExecutableReference(value: string): boolean {
 }
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-terra";
+export const CodexServiceTierSchema = z.enum(["default", "fast"]);
+export type CodexServiceTier = z.infer<typeof CodexServiceTierSchema>;
 
 export const AppSettingsSchema = z.object({
   aiProvider: AiProviderIdSchema.default("noop"),
@@ -125,6 +127,7 @@ export const AppSettingsSchema = z.object({
     message: "Codex command must resolve to codex, codex.exe, or codex.cmd.",
   }).default("codex"),
   codexModel: z.string().trim().min(1).default(DEFAULT_CODEX_MODEL),
+  codexServiceTier: CodexServiceTierSchema.default("fast"),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
   automaticAiAudit: AutomaticAiAuditModeSchema.default("off"),
   aiSetupAcknowledged: z.boolean().default(false),
@@ -389,6 +392,9 @@ export const TeamRosterSlotSchema = z.object({
 });
 export type TeamRosterSlot = z.infer<typeof TeamRosterSlotSchema>;
 
+export const SeasonPhaseSchema = z.enum(["preseason", "regular", "postseason", "unknown"]);
+export type SeasonPhase = z.infer<typeof SeasonPhaseSchema>;
+
 export const TeamManagerStateSchema = z.object({
   league: z.object({
     id: z.string(),
@@ -412,6 +418,7 @@ export const TeamManagerStateSchema = z.object({
     taxi: z.array(PlayerSchema),
     positionCounts: z.record(PositionSchema, z.number()),
   }),
+  seasonPhase: SeasonPhaseSchema,
   week: z.number().nullable(),
   updatedAt: z.string(),
   dataQuality: z.object({
@@ -420,70 +427,6 @@ export const TeamManagerStateSchema = z.object({
   }),
 });
 export type TeamManagerState = z.infer<typeof TeamManagerStateSchema>;
-
-export const TeamPositionNeedSchema = z.object({
-  position: PositionSchema,
-  rostered: z.number(),
-  requiredStarters: z.number(),
-  benchDepth: z.number(),
-  status: z.enum(["open_starter", "thin_depth", "covered", "surplus"]),
-  priority: z.number(),
-  reasons: z.array(z.string()),
-});
-export type TeamPositionNeed = z.infer<typeof TeamPositionNeedSchema>;
-
-export const TeamLineupAssignmentSchema = z.object({
-  slot: z.string(),
-  eligiblePositions: z.array(z.string()),
-  player: PlayerSchema.nullable(),
-  reason: z.string(),
-});
-export type TeamLineupAssignment = z.infer<typeof TeamLineupAssignmentSchema>;
-
-export const TeamNeedsSummarySchema = z.object({
-  headline: z.string(),
-  weakestPositions: z.array(PositionSchema),
-  openStarterSlots: z.array(z.string()),
-  thinPositions: z.array(PositionSchema),
-  surplusPositions: z.array(PositionSchema),
-  flexPressure: z.string(),
-  lineup: z.array(TeamLineupAssignmentSchema),
-  positionNeeds: z.array(TeamPositionNeedSchema),
-  facts: z.array(z.string()),
-  limitations: z.array(z.string()),
-});
-export type TeamNeedsSummary = z.infer<typeof TeamNeedsSummarySchema>;
-export const TeamLineupDecisionSchema = z.object({
-  slot: z.string(),
-  currentPlayer: PlayerSchema.nullable(),
-  recommendedPlayer: PlayerSchema.nullable(),
-  alternativePlayers: z.array(PlayerSchema),
-  status: z.enum(["locked", "open", "swap_recommended", "thin"]),
-  confidence: z.enum(["low", "medium", "high"]),
-  currentProjectedPoints: z.number().nullable(),
-  recommendedProjectedPoints: z.number().nullable(),
-  projectedPointDelta: z.number().nullable(),
-  reasons: z.array(z.string()),
-});
-export type TeamLineupDecision = z.infer<typeof TeamLineupDecisionSchema>;
-
-export const TeamLineupSummarySchema = z.object({
-  headline: z.string(),
-  confidence: z.enum(["low", "medium", "high"]),
-  decisions: z.array(TeamLineupDecisionSchema),
-  lockedStarters: z.array(PlayerSchema),
-  openSlots: z.array(z.string()),
-  swapRecommendations: z.array(TeamLineupDecisionSchema),
-  riskyStarters: z.array(PlayerSchema),
-  currentProjectedPoints: z.number().nullable(),
-  recommendedProjectedPoints: z.number().nullable(),
-  projectedPointDelta: z.number().nullable(),
-  currentProjectionCoverage: z.number().min(0).max(1),
-  recommendedProjectionCoverage: z.number().min(0).max(1),
-  facts: z.array(z.string()),
-  limitations: z.array(z.string()),
-});
-export type TeamLineupSummary = z.infer<typeof TeamLineupSummarySchema>;
 
 export const TeamDataReadinessSchema = z.object({
   status: z.enum(["ready", "partial", "limited"]),
@@ -530,31 +473,6 @@ export const TeamWeekContextSchema = z.object({
   updatedAt: z.string(),
 });
 export type TeamWeekContext = z.infer<typeof TeamWeekContextSchema>;
-export const TeamWaiverCandidateSchema = z.object({
-  player: PlayerSchema,
-  score: z.number(),
-  rosterFit: z.enum(["starter_need", "depth_need", "upgrade", "stash"]),
-  valueLabel: z.string(),
-  suggestedDrop: PlayerSchema.nullable(),
-  reasons: z.array(z.string()),
-});
-export type TeamWaiverCandidate = z.infer<typeof TeamWaiverCandidateSchema>;
-
-export const TeamDropCandidateSchema = z.object({
-  player: PlayerSchema,
-  score: z.number(),
-  reasons: z.array(z.string()),
-});
-export type TeamDropCandidate = z.infer<typeof TeamDropCandidateSchema>;
-
-export const TeamWaiverSummarySchema = z.object({
-  headline: z.string(),
-  candidates: z.array(TeamWaiverCandidateSchema),
-  dropCandidates: z.array(TeamDropCandidateSchema),
-  facts: z.array(z.string()),
-  limitations: z.array(z.string()),
-});
-export type TeamWaiverSummary = z.infer<typeof TeamWaiverSummarySchema>;
 export const TeamActivityPlayerSchema = z.object({
   player: PlayerSchema,
   count: z.number().nullable(),
@@ -625,8 +543,5 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
-
-
-
 
 

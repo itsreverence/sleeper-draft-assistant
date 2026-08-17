@@ -9,11 +9,8 @@ import type {
   SeasonProjectionImportSummary,
   TeamActivitySummary,
   TeamDataReadiness,
-  TeamLineupSummary,
   TeamManagerState,
-  TeamNeedsSummary,
   TeamPayload,
-  TeamWaiverSummary,
 } from "../types";
 
 export const DEFAULT_LEAGUE_ID = "league-2026";
@@ -24,6 +21,7 @@ export function createAppSettingsFixture(overrides: Partial<AppSettings> = {}): 
     aiProvider: "noop",
     codexBin: "codex",
     codexModel: "gpt-5.6-terra",
+    codexServiceTier: "fast",
     codexTimeoutMs: 60_000,
     automaticAiAudit: "off",
     aiSetupAcknowledged: true,
@@ -128,6 +126,7 @@ export function createTeamPayloadFixture(leagueId = DEFAULT_LEAGUE_ID): TeamPayl
         unsupportedReasons: [],
       },
     },
+    seasonPhase: "regular",
     week: 1,
     roster: {
       starters: [{ slot: "QB", player }],
@@ -163,37 +162,6 @@ export function createTeamPayloadFixture(leagueId = DEFAULT_LEAGUE_ID): TeamPayl
     eligibleRosterPlayers: 1,
   } as unknown as TeamDataReadiness;
 
-  const needs = {
-    headline: "RB depth needed",
-    weakestPositions: ["RB", "WR"],
-    openStarterSlots: ["RB"],
-  } as TeamNeedsSummary;
-
-  const lineupSummary = {
-    headline: "Lineup ready",
-    confidence: "medium",
-    limitations: [],
-    facts: [],
-    decisions: [],
-    lockedStarters: [],
-    openSlots: [],
-    swapRecommendations: [],
-    riskyStarters: [],
-    currentProjectedPoints: null,
-    recommendedProjectedPoints: null,
-    projectedPointDelta: null,
-    currentProjectionCoverage: 0,
-    recommendedProjectionCoverage: 0,
-  } as unknown as TeamLineupSummary;
-
-  const waiverSummary = {
-    headline: "Waivers pending",
-    candidates: [],
-    dropCandidates: [],
-    facts: [],
-    limitations: [],
-  } as unknown as TeamWaiverSummary;
-
   const activitySummary = {
     headline: "No recent activity",
     week: 1,
@@ -208,10 +176,7 @@ export function createTeamPayloadFixture(leagueId = DEFAULT_LEAGUE_ID): TeamPayl
   return {
     state,
     dataReadiness,
-    needs,
-    lineupSummary,
     weekContext: null,
-    waiverSummary,
     activitySummary,
     rosRankingSummary: null,
     weeklyProjectionSummary: null,

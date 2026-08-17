@@ -60,6 +60,7 @@ describe("local data management", () => {
       aiProvider: "codex-app-server",
       codexBin: "C:\\Users\\private\\bin\\codex.exe",
       codexModel: "gpt-5.4",
+      codexServiceTier: "fast",
       codexTimeoutMs: 60000,
       automaticAiAudit: "off",
       aiSetupAcknowledged: true,
@@ -72,6 +73,7 @@ describe("local data management", () => {
     });
     const serialized = JSON.stringify(report);
 
+    expect(report.provider.serviceTier).toBe("fast");
     expect(report.decisionHistory).toEqual([
       expect.objectContaining({
         trigger: "ai-question",

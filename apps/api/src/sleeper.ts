@@ -81,9 +81,11 @@ export type SleeperUser = {
 
 export type SleeperNflState = {
   season?: string | null;
+  season_type?: string | null;
   league_season?: string | null;
   display_week?: number | null;
   week?: number | null;
+  leg?: number | null;
 };
 
 export type SleeperMatchup = {
@@ -135,6 +137,7 @@ export type SleeperTeamManagerStateInput = {
   users: SleeperUser[];
   players: SleeperPlayerMap;
   userRosterId?: string | null;
+  seasonPhase?: TeamManagerState["seasonPhase"];
   week?: number | null;
 };
 
@@ -200,25 +203,39 @@ export class SleeperClient {
       this.getPlayers(),
       this.getNflState().catch(() => null),
     ]);
+    const seasonPhase = getSeasonPhase(nflState);
+    const resolvedWeek = getActiveRegularSeasonWeek(nflState);
+    const rosterFallbackWeek = resolvedWeek ?? (seasonPhase === "preseason" ? 1 : null);
+    const matchups = rosterFallbackWeek && hasEmptyRosterData(leagueBundle.rosters)
+      ? await this.getLeagueMatchups(leagueId, rosterFallbackWeek).catch(() => [])
+      : [];
 
     return normalizeSleeperTeamManagerState({
       league: leagueBundle.league,
-      rosters: leagueBundle.rosters,
+      rosters: backfillEmptyRostersFromMatchups(leagueBundle.rosters, matchups),
       users: leagueBundle.users,
       players,
       userRosterId,
-      week: nflState?.display_week ?? nflState?.week ?? null,
+      seasonPhase,
+      week: resolvedWeek,
     });
   }
 
   async getAvailablePlayers(leagueId: string, limit = 160): Promise<Player[]> {
-    const [leagueBundle, players] = await Promise.all([
+    const [leagueBundle, players, nflState] = await Promise.all([
       this.getLeagueBundle(leagueId),
       this.getPlayers(),
+      this.getNflState().catch(() => null),
     ]);
+    const seasonPhase = getSeasonPhase(nflState);
+    const resolvedWeek = getActiveRegularSeasonWeek(nflState);
+    const rosterFallbackWeek = resolvedWeek ?? (seasonPhase === "preseason" ? 1 : null);
+    const matchups = rosterFallbackWeek && hasEmptyRosterData(leagueBundle.rosters)
+      ? await this.getLeagueMatchups(leagueId, rosterFallbackWeek).catch(() => [])
+      : [];
 
     return normalizeSleeperAvailablePlayers({
-      rosters: leagueBundle.rosters,
+      rosters: backfillEmptyRostersFromMatchups(leagueBundle.rosters, matchups),
       players,
       limit,
     });
@@ -228,9 +245,12 @@ export class SleeperClient {
   async getTeamActivitySummary(leagueId: string, week?: number | null): Promise<TeamActivitySummary> {
     const [players, nflState] = await Promise.all([
       this.getPlayers(),
-      week ? Promise.resolve(null) : this.getNflState().catch(() => null),
+      this.getNflState().catch(() => null),
     ]);
-    const resolvedWeek = week ?? nflState?.display_week ?? nflState?.week ?? null;
+    const seasonPhase = getSeasonPhase(nflState);
+    const resolvedWeek = seasonPhase === "preseason" || seasonPhase === "postseason"
+      ? null
+      : week ?? getActiveRegularSeasonWeek(nflState);
     const [transactions, trendingAdds, trendingDrops] = await Promise.all([
       resolvedWeek ? this.getLeagueTransactions(leagueId, resolvedWeek).catch(() => []) : Promise.resolve([]),
       this.getTrendingPlayers("add", 24, 25).catch(() => []),
@@ -249,9 +269,13 @@ export class SleeperClient {
     const [leagueBundle, players, nflState] = await Promise.all([
       this.getLeagueBundle(leagueId),
       this.getPlayers(),
-      week ? Promise.resolve(null) : this.getNflState().catch(() => null),
+      this.getNflState().catch(() => null),
     ]);
-    const resolvedWeek = week ?? nflState?.display_week ?? nflState?.week ?? null;
+    const seasonPhase = getSeasonPhase(nflState);
+    if (seasonPhase === "preseason" || seasonPhase === "postseason") {
+      return null;
+    }
+    const resolvedWeek = week ?? getActiveRegularSeasonWeek(nflState);
     if (!resolvedWeek) {
       return null;
     }
@@ -611,6 +635,7 @@ export function normalizeSleeperTeamManagerState(input: SleeperTeamManagerStateI
       taxi,
       positionCounts: countPlayersByPosition(rosterPlayers),
     },
+    seasonPhase: input.seasonPhase ?? "unknown",
     week: input.week ?? null,
     updatedAt: new Date().toISOString(),
     dataQuality: {
@@ -697,6 +722,52 @@ function getTeamManagerRoster(rosters: SleeperRoster[], userRosterId: string | n
   }
 
   return rosters.find((roster) => String(roster.roster_id) === normalizedRosterId) ?? rosters[0]!;
+}
+
+function getSeasonPhase(state: SleeperNflState | null): TeamManagerState["seasonPhase"] {
+  if (state?.season_type === "pre") return "preseason";
+  if (state?.season_type === "regular") return "regular";
+  if (state?.season_type === "post") return "postseason";
+  return "unknown";
+}
+
+function getActiveRegularSeasonWeek(state: SleeperNflState | null): number | null {
+  const phase = getSeasonPhase(state);
+  if (phase === "preseason" || phase === "postseason") {
+    return null;
+  }
+  return state?.display_week ?? state?.week ?? null;
+}
+
+function hasEmptyRosterData(rosters: SleeperRoster[]): boolean {
+  return rosters.some((roster) =>
+    uniqueStrings(roster.players ?? []).length === 0
+    || uniqueStrings(roster.starters ?? []).length === 0,
+  );
+}
+
+function backfillEmptyRostersFromMatchups(rosters: SleeperRoster[], matchups: SleeperMatchup[]): SleeperRoster[] {
+  const matchupByRosterId = new Map(matchups.map((matchup) => [String(matchup.roster_id), matchup]));
+  return rosters.map((roster) => {
+    const matchup = matchupByRosterId.get(String(roster.roster_id));
+    if (!matchup) {
+      return roster;
+    }
+
+    const rosterPlayers = uniqueStrings(roster.players ?? []);
+    const rosterStarters = uniqueStrings(roster.starters ?? []);
+    if (rosterPlayers.length > 0 && rosterStarters.length > 0) {
+      return roster;
+    }
+
+    const matchupStarters = uniqueStrings(matchup.starters ?? []);
+    const matchupPlayers = uniqueStrings([...(matchup.players ?? []), ...matchupStarters]);
+    return {
+      ...roster,
+      players: rosterPlayers.length > 0 ? roster.players : matchupPlayers,
+      starters: rosterStarters.length > 0 ? roster.starters : matchupStarters,
+    };
+  });
 }
 
 function getStarterSlots(rosterPositions: string[]): string[] {
@@ -1311,10 +1382,6 @@ function normalizeNullableString(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
-
-
-
-
 
 
 

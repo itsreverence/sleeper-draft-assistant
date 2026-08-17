@@ -1,4 +1,4 @@
-import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction, DraftStrategyProposal, Position, TeamActivitySummary, TeamDataReadiness, TeamLineupSummary, TeamManagerState, TeamNeedsSummary, TeamWaiverSummary, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction, DraftStrategyProposal, Position, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -25,30 +25,20 @@ export type TeamAiContext = {
   task: "team_question";
   question: string;
   conversationHistory: AiConversationMessage[];
-  teamNeeds: TeamNeedsSummary;
-  lineupSummary: TeamLineupSummary;
   teamBrief: {
     leagueFormat: string;
     teamName: string;
     week: string;
     rosterSummary: string;
     lineupStatus: string;
-    lineupFacts: string[];
-    lineupDecisions: string[];
     dataReadinessFacts: string[];
     openStarterSlots: string[];
-    depthSignals: string[];
-    deterministicFacts: string[];
     matchupFacts: string[];
-    waiverFacts: string[];
-    topWaiverCandidates: string[];
-    topDropCandidates: string[];
     activityFacts: string[];
     recentTransactions: string[];
     trendingAdds: string[];
     trendingDrops: string[];
     opponent: string | null;
-    weakestPositions: Position[];
     starterCandidates: string[];
     benchPlayers: string[];
     dataWarnings: string[];
@@ -57,8 +47,26 @@ export type TeamAiContext = {
   teamState: TeamManagerState;
   dataReadiness: TeamDataReadiness | null;
   weekContext: TeamWeekContext | null;
-  waiverSummary: TeamWaiverSummary;
   activitySummary: TeamActivitySummary;
+  availablePlayerEvidence: TeamAvailablePlayerEvidence[];
+  availablePlayerGroups: {
+    weeklyProjectionLeaders: string[];
+    restOfSeasonRankLeaders: string[];
+    positionCoverage: Record<Position, string[]>;
+  };
+};
+
+export type TeamAvailablePlayerEvidence = {
+  playerId: string;
+  name: string;
+  team: string;
+  position: Position;
+  weeklyProjectedPoints: number | null;
+  weeklyProjectionWeek: number | null;
+  restOfSeasonRank: number | null;
+  restOfSeasonBestRank: number | null;
+  restOfSeasonWorstRank: number | null;
+  riskTags: string[];
 };
 
 export type AiAnswer = {
@@ -204,7 +212,6 @@ export interface AiProvider {
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
   close?(): void;
 }
-
 
 
 

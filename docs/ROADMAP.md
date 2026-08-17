@@ -10,8 +10,8 @@ This is a direction document, not a promise or release schedule.
 - FantasyPros rankings CSV import
 - FantasyPros weekly projection CSV import
 - transparent draft evidence and weekly data confidence
-- current-versus-optimized lineup totals and projected swap deltas
-- roster, lineup, waiver, week, and activity views
+- AI-first roster, lineup, waiver, and post-draft planning grounded in separate raw evidence signals
+- compact roster, week, readiness, import, and activity views
 - local Codex app-server analysis for the core assistant workflow
 - local SQLite persistence and Electron packaging
 - explicit format compatibility warnings for custom scoring, TE premium, IDP, and auction leagues
@@ -34,7 +34,7 @@ This is a direction document, not a promise or release schedule.
 - export/delete controls inside the application
 - stronger accessibility and keyboard-navigation coverage
 - release signing when sustainable
-- more deterministic engine fixtures and explanation tests
+- stronger AI-context validation and Team Manager interaction tests
 - dedicated dynasty, keeper, auction, and IDP models if demand justifies their separate complexity
 
 ## Non-goals for now

@@ -24,12 +24,15 @@ Development defaults are optional:
 ```bash
 SLEEPER_AI_PROVIDER=codex-app-server \
 SLEEPER_AI_CODEX_MODEL=gpt-5.6-terra \
+SLEEPER_AI_CODEX_SERVICE_TIER=fast \
 SLEEPER_AI_CODEX_TIMEOUT_MS=60000 \
 CODEX_BIN=/path/to/codex \
 npm run dev
 ```
 
 The default model is `gpt-5.6-terra`, which balances intelligence and cost for repeated live-draft turns. Users can select `gpt-5.6-luna` for greater efficiency or `gpt-5.6-sol` for frontier capability. Model access still depends on the locally authenticated Codex account.
+
+Fast responses are enabled by default because live draft turns are time-sensitive. OpenAI documents Fast as about 1.5× faster; GPT-5.6 and GPT-5.5 consume 2.5× ChatGPT credits while it is enabled. Users can switch to Standard in Settings. Changing the response speed restarts the local app-server provider and its ephemeral threads so the next turn uses the selected tier. See [Codex speed](https://learn.chatgpt.com/docs/agent-configuration/speed) for current availability and credit rates.
 
 Codex installation, login state, model availability, subscription requirements, and provider terms remain the user's responsibility. This project is not endorsed by OpenAI.
 
@@ -74,3 +77,11 @@ The conversation supports comparisons, challenges to the current plan, and what-
 When a user explicitly asks the conversation to adopt or change draft strategy, the provider may append a validated strategy proposal. Candidate-comparison actions explicitly request such a proposal when the answer overturns the primary recommendation, preventing contradictory advice from silently remaining beside the main call. The proposal is displayed separately from the answer and is not active until the user selects **Apply to strategy**. Provider tools remain read-only and cannot persist guidance directly.
 
 Draft questions are grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations. The model can search the complete immutable available-player snapshot for positional or named alternatives. The prompt does not include a local strategic lean or score, and the model does not receive or claim live news outside the supplied draft context.
+
+## AI-first Team Manager
+
+Team Manager follows the same ownership rule as the draft assistant: deterministic code supplies evidence and safety facts, while Codex owns strategic judgment. The model receives the current Sleeper starters and bench, slot eligibility, roster counts, current matchup state, league activity, readiness warnings, and inferred available players. Available players are grouped by separate raw weekly-projection, rest-of-season-rank, and positional-retrieval signals; the catalog is alphabetical and no composite score or local winner is supplied.
+
+The local engine does not choose lineup swaps, waiver additions, drops, weakest positions, or roster priorities. Codex must verify that a proposed starter is rostered and slot-eligible, that an addition appears in the inferred available-player evidence, and that a proposed drop is on the user's roster. Missing or partial weekly and rest-of-season data must lower confidence rather than triggering rank-based fallback advice.
+
+The renderer keeps AI conversation and the actual Sleeper roster primary. Data readiness, matchup state, imports, and league activity remain visible as supporting evidence. When Codex is unavailable, Team Manager does not substitute a deterministic recommendation.

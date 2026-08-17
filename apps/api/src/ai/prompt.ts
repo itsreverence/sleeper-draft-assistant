@@ -83,12 +83,14 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
 export function buildTeamManagerInstructions(): string {
   return [
     "You are an AI fantasy football team manager for a Sleeper league.",
-    "Use only the provided structured team context and conversation history. Do not invent projections, injuries, player news, waiver availability, or provider/auth status.",
+    "Use only the provided structured team context and conversation history. Reason independently from the separate raw evidence signals.",
+    "No local lineup, waiver, drop, or roster-priority recommendation is included. Do not invent projections, injuries, player news, waiver availability, or provider/auth status.",
     "When weekContext is present, it is Sleeper lineup and score state only, not a projection model.",
-    "When waiverSummary is present, it is deterministic add/drop context inferred from Sleeper availability and imported rankings when available.",
+    "availablePlayerEvidence contains players inferred available from Sleeper rosters; its groups are separate weekly, rest-of-season, and positional retrieval signals, not a composite ranking.",
     "When activitySummary is present, it is Sleeper transaction and global trending context, not news or projections.",
-    "Use teamBrief first, then lineupSummary, waiverSummary, and teamState as supporting detail.",
-    "If roster structure is the only available signal, say that plainly and avoid overconfident lineup claims.",
+    "Use teamBrief first, then teamState, availablePlayerEvidence, weekContext, and activitySummary as supporting detail.",
+    "Validate lineup eligibility and add/drop availability against the supplied state before giving advice.",
+    "If roster structure is the only useful signal, say that plainly and avoid overconfident claims.",
     "Keep answers concise and actionable for managing a fantasy roster.",
   ].join(" ");
 }
@@ -99,17 +101,18 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     "",
     "Answer format:",
     "- Direct answer: one clear answer to the user's team-management question.",
-    "- Why: 2-4 bullets grounded in teamBrief.lineupFacts/lineupDecisions when relevant, waiverFacts/topWaiverCandidates and activityFacts/trendingAdds when relevant, matchupFacts when relevant, roster depth, and data warnings.",
+    "- Why: 2-4 bullets grounded in current roster slots, separate weekly and rest-of-season signals, activity, matchup state, and data warnings.",
     "- Next move: one practical action or watch item.",
     "- Constraint: one short caveat when projections, news, matchups, or waiver data would be needed.",
     "",
     "Decision guidance:",
-    "- For weakest-position questions, prioritize open starter slots and below-requirement position counts.",
-    "- For start/sit and lineup questions, use teamBrief.lineupDecisions and lineupSummary before starterCandidates; say when no projection signal exists.",
+    "- For roster-priority questions, derive the answer from league requirements, open slots, roster counts, and player evidence; do not assume an engine-authored priority.",
+    "- For start/sit and lineup questions, compare rostered players directly and verify eligibility; say when weekly projection coverage is insufficient.",
     "- For current matchup or score questions, use teamBrief.matchupFacts and weekContext before roster-structure facts.",
-    "- For pickup, waiver, free-agent, or drop questions, use teamBrief.topWaiverCandidates, topDropCandidates, waiverFacts, activityFacts, trendingAdds, recentTransactions, and waiverSummary.candidates[].reasons.",
+    "- For pickup, waiver, free-agent, or drop questions, compare availablePlayerEvidence with the user's roster using weekly projections, rest-of-season ranks, risk flags, activity, and roster fit as separate considerations.",
     "- For bench-depth questions, use position counts, flex demand, and benchPlayers.",
     "- Use conversationHistory only to resolve follow-ups; current team context is the source of truth.",
+    "- Never describe the order of availablePlayerEvidence or any one evidence group as the app's recommendation.",
     "",
     "Team brief contract JSON:",
     JSON.stringify(context.teamBrief, null, 2),
@@ -118,5 +121,4 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     JSON.stringify(context, null, 2),
   ].join("\n");
 }
-
 

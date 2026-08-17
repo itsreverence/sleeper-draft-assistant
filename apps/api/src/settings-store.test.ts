@@ -17,6 +17,7 @@ describe("SettingsStore", () => {
       aiProvider: "codex-app-server",
       codexBin,
       codexModel: "gpt-5.4-test",
+      codexServiceTier: "fast",
       codexTimeoutMs: 45000,
       aiSetupAcknowledged: true,
     });
@@ -29,9 +30,16 @@ describe("SettingsStore", () => {
       aiProvider: "codex-app-server",
       codexBin,
       codexModel: "gpt-5.4-test",
+      codexServiceTier: "fast",
       codexTimeoutMs: 45000,
       aiSetupAcknowledged: true,
     });
+  });
+
+  it("enables fast Codex responses by default", () => {
+    const filePath = path.join(mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-defaults-")), "settings.json");
+
+    expect(new SettingsStore(filePath).get().codexServiceTier).toBe("fast");
   });
 
   it("persists settings in SQLite", async () => {
