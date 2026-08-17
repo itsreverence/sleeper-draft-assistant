@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import TeamAskPanel from "./TeamAskPanel.svelte";
 import { createAiProviderStatusFixture, createTeamPayloadFixture } from "../testing/draft-fixtures";
+import { createDeferred } from "../testing/deferred";
 
 describe("Team ask panel", () => {
   it("configured provider submits team question", async () => {
@@ -60,5 +61,62 @@ describe("Team ask panel", () => {
 
     await fireEvent.click(button);
     expect(onAsk).not.toHaveBeenCalled();
+  });
+
+  it("discards a pending answer when the active team changes", async () => {
+    const firstTeam = createTeamPayloadFixture("league-a");
+    const secondTeam = createTeamPayloadFixture("league-b");
+    const firstAnswer = createDeferred<string>();
+    const secondAnswer = createDeferred<string>();
+    const onAsk = vi.fn(async (question: string) => {
+      if (question === "Question A") return firstAnswer.promise;
+      if (question === "Question B") return secondAnswer.promise;
+      throw new Error(`Unexpected question: ${question}`);
+    });
+    const providerStatus = createAiProviderStatusFixture({
+      id: "codex-app-server",
+      label: "Codex",
+      configured: true,
+    });
+
+    const view = render(TeamAskPanel, {
+      teamState: firstTeam.state,
+      weekContext: firstTeam.weekContext,
+      activitySummary: firstTeam.activitySummary,
+      providerStatus,
+      onAsk,
+    });
+
+    const firstTextbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    await fireEvent.input(firstTextbox, { target: { value: "Question A" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await waitFor(() => expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", []));
+
+    await view.rerender({
+      teamState: secondTeam.state,
+      weekContext: secondTeam.weekContext,
+      activitySummary: secondTeam.activitySummary,
+      providerStatus,
+      onAsk,
+    });
+
+    const secondTextbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+
+    await waitFor(() => {
+      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", []);
+      expect(screen.getByText("Question B")).toBeTruthy();
+      expect(screen.queryByText("Question A")).toBeNull();
+    });
+
+    firstAnswer.resolve("Answer A");
+    await waitFor(() => {
+      expect(screen.queryByText("Answer A")).toBeNull();
+      expect(screen.getByText("Question B")).toBeTruthy();
+    });
+
+    secondAnswer.resolve("Answer B");
+    expect(await screen.findByText("Answer B")).toBeTruthy();
   });
 });

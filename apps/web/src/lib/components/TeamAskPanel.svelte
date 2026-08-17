@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { SuggestedQuestion } from "../ai-panel";
+  import { createAiConversation } from "../ai-conversation.svelte";
   import { isAiProviderAvailable } from "../types";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "../types";
-  import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
+  import AiMessageBubble from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
 
@@ -19,12 +20,6 @@
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
   } = $props();
-
-  let question = $state("");
-  let messages: AiMessage[] = $state([]);
-  let isAsking = $state(false);
-  let copied = $state(false);
-  let lastQuestion = $state("");
 
   const providerReady = $derived(providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus));
   const providerLabel = $derived(providerReady ? providerStatus?.label ?? "Codex" : "Codex unavailable");
@@ -46,59 +41,27 @@
           : "week unknown",
     hasWeeklyProjections ? "weekly data ready" : "weekly data limited",
   ] : ["No team loaded"]);
+  const conversationIdentity = $derived(teamState
+    ? `${teamState.league.id}:${teamState.userTeam.rosterId}`
+    : "no-team");
+  const conversation = createAiConversation({
+    ask: async (nextQuestion, history) => ({ answer: await onAsk(nextQuestion, history) }),
+    loadingMessage: "Reviewing your roster and current evidence...",
+    fallbackError: "Codex could not answer because team context is unavailable.",
+  });
 
-  function createMessage(role: AiMessage["role"], content: string, status: AiMessage["status"] = "complete"): AiMessage {
-    return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, role, content, status };
-  }
+  $effect(() => conversation.syncIdentity(conversationIdentity));
 
-  async function submit(overrideQuestion?: string) {
-    const trimmed = (overrideQuestion ?? question).trim();
-    if (!trimmed || isAsking || !teamState || !providerReady) return;
-
-    isAsking = true;
-    lastQuestion = trimmed;
-    question = "";
-    const conversationHistory = toConversationHistory(messages);
-    const loadingMessage = createMessage("assistant", "Reviewing your roster and current evidence...", "loading");
-    messages = [...messages, createMessage("user", trimmed), loadingMessage];
-
-    try {
-      const answer = await onAsk(trimmed, conversationHistory);
-      messages = messages.map((message) => message.id === loadingMessage.id
-        ? { ...message, content: answer, status: "complete" }
-        : message);
-    } catch (error) {
-      const answer = error instanceof Error ? error.message : "Codex could not answer because team context is unavailable.";
-      messages = messages.map((message) => message.id === loadingMessage.id
-        ? { ...message, content: answer, status: "error" }
-        : message);
-    } finally {
-      isAsking = false;
-    }
+  function submit(overrideQuestion?: string) {
+    if (!teamState || !providerReady) return;
+    void conversation.submit(overrideQuestion);
   }
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      void submit();
+      submit();
     }
-  }
-
-  async function copyMessage(content: string) {
-    try {
-      await navigator.clipboard.writeText(content);
-      copied = true;
-      window.setTimeout(() => (copied = false), 1400);
-    } catch {
-      copied = false;
-    }
-  }
-
-  function toConversationHistory(source: AiMessage[]): AiConversationMessage[] {
-    return source
-      .filter((message) => message.status !== "loading" && message.content.trim())
-      .map((message) => ({ role: message.role, content: message.content.trim() }))
-      .slice(-8);
   }
 
   function buildTeamQuestions(
@@ -132,31 +95,31 @@
     <span class:offline={!providerReady} class="provider-state"><i></i>{providerLabel}</span>
   </header>
 
-  {#if messages.length === 0}
+  {#if conversation.messages.length === 0}
     <p class="intro">Codex reasons from your live Sleeper roster and separate weekly, rest-of-season, matchup, and activity signals.</p>
-    <SuggestedQuestions questions={suggestions} disabled={isAsking || !teamState || !providerReady} onChoose={(nextQuestion) => submit(nextQuestion)} />
+    <SuggestedQuestions questions={suggestions} disabled={conversation.isAsking || !teamState || !providerReady} onChoose={submit} />
   {:else}
     <div class="conversation" aria-live="polite">
-      {#each messages as message (message.id)}
-        <AiMessageBubble message={message} onCopy={copyMessage} onRetry={() => submit(lastQuestion)} />
+      {#each conversation.messages as message (message.id)}
+        <AiMessageBubble message={message} onCopy={conversation.copy} onRetry={() => submit(conversation.lastQuestion)} />
       {/each}
     </div>
-    {#if copied}<p class="copy-note">Copied response.</p>{/if}
-    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={isAsking || !teamState || !providerReady} onChoose={(nextQuestion) => submit(nextQuestion)} />
+    {#if conversation.copied}<p class="copy-note">Copied response.</p>{/if}
+    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={conversation.isAsking || !teamState || !providerReady} onChoose={submit} />
   {/if}
 
   <div class="composer">
     <textarea
       class="input"
-      bind:value={question}
+      bind:value={conversation.question}
       onkeydown={handleKeydown}
       rows="3"
       placeholder="Ask about your lineup, waivers, trades, or roster plan."
       disabled={!teamState || !providerReady}
     ></textarea>
-    <button class="btn btn-primary" type="button" disabled={isAsking || !question.trim() || !teamState || !providerReady} onclick={() => submit()}>
-      {#if isAsking}<span class="spinner"></span>{/if}
-      {isAsking ? "Reviewing" : "Ask Codex"}
+    <button class="btn btn-primary" type="button" disabled={conversation.isAsking || !conversation.question.trim() || !teamState || !providerReady} onclick={() => submit()}>
+      {#if conversation.isAsking}<span class="spinner"></span>{/if}
+      {conversation.isAsking ? "Reviewing" : "Ask Codex"}
     </button>
   </div>
 </article>

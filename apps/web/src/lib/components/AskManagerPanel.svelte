@@ -1,8 +1,9 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import { createAiConversation } from "../ai-conversation.svelte";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
   import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
-  import AiMessageBubble, { type AiMessage } from "./AiMessageBubble.svelte";
+  import AiMessageBubble from "./AiMessageBubble.svelte";
   import Icon from "./Icon.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
 
@@ -34,16 +35,9 @@
     onApplyStrategyProposal?: (proposal: DraftStrategyProposal) => Promise<void>;
   } = $props();
 
-  let question = $state("");
-  let messages: AiMessage[] = $state([]);
-  let isAsking = $state(false);
-  let copied = $state(false);
-  let lastQuestion = $state("");
   let expanded = $state(false);
   let conversationPick: number | null = $state(null);
   let conversationDraftIdentity = $state("");
-  let askRequestSequence = 0;
-  let activeAskRequestId = 0;
   let handledPromptRequestId = 0;
   let panelElement: HTMLElement;
 
@@ -58,70 +52,19 @@
       ? `Board context: ${contextSummary.league}; ${contextSummary.starters}; ${contextSummary.data}`
       : providerLabel,
   );
+  const conversation = createAiConversation({
+    ask: (nextQuestion, history) => onAsk(nextQuestion, history),
+    loadingMessage: "Thinking through your draft context...",
+    fallbackError: "The manager could not answer because the draft state is unavailable.",
+  });
   const boardChanged = $derived(
-    Boolean(messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
+    Boolean(conversation.messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
   );
 
-  function createMessage(role: AiMessage["role"], content: string, status: AiMessage["status"] = "complete"): AiMessage {
-    return {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      role,
-      content,
-      status,
-    };
-  }
-
-  function currentDraftIdentity(): string {
-    return draftIdentity;
-  }
-
-  function invalidateAskRequests() {
-    askRequestSequence += 1;
-    activeAskRequestId = 0;
-    isAsking = false;
-  }
-
-  async function submit(overrideQuestion?: string) {
-    const trimmed = (overrideQuestion ?? question).trim();
-    if (!trimmed || isAsking || !providerReady) {
-      return;
-    }
-
-    const requestDraftId = currentDraftIdentity();
-    const requestId = ++askRequestSequence;
-    activeAskRequestId = requestId;
-    isAsking = true;
-    lastQuestion = trimmed;
-    question = "";
+  function submit(overrideQuestion?: string) {
+    if (!providerReady) return;
     conversationPick = draftState?.currentPick ?? null;
-
-    const conversationHistory = toConversationHistory(messages);
-    const loadingMessage = createMessage("assistant", "Thinking through your draft context...", "loading");
-    messages = [...messages, createMessage("user", trimmed), loadingMessage];
-
-    try {
-      const result = await onAsk(trimmed, conversationHistory);
-      if (requestId !== activeAskRequestId || requestDraftId !== currentDraftIdentity()) {
-        return;
-      }
-      messages = messages.map((message) =>
-        message.id === loadingMessage.id
-          ? { ...message, content: result.answer, status: "complete", strategyProposal: result.strategyProposal }
-          : message,
-      );
-    } catch (error) {
-      if (requestId !== activeAskRequestId || requestDraftId !== currentDraftIdentity()) {
-        return;
-      }
-      const answer = error instanceof Error ? error.message : "The manager could not answer because the draft state is unavailable.";
-      messages = messages.map((message) =>
-        message.id === loadingMessage.id ? { ...message, content: answer, status: "error" } : message,
-      );
-    } finally {
-      if (requestId === activeAskRequestId && requestDraftId === currentDraftIdentity()) {
-        isAsking = false;
-      }
-    }
+    void conversation.submit(overrideQuestion);
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -135,32 +78,8 @@
     submit(nextQuestion);
   }
 
-  async function copyMessage(content: string) {
-    try {
-      await navigator.clipboard.writeText(content);
-      copied = true;
-      window.setTimeout(() => {
-        copied = false;
-      }, 1400);
-    } catch {
-      copied = false;
-    }
-  }
-
-  function toConversationHistory(source: AiMessage[]): AiConversationMessage[] {
-    return source
-      .filter((message) => message.status !== "loading" && message.content.trim())
-      .map((message) => ({ role: message.role, content: message.content.trim() }))
-      .slice(-8);
-  }
-
-  function clearConversation(invalidatePendingAsk = false) {
-    if (invalidatePendingAsk) {
-      invalidateAskRequests();
-    }
-    messages = [];
-    question = "";
-    lastQuestion = "";
+  function clearConversation() {
+    conversation.clear(true);
     conversationPick = null;
   }
 
@@ -168,19 +87,18 @@
     if (!onApplyStrategyProposal) return;
     try {
       await onApplyStrategyProposal(proposal);
-      messages = messages.map((message) =>
-        message.id === messageId ? { ...message, strategyProposalApplied: true } : message,
-      );
+      conversation.markStrategyProposalApplied(messageId);
     } catch {
       // The strategy drawer surfaces the persistence error and leaves this proposal retryable.
     }
   }
 
   $effect(() => {
-    const nextDraftIdentity = currentDraftIdentity();
+    const nextDraftIdentity = draftIdentity;
     if (conversationDraftIdentity && nextDraftIdentity !== conversationDraftIdentity) {
-      clearConversation(true);
+      conversationPick = null;
     }
+    conversation.syncIdentity(nextDraftIdentity);
     conversationDraftIdentity = nextDraftIdentity;
   });
 
@@ -192,7 +110,7 @@
 
     handledPromptRequestId = request.id;
     expanded = true;
-    question = request.question;
+    conversation.question = request.question;
     void tick().then(() => {
       panelElement?.scrollIntoView({ behavior: "smooth", block: "center" });
       if (providerReady) {
@@ -244,47 +162,47 @@
             <strong>Board changed since the last answer</strong>
             <span>New questions use pick {draftState?.currentPick}. Earlier answers remain visible for context.</span>
           </div>
-          <button type="button" onclick={() => clearConversation(true)}>Start fresh</button>
+          <button type="button" onclick={clearConversation}>Start fresh</button>
         </div>
       {/if}
 
-      <div class:has-conversation={messages.length > 0} class="chat-workspace">
-        {#if messages.length > 0}
+      <div class:has-conversation={conversation.messages.length > 0} class="chat-workspace">
+        {#if conversation.messages.length > 0}
         <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite">
-          {#each messages as message (message.id)}
+          {#each conversation.messages as message (message.id)}
             <AiMessageBubble
               {message}
-              onCopy={copyMessage}
-              onRetry={() => submit(lastQuestion)}
+              onCopy={conversation.copy}
+              onRetry={() => submit(conversation.lastQuestion)}
               onApplyStrategyProposal={(proposal) => applyStrategyProposal(message.id, proposal)}
             />
           {/each}
         </div>
-        {#if copied}
+        {#if conversation.copied}
           <p class="copy-note">Copied response.</p>
         {/if}
         {/if}
         <div class="command-bar">
-          {#if messages.length === 0}
-            <SuggestedQuestions questions={suggestedQuestions.slice(0, 3)} disabled={isAsking} onChoose={chooseSuggestion} />
+          {#if conversation.messages.length === 0}
+            <SuggestedQuestions questions={suggestedQuestions.slice(0, 3)} disabled={conversation.isAsking} onChoose={chooseSuggestion} />
           {/if}
           <div class="composer">
             <input
-              bind:value={question}
+              bind:value={conversation.question}
               onkeydown={handleKeydown}
-              placeholder={messages.length > 0
+              placeholder={conversation.messages.length > 0
                 ? "Ask a follow-up about this draft."
                 : "Ask who to draft, compare players, or test a what-if."}
             />
             <button
               class="composer-send"
-              aria-label={isAsking ? "Asking" : "Ask AI"}
+              aria-label={conversation.isAsking ? "Asking" : "Ask AI"}
               type="button"
-              disabled={isAsking || !question.trim()}
+              disabled={conversation.isAsking || !conversation.question.trim()}
               onclick={() => submit()}
             >
-              {#if isAsking}<span class="spinner"></span>{/if}
-              {isAsking ? "Asking" : "Send"}
+              {#if conversation.isAsking}<span class="spinner"></span>{/if}
+              {conversation.isAsking ? "Asking" : "Send"}
             </button>
           </div>
         </div>

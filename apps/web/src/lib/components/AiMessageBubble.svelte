@@ -1,15 +1,7 @@
 ﻿<script lang="ts">
+  import type { AiConversationDisplayMessage } from "../ai-conversation.svelte";
   import type { DraftStrategyProposal } from "../types";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
-
-  export type AiMessage = {
-    id: string;
-    role: "user" | "assistant";
-    content: string;
-    status?: "loading" | "error" | "complete";
-    strategyProposal?: DraftStrategyProposal | null;
-    strategyProposalApplied?: boolean;
-  };
 
   let {
     message,
@@ -17,7 +9,7 @@
     onRetry,
     onApplyStrategyProposal,
   }: {
-    message: AiMessage;
+    message: AiConversationDisplayMessage;
     onCopy?: (content: string) => void;
     onRetry?: () => void;
     onApplyStrategyProposal?: (proposal: DraftStrategyProposal) => void;
