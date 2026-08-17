@@ -18,19 +18,37 @@ export type JsonNamespace =
   | "draft_plans"
   | "draft_strategy_instructions";
 
+export type SqliteAppDatabaseOptions = {
+  writeFile?: (filePath: string, data: Buffer) => void;
+};
+
+type MutationResult<T> = {
+  value: T;
+  changed: boolean;
+};
+
 export class SqliteAppDatabase {
+  private batchDepth = 0;
+  private batchDirty = false;
+
   private constructor(
-    private readonly db: Database,
+    private db: Database,
     private readonly filePath: string,
+    private readonly createDatabase: (data?: Uint8Array) => Database,
+    private readonly writeFile: (filePath: string, data: Buffer) => void,
   ) {
     this.migrate();
   }
 
-  static async open(filePath = getDefaultDatabasePath()): Promise<SqliteAppDatabase> {
+  static async open(
+    filePath = getDefaultDatabasePath(),
+    options: SqliteAppDatabaseOptions = {},
+  ): Promise<SqliteAppDatabase> {
     const SQL = await initSqlJs();
     ensurePrivateDirectory(path.dirname(filePath));
-    const db = existsSync(filePath) ? new SQL.Database(readPrivateFile(filePath)) : new SQL.Database();
-    return new SqliteAppDatabase(db, filePath);
+    const createDatabase = (data?: Uint8Array) => new SQL.Database(data);
+    const db = existsSync(filePath) ? createDatabase(readPrivateFile(filePath)) : createDatabase();
+    return new SqliteAppDatabase(db, filePath, createDatabase, options.writeFile ?? writePrivateFile);
   }
 
   getJson<T>(namespace: JsonNamespace, key: string): T | null {
@@ -77,40 +95,42 @@ export class SqliteAppDatabase {
   }
 
   setJson(namespace: JsonNamespace, key: string, value: unknown): void {
-    this.db.run(
-      `INSERT INTO app_kv (namespace, key, value_json, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(namespace, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
-      [namespace, key, JSON.stringify(value), new Date().toISOString()],
-    );
-    this.persist();
+    this.mutate(() => {
+      this.db.run(
+        `INSERT INTO app_kv (namespace, key, value_json, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(namespace, key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
+        [namespace, key, JSON.stringify(value), new Date().toISOString()],
+      );
+      return { value: undefined, changed: true };
+    });
   }
 
   deleteJson(namespace: JsonNamespace, key: string): boolean {
-    this.db.run("DELETE FROM app_kv WHERE namespace = ? AND key = ?", [namespace, key]);
-    const deleted = this.db.getRowsModified() > 0;
-    if (deleted) {
-      this.persist();
-    }
-    return deleted;
+    return this.mutate(() => {
+      this.db.run("DELETE FROM app_kv WHERE namespace = ? AND key = ?", [namespace, key]);
+      const deleted = this.db.getRowsModified() > 0;
+      return { value: deleted, changed: deleted };
+    });
   }
 
   clearJson(namespace: JsonNamespace): number {
-    this.db.run("DELETE FROM app_kv WHERE namespace = ?", [namespace]);
-    const deleted = this.db.getRowsModified();
-    if (deleted > 0) {
-      this.persist();
-    }
-    return deleted;
+    return this.mutate(() => {
+      this.db.run("DELETE FROM app_kv WHERE namespace = ?", [namespace]);
+      const deleted = this.db.getRowsModified();
+      return { value: deleted, changed: deleted > 0 };
+    });
   }
 
   insertDecisionSnapshot(input: { id: string; draftId: string; createdAt: string; trigger: string; value: unknown }): void {
-    this.db.run(
-      `INSERT OR REPLACE INTO decision_snapshots (id, draft_id, created_at, trigger, value_json)
-       VALUES (?, ?, ?, ?, ?)`,
-      [input.id, input.draftId, input.createdAt, input.trigger, JSON.stringify(input.value)],
-    );
-    this.persist();
+    this.mutate(() => {
+      this.db.run(
+        `INSERT OR REPLACE INTO decision_snapshots (id, draft_id, created_at, trigger, value_json)
+         VALUES (?, ?, ?, ?, ?)`,
+        [input.id, input.draftId, input.createdAt, input.trigger, JSON.stringify(input.value)],
+      );
+      return { value: undefined, changed: true };
+    });
   }
 
   listDecisionSnapshots<T>(draftId: string, limit: number): T[] {
@@ -154,38 +174,63 @@ export class SqliteAppDatabase {
   }
 
   pruneDecisionSnapshots(draftId: string, keep: number): void {
-    this.db.run(
-      `DELETE FROM decision_snapshots
-       WHERE draft_id = ?
-         AND id NOT IN (
-           SELECT id FROM decision_snapshots
-           WHERE draft_id = ?
-           ORDER BY created_at DESC, id DESC
-           LIMIT ?
-         )`,
-      [draftId, draftId, keep],
-    );
-    if (this.db.getRowsModified() > 0) {
-      this.persist();
-    }
+    this.mutate(() => {
+      this.db.run(
+        `DELETE FROM decision_snapshots
+         WHERE draft_id = ?
+           AND id NOT IN (
+             SELECT id FROM decision_snapshots
+             WHERE draft_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT ?
+           )`,
+        [draftId, draftId, keep],
+      );
+      return { value: undefined, changed: this.db.getRowsModified() > 0 };
+    });
   }
 
   clearDecisionSnapshots(draftId: string): boolean {
-    this.db.run("DELETE FROM decision_snapshots WHERE draft_id = ?", [draftId]);
-    const deleted = this.db.getRowsModified() > 0;
-    if (deleted) {
-      this.persist();
-    }
-    return deleted;
+    return this.mutate(() => {
+      this.db.run("DELETE FROM decision_snapshots WHERE draft_id = ?", [draftId]);
+      const deleted = this.db.getRowsModified() > 0;
+      return { value: deleted, changed: deleted };
+    });
   }
 
   clearAllDecisionSnapshots(): number {
-    this.db.run("DELETE FROM decision_snapshots");
-    const deleted = this.db.getRowsModified();
-    if (deleted > 0) {
-      this.persist();
+    return this.mutate(() => {
+      this.db.run("DELETE FROM decision_snapshots");
+      const deleted = this.db.getRowsModified();
+      return { value: deleted, changed: deleted > 0 };
+    });
+  }
+
+  batch<T>(operation: () => T): T {
+    if (this.batchDepth > 0) {
+      this.batchDepth += 1;
+      try {
+        return operation();
+      } finally {
+        this.batchDepth -= 1;
+      }
     }
-    return deleted;
+
+    const before = this.db.export();
+    this.batchDepth = 1;
+    this.batchDirty = false;
+    try {
+      const result = operation();
+      this.batchDepth = 0;
+      if (this.batchDirty) this.persist();
+      this.batchDirty = false;
+      return result;
+    } catch (error) {
+      this.batchDepth = 0;
+      this.batchDirty = false;
+      this.restore(before);
+      throw error;
+    }
   }
 
   private migrate(): void {
@@ -214,7 +259,30 @@ export class SqliteAppDatabase {
 
   private persist(): void {
     const bytes = this.db.export();
-    writePrivateFile(this.filePath, Buffer.from(bytes));
+    this.writeFile(this.filePath, Buffer.from(bytes));
+  }
+
+  private mutate<T>(operation: () => MutationResult<T>): T {
+    if (this.batchDepth > 0) {
+      const result = operation();
+      this.batchDirty ||= result.changed;
+      return result.value;
+    }
+
+    const before = this.db.export();
+    try {
+      const result = operation();
+      if (result.changed) this.persist();
+      return result.value;
+    } catch (error) {
+      this.restore(before);
+      throw error;
+    }
+  }
+
+  private restore(bytes: Uint8Array): void {
+    this.db.close();
+    this.db = this.createDatabase(bytes);
   }
 }
 

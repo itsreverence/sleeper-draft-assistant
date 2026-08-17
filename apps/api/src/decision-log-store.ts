@@ -76,18 +76,23 @@ export class DecisionLogStore {
   }): DecisionSnapshot {
     const snapshot = createDecisionSnapshot(input);
     const existing = this.snapshotsByDraft.get(input.draftId) ?? [];
-    this.snapshotsByDraft.set(input.draftId, [snapshot, ...existing].slice(0, this.maxSnapshotsPerDraft));
+    const nextSnapshots = [snapshot, ...existing].slice(0, this.maxSnapshotsPerDraft);
 
     if (this.database) {
-      this.database.insertDecisionSnapshot({
-        id: snapshot.id,
-        draftId: snapshot.draftId,
-        createdAt: snapshot.createdAt,
-        trigger: snapshot.trigger,
-        value: snapshot,
+      const database = this.database;
+      database.batch(() => {
+        database.insertDecisionSnapshot({
+          id: snapshot.id,
+          draftId: snapshot.draftId,
+          createdAt: snapshot.createdAt,
+          trigger: snapshot.trigger,
+          value: snapshot,
+        });
+        database.pruneDecisionSnapshots(input.draftId, this.maxSnapshotsPerDraft);
       });
-      this.database.pruneDecisionSnapshots(input.draftId, this.maxSnapshotsPerDraft);
+      this.snapshotsByDraft.set(input.draftId, nextSnapshots);
     } else {
+      this.snapshotsByDraft.set(input.draftId, nextSnapshots);
       this.save();
     }
 

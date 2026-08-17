@@ -7,6 +7,7 @@ import type { AiDraftDecision } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { DecisionLogStore } from "./decision-log-store";
+import { writePrivateFile } from "./secure-file";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 describe("DecisionLogStore", () => {
@@ -101,5 +102,50 @@ describe("DecisionLogStore", () => {
 
     const secondStore = new DecisionLogStore(filePath);
     expect(secondStore.list(state.id)[0]?.aiStrategy).toEqual(aiStrategy);
+  });
+
+  it("inserts and prunes a decision in one durable replacement", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-decision-batch-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    let writes = 0;
+    const database = await SqliteAppDatabase.open(dbPath, {
+      writeFile(filePath, data) {
+        writes += 1;
+        writePrivateFile(filePath, data);
+      },
+    });
+    const state = createMockDraftState(2);
+    const recommendation = buildDraftRecommendation(state);
+    const store = new DecisionLogStore(path.join(dir, "legacy.json"), 1, database);
+    store.record({ draftId: state.id, state, recommendation, trigger: "state-load" });
+    writes = 0;
+
+    store.record({ draftId: state.id, state, recommendation, trigger: "manual-refresh" });
+
+    expect(writes).toBe(1);
+    expect(store.list(state.id)).toHaveLength(1);
+    expect(database.listDecisionSnapshots(state.id, 10)).toHaveLength(1);
+  });
+
+  it("keeps store memory unchanged when decision persistence fails", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-decision-write-failure-"));
+    let failWrites = false;
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"), {
+      writeFile(filePath, data) {
+        if (failWrites) throw new Error("simulated decision write failure");
+        writePrivateFile(filePath, data);
+      },
+    });
+    const state = createMockDraftState(2);
+    const recommendation = buildDraftRecommendation(state);
+    const store = new DecisionLogStore(path.join(dir, "legacy.json"), 2, database);
+    const first = store.record({ draftId: state.id, state, recommendation, trigger: "state-load" });
+
+    failWrites = true;
+    expect(() => store.record({ draftId: state.id, state, recommendation, trigger: "manual-refresh" }))
+      .toThrow("simulated decision write failure");
+
+    expect(store.list(state.id)).toEqual([first]);
+    expect(database.listDecisionSnapshots(state.id, 10)).toEqual([first]);
   });
 });
