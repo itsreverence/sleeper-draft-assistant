@@ -10,6 +10,13 @@ import type {
   SeasonProjectionImportSummary,
 } from "@sleeper-draft-assistant/shared";
 
+import {
+  adpImportRecordCodec,
+  seasonProjectionImportRecordCodec,
+  type SerializedAdpImport,
+  type SerializedSeasonProjectionImport,
+} from "./persisted-domain-codecs";
+import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
@@ -42,16 +49,6 @@ export type StoredSeasonProjectionImport = {
 export type StoredAdpImport = {
   summary: AdpImportSummary;
   playersById: Map<string, AdpValue>;
-};
-
-type SerializedSeasonProjectionImport = {
-  summary: SeasonProjectionImportSummary;
-  players: Array<[string, SeasonProjectionValue]>;
-};
-
-type SerializedAdpImport = {
-  summary: AdpImportSummary;
-  players: Array<[string, AdpValue]>;
 };
 
 type ProjectionRow = {
@@ -125,7 +122,7 @@ export class SeasonProjectionImportStore {
 
   private load() {
     if (this.database) {
-      for (const [draftId, storedImport] of this.database.listJson<SerializedSeasonProjectionImport>("season_projection_imports")) {
+      for (const [draftId, storedImport] of this.database.listRecords("season_projection_imports", seasonProjectionImportRecordCodec)) {
         this.imports.set(draftId, deserializeSeasonProjectionImport(storedImport));
       }
       if (this.imports.size > 0) {
@@ -142,18 +139,19 @@ export class SeasonProjectionImportStore {
     try {
       const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedSeasonProjectionImport>;
       for (const [draftId, storedImport] of Object.entries(parsed)) {
-        const deserialized = deserializeSeasonProjectionImport(storedImport);
+        const deserialized = deserializeSeasonProjectionImport(seasonProjectionImportRecordCodec.decode(storedImport).data);
         this.imports.set(draftId, deserialized);
-        this.database?.setJson("season_projection_imports", draftId, serializeSeasonProjectionImport(deserialized));
+        this.database?.setRecord("season_projection_imports", draftId, seasonProjectionImportRecordCodec, serializeSeasonProjectionImport(deserialized));
       }
-    } catch {
+    } catch (error) {
       this.imports.clear();
+      throw persistedRecordError(error, "season projection imports");
     }
   }
 
   private saveDraft(draftId: string, storedImport: StoredSeasonProjectionImport) {
     if (this.database) {
-      this.database.setJson("season_projection_imports", draftId, serializeSeasonProjectionImport(storedImport));
+      this.database.setRecord("season_projection_imports", draftId, seasonProjectionImportRecordCodec, serializeSeasonProjectionImport(storedImport));
     } else {
       this.saveFile();
     }
@@ -222,7 +220,7 @@ export class AdpImportStore {
 
   private load() {
     if (this.database) {
-      for (const [draftId, storedImport] of this.database.listJson<SerializedAdpImport>("adp_imports")) {
+      for (const [draftId, storedImport] of this.database.listRecords("adp_imports", adpImportRecordCodec)) {
         this.imports.set(draftId, deserializeAdpImport(storedImport));
       }
       if (this.imports.size > 0) {
@@ -239,18 +237,19 @@ export class AdpImportStore {
     try {
       const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedAdpImport>;
       for (const [draftId, storedImport] of Object.entries(parsed)) {
-        const deserialized = deserializeAdpImport(storedImport);
+        const deserialized = deserializeAdpImport(adpImportRecordCodec.decode(storedImport).data);
         this.imports.set(draftId, deserialized);
-        this.database?.setJson("adp_imports", draftId, serializeAdpImport(deserialized));
+        this.database?.setRecord("adp_imports", draftId, adpImportRecordCodec, serializeAdpImport(deserialized));
       }
-    } catch {
+    } catch (error) {
       this.imports.clear();
+      throw persistedRecordError(error, "ADP imports");
     }
   }
 
   private saveDraft(draftId: string, storedImport: StoredAdpImport) {
     if (this.database) {
-      this.database.setJson("adp_imports", draftId, serializeAdpImport(storedImport));
+      this.database.setRecord("adp_imports", draftId, adpImportRecordCodec, serializeAdpImport(storedImport));
     } else {
       this.saveFile();
     }

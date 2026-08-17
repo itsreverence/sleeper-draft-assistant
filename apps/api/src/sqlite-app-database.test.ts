@@ -2,12 +2,61 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import initSqlJs from "sql.js/dist/sql-asm.js";
 import { describe, expect, it } from "vitest";
 
+import { createPersistedRecordCodec } from "./persisted-record";
 import { writePrivateFile } from "./secure-file";
-import { SqliteAppDatabase } from "./sqlite-app-database";
+import { DatabaseSchemaVersionError, SqliteAppDatabase } from "./sqlite-app-database";
+
+const testRecordCodec = createPersistedRecordCodec({
+  domain: "test settings",
+  version: 1,
+  decodeData(value: unknown) {
+    if (typeof value !== "object" || value === null || typeof (value as { value?: unknown }).value !== "string") {
+      throw new Error("invalid");
+    }
+    return { value: (value as { value: string }).value };
+  },
+});
 
 describe("SqliteAppDatabase", () => {
+  it("tracks database schema versions separately from domain record versions", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-sqlite-schema-version-"));
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+
+    expect(database.schemaVersion()).toBe(1);
+  });
+
+  it("rejects a database created by a newer app version", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-sqlite-future-schema-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    const SQL = await initSqlJs();
+    const futureDatabase = new SQL.Database();
+    futureDatabase.run("PRAGMA user_version = 99");
+    writePrivateFile(dbPath, Buffer.from(futureDatabase.export()));
+    futureDatabase.close();
+
+    await expect(SqliteAppDatabase.open(dbPath)).rejects.toBeInstanceOf(DatabaseSchemaVersionError);
+  });
+
+  it("writes versioned records and upgrades supported legacy records on read", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-sqlite-record-codec-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    const database = await SqliteAppDatabase.open(dbPath);
+    database.setJson("settings", "legacy", { value: "before-versioning" });
+
+    expect(database.getRecord("settings", "legacy", testRecordCodec)).toEqual({ value: "before-versioning" });
+    database.setRecord("settings", "current", testRecordCodec, { value: "current" });
+
+    const reopened = await SqliteAppDatabase.open(dbPath);
+    expect(reopened.getJson("settings", "legacy")).toEqual({
+      version: 1,
+      data: { value: "before-versioning" },
+    });
+    expect(reopened.getRecord("settings", "current", testRecordCodec)).toEqual({ value: "current" });
+  });
+
   it("persists deletes after prior writes", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "sleeper-sqlite-delete-"));
     const dbPath = path.join(dir, "app.sqlite");

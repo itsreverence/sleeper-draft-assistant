@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import type { DraftScoringFormat, DraftState, Player, Position, RankingImportSummary } from "@sleeper-draft-assistant/shared";
 
+import {
+  rankingImportRecordCodec,
+  type SerializedRankingImport,
+} from "./persisted-domain-codecs";
+import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
@@ -19,11 +24,6 @@ export type ImportedPlayerValues = {
   byeWeek: number | null;
   ecrVsAdp: number | null;
   sosSeasonStars: number | null;
-};
-
-type SerializedRankingImport = {
-  summary: RankingImportSummary;
-  players: Array<[string, ImportedPlayerValues]>;
 };
 
 type FantasyProsRow = {
@@ -99,7 +99,7 @@ export class RankingImportStore {
 
   private load() {
     if (this.database) {
-      const imports = this.database.listJson<SerializedRankingImport>("ranking_imports");
+      const imports = this.database.listRecords("ranking_imports", rankingImportRecordCodec);
       if (imports.length > 0) {
         for (const [draftId, storedImport] of imports) {
           this.imports.set(draftId, deserializeRankingImport(storedImport));
@@ -115,18 +115,20 @@ export class RankingImportStore {
     try {
       const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedRankingImport>;
       for (const [draftId, storedImport] of Object.entries(parsed)) {
-        const deserialized = deserializeRankingImport(storedImport);
+        const decoded = rankingImportRecordCodec.decode(storedImport).data;
+        const deserialized = deserializeRankingImport(decoded);
         this.imports.set(draftId, deserialized);
-        this.database?.setJson("ranking_imports", draftId, serializeRankingImport(deserialized));
+        this.database?.setRecord("ranking_imports", draftId, rankingImportRecordCodec, serializeRankingImport(deserialized));
       }
-    } catch {
+    } catch (error) {
       this.imports.clear();
+      throw persistedRecordError(error, "ranking imports");
     }
   }
 
   private saveDraft(draftId: string, storedImport: StoredRankingImport) {
     if (this.database) {
-      this.database.setJson("ranking_imports", draftId, serializeRankingImport(storedImport));
+      this.database.setRecord("ranking_imports", draftId, rankingImportRecordCodec, serializeRankingImport(storedImport));
       return;
     }
 
@@ -453,4 +455,3 @@ function nullableString(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 && trimmed !== "-" ? trimmed : null;
 }
-

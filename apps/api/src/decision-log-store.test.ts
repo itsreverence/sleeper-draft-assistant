@@ -7,6 +7,7 @@ import type { AiDraftDecision } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { DecisionLogStore } from "./decision-log-store";
+import { decisionSnapshotRecordCodec } from "./persisted-domain-codecs";
 import { writePrivateFile } from "./secure-file";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
@@ -63,6 +64,35 @@ describe("DecisionLogStore", () => {
       trigger: "state-load",
       userRosterId: "2",
     });
+  });
+
+  it("upgrades supported unversioned decision snapshots", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-decisions-legacy-db-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    const database = await SqliteAppDatabase.open(dbPath);
+    const state = createMockDraftState(2);
+    const recommendation = buildDraftRecommendation(state);
+    const sourceStore = new DecisionLogStore(path.join(dir, "source.json"));
+    const snapshot = sourceStore.record({
+      draftId: state.id,
+      state,
+      recommendation,
+      trigger: "state-load",
+    });
+    database.insertDecisionSnapshot({
+      id: snapshot.id,
+      draftId: snapshot.draftId,
+      createdAt: snapshot.createdAt,
+      trigger: snapshot.trigger,
+      value: snapshot,
+    });
+
+    const migratedStore = new DecisionLogStore(path.join(dir, "legacy.json"), 200, database);
+
+    expect(migratedStore.list(state.id)).toEqual([snapshot]);
+    expect(database.listDecisionSnapshots(state.id, 1)).toEqual([
+      { version: 1, data: snapshot },
+    ]);
   });
 
   it("persists the structured AI plan on strategy snapshots", () => {
@@ -146,6 +176,6 @@ describe("DecisionLogStore", () => {
       .toThrow("simulated decision write failure");
 
     expect(store.list(state.id)).toEqual([first]);
-    expect(database.listDecisionSnapshots(state.id, 10)).toEqual([first]);
+    expect(database.listDecisionRecords(state.id, 10, decisionSnapshotRecordCodec)).toEqual([first]);
   });
 });

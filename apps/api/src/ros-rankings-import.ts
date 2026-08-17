@@ -10,6 +10,11 @@ import type {
   TeamManagerState,
 } from "@sleeper-draft-assistant/shared";
 
+import {
+  rosRankingImportRecordCodec,
+  type SerializedRosRankingImport,
+} from "./persisted-domain-codecs";
+import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
@@ -31,11 +36,6 @@ type ImportedRosRanking = {
 export type StoredRosRankingImport = {
   summary: RosRankingImportSummary;
   playersById: Map<string, ImportedRosRanking>;
-};
-
-type SerializedRosRankingImport = {
-  summary: RosRankingImportSummary;
-  players: Array<[string, ImportedRosRanking]>;
 };
 
 type RosRow = {
@@ -65,7 +65,7 @@ export class RosRankingImportStore {
     const importKey = toRosImportKey(key);
     this.imports.set(importKey, storedImport);
     if (this.database) {
-      this.database.setJson("ros_ranking_imports", importKey, serialize(storedImport));
+      this.database.setRecord("ros_ranking_imports", importKey, rosRankingImportRecordCodec, serialize(storedImport));
     } else {
       this.saveFile();
     }
@@ -102,7 +102,7 @@ export class RosRankingImportStore {
 
   private load() {
     if (this.database) {
-      const records = this.database.listJson<SerializedRosRankingImport>("ros_ranking_imports");
+      const records = this.database.listRecords("ros_ranking_imports", rosRankingImportRecordCodec);
       if (records.length > 0) {
         for (const [key, value] of records) {
           this.imports.set(key, deserialize(value));
@@ -116,12 +116,13 @@ export class RosRankingImportStore {
     try {
       const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedRosRankingImport>;
       for (const [key, value] of Object.entries(parsed)) {
-        const storedImport = deserialize(value);
+        const storedImport = deserialize(rosRankingImportRecordCodec.decode(value).data);
         this.imports.set(key, storedImport);
-        this.database?.setJson("ros_ranking_imports", key, serialize(storedImport));
+        this.database?.setRecord("ros_ranking_imports", key, rosRankingImportRecordCodec, serialize(storedImport));
       }
-    } catch {
+    } catch (error) {
       this.imports.clear();
+      throw persistedRecordError(error, "rest-of-season ranking imports");
     }
   }
 

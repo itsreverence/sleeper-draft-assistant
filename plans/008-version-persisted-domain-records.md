@@ -6,6 +6,7 @@
 
 ## Status
 
+- **State**: DONE — canonical gates and API startup/security smoke passed 2026-08-16
 - **Priority**: P2
 - **Effort**: M
 - **Risk**: HIGH
@@ -34,9 +35,8 @@ the application with the wrong meaning.
 
 ## Done criteria
 
-- [ ] Every persisted domain has a codec, record version, and migration policy.
-- [ ] Supported legacy fixtures migrate deterministically.
-- [ ] Unknown/corrupt records fail with controlled, non-sensitive guidance.
-- [ ] No destructive conversion guesses at user data.
-- [ ] Canonical gates pass.
-
+- [x] Every persisted domain has a codec, record version, and migration policy.
+- [x] Supported legacy fixtures migrate deterministically.
+- [x] Unknown/corrupt records fail with controlled, non-sensitive guidance.
+- [x] No destructive conversion guesses at user data.
+- [x] Canonical gates pass.

@@ -56,7 +56,7 @@ describe("LocalDataResetCoordinator", () => {
     expect(settingsStore.get().codexModel).toBe("gpt-5.6-sol");
     expect(rankingStore.get(draftState.id)).not.toBeNull();
     const reopened = await SqliteAppDatabase.open(dbPath);
-    expect(reopened.getJson("settings", "app")).toEqual(expect.objectContaining({ codexModel: "gpt-5.6-sol" }));
+    expect(new SettingsStore(settingsPath, reopened).get()).toEqual(expect.objectContaining({ codexModel: "gpt-5.6-sol" }));
     expect(reopened.countJson("ranking_imports")).toBe(1);
   });
 
@@ -127,6 +127,6 @@ describe("LocalDataResetCoordinator", () => {
     const reopened = await SqliteAppDatabase.open(dbPath);
     expect(reopened.countJson("ranking_imports")).toBe(0);
     expect(reopened.countJson("weekly_projection_imports")).toBe(0);
-    expect(reopened.getJson("settings", "app")).toEqual(settings);
+    expect(new SettingsStore(path.join(dir, "settings.json"), reopened).get()).toEqual(settings);
   });
 });

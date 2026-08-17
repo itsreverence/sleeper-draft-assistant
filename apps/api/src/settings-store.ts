@@ -4,11 +4,21 @@ import { fileURLToPath } from "node:url";
 
 import { AppSettingsSchema, AppSettingsUpdateSchema, DEFAULT_CODEX_MODEL, type AppSettings, type AppSettingsUpdate } from "@sleeper-draft-assistant/shared";
 
+import { createPersistedRecordCodec, persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
 const LEGACY_DIRECT_PROVIDER_ID = "experimental-codex-backend";
 const LEGACY_DIRECT_PROVIDER_TOKEN_FILE = "experimental-codex-tokens.json";
+
+const settingsRecordCodec = createPersistedRecordCodec<AppSettings>({
+  domain: "settings",
+  version: 1,
+  decodeData: decodeSettings,
+  decodeLegacy(value) {
+    return decodeSettings(migrateLegacyProviderSettings(value).value);
+  },
+});
 
 export class SettingsStore {
   private settings: AppSettings;
@@ -41,21 +51,13 @@ export class SettingsStore {
 
   private load(): AppSettings {
     const defaults = getDefaultSettings();
-    const storedSettings = this.database?.getJson<unknown>("settings", "app");
+    const storedSettings = this.database?.getRecord("settings", "app", settingsRecordCodec);
     if (storedSettings) {
-      const migrated = migrateLegacyProviderSettings(storedSettings);
-      const settings = AppSettingsSchema.parse({
-        ...defaults,
-        ...(typeof migrated.value === "object" && migrated.value !== null ? migrated.value : {}),
-      });
-      if (migrated.changed) {
-        this.database?.setJson("settings", "app", settings);
-      }
-      return settings;
+      return storedSettings;
     }
 
     if (!existsSync(this.filePath)) {
-      this.database?.setJson("settings", "app", defaults);
+      this.database?.setRecord("settings", "app", settingsRecordCodec, defaults);
       return defaults;
     }
 
@@ -69,17 +71,16 @@ export class SettingsStore {
       if (migrated.changed) {
         writePrivateFile(this.filePath, `${JSON.stringify(settings, null, 2)}\n`);
       }
-      this.database?.setJson("settings", "app", settings);
+      this.database?.setRecord("settings", "app", settingsRecordCodec, settings);
       return settings;
-    } catch {
-      this.database?.setJson("settings", "app", defaults);
-      return defaults;
+    } catch (error) {
+      throw persistedRecordError(error, "settings");
     }
   }
 
   private save() {
     if (this.database) {
-      this.database.setJson("settings", "app", this.settings);
+      this.database.setRecord("settings", "app", settingsRecordCodec, this.settings);
       return;
     }
 
@@ -96,6 +97,16 @@ function getDefaultSettings(): AppSettings {
     codexTimeoutMs: process.env.SLEEPER_AI_CODEX_TIMEOUT_MS
       ? Number(process.env.SLEEPER_AI_CODEX_TIMEOUT_MS)
       : undefined,
+  });
+}
+
+function decodeSettings(value: unknown): AppSettings {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Invalid settings");
+  }
+  return AppSettingsSchema.parse({
+    ...getDefaultSettings(),
+    ...value,
   });
 }
 

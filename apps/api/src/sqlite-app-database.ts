@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js/dist/sql-asm.js";
 import type { Database } from "sql.js";
 
+import type { PersistedRecordCodec } from "./persisted-record";
 import { ensurePrivateDirectory, readPrivateFile, writePrivateFile } from "./secure-file";
 
 export type JsonNamespace =
@@ -26,6 +27,15 @@ type MutationResult<T> = {
   value: T;
   changed: boolean;
 };
+
+const CURRENT_DATABASE_SCHEMA_VERSION = 1;
+
+export class DatabaseSchemaVersionError extends Error {
+  constructor() {
+    super("Local data was created by a newer app version. Update the app before continuing.");
+    this.name = "DatabaseSchemaVersionError";
+  }
+}
 
 export class SqliteAppDatabase {
   private batchDepth = 0;
@@ -82,6 +92,32 @@ export class SqliteAppDatabase {
     return rows;
   }
 
+  getRecord<T>(namespace: JsonNamespace, key: string, codec: PersistedRecordCodec<T>): T | null {
+    const value = this.getJson<unknown>(namespace, key);
+    if (value === null) return null;
+    const decoded = codec.decode(value);
+    if (decoded.migrated) this.setRecord(namespace, key, codec, decoded.data);
+    return decoded.data;
+  }
+
+  listRecords<T>(namespace: JsonNamespace, codec: PersistedRecordCodec<T>): Array<[string, T]> {
+    const decoded = this.listJson<unknown>(namespace).map(([key, value]) => {
+      const record = codec.decode(value);
+      return { key, ...record };
+    });
+    const migrated = decoded.filter((record) => record.migrated);
+    if (migrated.length > 0) {
+      this.batch(() => {
+        for (const record of migrated) this.setRecord(namespace, record.key, codec, record.data);
+      });
+    }
+    return decoded.map((record) => [record.key, record.data]);
+  }
+
+  setRecord<T>(namespace: JsonNamespace, key: string, codec: PersistedRecordCodec<T>, value: T): void {
+    this.setJson(namespace, key, codec.encode(value));
+  }
+
   countJson(namespace: JsonNamespace): number {
     const statement = this.db.prepare("SELECT COUNT(*) AS count FROM app_kv WHERE namespace = ?");
     try {
@@ -92,6 +128,11 @@ export class SqliteAppDatabase {
     } finally {
       statement.free();
     }
+  }
+
+  schemaVersion(): number {
+    const result = this.db.exec("PRAGMA user_version");
+    return Number(result[0]?.values[0]?.[0] ?? 0);
   }
 
   setJson(namespace: JsonNamespace, key: string, value: unknown): void {
@@ -133,6 +174,13 @@ export class SqliteAppDatabase {
     });
   }
 
+  insertDecisionRecord<T>(
+    input: { id: string; draftId: string; createdAt: string; trigger: string; value: T },
+    codec: PersistedRecordCodec<T>,
+  ): void {
+    this.insertDecisionSnapshot({ ...input, value: codec.encode(input.value) });
+  }
+
   listDecisionSnapshots<T>(draftId: string, limit: number): T[] {
     const rows: T[] = [];
     const statement = this.db.prepare(
@@ -152,6 +200,10 @@ export class SqliteAppDatabase {
     return rows;
   }
 
+  listDecisionRecords<T>(draftId: string, limit: number, codec: PersistedRecordCodec<T>): T[] {
+    return this.decodeDecisionRecords(this.listDecisionSnapshots<unknown>(draftId, limit), codec);
+  }
+
   listAllDecisionSnapshots<T>(): T[] {
     const rows: T[] = [];
     const statement = this.db.prepare("SELECT value_json FROM decision_snapshots ORDER BY draft_id ASC, created_at DESC, id DESC");
@@ -166,6 +218,10 @@ export class SqliteAppDatabase {
       statement.free();
     }
     return rows;
+  }
+
+  listAllDecisionRecords<T>(codec: PersistedRecordCodec<T>): T[] {
+    return this.decodeDecisionRecords(this.listAllDecisionSnapshots<unknown>(), codec);
   }
 
   countDecisionSnapshots(): number {
@@ -234,6 +290,10 @@ export class SqliteAppDatabase {
   }
 
   private migrate(): void {
+    const existingVersion = this.schemaVersion();
+    if (existingVersion > CURRENT_DATABASE_SCHEMA_VERSION) {
+      throw new DatabaseSchemaVersionError();
+    }
     this.db.run(`
       CREATE TABLE IF NOT EXISTS app_kv (
         namespace TEXT NOT NULL,
@@ -254,12 +314,35 @@ export class SqliteAppDatabase {
       CREATE INDEX IF NOT EXISTS idx_decision_snapshots_draft_created
         ON decision_snapshots (draft_id, created_at DESC);
     `);
-    this.persist();
+    if (existingVersion < CURRENT_DATABASE_SCHEMA_VERSION) {
+      this.db.run(`PRAGMA user_version = ${CURRENT_DATABASE_SCHEMA_VERSION}`);
+      this.persist();
+    }
   }
 
   private persist(): void {
     const bytes = this.db.export();
     this.writeFile(this.filePath, Buffer.from(bytes));
+  }
+
+  private decodeDecisionRecords<T>(values: unknown[], codec: PersistedRecordCodec<T>): T[] {
+    const decoded = values.map((value) => codec.decode(value));
+    const migrated = decoded.filter((record) => record.migrated);
+    if (migrated.length > 0) {
+      this.batch(() => {
+        for (const record of migrated) {
+          const value = record.data as T & { id: string; draftId: string; createdAt: string; trigger: string };
+          this.insertDecisionRecord({
+            id: value.id,
+            draftId: value.draftId,
+            createdAt: value.createdAt,
+            trigger: value.trigger,
+            value: record.data,
+          }, codec);
+        }
+      });
+    }
+    return decoded.map((record) => record.data);
   }
 
   private mutate<T>(operation: () => MutationResult<T>): T {

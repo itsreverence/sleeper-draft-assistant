@@ -1,6 +1,6 @@
 import type { AppSettings } from "@sleeper-draft-assistant/shared";
 
-import type { DecisionSnapshot } from "./decision-log-store";
+import { decisionSnapshotRecordCodec } from "./persisted-domain-codecs";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 
 export type StorageInventory = {
@@ -36,7 +36,7 @@ export function buildRedactedSupportReport(input: {
   database: SqliteAppDatabase;
   settings: AppSettings;
 }) {
-  const snapshots = input.database.listAllDecisionSnapshots<DecisionSnapshot>();
+  const snapshots = input.database.listAllDecisionRecords(decisionSnapshotRecordCodec);
   return {
     supportReportVersion: 1,
     generatedAt: new Date().toISOString(),

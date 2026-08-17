@@ -34,4 +34,14 @@ describe("DraftPlanStore", () => {
     expect(store.clearAll()).toBe(1);
     expect(store.get("draft-1", "team-5", "codex-app-server")).toBeNull();
   });
+
+  it("rejects an unsupported persisted plan version", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sda-draft-plan-unknown-"));
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+    database.setJson("draft_plans", "draft-1:team-5", { version: 99, data: {} });
+
+    expect(() => new DraftPlanStore(database).get("draft-1", "team-5", "codex-app-server")).toThrow(
+      "Stored draft plans data uses an unsupported version. Clear or reset this local data before continuing.",
+    );
+  });
 });

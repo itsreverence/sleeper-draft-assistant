@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import type { AiDraftDecision, DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
 
+import { decisionSnapshotRecordCodec } from "./persisted-domain-codecs";
+import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
@@ -81,13 +83,13 @@ export class DecisionLogStore {
     if (this.database) {
       const database = this.database;
       database.batch(() => {
-        database.insertDecisionSnapshot({
+        database.insertDecisionRecord({
           id: snapshot.id,
           draftId: snapshot.draftId,
           createdAt: snapshot.createdAt,
           trigger: snapshot.trigger,
           value: snapshot,
-        });
+        }, decisionSnapshotRecordCodec);
         database.pruneDecisionSnapshots(input.draftId, this.maxSnapshotsPerDraft);
       });
       this.snapshotsByDraft.set(input.draftId, nextSnapshots);
@@ -129,7 +131,7 @@ export class DecisionLogStore {
 
   private load() {
     if (this.database) {
-      const snapshots = this.database.listAllDecisionSnapshots<DecisionSnapshot>();
+      const snapshots = this.database.listAllDecisionRecords(decisionSnapshotRecordCodec);
       for (const snapshot of snapshots) {
         const existing = this.snapshotsByDraft.get(snapshot.draftId) ?? [];
         this.snapshotsByDraft.set(snapshot.draftId, [...existing, snapshot].slice(0, this.maxSnapshotsPerDraft));
@@ -147,19 +149,21 @@ export class DecisionLogStore {
       const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as SerializedDecisionLog;
       for (const [draftId, snapshots] of Object.entries(parsed)) {
         const safeSnapshots = Array.isArray(snapshots) ? snapshots.slice(0, this.maxSnapshotsPerDraft) : [];
-        this.snapshotsByDraft.set(draftId, safeSnapshots);
-        for (const snapshot of safeSnapshots) {
-          this.database?.insertDecisionSnapshot({
+        const decodedSnapshots = safeSnapshots.map((snapshot) => decisionSnapshotRecordCodec.decode(snapshot).data);
+        this.snapshotsByDraft.set(draftId, decodedSnapshots);
+        for (const snapshot of decodedSnapshots) {
+          this.database?.insertDecisionRecord({
             id: snapshot.id,
             draftId: snapshot.draftId,
             createdAt: snapshot.createdAt,
             trigger: snapshot.trigger,
             value: snapshot,
-          });
+          }, decisionSnapshotRecordCodec);
         }
       }
-    } catch {
+    } catch (error) {
       this.snapshotsByDraft.clear();
+      throw persistedRecordError(error, "decision history");
     }
   }
 

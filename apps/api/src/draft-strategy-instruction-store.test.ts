@@ -36,4 +36,17 @@ describe("DraftStrategyInstructionStore", () => {
     expect(store.delete("draft-1", "team-5", 4, created!.id)).toEqual([]);
     expect(store.delete("draft-1", "team-5", 4, created!.id)).toBeNull();
   });
+
+  it("rejects corrupt persisted guidance instead of silently discarding it", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sda-strategy-instructions-corrupt-"));
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+    database.setJson("draft_strategy_instructions", "draft-1:team-5", {
+      version: 1,
+      data: [{ text: "missing required fields" }],
+    });
+
+    expect(() => new DraftStrategyInstructionStore(database).list("draft-1", "team-5", 1)).toThrow(
+      "Stored draft strategy instructions data is incompatible. Clear or reset this local data before continuing.",
+    );
+  });
 });

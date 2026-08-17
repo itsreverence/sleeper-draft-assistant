@@ -21,7 +21,7 @@ and the distinction between deterministic evidence/safety checks and AI advice.
 | 006 | Preserve active draft sync during league lookup | P1 | S | 003 implementation | DONE — approved at `aaec003`; real smoke passed |
 | 004 | Make database mutations atomic and batchable | P2 | M | 001–003 | DONE — canonical gates passed 2026-08-16 |
 | 007 | Make reset atomic and invalidate stale asynchronous writes | P2 | M | 004 | DONE — canonical gates passed 2026-08-16 |
-| 008 | Version and decode persisted domain records | P2 | M | 004, 007 | TODO |
+| 008 | Version and decode persisted domain records | P2 | M | 004, 007 | DONE — canonical gates and API smoke passed 2026-08-16 |
 | 005 | Split API routes mechanically by domain | P2 | M | 001, 004, 007, 008 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) |
@@ -39,7 +39,7 @@ REJECTED (with one-line rationale).
 - Plans 003 and 006 passed the real-draft preparation and live-sync smoke.
 - Plan 004 now changes only the database mutation contract and decision batching.
 - Plan 007 consumes that contract for reset and owns generation invalidation.
-- Plan 008 adds domain codecs only after atomic recovery semantics are stable.
+- Plan 008 adds domain codecs after atomic recovery semantics and is complete.
 - Plan 005 follows all persistence work so route modules receive final narrow
   interfaces instead of an interim service container.
 

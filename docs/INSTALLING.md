@@ -53,3 +53,5 @@ Alpha database changes may not be backward compatible. To roll back:
 3. install or run the earlier artifact from its original GitHub release.
 
 Never restore a database backup while either version of the app is running.
+
+The app validates both the database schema and each persisted settings/import/history record during startup. Supported alpha records migrate in place. If the app reports that local data uses an unsupported version, install the matching newer release rather than repeatedly retrying. If it reports incompatible stored data, preserve a backup for diagnosis, then use **Delete all local app data** or close the app and remove the `data` directory. These errors do not include the rejected record contents.

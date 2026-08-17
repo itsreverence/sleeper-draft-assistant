@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { PersistedRecordError } from "./persisted-record";
 import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
@@ -67,6 +68,30 @@ describe("SettingsStore", () => {
     });
   });
 
+  it("rejects an unknown settings record version with recovery guidance", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-unknown-version-"));
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+    database.setJson("settings", "app", { version: 99, data: { private: "do-not-leak" } });
+
+    try {
+      new SettingsStore(path.join(dir, "settings.json"), database);
+      throw new Error("Expected settings loading to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PersistedRecordError);
+      expect(error).toMatchObject({ code: "unsupported-version", domain: "settings" });
+    }
+  });
+
+  it("rejects corrupt versioned settings instead of silently loading defaults", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-corrupt-"));
+    const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
+    database.setJson("settings", "app", { version: 1, data: "private-invalid-settings" });
+
+    expect(() => new SettingsStore(path.join(dir, "settings.json"), database)).toThrow(
+      "Stored settings data is incompatible. Clear or reset this local data before continuing.",
+    );
+  });
+
   it("migrates removed provider settings and deletes legacy tokens", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-migration-"));
     const filePath = path.join(dir, "app-settings.json");
@@ -83,7 +108,7 @@ describe("SettingsStore", () => {
     const store = new SettingsStore(filePath, database);
 
     expect(store.get().aiProvider).toBe("noop");
-    expect(database.getJson<{ aiProvider: string }>("settings", "app")?.aiProvider).toBe("noop");
+    expect(new SettingsStore(filePath, database).get().aiProvider).toBe("noop");
     expect(existsSync(tokenPath)).toBe(false);
   });
 

@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import type { Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
+import {
+  weeklyProjectionImportRecordCodec,
+  type SerializedWeeklyProjectionImport,
+} from "./persisted-domain-codecs";
+import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
@@ -23,11 +28,6 @@ export type ImportedWeeklyProjection = {
   position: Position;
   positionRank: number | null;
   stats: Record<string, number>;
-};
-
-type SerializedWeeklyProjectionImport = {
-  summary: WeeklyProjectionImportSummary;
-  players: Array<[string, ImportedWeeklyProjection]>;
 };
 
 type FantasyProsWeeklyRow = {
@@ -87,7 +87,7 @@ export class WeeklyProjectionImportStore {
 
   private load() {
     if (this.database) {
-      const imports = this.database.listJson<SerializedWeeklyProjectionImport>("weekly_projection_imports");
+      const imports = this.database.listRecords("weekly_projection_imports", weeklyProjectionImportRecordCodec);
       if (imports.length > 0) {
         for (const [key, storedImport] of imports) {
           this.imports.set(key, deserializeWeeklyProjectionImport(storedImport));
@@ -103,18 +103,19 @@ export class WeeklyProjectionImportStore {
     try {
       const parsed = JSON.parse(readPrivateTextFile(this.filePath)) as Record<string, SerializedWeeklyProjectionImport>;
       for (const [key, storedImport] of Object.entries(parsed)) {
-        const deserialized = deserializeWeeklyProjectionImport(storedImport);
+        const deserialized = deserializeWeeklyProjectionImport(weeklyProjectionImportRecordCodec.decode(storedImport).data);
         this.imports.set(key, deserialized);
-        this.database?.setJson("weekly_projection_imports", key, serializeWeeklyProjectionImport(deserialized));
+        this.database?.setRecord("weekly_projection_imports", key, weeklyProjectionImportRecordCodec, serializeWeeklyProjectionImport(deserialized));
       }
-    } catch {
+    } catch (error) {
       this.imports.clear();
+      throw persistedRecordError(error, "weekly projection imports");
     }
   }
 
   private saveImport(key: string, storedImport: StoredWeeklyProjectionImport) {
     if (this.database) {
-      this.database.setJson("weekly_projection_imports", key, serializeWeeklyProjectionImport(storedImport));
+      this.database.setRecord("weekly_projection_imports", key, weeklyProjectionImportRecordCodec, serializeWeeklyProjectionImport(storedImport));
       return;
     }
 

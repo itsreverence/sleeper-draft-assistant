@@ -2,10 +2,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { buildDraftRecommendation, createMockDraftState } from "@sleeper-draft-assistant/engine";
 import type { AppSettings } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildRedactedSupportReport, buildStorageInventory } from "./data-management";
+import { DecisionLogStore } from "./decision-log-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 describe("local data management", () => {
@@ -26,35 +28,27 @@ describe("local data management", () => {
   it("redacts identifiers, names, headlines, values, and executable paths from support history", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "sleeper-support-report-"));
     const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
-    database.insertDecisionSnapshot({
-      id: "sensitive-snapshot-id",
-      draftId: "sensitive-draft-id",
-      createdAt: "2026-07-28T12:00:00.000Z",
-      trigger: "ai-question",
-      value: {
-        id: "sensitive-snapshot-id",
-        draftId: "sensitive-draft-id",
-        leagueId: "sensitive-league-id",
-        userRosterId: "sensitive-roster-id",
-        trigger: "ai-question",
-        createdAt: "2026-07-28T12:00:00.000Z",
-        draftName: "Private home league",
-        status: "drafting",
-        currentPick: 12,
-        picksMade: 11,
-        userTeamId: "sensitive-team-id",
-        userTeamName: "Private team",
-        recommendedPlayerId: "player-1",
+    const state = {
+      ...createMockDraftState(11),
+      id: "sensitive-draft-id",
+      leagueId: "sensitive-league-id",
+      name: "Private home league",
+      userTeamId: "sensitive-team-id",
+      currentPick: 12,
+    };
+    const recommendation = buildDraftRecommendation(state);
+    const store = new DecisionLogStore(path.join(dir, "legacy.json"), 200, database);
+    store.record({
+      draftId: state.id,
+      state,
+      recommendation: {
+        ...recommendation,
         headline: "Draft Sensitive Player",
-        confidence: "high",
-        candidatePlayerIds: ["player-1", "player-2"],
-        recommendation: { secretProjection: 321.45 },
-        context: {
-          topCandidates: [{ name: "Sensitive Player" }],
-          assumptions: ["private assumption"],
-          risks: ["private risk"],
-        },
+        assumptions: ["private assumption"],
+        risks: ["private risk"],
       },
+      trigger: "ai-question",
+      userRosterId: "sensitive-roster-id",
     });
     const settings: AppSettings = {
       aiProvider: "codex-app-server",
@@ -78,20 +72,17 @@ describe("local data management", () => {
       expect.objectContaining({
         trigger: "ai-question",
         currentPick: 12,
-        candidateCount: 2,
+        candidateCount: recommendation.candidates.length,
         assumptionCount: 1,
         riskCount: 1,
       }),
     ]);
     for (const sensitiveValue of [
-      "sensitive-snapshot-id",
       "sensitive-draft-id",
       "sensitive-league-id",
       "sensitive-roster-id",
       "Private home league",
-      "Private team",
       "Sensitive Player",
-      "321.45",
       "C:\\Users\\private",
       "private assumption",
       "private risk",

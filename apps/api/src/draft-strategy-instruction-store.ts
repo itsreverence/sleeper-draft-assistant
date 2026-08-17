@@ -6,6 +6,7 @@ import {
   type DraftStrategyProposal,
 } from "@sleeper-draft-assistant/shared";
 
+import { draftStrategyInstructionsRecordCodec } from "./persisted-domain-codecs";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 
 export class DraftStrategyInstructionStore {
@@ -13,12 +14,8 @@ export class DraftStrategyInstructionStore {
 
   list(draftId: string, teamId: string, currentPick: number): DraftStrategyInstruction[] {
     const key = instructionKey(draftId, teamId);
-    const stored = this.database.getJson<unknown[]>("draft_strategy_instructions", key) ?? [];
-    const parsed = stored.flatMap((value) => {
-      const result = DraftStrategyInstructionSchema.safeParse(value);
-      return result.success ? [result.data] : [];
-    });
-    const active = parsed.filter(
+    const stored = this.database.getRecord("draft_strategy_instructions", key, draftStrategyInstructionsRecordCodec) ?? [];
+    const active = stored.filter(
       (instruction) => instruction.scope === "draft" || instruction.createdAtPick >= currentPick,
     );
     if (active.length !== stored.length) {
@@ -81,7 +78,7 @@ export class DraftStrategyInstructionStore {
 
   private write(key: string, instructions: DraftStrategyInstruction[]) {
     if (instructions.length === 0) this.database.deleteJson("draft_strategy_instructions", key);
-    else this.database.setJson("draft_strategy_instructions", key, instructions);
+    else this.database.setRecord("draft_strategy_instructions", key, draftStrategyInstructionsRecordCodec, instructions);
   }
 }
 
