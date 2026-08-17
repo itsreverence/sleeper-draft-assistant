@@ -34,6 +34,7 @@ import { SqliteAppDatabase } from "./sqlite-app-database";
 import { requireApiToken } from "./api-auth";
 import { parseApiPort } from "./config";
 import { buildRedactedSupportReport, buildStorageInventory } from "./data-management";
+import { LocalDataResetCoordinator } from "./local-data-reset";
 
 export const app = new Hono();
 const port = parseApiPort(process.env.PORT);
@@ -41,17 +42,48 @@ const hostname = "127.0.0.1";
 const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || null;
 const sleeperClient = new SleeperClient();
 const appDatabase = await SqliteAppDatabase.open();
-const rankingImportStore = new RankingImportStore(undefined, appDatabase);
-const seasonProjectionImportStore = new SeasonProjectionImportStore(undefined, appDatabase);
-const adpImportStore = new AdpImportStore(undefined, appDatabase);
-const rosRankingImportStore = new RosRankingImportStore(undefined, appDatabase);
-const weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
-const decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
-const draftPlanStore = new DraftPlanStore(appDatabase);
-const draftStrategyInstructionStore = new DraftStrategyInstructionStore(appDatabase);
-const settingsStore = new SettingsStore(undefined, appDatabase);
 const aiProviderManager = new AiProviderManager();
+let rankingImportStore: RankingImportStore;
+let seasonProjectionImportStore: SeasonProjectionImportStore;
+let adpImportStore: AdpImportStore;
+let rosRankingImportStore: RosRankingImportStore;
+let weeklyProjectionImportStore: WeeklyProjectionImportStore;
+let decisionLogStore: DecisionLogStore;
+let draftPlanStore: DraftPlanStore;
+let draftStrategyInstructionStore: DraftStrategyInstructionStore;
+let settingsStore: SettingsStore;
+restoreDataStores();
+const localDataReset = new LocalDataResetCoordinator({
+  database: appDatabase,
+  getResetTargets: () => ({
+    clearers: [
+      () => rankingImportStore.clearAll(),
+      () => seasonProjectionImportStore.clearAll(),
+      () => adpImportStore.clearAll(),
+      () => rosRankingImportStore.clearAll(),
+      () => weeklyProjectionImportStore.clearAll(),
+      () => decisionLogStore.clearAll(),
+      () => draftPlanStore.clearAll(),
+      () => draftStrategyInstructionStore.clearAll(),
+    ],
+    settingsStore,
+  }),
+  restoreStores: restoreDataStores,
+  closeActiveProvider: () => aiProviderManager.close(),
+});
 let mockState = createMockDraftState(8);
+
+function restoreDataStores(): void {
+  rankingImportStore = new RankingImportStore(undefined, appDatabase);
+  seasonProjectionImportStore = new SeasonProjectionImportStore(undefined, appDatabase);
+  adpImportStore = new AdpImportStore(undefined, appDatabase);
+  rosRankingImportStore = new RosRankingImportStore(undefined, appDatabase);
+  weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
+  decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
+  draftPlanStore = new DraftPlanStore(appDatabase);
+  draftStrategyInstructionStore = new DraftStrategyInstructionStore(appDatabase);
+  settingsStore = new SettingsStore(undefined, appDatabase);
+}
 
 type DraftPayload = {
   state: DraftState;
@@ -149,15 +181,7 @@ app.post("/data/reset", async (c) => {
       return c.json({ error: "Local data reset was not confirmed." }, 400);
     }
 
-    rankingImportStore.clearAll();
-    seasonProjectionImportStore.clearAll();
-    adpImportStore.clearAll();
-    rosRankingImportStore.clearAll();
-    weeklyProjectionImportStore.clearAll();
-    decisionLogStore.clearAll();
-    draftPlanStore.clearAll();
-    draftStrategyInstructionStore.clearAll();
-    const settings = settingsStore.reset();
+    const settings = localDataReset.reset();
     return c.json({ settings, inventory: buildStorageInventory(appDatabase) });
   } catch (error) {
     return handleRouteError(c, error);
@@ -691,10 +715,14 @@ app.post("/drafts/:draftId/strategy", async (c) => {
       previousPlan,
       strategyInstructions,
     );
+    const requestGeneration = localDataReset.captureGeneration();
     const strategy = await provider.strategizeDraft(
       strategyContext,
       tools,
     );
+    if (!localDataReset.isCurrent(requestGeneration)) {
+      return c.json({ error: "Local data was reset while AI strategy was running. Request a fresh recommendation." }, 409);
+    }
     const latestState = await loadDraftState(draftId, getUserRosterId(c));
     if (latestState.currentPick !== state.currentPick) {
       return c.json({ error: "The draft board changed while AI strategy was running. Refreshing the recommendation." }, 409);
@@ -742,26 +770,33 @@ app.post("/drafts/:draftId/strategy", async (c) => {
         ),
       },
     };
-    if (strategy.provider.id !== "noop") {
-      draftPlanStore.set(draftId, state.userTeamId, strategy.provider.id, decision.plan);
-    }
+    const persisted = localDataReset.commitIfCurrent(requestGeneration, () => {
+      appDatabase.batch(() => {
+        if (strategy.provider.id !== "noop") {
+          draftPlanStore.set(draftId, state.userTeamId, strategy.provider.id, decision.plan);
+        }
 
-    decisionLogStore.record({
-      draftId,
-      state,
-      recommendation: {
-        ...recommendation,
-        headline: decision.headline,
-        recommendedPlayerId: recommendedCandidate.player.id,
-        confidence: decision.confidence,
-        summary: decision.summary,
-        risks: decision.risks,
-        candidates: [recommendedCandidate, ...alternativeCandidates],
-      },
-      aiStrategy: decision,
-      trigger: "ai-strategy",
-      userRosterId: getUserRosterId(c),
+        decisionLogStore.record({
+          draftId,
+          state,
+          recommendation: {
+            ...recommendation,
+            headline: decision.headline,
+            recommendedPlayerId: recommendedCandidate.player.id,
+            confidence: decision.confidence,
+            summary: decision.summary,
+            risks: decision.risks,
+            candidates: [recommendedCandidate, ...alternativeCandidates],
+          },
+          aiStrategy: decision,
+          trigger: "ai-strategy",
+          userRosterId: getUserRosterId(c),
+        });
+      });
     });
+    if (!persisted) {
+      return c.json({ error: "Local data was reset while AI strategy was running. Request a fresh recommendation." }, 409);
+    }
 
     return c.json({
       provider: strategy.provider,
@@ -1306,7 +1341,6 @@ if (process.env.NODE_ENV !== "test") {
     },
   );
 }
-
 
 
 

@@ -20,7 +20,7 @@ and the distinction between deterministic evidence/safety checks and AI advice.
 | 003 | Give the active draft lifecycle one explicit owner | P1 | M | 002 | DONE — approved through `146868e`; real smoke passed after 006 |
 | 006 | Preserve active draft sync during league lookup | P1 | S | 003 implementation | DONE — approved at `aaec003`; real smoke passed |
 | 004 | Make database mutations atomic and batchable | P2 | M | 001–003 | DONE — canonical gates passed 2026-08-16 |
-| 007 | Make reset atomic and invalidate stale asynchronous writes | P2 | M | 004 | TODO |
+| 007 | Make reset atomic and invalidate stale asynchronous writes | P2 | M | 004 | DONE — canonical gates passed 2026-08-16 |
 | 008 | Version and decode persisted domain records | P2 | M | 004, 007 | TODO |
 | 005 | Split API routes mechanically by domain | P2 | M | 001, 004, 007, 008 | TODO |
 

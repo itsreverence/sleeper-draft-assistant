@@ -6,6 +6,7 @@
 
 ## Status
 
+- **State**: DONE — canonical gates passed 2026-08-16
 - **Priority**: P2
 - **Effort**: M
 - **Risk**: HIGH
@@ -34,8 +35,7 @@ long-running provider work.
 
 ## Done criteria
 
-- [ ] Reset is all-or-nothing in memory and after reopen.
-- [ ] Provider work begun before reset cannot repopulate local data.
-- [ ] Reset failures retain the prior usable state and report safely.
-- [ ] Canonical gates and API security smoke pass.
-
+- [x] Reset is all-or-nothing in memory and after reopen.
+- [x] Provider work begun before reset cannot repopulate local data.
+- [x] Reset failures retain the prior usable state and report safely.
+- [x] Canonical gates and API security smoke pass.

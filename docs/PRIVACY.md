@@ -43,7 +43,7 @@ Never post unredacted database files, ranking exports, screenshots with league i
 
 ## Deleting data
 
-Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then restarts the interface. The reset requires explicit typed confirmation.
+Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then restarts the interface. The reset requires explicit typed confirmation. The database portion is committed as one local action: if durable replacement fails, the prior data remains usable and the reset reports failure. Active AI work is closed and invalidated when reset begins, so a response started beforehand cannot repopulate plans or recommendation history afterward.
 
 For manual removal, close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
 
