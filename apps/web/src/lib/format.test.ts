@@ -99,6 +99,17 @@ describe("Sleeper player status formatting", () => {
     expect(formatSleeperStatusTitle(player)).toContain("depth: RB1");
   });
 
+  it("retains partial depth-chart metadata in hover details", () => {
+    expect(formatSleeperStatusTitle({
+      ...player,
+      sleeperStatus: { ...player.sleeperStatus, depthChartOrder: null },
+    })).toContain("depth: RB");
+    expect(formatSleeperStatusTitle({
+      ...player,
+      sleeperStatus: { ...player.sleeperStatus, depthChartPosition: null },
+    })).toContain("depth: #1");
+  });
+
   it("keeps actionable injury and limited-practice status inline", () => {
     expect(formatSleeperStatusSummary({
       ...player,

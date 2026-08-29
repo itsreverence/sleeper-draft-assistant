@@ -1,4 +1,4 @@
-import type { Player, Position, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import { sleeperDepthChartLabel, type Player, type Position, type TeamActivitySummary, type TeamDataReadiness, type TeamManagerState, type TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 import type { AiConversationMessage, TeamAiContext, TeamAvailablePlayerEvidence } from "./types";
 
@@ -163,9 +163,7 @@ function formatPlayer(player: Player): string {
     player.sleeperStatus?.rosterStatus && player.sleeperStatus.rosterStatus.toLowerCase() !== "active"
       ? `roster ${player.sleeperStatus.rosterStatus}`
       : null,
-    player.sleeperStatus?.depthChartPosition && player.sleeperStatus.depthChartOrder
-      ? `depth ${player.sleeperStatus.depthChartPosition.toUpperCase()}${player.sleeperStatus.depthChartOrder}`
-      : null,
+    sleeperDepthChartLabel(player.sleeperStatus) ? `depth ${sleeperDepthChartLabel(player.sleeperStatus)}` : null,
   ].filter(Boolean);
   return `${player.name} (${player.team} ${player.position})${signals.length ? ` - ${signals.join("; ")}` : ""}`;
 }

@@ -36,6 +36,40 @@ describe("Team Manager season state", () => {
     expect(screen.getByTitle(/QB1/)).toBeTruthy();
   });
 
+  it("shows actionable Sleeper status for injured-reserve and taxi players", () => {
+    const payload = createTeamPayloadFixture();
+    const starter = payload.state.roster.starters[0]?.player;
+    if (!starter) throw new Error("Expected starter fixture");
+    payload.state.roster.injuredReserve = [{
+      ...starter,
+      id: "ir-player",
+      sleeperId: "ir-player",
+      name: "IR Player",
+      sleeperStatus: {
+        rosterStatus: "Injured Reserve",
+        injuryStatus: "Out",
+        injuryStartDate: null,
+        practiceParticipation: null,
+        depthChartPosition: "QB",
+        depthChartOrder: null,
+        newsUpdatedAt: null,
+      },
+    }];
+    payload.state.roster.taxi = [{
+      ...starter,
+      id: "taxi-player",
+      sleeperId: "taxi-player",
+      name: "Taxi Player",
+    }];
+
+    render(MyTeamPanel, { state: payload.state });
+
+    expect(screen.getByText("Injured reserve")).toBeTruthy();
+    expect(screen.getByText("Taxi")).toBeTruthy();
+    expect(screen.getByText(/Out · Injured Reserve/)).toBeTruthy();
+    expect(screen.getByTitle(/depth: QB/)).toBeTruthy();
+  });
+
   it("keeps matchup and weekly readiness inactive during preseason", () => {
     const payload = createTeamPayloadFixture();
     render(TeamWorkspaceStatus, {

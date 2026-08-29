@@ -7,6 +7,11 @@
 
   const starterCount = $derived(state?.roster.starters.filter((slot) => slot.player).length ?? 0);
   const starterSlots = $derived(state?.roster.starters.length ?? 0);
+  const reserveGroups = $derived(state ? [
+    { label: "Bench", players: state.roster.bench },
+    { label: "Injured reserve", players: state.roster.injuredReserve ?? [] },
+    { label: "Taxi", players: state.roster.taxi ?? [] },
+  ] : []);
   const periodLabel = $derived(
     state?.seasonPhase === "preseason"
       ? "Preseason"
@@ -64,11 +69,12 @@
       {/each}
     </div>
 
-    {#if state.roster.bench.length > 0}
-      <div class="bench-block">
-        <p class="eyebrow">Bench</p>
-        <div class="bench-list">
-          {#each state.roster.bench as player}
+    {#each reserveGroups as group}
+      {#if group.players.length > 0}
+        <div class="reserve-block">
+          <p class="eyebrow">{group.label}</p>
+          <div class="player-chips">
+            {#each group.players as player}
             <span title={formatSleeperStatusTitle(player)}>
               {player.name}
               <small>{player.position}{formatWeeklyProjection(player) ? ` · ${formatWeeklyProjection(player)}` : ""}</small>
@@ -78,10 +84,11 @@
                 > · {formatSleeperStatusSummary(player)}</small>
               {/if}
             </span>
-          {/each}
+            {/each}
+          </div>
         </div>
-      </div>
-    {/if}
+      {/if}
+    {/each}
   {:else}
     <p class="empty">Open a Sleeper league to load team-manager context.</p>
   {/if}
@@ -178,18 +185,18 @@
     color: var(--warning);
   }
 
-  .bench-block {
+  .reserve-block {
     margin-top: var(--space-4);
   }
 
-  .bench-list {
+  .player-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-top: var(--space-2);
   }
 
-  .bench-list span {
+  .player-chips span {
     border-radius: 999px;
     padding: 6px 8px;
     background: var(--surface-sunken);
@@ -198,12 +205,12 @@
     font-weight: 750;
   }
 
-  .bench-list small {
+  .player-chips small {
     color: var(--text-secondary);
     font-weight: 800;
   }
 
-  .bench-list .sleeper-status {
+  .player-chips .sleeper-status {
     margin-left: 0;
   }
 

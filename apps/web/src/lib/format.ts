@@ -1,3 +1,4 @@
+import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared";
 import type { ConnectDraft, DraftOption, DraftState, Player } from "./types";
 
 export function isMockDraft(draftId: string) {
@@ -70,9 +71,7 @@ export function formatSleeperStatusTitle(player: Player | null | undefined): str
     status.injuryStatus ? `injury: ${status.injuryStatus}` : null,
     status.practiceParticipation ? `practice: ${status.practiceParticipation}` : null,
     status.rosterStatus && status.rosterStatus.toLowerCase() !== "active" ? `roster: ${status.rosterStatus}` : null,
-    status.depthChartPosition && status.depthChartOrder
-      ? `depth: ${status.depthChartPosition.toUpperCase()}${status.depthChartOrder}`
-      : null,
+    sleeperDepthChartLabel(status) ? `depth: ${sleeperDepthChartLabel(status)}` : null,
     status.newsUpdatedAt ? `metadata updated: ${new Date(status.newsUpdatedAt).toLocaleString()}` : null,
   ].filter((detail): detail is string => Boolean(detail));
 

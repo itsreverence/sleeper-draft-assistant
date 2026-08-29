@@ -15,9 +15,9 @@ Which Week 1 fantasy-football inputs used by Sleeper Draft Assistant are availab
 
 ## Conclusion
 
-FantasyPros Week 1 projections are usable now for all six positions, but they should be treated as a readiness test rather than the final game-day import. FantasyPros 2026 rest-of-season rankings are not available yet. The current ROS pages fall back to draft rankings, so importing them would mislabel draft data as ROS evidence.
+FantasyPros Week 1 projections are usable now for all six positions, but they should be treated as a readiness test rather than the final game-day import. FantasyPros 2026 rest-of-season rankings are not available yet. The current ROS pages fall back to draft rankings, so users should wait until FantasyPros labels the source as current 2026 ROS data. This review does not add a persistent in-app ROS warning because the source page already identifies the dataset and the warning would outlive the temporary condition.
 
-Sleeper correctly reports that the NFL is still in preseason. Its player map and global trending feeds already contain useful current evidence. The application now preserves roster, injury, practice, depth-chart, injury-start, and metadata-freshness fields as labeled evidence for the roster UI and Codex. The weekly FantasyPros link was made scoring-aware as part of this review. Preventing a draft-ranking export from being accepted as current-season ROS data remains the highest-priority import safeguard.
+Sleeper correctly reports that the NFL is still in preseason. Its player map and global trending feeds already contain useful current evidence. The application now preserves roster, injury, practice, depth-chart, injury-start, and metadata-freshness fields as labeled evidence for the roster UI and Codex. The weekly FantasyPros link was made scoring-aware as part of this review. The temporary ROS source-page fallback remains a user-verification concern rather than a new persistent application warning.
 
 ## Confirmed availability
 
@@ -70,7 +70,7 @@ The missing fields should remain evidence, not become a parallel deterministic r
 1. Download and import all six Week 1 projection files now, with explicit PPR pages for RB, WR, and TE. Use the result to verify parsing, matching, six-position coverage, and roster coverage.
 2. Refresh the six files again within the final few days before Week 1. Treat the later import as the operational dataset.
 3. Do not import ROS rankings until FantasyPros explicitly labels the data as 2026 ROS. Recheck after Week 1.
-4. Keep the scoring-aware weekly link covered for PPR, Half-PPR, and standard leagues. Add a guard or warning for draft data submitted through the ROS workflow.
+4. Keep the scoring-aware weekly link covered for PPR, Half-PPR, and standard leagues. Do not add a persistent ROS warning for the temporary source-page fallback; import only when FantasyPros explicitly labels the export as current 2026 ROS data.
 5. Keep Sleeper status fields as labeled evidence, with actionable warnings inline and routine depth-chart metadata available on hover. Separately consider preseason league transactions and an “upcoming Week 1” view without weakening the preseason gate.
 6. Evaluate the FantasyPros API only as a later product decision. Confirm licensing first, then preserve the local-first and user-supplied-credential boundaries.
 
