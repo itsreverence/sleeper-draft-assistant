@@ -22,7 +22,11 @@ describe("team AI context", () => {
   });
 
   it("keeps weekly and rest-of-season available-player signals separate", () => {
-    const weekly = { ...player("weekly-rb", "Weekly RB", "ATL", "RB"), ...weeklyProjectionFields(18) };
+    const weekly = {
+      ...player("weekly-rb", "Weekly RB", "ATL", "RB"),
+      ...weeklyProjectionFields(18),
+      sleeperStatus: sleeperStatus(),
+    };
     const longTerm = { ...player("ros-rb", "ROS RB", "DET", "RB"), rosRank: 12, rosBestRank: 8, rosWorstRank: 18 };
     const context = buildTeamAiContext(createTeamState(), "Who should I add?", [], null, [longTerm, weekly]);
 
@@ -30,7 +34,23 @@ describe("team AI context", () => {
     expect(context.availablePlayerGroups.restOfSeasonRankLeaders).toEqual(["ros-rb"]);
     expect(context.availablePlayerEvidence.map((item) => item.name)).toEqual(["ROS RB", "Weekly RB"]);
     expect(context.availablePlayerEvidence.find((item) => item.playerId === "weekly-rb")?.weeklyProjectedPoints).toBe(18);
+    expect(context.availablePlayerEvidence.find((item) => item.playerId === "weekly-rb")?.sleeperStatus).toEqual(sleeperStatus());
     expect(context.availablePlayerEvidence.find((item) => item.playerId === "ros-rb")?.restOfSeasonRank).toBe(12);
+  });
+
+  it("promotes Sleeper status into the concise roster brief", () => {
+    const state = createTeamState();
+    const rb = state.roster.starters.find((slot) => slot.player?.id === "rb-1")?.player;
+    if (!rb) throw new Error("Expected RB fixture");
+    rb.sleeperStatus = sleeperStatus();
+    rb.riskTags = ["injury: Questionable"];
+
+    const context = buildTeamAiContext(state, "Is my running back healthy?");
+
+    expect(context.teamBrief.starterCandidates.find((item) => item.startsWith("RB:"))).toContain("injury Questionable");
+    expect(context.teamBrief.starterCandidates.find((item) => item.startsWith("RB:"))).toContain("practice Limited Participation in Practice");
+    expect(context.teamBrief.starterCandidates.find((item) => item.startsWith("RB:"))).toContain("depth RB1");
+    expect(context.teamBrief.starterCandidates.find((item) => item.startsWith("RB:"))?.match(/Questionable/g)).toHaveLength(1);
   });
 
   it("includes Sleeper weekly matchup and activity facts without turning them into advice", () => {
@@ -51,6 +71,7 @@ describe("team AI context", () => {
     expect(prompt).toContain("availablePlayerEvidence");
     expect(prompt).not.toContain("teamBrief.lineupDecisions");
     expect(buildTeamManagerInstructions()).toContain("Reason independently");
+    expect(buildTeamManagerInstructions()).toContain("newsUpdatedAt");
   });
 
   it("does not substitute deterministic advice when Codex is disconnected", async () => {
@@ -144,5 +165,17 @@ function weeklyProjectionFields(points: number) {
     weeklyProjectionSource: "FantasyPros",
     weeklyProjectionSeason: "2026",
     weeklyProjectionWeek: 1,
+  };
+}
+
+function sleeperStatus() {
+  return {
+    rosterStatus: "Active",
+    injuryStatus: "Questionable",
+    injuryStartDate: "2026-08-24",
+    practiceParticipation: "Limited Participation in Practice",
+    depthChartPosition: "RB",
+    depthChartOrder: 1,
+    newsUpdatedAt: "2026-08-29T12:00:00.000Z",
   };
 }

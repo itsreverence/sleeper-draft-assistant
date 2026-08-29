@@ -166,6 +166,11 @@ const fixture: SleeperDraftStateInput = {
       position: "RB",
       fantasy_positions: ["RB"],
       injury_status: "Questionable",
+      injury_start_date: "2026-08-24",
+      practice_participation: "Limited Participation in Practice",
+      depth_chart_position: "RB",
+      depth_chart_order: 1,
+      news_updated: 1788004800000,
       status: "Active",
       search_rank: 2,
       sport: "nfl",
@@ -471,6 +476,15 @@ describe("Sleeper team manager normalization", () => {
     expect(state.userTeam).toMatchObject({ rosterId: "12", ownerId: "user-2", name: "Bravo Squad" });
     expect(state.roster.starters.map((slot) => slot.slot)).toEqual(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX"]);
     expect(state.roster.starters[0]?.player?.name).toBe("Player Three");
+    expect(state.roster.starters[1]?.player?.sleeperStatus).toEqual({
+      rosterStatus: "Active",
+      injuryStatus: "Questionable",
+      injuryStartDate: "2026-08-24",
+      practiceParticipation: "Limited Participation in Practice",
+      depthChartPosition: "RB",
+      depthChartOrder: 1,
+      newsUpdatedAt: "2026-08-29T12:00:00.000Z",
+    });
     expect(state.roster.bench).toEqual([]);
     expect(state.roster.injuredReserve.map((player) => player.id)).toEqual(["p4"]);
     expect(state.roster.taxi.map((player) => player.id)).toEqual(["p1"]);

@@ -88,6 +88,7 @@ export function buildTeamManagerInstructions(): string {
     "When weekContext is present, it is Sleeper lineup and score state only, not a projection model.",
     "availablePlayerEvidence contains players inferred available from Sleeper rosters; its groups are separate weekly, rest-of-season, and positional retrieval signals, not a composite ranking.",
     "When activitySummary is present, it is Sleeper transaction and global trending context, not news or projections.",
+    "Sleeper player status fields are upstream roster, injury, practice, and depth-chart metadata. newsUpdatedAt is only a metadata freshness timestamp, not a news article; do not infer absent report details.",
     "Use teamBrief first, then teamState, availablePlayerEvidence, weekContext, and activitySummary as supporting detail.",
     "Validate lineup eligibility and add/drop availability against the supplied state before giving advice.",
     "If roster structure is the only useful signal, say that plainly and avoid overconfident claims.",
@@ -110,6 +111,7 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     "- For start/sit and lineup questions, compare rostered players directly and verify eligibility; say when weekly projection coverage is insufficient.",
     "- For current matchup or score questions, use teamBrief.matchupFacts and weekContext before roster-structure facts.",
     "- For pickup, waiver, free-agent, or drop questions, compare availablePlayerEvidence with the user's roster using weekly projections, rest-of-season ranks, risk flags, activity, and roster fit as separate considerations.",
+    "- Treat sleeperStatus as current upstream metadata, keep uncertainty explicit, and never turn newsUpdatedAt into an unsupported news claim.",
     "- For bench-depth questions, use position counts, flex demand, and benchPlayers.",
     "- Use conversationHistory only to resolve follow-ups; current team context is the source of truth.",
     "- Never describe the order of availablePlayerEvidence or any one evidence group as the app's recommendation.",
@@ -121,4 +123,3 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     JSON.stringify(context, null, 2),
   ].join("\n");
 }
-

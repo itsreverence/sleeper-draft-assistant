@@ -64,6 +64,7 @@
   } from "./lib/team-refresh";
   import { buildCandidateDiscussionQuestion, buildPlayerDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import { createDraftSession, type DraftSessionGuard } from "./lib/draft-session.svelte";
+  import { buildFantasyProsWeeklyProjectionUrl } from "./lib/fantasypros";
   import { getImportFreshness } from "./lib/freshness";
   import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
@@ -1264,13 +1265,8 @@
   }
 
   function openFantasyProsWeeklyProjections(position: Position, week: number) {
-    const fantasyProsPosition = position === "DEF" ? "dst" : position.toLowerCase();
-    const params = new URLSearchParams();
-    if (week > 0) {
-      params.set("week", String(week));
-    }
-    const suffix = params.size > 0 ? `?${params.toString()}` : "";
-    window.open(`https://www.fantasypros.com/nfl/projections/${fantasyProsPosition}.php${suffix}`, "_blank", "noopener,noreferrer");
+    const scoring = normalizeDraftScoring(teamManagerState?.league.scoring);
+    window.open(buildFantasyProsWeeklyProjectionUrl({ position, week, scoring }), "_blank", "noopener,noreferrer");
   }
 
   function openFantasyProsRosRankings() {

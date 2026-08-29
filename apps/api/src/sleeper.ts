@@ -127,6 +127,11 @@ export type SleeperPlayer = {
   search_rank?: number | null;
   sport?: string | null;
   active?: boolean | null;
+  injury_start_date?: string | null;
+  practice_participation?: string | null;
+  depth_chart_position?: string | number | null;
+  depth_chart_order?: string | number | null;
+  news_updated?: string | number | null;
 };
 
 export type SleeperPlayerMap = Record<string, SleeperPlayer>;
@@ -1262,6 +1267,15 @@ function toPlayer(rawPlayer: SleeperPlayer): Player | null {
     adp: searchRank && searchRank <= 400 ? searchRank : null,
     tier: searchRank ? Math.max(1, Math.ceil(searchRank / 24)) : null,
     riskTags,
+    sleeperStatus: {
+      rosterStatus: normalizeNullableString(rawPlayer.status),
+      injuryStatus: normalizeNullableString(rawPlayer.injury_status),
+      injuryStartDate: normalizeNullableString(rawPlayer.injury_start_date),
+      practiceParticipation: normalizeNullableString(rawPlayer.practice_participation),
+      depthChartPosition: normalizeNullableText(rawPlayer.depth_chart_position),
+      depthChartOrder: positiveIntegerFrom(rawPlayer.depth_chart_order),
+      newsUpdatedAt: isoTimestampFromEpochMilliseconds(rawPlayer.news_updated),
+    },
   };
 }
 
@@ -1379,9 +1393,27 @@ function normalizeNullableString(value: unknown): string | null {
   return trimmed.length > 0 && trimmed.toLowerCase() !== "null" ? trimmed : null;
 }
 
+function normalizeNullableText(value: unknown): string | null {
+  return normalizeNullableString(value) ?? (typeof value === "number" && Number.isFinite(value) ? String(value) : null);
+}
+
+function positiveIntegerFrom(value: unknown): number | null {
+  const parsed = numberFrom(value);
+  return parsed !== null && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function isoTimestampFromEpochMilliseconds(value: unknown): string | null {
+  const milliseconds = numberFrom(value);
+  if (milliseconds === null || milliseconds <= 0) {
+    return null;
+  }
+
+  const date = new Date(milliseconds);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
-
 
 

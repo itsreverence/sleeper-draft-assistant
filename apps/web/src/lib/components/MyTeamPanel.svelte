@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import type { TeamManagerState } from "../types";
-  import { formatWeeklyProjection } from "../format";
+  import { formatSleeperStatusSummary, formatSleeperStatusTitle, formatWeeklyProjection } from "../format";
 
   let { state, error = "", isLoading = false }: { state: TeamManagerState | null; error?: string; isLoading?: boolean } = $props();
 
@@ -45,10 +45,15 @@
           <span class="slot-label">{slot.slot}</span>
           {#if slot.player}
             <span class="player-name">{slot.player.name}</span>
-            <span class="player-meta">
+            <span class="player-meta" title={formatSleeperStatusTitle(slot.player)}>
               {slot.player.team} - {slot.player.position}
               {#if formatWeeklyProjection(slot.player)}
                 <strong>{formatWeeklyProjection(slot.player)}</strong>
+              {/if}
+              {#if formatSleeperStatusSummary(slot.player)}
+                <small
+                  class="sleeper-status warning-status"
+                >{formatSleeperStatusSummary(slot.player)}</small>
               {/if}
             </span>
           {:else}
@@ -64,9 +69,14 @@
         <p class="eyebrow">Bench</p>
         <div class="bench-list">
           {#each state.roster.bench as player}
-            <span>
+            <span title={formatSleeperStatusTitle(player)}>
               {player.name}
               <small>{player.position}{formatWeeklyProjection(player) ? ` · ${formatWeeklyProjection(player)}` : ""}</small>
+              {#if formatSleeperStatusSummary(player)}
+                <small
+                  class="sleeper-status warning-status"
+                > · {formatSleeperStatusSummary(player)}</small>
+              {/if}
             </span>
           {/each}
         </div>
@@ -158,6 +168,16 @@
     color: var(--accent);
   }
 
+  .sleeper-status {
+    margin-left: 5px;
+    color: var(--text-secondary);
+    font: inherit;
+  }
+
+  .sleeper-status.warning-status {
+    color: var(--warning);
+  }
+
   .bench-block {
     margin-top: var(--space-4);
   }
@@ -181,6 +201,10 @@
   .bench-list small {
     color: var(--text-secondary);
     font-weight: 800;
+  }
+
+  .bench-list .sleeper-status {
+    margin-left: 0;
   }
 
   .warning {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DraftState } from "./types";
-import { draftSlotForPick, draftTeamReference, formatDraftPick, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
+import { draftSlotForPick, draftTeamReference, formatDraftPick, formatSleeperStatusSummary, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
 
 describe("draft team identity", () => {
   it("prefers the draft-specific slot over the league roster ID", () => {
@@ -68,6 +68,46 @@ describe("preferredWorkspaceMode", () => {
 
   it("defaults to season manager after the draft when available", () => {
     expect(preferredWorkspaceMode("complete", true)).toBe("manage");
+  });
+});
+
+describe("Sleeper player status formatting", () => {
+  const player = {
+    id: "rb-1",
+    sleeperId: "rb-1",
+    name: "Running Back",
+    team: "LV",
+    position: "RB" as const,
+    projectedPoints: 0,
+    projectionSource: "sleeper_search_rank" as const,
+    adp: null,
+    tier: null,
+    riskTags: [],
+    sleeperStatus: {
+      rosterStatus: "Active",
+      injuryStatus: null,
+      injuryStartDate: null,
+      practiceParticipation: "Full Participation in Practice",
+      depthChartPosition: "RB",
+      depthChartOrder: 1,
+      newsUpdatedAt: "2026-08-29T12:00:00.000Z",
+    },
+  };
+
+  it("keeps routine depth and full-practice metadata out of the inline warning", () => {
+    expect(formatSleeperStatusSummary(player)).toBeNull();
+    expect(formatSleeperStatusTitle(player)).toContain("depth: RB1");
+  });
+
+  it("keeps actionable injury and limited-practice status inline", () => {
+    expect(formatSleeperStatusSummary({
+      ...player,
+      sleeperStatus: {
+        ...player.sleeperStatus,
+        injuryStatus: "Questionable",
+        practiceParticipation: "Limited Participation in Practice",
+      },
+    })).toBe("Questionable · Limited");
   });
 });
 

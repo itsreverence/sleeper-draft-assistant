@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./lib/api", async () => await import("./lib/testing/mock-api"));
 vi.mock("./lib/components/RecommendationPanel.svelte", async () => ({
@@ -16,6 +16,14 @@ import { apiMock } from "./lib/testing/mock-api";
 import type { ConnectPayload } from "./lib/types";
 
 describe("App draft lifecycle", () => {
+  beforeAll(() => {
+    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-08-20T12:00:00.000Z").getTime());
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     apiMock.reset();
     apiMock.teamPayload = {

@@ -16,7 +16,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Guides real drafts through a preparation stage and opens the AI workspace only after current ECR, season projections, Sleeper ADP, and Codex are ready.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
-- Gives Codex the live roster, inferred availability, weekly projections, rest-of-season ranks, matchup state, and league activity as separate evidence for team-management advice.
+- Gives Codex the live roster, inferred availability, weekly projections, rest-of-season ranks, Sleeper injury/practice/depth-chart status, matchup state, and league activity as separate evidence for team-management advice.
 - Keeps Team Manager compact: AI conversation and the actual Sleeper roster are primary, matchup and readiness stay glanceable, and detailed import controls open only when managing data.
 - Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.

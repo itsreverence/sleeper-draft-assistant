@@ -16,6 +16,17 @@ export const FormatCompatibilitySchema = z.object({
 });
 export type FormatCompatibility = z.infer<typeof FormatCompatibilitySchema>;
 
+export const SleeperPlayerStatusSchema = z.object({
+  rosterStatus: z.string().nullable(),
+  injuryStatus: z.string().nullable(),
+  injuryStartDate: z.string().nullable(),
+  practiceParticipation: z.string().nullable(),
+  depthChartPosition: z.string().nullable(),
+  depthChartOrder: z.number().int().positive().nullable(),
+  newsUpdatedAt: z.string().datetime().nullable(),
+});
+export type SleeperPlayerStatus = z.infer<typeof SleeperPlayerStatusSchema>;
+
 export const PlayerSchema = z.object({
   id: z.string(),
   sleeperId: z.string(),
@@ -27,6 +38,7 @@ export const PlayerSchema = z.object({
   adp: z.number().nullable(),
   tier: z.number().nullable(),
   riskTags: z.array(z.string()),
+  sleeperStatus: SleeperPlayerStatusSchema.optional(),
   importedRank: z.number().nullable().optional(),
   importedPositionRank: z.number().nullable().optional(),
   importedSource: z.string().nullable().optional(),
@@ -543,5 +555,4 @@ export const DraftEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type DraftEvent = z.infer<typeof DraftEventSchema>;
-
 

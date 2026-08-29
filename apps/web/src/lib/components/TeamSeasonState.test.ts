@@ -16,6 +16,26 @@ describe("Team Manager season state", () => {
     expect(screen.queryByText("Week 1")).toBeNull();
   });
 
+  it("shows Sleeper injury, practice, and depth-chart status on roster rows", () => {
+    const payload = createTeamPayloadFixture();
+    const player = payload.state.roster.starters[0]?.player;
+    if (!player) throw new Error("Expected starter fixture");
+    player.sleeperStatus = {
+      rosterStatus: "Active",
+      injuryStatus: "Questionable",
+      injuryStartDate: "2026-08-24",
+      practiceParticipation: "Limited",
+      depthChartPosition: "QB",
+      depthChartOrder: 1,
+      newsUpdatedAt: "2026-08-29T12:00:00.000Z",
+    };
+
+    render(MyTeamPanel, { state: payload.state });
+
+    expect(screen.getByText("Questionable · Limited")).toBeTruthy();
+    expect(screen.getByTitle(/QB1/)).toBeTruthy();
+  });
+
   it("keeps matchup and weekly readiness inactive during preseason", () => {
     const payload = createTeamPayloadFixture();
     render(TeamWorkspaceStatus, {

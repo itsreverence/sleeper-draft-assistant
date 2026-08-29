@@ -144,16 +144,28 @@ function toAvailablePlayerEvidence(player: Player): TeamAvailablePlayerEvidence 
     restOfSeasonBestRank: player.rosBestRank ?? null,
     restOfSeasonWorstRank: player.rosWorstRank ?? null,
     riskTags: player.riskTags,
+    sleeperStatus: player.sleeperStatus ?? null,
   };
 }
 
 function formatPlayer(player: Player): string {
+  const riskTags = player.sleeperStatus?.injuryStatus
+    ? player.riskTags.filter((tag) => !tag.toLowerCase().startsWith("injury:"))
+    : player.riskTags;
   const signals = [
     player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
       ? `weekly ${player.weeklyProjectedPoints.toFixed(1)}`
       : null,
     player.rosRank ? `ROS ${player.rosRank}` : null,
-    player.riskTags.length ? `flags ${player.riskTags.join(", ")}` : null,
+    riskTags.length ? `flags ${riskTags.join(", ")}` : null,
+    player.sleeperStatus?.injuryStatus ? `injury ${player.sleeperStatus.injuryStatus}` : null,
+    player.sleeperStatus?.practiceParticipation ? `practice ${player.sleeperStatus.practiceParticipation}` : null,
+    player.sleeperStatus?.rosterStatus && player.sleeperStatus.rosterStatus.toLowerCase() !== "active"
+      ? `roster ${player.sleeperStatus.rosterStatus}`
+      : null,
+    player.sleeperStatus?.depthChartPosition && player.sleeperStatus.depthChartOrder
+      ? `depth ${player.sleeperStatus.depthChartPosition.toUpperCase()}${player.sleeperStatus.depthChartOrder}`
+      : null,
   ].filter(Boolean);
   return `${player.name} (${player.team} ${player.position})${signals.length ? ` - ${signals.join("; ")}` : ""}`;
 }

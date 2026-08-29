@@ -1,4 +1,4 @@
-import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction, DraftStrategyProposal, Position, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction, DraftStrategyProposal, Player, Position, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 
 export type AiProviderId = "noop" | "codex-app-server";
 
@@ -67,6 +67,7 @@ export type TeamAvailablePlayerEvidence = {
   restOfSeasonBestRank: number | null;
   restOfSeasonWorstRank: number | null;
   riskTags: string[];
+  sleeperStatus: NonNullable<Player["sleeperStatus"]> | null;
 };
 
 export type AiAnswer = {
@@ -212,8 +213,6 @@ export interface AiProvider {
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
   close?(): void;
 }
-
-
 
 
 

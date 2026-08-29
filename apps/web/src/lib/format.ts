@@ -49,6 +49,44 @@ export function formatWeeklyProjection(player: Player | null | undefined) {
     : `${player.weeklyProjectedPoints.toFixed(1)} pts`;
 }
 
+export function formatSleeperStatusSummary(player: Player | null | undefined): string | null {
+  const status = player?.sleeperStatus;
+  if (!status) return null;
+
+  const details = [
+    status.injuryStatus,
+    compactActionablePracticeParticipation(status.practiceParticipation),
+    status.rosterStatus && status.rosterStatus.toLowerCase() !== "active" ? status.rosterStatus : null,
+  ].filter((detail): detail is string => Boolean(detail));
+
+  return details.length > 0 ? Array.from(new Set(details)).join(" · ") : null;
+}
+
+export function formatSleeperStatusTitle(player: Player | null | undefined): string | undefined {
+  const status = player?.sleeperStatus;
+  if (!status) return undefined;
+
+  const details = [
+    status.injuryStatus ? `injury: ${status.injuryStatus}` : null,
+    status.practiceParticipation ? `practice: ${status.practiceParticipation}` : null,
+    status.rosterStatus && status.rosterStatus.toLowerCase() !== "active" ? `roster: ${status.rosterStatus}` : null,
+    status.depthChartPosition && status.depthChartOrder
+      ? `depth: ${status.depthChartPosition.toUpperCase()}${status.depthChartOrder}`
+      : null,
+    status.newsUpdatedAt ? `metadata updated: ${new Date(status.newsUpdatedAt).toLocaleString()}` : null,
+  ].filter((detail): detail is string => Boolean(detail));
+
+  return details.length > 0 ? `Sleeper status — ${details.join("; ")}` : undefined;
+}
+
+function compactActionablePracticeParticipation(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("did not participate")) return "DNP";
+  if (normalized.includes("limited")) return "Limited";
+  return null;
+}
+
 export function playerName(state: DraftState | null, playerId: string): string {
   return state?.players.find((player) => player.id === playerId)?.name ?? playerId;
 }
