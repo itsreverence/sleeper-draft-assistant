@@ -1,4 +1,5 @@
-import { sleeperDepthChartLabel, type Player, type Position, type TeamActivitySummary, type TeamDataReadiness, type TeamManagerState, type TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { Player, Position, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared/player-status";
 
 import type { AiConversationMessage, TeamAiContext, TeamAvailablePlayerEvidence } from "./types";
 

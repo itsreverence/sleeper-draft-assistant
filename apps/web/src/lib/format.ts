@@ -1,4 +1,4 @@
-import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared";
+import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared/player-status";
 import type { ConnectDraft, DraftOption, DraftState, Player } from "./types";
 
 export function isMockDraft(draftId: string) {

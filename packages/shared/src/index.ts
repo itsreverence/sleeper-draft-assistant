@@ -27,14 +27,6 @@ export const SleeperPlayerStatusSchema = z.object({
 });
 export type SleeperPlayerStatus = z.infer<typeof SleeperPlayerStatusSchema>;
 
-export function sleeperDepthChartLabel(status: SleeperPlayerStatus | null | undefined): string | null {
-  const position = status?.depthChartPosition?.trim().toUpperCase() || null;
-  const order = status?.depthChartOrder ?? null;
-  if (position && order) return `${position}${order}`;
-  if (position) return position;
-  return order ? `#${order}` : null;
-}
-
 export const PlayerSchema = z.object({
   id: z.string(),
   sleeperId: z.string(),
