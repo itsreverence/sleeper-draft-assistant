@@ -1,6 +1,6 @@
 {
   "name": "@sleeper-draft-assistant/api",
-  "version": "0.1.0-alpha.8",
+  "version": "0.1.0-alpha.9",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
-    "@sleeper-draft-assistant/engine": "0.1.0-alpha.8",
-    "@sleeper-draft-assistant/shared": "0.1.0-alpha.8",
+    "@sleeper-draft-assistant/engine": "0.1.0-alpha.9",
+    "@sleeper-draft-assistant/shared": "0.1.0-alpha.9",
     "hono": "4.12.34",
     "sql.js": "^1.14.1",
     "zod": "^3.25.76"
