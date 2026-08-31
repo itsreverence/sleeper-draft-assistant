@@ -8,7 +8,11 @@ import type {
   Team,
 } from "@sleeper-draft-assistant/shared";
 
-export { buildTeamDataReadiness } from "./team-data-readiness";
+export {
+  buildTeamDataReadiness,
+  isWeeklyProjectionSummaryFresh,
+  WEEKLY_PROJECTION_STALE_AFTER_DAYS,
+} from "./team-data-readiness";
 
 export type DraftRecommendationPreferences = {
   pinnedPlayerIds?: string[];
@@ -631,4 +635,3 @@ function player(
     projectionSource: "mock",
   };
 }
-

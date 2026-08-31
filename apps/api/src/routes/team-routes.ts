@@ -40,6 +40,7 @@ import {
   importFantasyProsWeeklyProjectionCsv,
   isWeeklyProjectionImportActive,
   mergeWeeklyProjectionImports,
+  WeeklyProjectionImportError,
   type WeeklyProjectionImportStore,
 } from "../weekly-projections-import";
 import type { RouteErrorHandler } from "./types";
@@ -146,6 +147,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
           projectedAvailablePlayers,
           activitySummary,
           dataReadiness,
+          selectedWeek,
         ),
       );
 
@@ -321,6 +323,9 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         ),
       });
     } catch (error) {
+      if (error instanceof WeeklyProjectionImportError) {
+        return c.json({ error: error.message }, 400);
+      }
       return handleRouteError(c, error);
     }
   });

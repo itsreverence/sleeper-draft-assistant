@@ -479,8 +479,9 @@ describe("team data readiness", () => {
     for (const player of state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player))) {
       Object.assign(player, weeklyProjectionFields(12));
     }
-    const ready = buildTeamDataReadiness(state, weeklyImportSummary(["QB", "RB", "WR", "TE"]));
-    const partial = buildTeamDataReadiness(state, weeklyImportSummary(["QB"]));
+    const now = Date.parse("2026-09-02T00:00:00.000Z");
+    const ready = buildTeamDataReadiness(state, weeklyImportSummary(["QB", "RB", "WR", "TE"]), now);
+    const partial = buildTeamDataReadiness(state, weeklyImportSummary(["QB"]), now);
 
     expect(ready.status).toBe("ready");
     expect(ready.confidence).toBe("high");
@@ -489,6 +490,23 @@ describe("team data readiness", () => {
     expect(partial.status).toBe("partial");
     expect(partial.missingPositions).toEqual(["RB", "WR", "TE"]);
     expect(partial.warnings.some((warning) => warning.includes("Missing projection files"))).toBe(true);
+  });
+
+  it("does not report stale weekly evidence as ready for Codex", () => {
+    const state = createTeamManagerState();
+    for (const player of state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player))) {
+      Object.assign(player, weeklyProjectionFields(12));
+    }
+    const summary = weeklyImportSummary(["QB", "RB", "WR", "TE"]);
+    summary.appliedAt = "2026-09-03T00:00:00.000Z";
+    for (const result of summary.positionResults) result.appliedAt = "2026-09-03T00:00:00.000Z";
+    summary.positionResults[1]!.appliedAt = "2026-09-01T00:00:00.000Z";
+
+    const readiness = buildTeamDataReadiness(state, summary, Date.parse("2026-09-04T00:00:00.000Z"));
+
+    expect(readiness.status).toBe("limited");
+    expect(readiness.confidence).toBe("low");
+    expect(readiness.warnings).toContain("Weekly projections are 3 or more days old; import fresh files before using weekly advice.");
   });
 });
 

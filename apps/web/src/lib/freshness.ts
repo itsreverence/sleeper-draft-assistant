@@ -4,6 +4,31 @@ export type ImportFreshness = {
   stale: boolean;
 };
 
+export function getOldestImportAppliedAt(appliedAtValues: string[], fallback: string): string {
+  if (appliedAtValues.length === 0) {
+    return fallback;
+  }
+
+  let oldest = appliedAtValues[0]!;
+  let oldestTime = Date.parse(oldest);
+  if (!Number.isFinite(oldestTime)) {
+    return oldest;
+  }
+
+  for (const appliedAt of appliedAtValues.slice(1)) {
+    const appliedAtTime = Date.parse(appliedAt);
+    if (!Number.isFinite(appliedAtTime)) {
+      return appliedAt;
+    }
+    if (appliedAtTime < oldestTime) {
+      oldest = appliedAt;
+      oldestTime = appliedAtTime;
+    }
+  }
+
+  return oldest;
+}
+
 export function getImportFreshness(
   appliedAt: string,
   staleAfterDays: number,
@@ -22,4 +47,3 @@ export function getImportFreshness(
     stale: ageDays >= staleAfterDays,
   };
 }
-

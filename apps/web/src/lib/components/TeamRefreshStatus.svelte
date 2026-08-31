@@ -58,9 +58,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 36px;
-    margin: var(--space-3) 0;
-    padding: 6px 2px;
+    min-height: 30px;
+    margin: 0;
+    padding: 2px;
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 700;

@@ -22,6 +22,15 @@ const rbCsv = `"Player","Team","ATT","YDS","TDS","REC","YDS","TDS","FL","FPTS"
 "??","","",""
 "Bijan Robinson","ATL","18.4","83.2","0.7","3.5","26.3","0.1","0.1","15.7"`;
 
+const wrCsv = `"Player","Team","REC","YDS","TDS","ATT","YDS","TDS","FL","FPTS"
+"Amon-Ra St. Brown","DET","7.2","82.4","0.5","0.3","2.1","0.0","0.1","18.6"`;
+
+const teCsv = `"Player","Team","REC","YDS","TDS","FL","FPTS"
+"Trey McBride","ARI","6.1","68.2","0.4","0.1","15.3"`;
+
+const kickerCsv = `"Player","Team","FG","FGA","XPT","FPTS"
+"Cameron Dicker","LAC","2.1","2.3","2.8","9.1"`;
+
 const dstCsv = `"Player","Team","SACK","INT","FR","FF","TD","SAFETY","PA","YDS_AGN","FPTS"
 "Denver Broncos","","3.1","0.8","0.6","1.0","0.2","0.1","17.2","291.9","8.3"`;
 
@@ -158,6 +167,27 @@ describe("FantasyPros weekly projection import", () => {
     expect(isWeeklyProjectionImportActive(state, currentImport, 2)).toBe(true);
   });
 
+  it("does not activate weekly projections after the three-day freshness window", () => {
+    const players = [player("1", "Josh Allen", "BUF", "QB")];
+    const storedImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,24`,
+      position: "QB",
+    });
+    storedImport.summary.appliedAt = "2026-09-01T00:00:00.000Z";
+    storedImport.summary.positionResults[0]!.appliedAt = "2026-09-01T00:00:00.000Z";
+    const state = {
+      league: { season: "2026" },
+      week: 1,
+    } as Parameters<typeof isWeeklyProjectionImportActive>[0];
+
+    expect(isWeeklyProjectionImportActive(state, storedImport, 1, Date.parse("2026-09-03T23:59:59.999Z"))).toBe(true);
+    expect(isWeeklyProjectionImportActive(state, storedImport, 1, Date.parse("2026-09-04T00:00:00.000Z"))).toBe(false);
+  });
+
   it("matches FantasyPros DST rows to Sleeper DEF players", () => {
     const players = [player("def-den", "Denver Broncos", "DEN", "DEF")];
     const storedImport = importFantasyProsWeeklyProjectionCsv({
@@ -179,6 +209,59 @@ describe("FantasyPros weekly projection import", () => {
       weeklyProjectionSeason: "2025",
       weeklyProjectionWeek: 1,
     });
+  });
+
+  it("recognizes all six current FantasyPros position export shapes", () => {
+    const players = [
+      player("qb", "Jalen Hurts", "PHI", "QB"),
+      player("rb", "Bijan Robinson", "ATL", "RB"),
+      player("wr", "Amon-Ra St. Brown", "DET", "WR"),
+      player("te", "Trey McBride", "ARI", "TE"),
+      player("k", "Cameron Dicker", "LAC", "K"),
+      player("def", "Denver Broncos", "DEN", "DEF"),
+    ];
+    const exports = [qbCsv, rbCsv, wrCsv, teCsv, kickerCsv, dstCsv];
+
+    const imports = exports.map((csvText) => importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText,
+    }));
+
+    expect(imports.map((storedImport) => storedImport.summary.position)).toEqual(["QB", "RB", "WR", "TE", "K", "DEF"]);
+    expect(imports.every((storedImport) => storedImport.summary.matched === 1)).toBe(true);
+    expect(imports[2]?.playersById.get("wr")?.stats.receivingYards).toBe(82.4);
+    expect(imports[3]?.playersById.get("te")?.stats.receptions).toBe(6.1);
+    expect(imports[4]?.playersById.get("k")?.stats.fieldGoalAttempts).toBe(2.3);
+  });
+
+  it("rejects a selected position that disagrees with the CSV shape", () => {
+    const players = [player("qb", "Jalen Hurts", "PHI", "QB")];
+
+    expect(() => importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: qbCsv,
+      position: "RB",
+    })).toThrow("selected RB position does not match this FantasyPros QB projection CSV");
+  });
+
+  it("rejects reordered or unsupported columns instead of applying positional indexes", () => {
+    const players = [player("wr", "Amon-Ra St. Brown", "DET", "WR")];
+    const reorderedWrCsv = `Player,Team,YDS,REC,TDS,ATT,YDS,TDS,FL,FPTS\nAmon-Ra St. Brown,DET,82.4,7.2,0.5,0.3,2.1,0,0.1,18.6`;
+
+    expect(() => importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: reorderedWrCsv,
+      position: "WR",
+    })).toThrow("does not match a supported FantasyPros weekly projection export");
   });
 
   it("matches common FantasyPros player aliases", () => {

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isWeeklyProjectionSummaryFresh } from "@sleeper-draft-assistant/engine";
 import type { Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 import {
@@ -41,6 +42,13 @@ type FantasyProsWeeklyRow = {
 };
 
 type FantasyProsWeeklyShape = "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+
+export class WeeklyProjectionImportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WeeklyProjectionImportError";
+  }
+}
 
 
 export class WeeklyProjectionImportStore {
@@ -290,13 +298,15 @@ export function isWeeklyProjectionImportActive(
   state: Pick<TeamManagerState, "league" | "week">,
   storedImport: StoredWeeklyProjectionImport | null,
   selectedWeek: number | null,
+  now = Date.now(),
 ): boolean {
   if (!storedImport || !state.league.season || !selectedWeek) {
     return false;
   }
 
   return storedImport.summary.season === state.league.season
-    && storedImport.summary.week === selectedWeek;
+    && storedImport.summary.week === selectedWeek
+    && isWeeklyProjectionSummaryFresh(storedImport.summary, now);
 }
 
 export function applyWeeklyProjectionsToPlayers(players: Player[], storedImport: StoredWeeklyProjectionImport | null): Player[] {
@@ -330,9 +340,12 @@ function parseFantasyProsWeeklyRows(csvText: string, requestedPosition: Position
     return [];
   }
 
-  const shape = inferFantasyProsWeeklyShape(headers, requestedPosition);
+  const shape = detectFantasyProsWeeklyShape(headers);
   if (!shape) {
-    return [];
+    throw new WeeklyProjectionImportError("This CSV does not match a supported FantasyPros weekly projection export.");
+  }
+  if (requestedPosition && requestedPosition !== shape) {
+    throw new WeeklyProjectionImportError(`The selected ${requestedPosition} position does not match this FantasyPros ${shape} projection CSV.`);
   }
 
   return records
@@ -340,11 +353,7 @@ function parseFantasyProsWeeklyRows(csvText: string, requestedPosition: Position
     .filter((row) => row.name.length > 0 && row.projectedPoints !== null);
 }
 
-function inferFantasyProsWeeklyShape(headers: string[], requestedPosition: Position | null): FantasyProsWeeklyShape | null {
-  if (requestedPosition) {
-    return requestedPosition;
-  }
-
+function detectFantasyProsWeeklyShape(headers: string[]): FantasyProsWeeklyShape | null {
   const normalized = headers.map(normalizeHeader);
   if (hasHeaders(normalized, ["sack", "int", "fr", "ff", "safety", "pa", "ydsagn"])) {
     return "DEF";

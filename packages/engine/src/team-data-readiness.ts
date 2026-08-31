@@ -1,10 +1,29 @@
 import type { Player, Position, TeamDataReadiness, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 const teamPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
+const millisecondsPerDay = 86_400_000;
+
+export const WEEKLY_PROJECTION_STALE_AFTER_DAYS = 3;
+
+export function isWeeklyProjectionSummaryFresh(
+  summary: WeeklyProjectionImportSummary,
+  now = Date.now(),
+): boolean {
+  const appliedAtValues = summary.positionResults.length > 0
+    ? summary.positionResults.map((result) => result.appliedAt)
+    : [summary.appliedAt];
+
+  return appliedAtValues.every((appliedAt) => {
+    const appliedAtMs = Date.parse(appliedAt);
+    return Number.isFinite(appliedAtMs)
+      && Math.max(0, now - appliedAtMs) < WEEKLY_PROJECTION_STALE_AFTER_DAYS * millisecondsPerDay;
+  });
+}
 
 export function buildTeamDataReadiness(
   state: TeamManagerState,
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null,
+  now = Date.now(),
 ): TeamDataReadiness {
   const eligibleRosterPlayers = getUniqueActiveRosterPlayers(state);
   const relevantPositions = teamPositions.filter((position) =>
@@ -26,6 +45,7 @@ export function buildTeamDataReadiness(
     : null;
   const warnings: string[] = [];
   const facts: string[] = [];
+  const importIsFresh = weeklyProjectionSummary ? isWeeklyProjectionSummaryFresh(weeklyProjectionSummary, now) : false;
 
   if (!weeklyProjectionSummary) {
     warnings.push("No weekly projection import is loaded for this team view.");
@@ -34,6 +54,9 @@ export function buildTeamDataReadiness(
     warnings.push("Weekly FPTS are provider-scored; confirm the FantasyPros export uses this league's scoring format.");
     if (state.league.season && weeklyProjectionSummary.season !== state.league.season) {
       warnings.push(`Imported projections are for ${weeklyProjectionSummary.season}, but this league is ${state.league.season}.`);
+    }
+    if (!importIsFresh) {
+      warnings.push("Weekly projections are 3 or more days old; import fresh files before using weekly advice.");
     }
     if (missingPositions.length > 0) warnings.push(`Missing projection files for ${missingPositions.join(", ")}.`);
     if (importMatchRate !== null && importMatchRate < 0.85) {
@@ -48,6 +71,7 @@ export function buildTeamDataReadiness(
 
   const importIsCurrent = Boolean(
     weeklyProjectionSummary
+      && importIsFresh
       && (!state.league.season || weeklyProjectionSummary.season === state.league.season)
       && projectedRosterPlayers > 0,
   );

@@ -74,7 +74,8 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
 - **Team Manager needs two data sources:** import one scoring-specific overall rest-of-season rankings CSV for long-term value, then the six weekly projection files for current-week points.
-- **Team Manager imports:** use **Manage data** in the compact Team Manager status strip; closing the drawer keeps the roster and Codex workspace in place.
+- **Team Manager imports:** use the data action in the roster heading; closing the drawer keeps the roster and Codex workspace in place.
+- **Weekly position mismatch:** keep the original FantasyPros filenames when selecting several files, or select the matching position when importing one file. The importer rejects a filename/position label that disagrees with the CSV headers and rejects unsupported column orders.
 - **Preseason Team Manager:** verify the roster loads, the page says **Preseason**, and no regular-season matchup or weekly-readiness warning is presented as current.
 - **Rest-of-season rankings are inactive:** confirm the import season and scoring format match the connected league. Historical imports remain stored but do not affect current advice.
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
@@ -82,3 +83,5 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.
 - **Sleeper draft refresh is degraded:** the last successful draft remains visible while the app retries automatically with bounded backoff. Use the reconnect control only when an immediate retry is useful.
 - **Imported data is marked old:** replace the export with a current FantasyPros download before relying on time-sensitive draft, waiver, or lineup advice.
+- **Weekly projections are three days old:** Team Manager keeps the stored import visible for replacement but excludes it from roster, available-player, readiness, and Codex evidence until fresh files are imported.
+- **Team Manager is on the wrong week:** the default view follows Sleeper automatically. Loading a different week in Manage data intentionally pins that historical or future context; load the active week to resume following Sleeper.

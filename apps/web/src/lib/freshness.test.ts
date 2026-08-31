@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getImportFreshness } from "./freshness";
+import { getImportFreshness, getOldestImportAppliedAt } from "./freshness";
 
 describe("import freshness", () => {
   const now = new Date("2026-08-20T12:00:00.000Z").getTime();
@@ -21,5 +21,12 @@ describe("import freshness", () => {
       stale: true,
     });
   });
-});
 
+  it("uses the oldest position file when a batch was refreshed incrementally", () => {
+    expect(getOldestImportAppliedAt([
+      "2026-08-20T08:00:00.000Z",
+      "2026-08-18T08:00:00.000Z",
+      "2026-08-19T08:00:00.000Z",
+    ], "2026-08-20T09:00:00.000Z")).toBe("2026-08-18T08:00:00.000Z");
+  });
+});

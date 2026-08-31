@@ -109,7 +109,7 @@ export function buildTeamManagerPrompt(context: TeamAiContext): string {
     "Decision guidance:",
     "- For roster-priority questions, derive the answer from league requirements, open slots, roster counts, and player evidence; do not assume an engine-authored priority.",
     "- For start/sit and lineup questions, compare rostered players directly and verify eligibility; say when weekly projection coverage is insufficient.",
-    "- For current matchup or score questions, use teamBrief.matchupFacts and weekContext before roster-structure facts.",
+    "- For matchup or score questions, use the selected week identified by teamBrief.week, then teamBrief.matchupFacts and weekContext before roster-structure facts.",
     "- For pickup, waiver, free-agent, or drop questions, compare availablePlayerEvidence with the user's roster using weekly projections, rest-of-season ranks, risk flags, activity, and roster fit as separate considerations.",
     "- Treat sleeperStatus as current upstream metadata, keep uncertainty explicit, and never turn newsUpdatedAt into an unsupported news claim.",
     "- For bench-depth questions, use position counts, flex demand, and benchPlayers.",

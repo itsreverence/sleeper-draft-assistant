@@ -7,7 +7,6 @@
   import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsDrawer from "./lib/components/SettingsDrawer.svelte";
   import DraftSwitcherDrawer from "./lib/components/DraftSwitcherDrawer.svelte";
-  import DraftSummaryStrip from "./lib/components/DraftSummaryStrip.svelte";
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import DraftTeamDrawer from "./lib/components/DraftTeamDrawer.svelte";
   import PlayerSearchDialog from "./lib/components/PlayerSearchDialog.svelte";
@@ -18,7 +17,6 @@
   import TeamAskPanel from "./lib/components/TeamAskPanel.svelte";
   import TeamActivityPanel from "./lib/components/TeamActivityPanel.svelte";
   import TeamDataDrawer from "./lib/components/TeamDataDrawer.svelte";
-  import TeamWorkspaceStatus from "./lib/components/TeamWorkspaceStatus.svelte";
   import TeamRefreshStatus from "./lib/components/TeamRefreshStatus.svelte";
   import FormatCompatibilityNotice from "./lib/components/FormatCompatibilityNotice.svelte";
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
@@ -58,6 +56,7 @@
   } from "./lib/api";
   import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
   import {
+    normalizeTeamProjectionOverride,
     shouldRefreshTeamManager,
     TEAM_REFRESH_INTERVAL_MS,
     teamPayloadFingerprint,
@@ -99,6 +98,7 @@
     DraftStrategyProposal,
     DraftAskResult,
   } from "./lib/types";
+
   let status = $state("Connect Sleeper");
   let lastEvent = $state("Enter a username or paste a league URL to begin");
   let usernameInput = $state("");
@@ -167,6 +167,8 @@
   let playerSearchOpen = $state(false);
   let draftQuestionRequest: { id: number; question: string } | null = $state(null);
   let draftQuestionRequestId = 0;
+  let teamQuestionRequest: { id: number; question: string } | null = $state(null);
+  let teamQuestionRequestId = 0;
   let resolvedAiDraftStrategy: { draftId: string; payload: AiDraftStrategyPayload } | null = $state(null);
   let strategyInstructions: DraftStrategyInstruction[] = $state([]);
   let strategyInstructionsBusy = $state(false);
@@ -943,18 +945,20 @@
   }
 
   function applyTeamPayload(payload: TeamPayload) {
+    const projectionOverride = normalizeTeamProjectionOverride({
+      season: teamProjectionSeason,
+      week: teamProjectionWeek,
+      activeSeason: payload.state.league.season,
+      activeWeek: payload.state.week,
+    });
     teamManagerState = payload.state;
     teamDataReadiness = payload.dataReadiness;
     teamWeekContext = payload.weekContext;
     teamActivitySummary = payload.activitySummary;
     rosRankingSummary = payload.rosRankingSummary;
     weeklyProjectionSummary = payload.weeklyProjectionSummary;
-    if (!teamProjectionSeason) {
-      teamProjectionSeason = payload.state.league.season ?? "";
-    }
-    if (!teamProjectionWeek) {
-      teamProjectionWeek = payload.state.week ?? 1;
-    }
+    teamProjectionSeason = projectionOverride.season;
+    teamProjectionWeek = projectionOverride.week;
   }
 
   function applyDraftPayload(payload: DraftPayload, refreshPreferences = false) {
@@ -1436,6 +1440,16 @@
     applyTeamPayload(payload);
     return payload.answer;
   }
+
+  function askAboutTeamActivity(question: string) {
+    teamQuestionRequest = { id: ++teamQuestionRequestId, question };
+  }
+
+  function acknowledgeTeamQuestionRequest(requestId: number) {
+    if (teamQuestionRequest?.id === requestId) {
+      teamQuestionRequest = null;
+    }
+  }
   async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<DraftAskResult> {
     const guard = currentDraftGuard();
     if (!guard) {
@@ -1794,6 +1808,7 @@
     showStatus={hasStartedConnecting && !draftState && !switchingDraft}
     showChangeDraft={Boolean(draftState)}
     centered={isPreconnect || switchingDraft}
+    compact={workspaceMode === "manage"}
     draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
     onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
@@ -1933,9 +1948,6 @@
           />
         </div>
       {:else}
-      {#if workspaceMode === "manage"}
-        <DraftSummaryStrip state={draftState} />
-      {/if}
       <FormatCompatibilityNotice
         compatibility={workspaceMode === "manage"
           ? teamManagerState?.league.formatCompatibility
@@ -2081,19 +2093,28 @@
           error={teamRefreshError}
           onRefresh={() => refreshTeamManagerIfEligible(true)}
         />
-        <TeamWorkspaceStatus
-          state={teamManagerState}
-          readiness={teamDataReadiness}
-          weekContext={teamWeekContext}
-          rosSummary={rosRankingSummary}
-          weeklySummary={weeklyProjectionSummary}
-          isLoading={isLoadingTeamManager}
-          onManageData={() => (teamDataOpen = true)}
-        />
         <section class="team-workspace">
-          <TeamAskPanel teamState={teamManagerState} weekContext={teamWeekContext} activitySummary={teamActivitySummary} onAsk={askTeamManager} providerStatus={conversationalProviderStatus} />
-          <MyTeamPanel state={teamManagerState} error={teamManagerError} isLoading={isLoadingTeamManager} />
-          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={(question) => { void askTeamManager(question); }} />
+          <TeamAskPanel
+            teamState={teamManagerState}
+            weekContext={teamWeekContext}
+            activitySummary={teamActivitySummary}
+            onAsk={askTeamManager}
+            providerStatus={conversationalProviderStatus}
+            promptRequest={teamQuestionRequest}
+            onPromptRequestHandled={acknowledgeTeamQuestionRequest}
+          />
+          <MyTeamPanel
+            state={teamManagerState}
+            readiness={teamDataReadiness}
+            weekContext={teamWeekContext}
+            selectedWeek={teamProjectionWeek || null}
+            rosSummary={rosRankingSummary}
+            weeklySummary={weeklyProjectionSummary}
+            error={teamManagerError}
+            isLoading={isLoadingTeamManager}
+            onManageData={() => (teamDataOpen = true)}
+          />
+          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={askAboutTeamActivity} />
         </section>
         {#if teamDataOpen}
           <TeamDataDrawer
@@ -2156,8 +2177,8 @@
   .team-workspace {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-5);
-    margin-top: var(--space-5);
+    gap: var(--space-3);
+    margin-top: var(--space-2);
   }
 
   .connect-editor {

@@ -1,4 +1,4 @@
-import type { Player, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
+import type { Player, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildTeamAiContext } from "./team-context";
@@ -38,6 +38,18 @@ describe("team AI context", () => {
     expect(context.availablePlayerEvidence.find((item) => item.playerId === "ros-rb")?.restOfSeasonRank).toBe(12);
   });
 
+  it("does not tell Codex to use weekly projections when readiness is limited", () => {
+    const state = createTeamState();
+    const rb = state.roster.starters.find((slot) => slot.player?.id === "rb-1")?.player;
+    if (!rb) throw new Error("Expected RB fixture");
+    Object.assign(rb, weeklyProjectionFields(18));
+
+    const context = buildTeamAiContext(state, "Who should I start?", [], null, [], null, limitedReadiness());
+
+    expect(context.teamBrief.responseRules).toContain("Current weekly projections are incomplete or absent; do not invent them.");
+    expect(context.teamBrief.responseRules).not.toContain("Use imported weekly projections as one current-week signal; do not invent injuries, news, or projections.");
+  });
+
   it("promotes Sleeper status into the concise roster brief", () => {
     const state = createTeamState();
     const rb = state.roster.starters.find((slot) => slot.player?.id === "rb-1")?.player;
@@ -53,6 +65,28 @@ describe("team AI context", () => {
     expect(context.teamBrief.starterCandidates.find((item) => item.startsWith("RB:"))?.match(/Questionable/g)).toHaveLength(1);
   });
 
+  it("keeps reserve and taxi status evidence in the full Codex context", () => {
+    const state = createTeamState();
+    const reserve = {
+      ...player("ir-rb", "Reserve Runner", "DET", "RB"),
+      sleeperStatus: { ...sleeperStatus(), rosterStatus: "Injured Reserve", injuryStatus: "Out" },
+    };
+    const taxi = {
+      ...player("taxi-wr", "Taxi Receiver", "SEA", "WR"),
+      sleeperStatus: { ...sleeperStatus(), rosterStatus: "Practice Squad", injuryStatus: null },
+    };
+    state.roster.injuredReserve = [reserve];
+    state.roster.taxi = [taxi];
+
+    const context = buildTeamAiContext(state, "Review every roster bucket.");
+    const prompt = buildTeamManagerPrompt(context);
+
+    expect(prompt).toContain("Reserve Runner");
+    expect(prompt).toContain("Injured Reserve");
+    expect(prompt).toContain("Taxi Receiver");
+    expect(prompt).toContain("Practice Squad");
+  });
+
   it("includes Sleeper weekly matchup and activity facts without turning them into advice", () => {
     const context = buildTeamAiContext(createTeamState(), "Am I ahead?", [], createWeekContext(), [], createActivitySummary());
 
@@ -60,6 +94,28 @@ describe("team AI context", () => {
     expect(context.teamBrief.matchupFacts).toContain("Current Sleeper score: 91.50 to 88.10.");
     expect(context.teamBrief.trendingAdds[0]).toContain("Trending RB");
     expect(context.teamBrief.recentTransactions[0]).toContain("added Trending RB");
+  });
+
+  it("distinguishes a selected historical week from Sleeper's active week", () => {
+    const state = { ...createTeamState(), week: 2 };
+    const context = buildTeamAiContext(
+      state,
+      "Set my Week 1 lineup.",
+      [],
+      createWeekContext(),
+      [],
+      createActivitySummary(),
+      null,
+      1,
+    );
+
+    expect(context.teamBrief.week).toBe("Week 1 selected (Sleeper active Week 2)");
+    expect(context.teamBrief.responseRules).toContain(
+      "The user selected Week 1 while Sleeper's active week is Week 2; keep matchup, activity, and weekly projection advice scoped to Week 1.",
+    );
+    expect(context.teamBrief.responseRules).not.toContain(
+      "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
+    );
   });
 
   it("puts the neutral team brief before full context in the prompt", () => {
@@ -105,6 +161,26 @@ function createActivitySummary(): TeamActivitySummary {
     facts: ["Top global add: Trending RB (50 adds)."],
     limitations: ["Sleeper activity reflects transactions and trending add/drop counts, not projections or news analysis."],
     updatedAt: "2026-09-01T00:00:00.000Z",
+  };
+}
+
+function limitedReadiness(): TeamDataReadiness {
+  return {
+    status: "limited",
+    confidence: "low",
+    headline: "Weekly evidence is limited.",
+    activeSeason: "2026",
+    activeWeek: 1,
+    importedAt: "2026-09-01T00:00:00.000Z",
+    relevantPositions: ["QB", "RB", "WR", "TE"],
+    loadedPositions: ["QB", "RB", "WR", "TE"],
+    missingPositions: [],
+    importMatchRate: 1,
+    rosterProjectionCoverage: 1,
+    projectedRosterPlayers: 4,
+    eligibleRosterPlayers: 4,
+    facts: [],
+    warnings: ["Weekly projections are 3 or more days old; import fresh files before using weekly advice."],
   };
 }
 

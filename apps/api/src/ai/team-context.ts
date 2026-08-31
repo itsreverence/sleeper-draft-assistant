@@ -13,6 +13,7 @@ export function buildTeamAiContext(
   availablePlayers: Player[] = [],
   activitySummary: TeamActivitySummary | null = null,
   dataReadiness: TeamDataReadiness | null = null,
+  selectedWeek: number | null = null,
 ): TeamAiContext {
   const resolvedActivitySummary = activitySummary ?? emptyActivitySummary();
   const { evidence, groups } = buildAvailablePlayerEvidence(availablePlayers);
@@ -20,7 +21,7 @@ export function buildTeamAiContext(
     task: "team_question",
     question,
     conversationHistory: conversationHistory.slice(-8),
-    teamBrief: buildTeamBrief(state, weekContext, resolvedActivitySummary, dataReadiness),
+    teamBrief: buildTeamBrief(state, weekContext, resolvedActivitySummary, dataReadiness, selectedWeek),
     teamState: state,
     dataReadiness,
     weekContext,
@@ -35,6 +36,7 @@ function buildTeamBrief(
   weekContext: TeamWeekContext | null,
   activitySummary: TeamActivitySummary,
   dataReadiness: TeamDataReadiness | null,
+  selectedWeek: number | null,
 ): TeamAiContext["teamBrief"] {
   const openStarterSlots = state.roster.starters
     .filter((slot) => !slot.player)
@@ -45,16 +47,23 @@ function buildTeamBrief(
       : `${slot.slot}: open (${slot.eligiblePositions.join("/")})`,
   );
   const benchPlayers = state.roster.bench.map(formatPlayer);
-  const hasWeeklyProjections = teamHasWeeklyProjections(state);
+  const hasWeeklyProjections = dataReadiness?.status !== "limited" && teamHasWeeklyProjections(state);
   const hasRosRankings = teamHasRosRankings(state);
+  const effectiveWeek = selectedWeek ?? weekContext?.week ?? state.week;
+  const isPinnedWeek = state.seasonPhase === "regular"
+    && effectiveWeek !== null
+    && state.week !== null
+    && effectiveWeek !== state.week;
 
   return {
     leagueFormat: `${state.league.teams}-team ${state.league.scoring}, slots ${formatRosterSlots(state.league.rosterSlots)}`,
     teamName: state.userTeam.name,
     week: state.seasonPhase === "preseason"
       ? "Preseason"
-      : state.week
-        ? `Week ${state.week}`
+      : effectiveWeek
+        ? isPinnedWeek
+          ? `Week ${effectiveWeek} selected (Sleeper active Week ${state.week})`
+          : `Week ${effectiveWeek}`
         : "Week unavailable",
     rosterSummary: formatRosterCounts(state),
     lineupStatus: `${state.roster.starters.filter((slot) => slot.player).length}/${state.roster.starters.length} starter slots filled, ${state.roster.bench.length} bench players, ${state.roster.injuredReserve.length} IR, ${state.roster.taxi.length} taxi.`,
@@ -80,13 +89,16 @@ function buildTeamBrief(
     responseRules: [
       "Answer only from the supplied Sleeper state and separate raw evidence signals.",
       "Reason independently. No local lineup, waiver, drop, or roster-priority recommendation has been supplied.",
+      ...(isPinnedWeek
+        ? [`The user selected Week ${effectiveWeek} while Sleeper's active week is Week ${state.week}; keep matchup, activity, and weekly projection advice scoped to Week ${effectiveWeek}.`]
+        : []),
       hasWeeklyProjections
         ? "Use imported weekly projections as one current-week signal; do not invent injuries, news, or projections."
         : "Current weekly projections are incomplete or absent; do not invent them.",
       hasRosRankings
         ? "Use rest-of-season ranks as a separate long-term signal rather than combining them into a hidden score."
         : "Current rest-of-season rankings are incomplete or absent; say so when long-term value matters.",
-      "Use weekContext only for current Sleeper matchup, lineup, and score state; do not treat it as projections.",
+      "Use weekContext only for the selected Sleeper week's matchup, lineup, and score state; do not treat it as projections.",
       "For add/drop questions, verify that an add appears in availablePlayerEvidence and that a drop appears on the user's roster.",
       "For lineup questions, verify slot eligibility from teamState before recommending a change.",
       "Qualify confidence using dataReadinessFacts and dataWarnings.",

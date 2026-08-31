@@ -2,7 +2,7 @@
   import Icon from "./Icon.svelte";
   import type { Position, WeeklyProjectionImportSummary } from "../types";
   import { formatImportDate } from "../format";
-  import { getImportFreshness } from "../freshness";
+  import { getImportFreshness, getOldestImportAppliedAt } from "../freshness";
 
   const positionOptions: Array<{ value: Position; label: string }> = [
     { value: "QB", label: "QB" },
@@ -77,7 +77,12 @@
   const viewingDifferentWeek = $derived(Boolean(currentWeek && week !== currentWeek));
   const totalUnmatched = $derived(summary?.positionResults.reduce((total, result) => total + result.unmatched, 0) ?? 0);
   const totalAmbiguous = $derived(summary?.positionResults.reduce((total, result) => total + result.ambiguous, 0) ?? 0);
-  const freshness = $derived(summary ? getImportFreshness(summary.appliedAt, 3) : null);
+  const freshness = $derived(summary
+    ? getImportFreshness(
+        getOldestImportAppliedAt(summary.positionResults.map((result) => result.appliedAt), summary.appliedAt),
+        3,
+      )
+    : null);
 
   async function readProjectionFiles(event: Event) {
     const input = event.currentTarget as HTMLInputElement;

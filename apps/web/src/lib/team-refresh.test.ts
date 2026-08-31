@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  normalizeTeamProjectionOverride,
   shouldRefreshTeamManager,
   TEAM_REFRESH_FOCUS_THROTTLE_MS,
   teamPayloadFingerprint,
@@ -53,5 +54,45 @@ describe("Team Manager refresh", () => {
 
     expect(teamPayloadFingerprint(checkedAgain)).toBe(teamPayloadFingerprint(first));
     expect(teamPayloadFingerprint(changed)).not.toBe(teamPayloadFingerprint(first));
+  });
+
+  it("detects Sleeper player-status changes even when the roster is unchanged", () => {
+    const healthy = {
+      state: {
+        roster: [{ id: "player-1", sleeperStatus: { injuryStatus: null } }],
+        updatedAt: "2026-08-29T10:00:00.000Z",
+      },
+    };
+    const questionable = {
+      state: {
+        roster: [{ id: "player-1", sleeperStatus: { injuryStatus: "Questionable" } }],
+        updatedAt: "2026-08-29T10:01:00.000Z",
+      },
+    };
+
+    expect(teamPayloadFingerprint(questionable)).not.toBe(teamPayloadFingerprint(healthy));
+  });
+
+  it("follows Sleeper after an explicit projection week becomes the active week", () => {
+    expect(normalizeTeamProjectionOverride({
+      season: "2026",
+      week: 1,
+      activeSeason: "2026",
+      activeWeek: null,
+    })).toEqual({ season: "2026", week: 1 });
+
+    expect(normalizeTeamProjectionOverride({
+      season: "2026",
+      week: 1,
+      activeSeason: "2026",
+      activeWeek: 1,
+    })).toEqual({ season: "", week: 0 });
+
+    expect(normalizeTeamProjectionOverride({
+      season: "2026",
+      week: 1,
+      activeSeason: "2026",
+      activeWeek: 2,
+    })).toEqual({ season: "2026", week: 1 });
   });
 });

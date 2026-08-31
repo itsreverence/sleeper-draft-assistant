@@ -22,10 +22,13 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    expect(screen.getByText("Codex app-server")).toBeTruthy();
-    expect(screen.getByText("Roster plan")).toBeTruthy();
+    expect(screen.getByLabelText("Codex app-server ready")).toBeTruthy();
+    expect(screen.getByTitle("Codex app-server")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ask Codex" })).toBeTruthy();
+    expect(screen.getByText("Choose a prompt or ask your own.")).toBeTruthy();
+    expect(screen.getByText("Review the plan")).toBeTruthy();
 
-    const textbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    const textbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
     await fireEvent.input(textbox, { target: { value: "What should I fix first?" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
 
@@ -33,6 +36,75 @@ describe("Team ask panel", () => {
       expect(onAsk).toHaveBeenCalledWith("What should I fix first?", []);
     });
     expect(await screen.findByText("Start your best running backs first.")).toBeTruthy();
+  });
+
+  it("submits a decision starter through the shared conversation", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const onAsk = vi.fn(async () => "Keep the current starters.");
+
+    render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "codex-app-server",
+        label: "Codex app-server",
+        configured: true,
+      }),
+      onAsk,
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+
+    await waitFor(() => {
+      expect(onAsk).toHaveBeenCalledWith("Who should I start this week?", []);
+    });
+    expect(await screen.findByText("Keep the current starters.")).toBeTruthy();
+  });
+
+  it("offers a depth decision instead of weekly lineup advice during preseason", () => {
+    const teamPayload = createTeamPayloadFixture();
+
+    render(TeamAskPanel, {
+      teamState: { ...teamPayload.state, seasonPhase: "preseason", week: null },
+      weekContext: null,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "codex-app-server",
+        label: "Codex app-server",
+        configured: true,
+      }),
+      onAsk: vi.fn(async () => "Review the roster depth."),
+    });
+
+    expect(screen.getByText("Depth")).toBeTruthy();
+    expect(screen.getByText("Review weak spots")).toBeTruthy();
+    expect(screen.queryByText("Choose starters")).toBeNull();
+  });
+
+  it("submits from the keyboard with Ctrl or Command plus Enter", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const onAsk = vi.fn(async () => "Keep the current lineup.");
+
+    render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "codex-app-server",
+        label: "Codex app-server",
+        configured: true,
+      }),
+      onAsk,
+    });
+
+    const textbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+    await fireEvent.input(textbox, { target: { value: "Should I change my lineup?" } });
+    await fireEvent.keyDown(textbox, { key: "Enter", ctrlKey: true });
+
+    await waitFor(() => {
+      expect(onAsk).toHaveBeenCalledWith("Should I change my lineup?", []);
+    });
   });
 
   it("noop provider stays disabled even when configured", async () => {
@@ -52,12 +124,15 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const textbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    const textbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
     const button = screen.getByRole("button", { name: "Ask Codex" });
+    const decisionStarter = screen.getByRole("button", { name: "Who should I start this week?" });
 
-    expect(screen.getByText("Codex unavailable")).toBeTruthy();
+    expect(screen.getByText("Unavailable")).toBeTruthy();
+    expect(screen.getByTitle("Codex unavailable")).toBeTruthy();
     expect(textbox.getAttribute("disabled")).not.toBeNull();
     expect(button.getAttribute("disabled")).not.toBeNull();
+    expect(decisionStarter.getAttribute("disabled")).not.toBeNull();
 
     await fireEvent.click(button);
     expect(onAsk).not.toHaveBeenCalled();
@@ -87,7 +162,7 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const firstTextbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    const firstTextbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
     await fireEvent.input(firstTextbox, { target: { value: "Question A" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
     await waitFor(() => expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", []));
@@ -100,7 +175,7 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const secondTextbox = screen.getByPlaceholderText("Ask about your lineup, waivers, trades, or roster plan.");
+    const secondTextbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
     await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
 
@@ -118,5 +193,45 @@ describe("Team ask panel", () => {
 
     secondAnswer.resolve("Answer B");
     expect(await screen.findByText("Answer B")).toBeTruthy();
+  });
+
+  it("opens the shared conversation for a contextual prompt request", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const onAsk = vi.fn(async () => "Investigate the market move before changing your roster.");
+    const onPromptRequestHandled = vi.fn();
+
+    const view = render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "codex-app-server",
+        label: "Codex app-server",
+        configured: true,
+      }),
+      onAsk,
+      promptRequest: null,
+      onPromptRequestHandled,
+    });
+
+    await view.rerender({
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "codex-app-server",
+        label: "Codex app-server",
+        configured: true,
+      }),
+      onAsk,
+      promptRequest: { id: 1, question: "What does recent Sleeper activity say about my roster moves?" },
+      onPromptRequestHandled,
+    });
+
+    await waitFor(() => {
+      expect(onAsk).toHaveBeenCalledWith("What does recent Sleeper activity say about my roster moves?", []);
+    });
+    expect(onPromptRequestHandled).toHaveBeenCalledWith(1);
+    expect(await screen.findByText("Investigate the market move before changing your roster.")).toBeTruthy();
   });
 });
