@@ -6,6 +6,7 @@ export class NoopAiProvider implements AiProvider {
       id: "noop",
       label: "No AI provider",
       configured: true,
+      availability: "disabled",
       detail: "No external AI provider is configured.",
     };
   }

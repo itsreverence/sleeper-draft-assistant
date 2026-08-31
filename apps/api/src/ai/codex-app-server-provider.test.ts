@@ -174,7 +174,10 @@ describe("Codex app-server executable resolution", () => {
     const provider = new CodexAppServerProvider({ clientFactory });
     const context = buildDraftQuestionContext(createMockDraftState(0), "Who should I draft?");
 
-    await expect(provider.answerDraftQuestion(context)).rejects.toThrow("Turn failed");
+    await expect(provider.answerDraftQuestion(context)).rejects.toMatchObject({
+      code: "codex_request_failed",
+      publicMessage: expect.stringContaining("could not complete the request"),
+    });
     await expect(provider.answerDraftQuestion(context)).resolves.toMatchObject({
       answer: "Grounded answer.",
     });
@@ -182,6 +185,23 @@ describe("Codex app-server executable resolution", () => {
     expect(firstClient.closed).toBe(true);
     expect(clientFactory).toHaveBeenCalledTimes(2);
     expect(secondClient.threadStartCalls).toBe(1);
+  });
+
+  it("reports an unusable Codex installation without exposing its raw startup error", async () => {
+    const provider = new CodexAppServerProvider({
+      clientFactory: async () => {
+        throw new Error("C:\\Users\\private-user\\.codex\\config.toml contains an invalid service tier");
+      },
+    });
+
+    await expect(provider.checkStatus()).resolves.toMatchObject({
+      id: "codex-app-server",
+      configured: true,
+      availability: "unavailable",
+      detail: expect.stringContaining("Codex could not start"),
+    });
+    expect(provider.status().detail).not.toContain("private-user");
+    expect(provider.status().detail).not.toContain("config.toml");
   });
 
   it("drains large app-server stderr output without retaining diagnostics", async () => {

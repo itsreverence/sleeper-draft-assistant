@@ -455,6 +455,14 @@
     }
   }
 
+  async function retryAiProvider() {
+    try {
+      aiProviderStatus = await fetchAiStatus();
+    } catch (error) {
+      settingsError = error instanceof Error ? error.message : "Could not check Codex status.";
+    }
+  }
+
   async function copyTextToClipboard(text: string) {
     try {
       if (navigator.clipboard?.writeText) {
@@ -2102,6 +2110,8 @@
             providerStatus={conversationalProviderStatus}
             promptRequest={teamQuestionRequest}
             onPromptRequestHandled={acknowledgeTeamQuestionRequest}
+            onOpenSettings={() => (settingsOpen = true)}
+            onRetryProvider={retryAiProvider}
           />
           <MyTeamPanel
             state={teamManagerState}

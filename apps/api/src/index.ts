@@ -9,6 +9,7 @@ import { DecisionLogStore } from "./decision-log-store";
 import { DraftPlanStore } from "./draft-plan-store";
 import { DraftStrategyInstructionStore } from "./draft-strategy-instruction-store";
 import { AiProviderManager } from "./ai/provider-factory";
+import { AiProviderUnavailableError } from "./ai/provider-errors";
 import { RankingImportStore } from "./rankings-import";
 import { AdpImportStore, SeasonProjectionImportStore } from "./draft-value-import";
 import { RosRankingImportStore } from "./ros-rankings-import";
@@ -202,6 +203,10 @@ function logRouteError(c: Context, error: unknown) {
 
 function handleRouteError(c: Context, error: unknown) {
   logRouteError(c, error);
+
+  if (error instanceof AiProviderUnavailableError) {
+    return c.json({ error: error.publicMessage, code: error.code, action: "open_settings" }, 503);
+  }
 
   if (error instanceof SleeperApiError) {
     const status = error.status === 404 ? 404 : 502;

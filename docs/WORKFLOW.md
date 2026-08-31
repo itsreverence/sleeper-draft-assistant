@@ -66,6 +66,7 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Port already in use:** close the prior development or desktop process; the app intentionally refuses to attach to an API that cannot prove possession of its token.
 - **Web requests return 401:** use the root `npm run dev` launcher so renderer and API receive the same token.
 - **Codex cannot start:** verify the configured executable is `codex`, `codex.exe`, or `codex.cmd`, then run `codex login` separately.
+- **Codex needs attention:** update the Codex CLI, run `codex login status`, and use the in-app retry after correcting CLI configuration or authentication. The app reports safe recovery guidance rather than raw provider output.
 - **Windows Codex launcher:** prefer the default `codex` setting. The backend resolves the npm launcher without invoking `cmd.exe`; explicit non-npm `.cmd` wrappers are unsupported.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
 - **Draft room entry remains disabled:** import current scoring-specific ECR, season projections, and Overall ADP, then confirm the Codex provider is ready.

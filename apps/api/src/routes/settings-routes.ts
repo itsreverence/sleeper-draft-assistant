@@ -22,8 +22,9 @@ export function registerSettingsRoutes(app: Hono, dependencies: SettingsRouteDep
     }
   });
 
-  app.get("/ai/status", (c) => {
+  app.get("/ai/status", async (c) => {
     const settings = dependencies.getSettingsStore().get();
-    return c.json(dependencies.aiProviderManager.get(settings).status());
+    const provider = dependencies.aiProviderManager.get(settings);
+    return c.json(provider.checkStatus ? await provider.checkStatus() : provider.status());
   });
 }

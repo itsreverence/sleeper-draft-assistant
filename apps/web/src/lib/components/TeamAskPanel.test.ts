@@ -124,18 +124,41 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const textbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
-    const button = screen.getByRole("button", { name: "Ask Codex" });
-    const decisionStarter = screen.getByRole("button", { name: "Who should I start this week?" });
-
-    expect(screen.getByText("Unavailable")).toBeTruthy();
-    expect(screen.getByTitle("Codex unavailable")).toBeTruthy();
-    expect(textbox.getAttribute("disabled")).not.toBeNull();
-    expect(button.getAttribute("disabled")).not.toBeNull();
-    expect(decisionStarter.getAttribute("disabled")).not.toBeNull();
-
-    await fireEvent.click(button);
+    expect(screen.getByText("Disabled")).toBeTruthy();
+    expect(screen.getByText("Codex is disabled")).toBeTruthy();
+    expect(screen.getByTitle("Codex disabled")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Ask Codex about your team" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Who should I start this week?" })).toBeNull();
     expect(onAsk).not.toHaveBeenCalled();
+  });
+
+  it("offers retry and settings actions when Codex cannot start", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const onRetryProvider = vi.fn();
+    const onOpenSettings = vi.fn();
+
+    render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({
+        id: "codex-app-server",
+        label: "Codex app-server",
+        configured: false,
+        availability: "unavailable",
+        detail: "Codex could not start. Update the Codex CLI, run `codex login status`, and retry.",
+      }),
+      onAsk: vi.fn(async () => "Should not run"),
+      onRetryProvider,
+      onOpenSettings,
+    });
+
+    expect(screen.getByText("Codex could not start")).toBeTruthy();
+    expect(screen.getByText(/Update the Codex CLI/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    expect(onRetryProvider).toHaveBeenCalledTimes(1);
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
   it("discards a pending answer when the active team changes", async () => {

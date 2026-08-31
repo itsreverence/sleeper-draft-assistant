@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { SuggestedQuestion } from "../ai-panel";
   import { createAiConversation } from "../ai-conversation.svelte";
-  import { isAiProviderAvailable } from "../types";
+  import { aiProviderAvailability, isAiProviderAvailable } from "../types";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
   import SuggestedQuestions from "./SuggestedQuestions.svelte";
@@ -14,6 +14,8 @@
     providerStatus = null,
     promptRequest = null,
     onPromptRequestHandled,
+    onOpenSettings,
+    onRetryProvider,
   }: {
     teamState: TeamManagerState | null;
     weekContext?: TeamWeekContext | null;
@@ -22,12 +24,17 @@
     providerStatus?: AiProviderStatus | null;
     promptRequest?: { id: number; question: string } | null;
     onPromptRequestHandled?: (requestId: number) => void;
+    onOpenSettings?: () => void;
+    onRetryProvider?: () => void | Promise<void>;
   } = $props();
 
   let handledPromptRequestId = 0;
 
   const providerReady = $derived(providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus));
-  const providerLabel = $derived(providerReady ? providerStatus?.label ?? "Codex" : "Codex unavailable");
+  const providerDisabled = $derived(aiProviderAvailability(providerStatus) === "disabled");
+  const providerLabel = $derived(providerReady
+    ? providerStatus?.label ?? "Codex"
+    : providerDisabled ? "Codex disabled" : "Codex needs attention");
   const suggestions = $derived(buildTeamQuestions(teamState, weekContext, activitySummary));
   const openStarterSlots = $derived(teamState?.roster.starters.filter((slot) => !slot.player).length ?? 0);
   const firstOpenStarterSlot = $derived(teamState?.roster.starters.find((slot) => !slot.player)?.slot ?? null);
@@ -139,13 +146,24 @@
           class="provider-state"
           title={providerLabel}
           aria-label={providerReady ? `${providerLabel} ready` : providerLabel}
-        ><i></i>{#if !providerReady}<span>Unavailable</span>{/if}</span>
+        ><i></i>{#if !providerReady}<span>{providerDisabled ? "Disabled" : "Needs attention"}</span>{/if}</span>
       </div>
       <p class="context-line">{conversation.messages.length > 0 ? contextSummary.join(" · ") : "Choose a prompt or ask your own."}</p>
     </div>
   </header>
 
-  {#if conversation.messages.length === 0}
+  {#if !providerReady}
+    <div class="provider-recovery" role="status">
+      <div>
+        <strong>{providerDisabled ? "Codex is disabled" : "Codex could not start"}</strong>
+        <span>{providerStatus?.detail ?? "Verify the Codex CLI and login, then retry."}</span>
+      </div>
+      <div class="provider-actions">
+        {#if onRetryProvider && !providerDisabled}<button class="btn btn-secondary" type="button" onclick={onRetryProvider}>Retry</button>{/if}
+        {#if onOpenSettings}<button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open settings</button>{/if}
+      </div>
+    </div>
+  {:else if conversation.messages.length === 0}
     <div class="decision-grid" aria-label="Ask Codex starters">
       {#each decisionPrompts as prompt (prompt.prompt)}
         <button
@@ -172,7 +190,7 @@
     <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={conversation.isAsking || !teamState || !providerReady} onChoose={submit} />
   {/if}
 
-  <div class="composer">
+  {#if providerReady}<div class="composer">
     <textarea
       class="input"
       aria-label="Ask Codex about your team"
@@ -186,7 +204,7 @@
       {#if conversation.isAsking}<span class="spinner"></span>{/if}
       {conversation.isAsking ? "Reviewing" : conversation.messages.length > 0 ? "Ask Codex" : "Ask"}
     </button>
-  </div>
+  </div>{/if}
 </article>
 
 <style>
@@ -201,6 +219,11 @@
   .provider-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
   .provider-state.offline { color: var(--danger); }
   .provider-state.offline i { background: var(--danger); }
+  .provider-recovery { display: flex; grid-column: 2; align-items: center; justify-content: space-between; gap: var(--space-4); border: 1px solid var(--warning-border); border-radius: var(--radius-md); background: var(--warning-soft); padding: 10px 12px; }
+  .provider-recovery > div:first-child { display: grid; gap: 3px; }
+  .provider-recovery strong { font-size: var(--text-sm); }
+  .provider-recovery span { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.4; }
+  .provider-actions { display: flex; flex: 0 0 auto; gap: 7px; }
   .decision-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-column: 2; gap: 7px; }
   .decision-prompt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 10px; background: var(--surface-sunken); color: var(--text-primary); cursor: pointer; text-align: left; transition: border-color var(--transition-fast), background var(--transition-fast); }
   .decision-prompt:hover:not(:disabled) { border-color: var(--accent-border); background: var(--accent-soft); }
@@ -218,10 +241,13 @@
     .team-ask-panel { grid-template-columns: 1fr; }
     .assistant-header { grid-column: 1; grid-row: auto; }
     .decision-grid, .composer { grid-column: 1; }
+    .provider-recovery { grid-column: 1; }
   }
   @media (max-width: 620px) {
     .composer { grid-template-columns: 1fr; }
     .decision-grid { grid-template-columns: 1fr; }
     .composer .btn { width: 100%; }
+    .provider-recovery { align-items: stretch; flex-direction: column; }
+    .provider-actions .btn { flex: 1; }
   }
 </style>

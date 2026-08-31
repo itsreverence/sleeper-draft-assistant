@@ -393,6 +393,34 @@ describe("draft recommendation routes", () => {
       await updateSettings(originalSettings);
     }
   });
+
+  it("returns actionable recovery guidance when Codex cannot start", async () => {
+    const originalSettings = await getSettings();
+
+    try {
+      await updateSettings({
+        ...originalSettings,
+        aiProvider: "codex-app-server",
+        codexBin: "/definitely-missing/codex",
+      });
+
+      const response = await app.request("/drafts/mock-draft/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "Who should I draft?" }),
+      });
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        error: "Codex CLI was not found. Install or update Codex, then verify the command in Settings.",
+        code: "codex_not_found",
+        action: "open_settings",
+      });
+    } finally {
+      await updateSettings(originalSettings);
+    }
+  });
+
   it("returns redacted diagnostics for support", async () => {
     const response = await app.request("/diagnostics");
     expect(response.status).toBe(200);

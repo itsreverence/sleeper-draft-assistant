@@ -3,6 +3,7 @@
   import AiProviderForm from "./AiProviderForm.svelte";
   import DataManagementPanel from "./DataManagementPanel.svelte";
   import type { AiProviderStatus, AppSettings } from "../types";
+  import { isAiProviderAvailable } from "../types";
 
   let {
     settings,
@@ -42,8 +43,8 @@
       <h2>AI provider</h2>
     </div>
     {#if providerStatus}
-      <span class="pill" class:pill-ready={providerStatus.configured} class:pill-warning={providerStatus.experimental}>
-        {providerStatus.label}
+      <span class="pill" class:pill-ready={isAiProviderAvailable(providerStatus)} class:pill-warning={!isAiProviderAvailable(providerStatus)}>
+        {providerStatus.label}{providerStatus.availability === "unavailable" ? " needs attention" : ""}
       </span>
     {/if}
   </div>

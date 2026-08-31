@@ -6,6 +6,7 @@ export type AiProviderStatus = {
   id: AiProviderId;
   label: string;
   configured: boolean;
+  availability?: "disabled" | "available" | "unavailable";
   experimental?: boolean;
   detail?: string;
 };
@@ -208,12 +209,12 @@ export type AiDraftStrategy = {
 
 export interface AiProvider {
   status(): AiProviderStatus;
+  checkStatus?(): Promise<AiProviderStatus>;
   strategizeDraft(context: DraftStrategyContext, tools?: AiTool[]): Promise<AiDraftStrategy>;
   answerDraftQuestion(context: DraftQuestionContext, tools?: AiTool[]): Promise<AiAnswer>;
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
   close?(): void;
 }
-
 
 
 

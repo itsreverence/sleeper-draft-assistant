@@ -15,6 +15,8 @@ The supported provider runs a user-installed Codex CLI as a local subprocess and
 3. Open app **Settings**.
 4. Select **Codex app-server** and save.
 
+Provider status is verified by initializing the configured app-server; selecting Codex alone is not treated as readiness. If the CLI cannot start, the renderer shows **Needs attention** with retry and settings actions. Known startup, login, model, and timeout failures return bounded recovery guidance without exposing local paths, configuration contents, or raw provider errors.
+
 The executable setting accepts `codex`, `codex.exe`, `codex.cmd`, or a full path ending in one of those names. Arbitrary subprocess commands are rejected.
 
 On Windows, a bare `codex` or npm `codex.cmd` launcher is resolved to the installed npm Codex JavaScript entry point and an explicit `node.exe`. The backend does not enable shell execution. A configured Microsoft Store `codex.exe` path remains usable when Windows permits direct subprocess execution.
@@ -35,6 +37,8 @@ The default model is `gpt-5.6-terra`, which balances intelligence and cost for r
 Fast responses are enabled by default because live draft turns are time-sensitive. OpenAI documents Fast as about 1.5× faster; GPT-5.6 and GPT-5.5 consume 2.5× ChatGPT credits while it is enabled. Users can switch to Standard in Settings. Changing the response speed restarts the local app-server provider and its ephemeral threads so the next turn uses the selected tier. See [Codex speed](https://learn.chatgpt.com/docs/agent-configuration/speed) for current availability and credit rates.
 
 Codex installation, login state, model availability, subscription requirements, and provider terms remain the user's responsibility. This project is not endorsed by OpenAI.
+
+If Codex previously worked but cannot start, update the CLI and run `codex login status` outside the app. On Windows, use `codex.cmd login status` when PowerShell execution policy blocks the npm-generated `codex.ps1` shim; the app itself resolves the npm launcher through Node without changing PowerShell policy.
 
 ## Provider boundary
 

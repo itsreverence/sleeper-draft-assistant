@@ -7,6 +7,7 @@ import { AiDraftDecisionSchema, DEFAULT_CODEX_MODEL, DraftStrategyProposalSchema
 
 import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
+import { toAiProviderUnavailableError } from "./provider-errors";
 
 type JsonRpcMessage = {
   id?: number | string;
@@ -53,6 +54,8 @@ export class CodexAppServerProvider implements AiProvider {
   private readonly threadIds = new Map<string, string>();
   private operationQueue: Promise<void> = Promise.resolve();
   private closed = false;
+  private availability: "available" | "unavailable" | undefined;
+  private availabilityDetail: string | undefined;
 
   constructor(options: CodexAppServerProviderOptions = {}) {
     this.codexBin = options.codexBin ?? process.env.CODEX_BIN ?? "codex";
@@ -67,9 +70,23 @@ export class CodexAppServerProvider implements AiProvider {
       id: "codex-app-server",
       label: "Codex app-server",
       configured: true,
+      ...(this.availability ? { availability: this.availability } : {}),
       experimental: true,
-      detail: `Runs ${this.codexBin} app-server with model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}. Requires local Codex login/session.`,
+      detail: this.availabilityDetail
+        ?? `Runs the configured Codex app-server with model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}. Requires local Codex login/session.`,
     };
+  }
+
+  async checkStatus(): Promise<AiProviderStatus> {
+    return this.enqueue(async () => {
+      try {
+        await this.getClient();
+        this.markAvailable();
+      } catch (error) {
+        this.markUnavailable(error, "startup");
+      }
+      return this.status();
+    });
   }
 
   async strategizeDraft(context: DraftStrategyContext, tools: AiTool[] = []): Promise<AiDraftStrategy> {
@@ -134,7 +151,13 @@ export class CodexAppServerProvider implements AiProvider {
         throw new Error("Codex app-server provider is closed.");
       }
 
-      const client = await this.getClient();
+      let client: CodexAppServerClient;
+      try {
+        client = await this.getClient();
+        this.markAvailable();
+      } catch (error) {
+        throw this.markUnavailable(error, "startup");
+      }
       let threadId = this.threadIds.get(scope) ?? null;
       const reusedThread = Boolean(threadId);
       try {
@@ -163,7 +186,7 @@ export class CodexAppServerProvider implements AiProvider {
         this.client = null;
         this.clientPromise = null;
         this.threadIds.clear();
-        throw error;
+        throw this.markUnavailable(error);
       }
     });
   }
@@ -191,6 +214,18 @@ export class CodexAppServerProvider implements AiProvider {
     const result = this.operationQueue.then(operation, operation);
     this.operationQueue = result.then(() => undefined, () => undefined);
     return result;
+  }
+
+  private markAvailable(): void {
+    this.availability = "available";
+    this.availabilityDetail = `Codex app-server is ready with model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}.`;
+  }
+
+  private markUnavailable(error: unknown, phase: "startup" | "request" = "request") {
+    const providerError = toAiProviderUnavailableError(error, phase);
+    this.availability = "unavailable";
+    this.availabilityDetail = providerError.publicMessage;
+    return providerError;
   }
 }
 
