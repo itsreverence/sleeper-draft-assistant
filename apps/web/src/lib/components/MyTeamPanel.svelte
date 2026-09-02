@@ -1,6 +1,6 @@
 <script lang="ts">
   import type {
-    RosRankingImportSummary,
+    SeasonValueRankingImportSummary,
     TeamDataReadiness,
     TeamManagerState,
     TeamWeekContext,
@@ -23,7 +23,7 @@
     readiness?: TeamDataReadiness | null;
     weekContext?: TeamWeekContext | null;
     selectedWeek?: number | null;
-    rosSummary?: RosRankingImportSummary | null;
+    rosSummary?: SeasonValueRankingImportSummary | null;
     weeklySummary?: WeeklyProjectionImportSummary | null;
     error?: string;
     isLoading?: boolean;
@@ -80,7 +80,16 @@
   const weeklyDataTitle = $derived(
     !weeklySummary ? "Weekly missing" : readiness?.status === "ready" ? "Weekly ready" : "Weekly needs review",
   );
-  const dataTitle = $derived(`${sourceCount}/2 sources · ${rosSummary ? "ROS ready" : "ROS missing"} · ${weeklyDataTitle}`);
+  const seasonValueTitle = $derived(
+    !rosSummary
+      ? "Season value missing"
+      : rosSummary.rankingType === "ros-ecr"
+        ? "ROS ready"
+        : state?.seasonPhase === "regular" && (state.week ?? 0) >= 2
+          ? "Draft ECR fallback · ROS update recommended"
+          : "Draft ECR fallback",
+  );
+  const dataTitle = $derived(`${sourceCount}/2 sources · ${seasonValueTitle} · ${weeklyDataTitle}`);
 </script>
 
 <article class="panel roster-panel">

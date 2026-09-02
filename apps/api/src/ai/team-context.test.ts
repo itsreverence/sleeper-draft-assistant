@@ -38,6 +38,32 @@ describe("team AI context", () => {
     expect(context.availablePlayerEvidence.find((item) => item.playerId === "ros-rb")?.restOfSeasonRank).toBe(12);
   });
 
+  it("keeps draft ECR fallback separate from ROS evidence", () => {
+    const fallback = {
+      ...player("fallback-rb", "Fallback RB", "LV", "RB"),
+      importedRank: 24,
+      importedPositionRank: 10,
+      importedSource: "FantasyPros draft ECR fallback",
+    };
+    const state = createTeamState();
+    const rostered = state.roster.starters.find((slot) => slot.player?.id === "rb-1")?.player;
+    if (!rostered) throw new Error("Expected RB fixture");
+    Object.assign(rostered, fallback, { id: "rb-1", sleeperId: "rb-1" });
+
+    const context = buildTeamAiContext(state, "Who should I add?", [], null, [fallback]);
+
+    expect(context.availablePlayerGroups.draftEcrFallbackLeaders).toEqual(["fallback-rb"]);
+    expect(context.availablePlayerGroups.restOfSeasonRankLeaders).toEqual([]);
+    expect(context.availablePlayerEvidence[0]).toMatchObject({
+      draftEcrFallbackRank: 24,
+      draftEcrFallbackPositionRank: 10,
+      restOfSeasonRank: null,
+    });
+    expect(context.teamBrief.responseRules).toContain(
+      "ROS ECR is absent. Use draft ECR fallback only as provisional season-value evidence and identify it as a fallback when long-term value matters.",
+    );
+  });
+
   it("does not tell Codex to use weekly projections when readiness is limited", () => {
     const state = createTeamState();
     const rb = state.roster.starters.find((slot) => slot.player?.id === "rb-1")?.player;

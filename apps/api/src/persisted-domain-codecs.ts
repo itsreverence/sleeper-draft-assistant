@@ -6,7 +6,7 @@ import {
   DraftRecommendationSchema,
   DraftStrategyInstructionSchema,
   RankingImportSummarySchema,
-  RosRankingImportSummarySchema,
+  SeasonValueRankingImportSummarySchema,
   SeasonProjectionImportSummarySchema,
   WeeklyProjectionImportSummarySchema,
 } from "@sleeper-draft-assistant/shared";
@@ -49,7 +49,7 @@ export const SerializedAdpImportSchema = z.object({
 export type SerializedAdpImport = z.infer<typeof SerializedAdpImportSchema>;
 
 export const SerializedRosRankingImportSchema = z.object({
-  summary: RosRankingImportSummarySchema,
+  summary: SeasonValueRankingImportSummarySchema,
   players: playerEntries(z.object({
     rank: z.number(),
     positionRank: nullableNumber,

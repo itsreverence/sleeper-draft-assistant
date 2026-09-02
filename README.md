@@ -3,7 +3,7 @@
 An unofficial, local-first fantasy football draft and team-management assistant for Sleeper.
 
 > [!WARNING]
-> This project is an early alpha. Validate every recommendation yourself, keep backups of anything important, and expect breaking changes before the first stable release.
+> This project is in beta. Validate every recommendation yourself, keep backups of anything important, and expect changes before the first stable release.
 
 ![Sleeper Draft Assistant demo using synthetic data](docs/images/app-demo.png)
 
@@ -15,9 +15,9 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Keeps imported ECR, projections, and ADP as grounding evidence for AI strategy rather than presenting a local ranking as draft advice.
 - Requires current ECR, season projections, Sleeper ADP, and Codex before opening the normal AI draft workspace.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
-- Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
+- Imports user-downloaded FantasyPros season value rankings and weekly projection CSVs for team-management analysis. Draft ECR remains a labeled fallback until ROS ECR is available.
 - Stops weekly projection evidence from reaching Codex after the three-day freshness window and follows Sleeper automatically when the active fantasy week advances.
-- Gives Codex the live roster, inferred availability, weekly projections, rest-of-season ranks, Sleeper injury/practice/depth-chart status, matchup state, and league activity as separate evidence for team-management advice.
+- Gives Codex the live roster, inferred availability, weekly projections, ROS ECR or labeled draft ECR fallback, Sleeper injury/practice/depth-chart status, matchup state, and league activity as separate evidence for team-management advice.
 - Keeps Team Manager focused on the Codex command bar and live Sleeper roster. Matchup and data readiness appear in the roster heading; imports stay in **Manage data**.
 - Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
@@ -36,7 +36,7 @@ Sleeper is currently the only supported fantasy platform. Sleeper search rank is
 
 ## League format support
 
-| Format | Alpha support |
+| Format | Beta support |
 | --- | --- |
 | Standard, half-PPR, and PPR redraft | Supported |
 | FLEX and superflex roster construction | Supported |
@@ -45,7 +45,7 @@ Sleeper is currently the only supported fantasy platform. Sleeper search rank is
 | Auction/salary drafts | Unsupported; budgets and nomination strategy are not modeled |
 | Dynasty and keeper valuation | Not yet modeled as a dedicated strategy |
 
-Roster slots, team count, rounds, and supported scoring settings come from Sleeper. FantasyPros ECR and rest-of-season imports must match the league scoring format. Weekly `FPTS` are provider-scored, so users must export FantasyPros projections using the same scoring format as their Sleeper league.
+Roster slots, team count, rounds, and supported scoring settings come from Sleeper. FantasyPros draft and ROS ECR imports must match the league scoring format. Weekly `FPTS` are provider-scored, so users must export FantasyPros projections using the same scoring format as their Sleeper league.
 
 ## Try the demo in about a minute
 
@@ -68,7 +68,7 @@ Open `http://127.0.0.1:5173`, then choose **Load demo draft**. The demo uses syn
 4. Select Codex, then export rankings for your scoring format from FantasyPros and import the CSV as the required ECR and tier signal.
 5. Export the season projection files for QB, RB, WR, TE, K, and DST and import them together. The FLX file is not needed because it duplicates players from RB, WR, and TE.
 6. Export FantasyPros Overall ADP and import it for the Sleeper and Real-Time market columns. A separate Real-Time ADP download is not required.
-7. During the season, export the overall rest-of-season rankings for your scoring format and import the single CSV from Team Manager.
+7. In Team Manager, use the connected draft ECR as provisional season-value evidence or import an Overall Draft ECR CSV. Replace it with the scoring-specific Overall ROS ECR CSV once FantasyPros publishes it; ROS always takes precedence.
 8. Export the six weekly projection files for QB, RB, WR, TE, K, and DST, then import them together from Team Manager.
 9. Enter the draft room after all three draft sources and Codex are ready, then review the recommendation evidence before making a pick or changing your team. If an active draft has already started before setup can be completed, emergency board-only access preserves live pick tracking without AI advice.
 
@@ -98,7 +98,7 @@ See [Installing on Windows](docs/INSTALLING.md) for artifact choices, checksum v
 
 ## Local data and privacy
 
-The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported draft and rest-of-season rankings, season and weekly projections, ADP, settings, user strategy guidance, and recommendation history.
+The packaged app stores data beneath Electron's per-user application-data directory. Development uses `data/` in the repository unless `SLEEPER_AI_DATA_DIR` is set. Stored data can include league and draft identifiers, imported draft and season-value rankings, season and weekly projections, ADP, settings, user strategy guidance, and recommendation history.
 
 Settings shows aggregate local-data counts, can download a redacted support report, and provides controls to clear imports, recommendation history, or all local app data.
 
@@ -127,7 +127,7 @@ Useful docs:
 
 ## Status and support
 
-This is active alpha software. Use [GitHub Issues](https://github.com/itsreverence/sleeper-draft-assistant/issues) for reproducible bugs and scoped feature requests. Do not post tokens, private league data, imported rankings, or unredacted diagnostics.
+This is active beta software. Use [GitHub Issues](https://github.com/itsreverence/sleeper-draft-assistant/issues) for reproducible bugs and scoped feature requests. Do not post tokens, private league data, imported rankings, or unredacted diagnostics.
 
 ## Unofficial project notice
 

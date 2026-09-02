@@ -12,7 +12,7 @@ import { AiProviderManager } from "./ai/provider-factory";
 import { AiProviderUnavailableError } from "./ai/provider-errors";
 import { RankingImportStore } from "./rankings-import";
 import { AdpImportStore, SeasonProjectionImportStore } from "./draft-value-import";
-import { RosRankingImportStore } from "./ros-rankings-import";
+import { SeasonValueRankingImportStore } from "./ros-rankings-import";
 import { WeeklyProjectionImportStore } from "./weekly-projections-import";
 import { SleeperApiError, SleeperClient } from "./sleeper";
 import { SettingsStore } from "./settings-store";
@@ -37,7 +37,7 @@ const aiProviderManager = new AiProviderManager();
 let rankingImportStore: RankingImportStore;
 let seasonProjectionImportStore: SeasonProjectionImportStore;
 let adpImportStore: AdpImportStore;
-let rosRankingImportStore: RosRankingImportStore;
+let seasonValueRankingImportStore: SeasonValueRankingImportStore;
 let weeklyProjectionImportStore: WeeklyProjectionImportStore;
 let decisionLogStore: DecisionLogStore;
 let draftPlanStore: DraftPlanStore;
@@ -51,7 +51,7 @@ const localDataReset = new LocalDataResetCoordinator({
       () => rankingImportStore.clearAll(),
       () => seasonProjectionImportStore.clearAll(),
       () => adpImportStore.clearAll(),
-      () => rosRankingImportStore.clearAll(),
+      () => seasonValueRankingImportStore.clearAll(),
       () => weeklyProjectionImportStore.clearAll(),
       () => decisionLogStore.clearAll(),
       () => draftPlanStore.clearAll(),
@@ -66,7 +66,7 @@ function restoreDataStores(): void {
   rankingImportStore = new RankingImportStore(undefined, appDatabase);
   seasonProjectionImportStore = new SeasonProjectionImportStore(undefined, appDatabase);
   adpImportStore = new AdpImportStore(undefined, appDatabase);
-  rosRankingImportStore = new RosRankingImportStore(undefined, appDatabase);
+  seasonValueRankingImportStore = new SeasonValueRankingImportStore(undefined, appDatabase);
   weeklyProjectionImportStore = new WeeklyProjectionImportStore(undefined, appDatabase);
   decisionLogStore = new DecisionLogStore(undefined, 200, appDatabase);
   draftPlanStore = new DraftPlanStore(appDatabase);
@@ -103,7 +103,7 @@ registerDataRoutes(app, {
   getRankingImportStore: () => rankingImportStore,
   getSeasonProjectionImportStore: () => seasonProjectionImportStore,
   getAdpImportStore: () => adpImportStore,
-  getRosRankingImportStore: () => rosRankingImportStore,
+  getSeasonValueRankingImportStore: () => seasonValueRankingImportStore,
   getWeeklyProjectionImportStore: () => weeklyProjectionImportStore,
   getDecisionLogStore: () => decisionLogStore,
   getDraftPlanStore: () => draftPlanStore,
@@ -142,7 +142,7 @@ registerTeamRoutes(app, {
   getRankingImportStore: () => rankingImportStore,
   getSeasonProjectionImportStore: () => seasonProjectionImportStore,
   getAdpImportStore: () => adpImportStore,
-  getRosRankingImportStore: () => rosRankingImportStore,
+  getSeasonValueRankingImportStore: () => seasonValueRankingImportStore,
   getWeeklyProjectionImportStore: () => weeklyProjectionImportStore,
   handleRouteError,
 });

@@ -1,6 +1,6 @@
 # Privacy and local data
 
-Sleeper Draft Assistant is local-first, but it processes fantasy-league and optional AI-provider data. This document describes the current alpha behavior.
+Sleeper Draft Assistant is local-first, but it processes fantasy-league and optional AI-provider data. This document describes the current beta behavior.
 
 ## Network requests
 

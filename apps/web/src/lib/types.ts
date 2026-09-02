@@ -1,4 +1,4 @@
-import type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, DraftStrategyInstruction, DraftStrategyInstructionScope, DraftStrategyInstructionSource, DraftStrategyProposal, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, DraftStrategyInstruction, DraftStrategyInstructionScope, DraftStrategyInstructionSource, DraftStrategyProposal, FormatCompatibility, Player, Position, RankingImportSummary, SeasonValueRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
 
 export type { DraftStrategyInstruction, DraftStrategyInstructionScope, DraftStrategyInstructionSource, DraftStrategyProposal };
 
@@ -112,7 +112,7 @@ export type TeamPayload = {
   dataReadiness: TeamDataReadiness;
   weekContext: TeamWeekContext | null;
   activitySummary: TeamActivitySummary;
-  rosRankingSummary: RosRankingImportSummary | null;
+  rosRankingSummary: SeasonValueRankingImportSummary | null;
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null;
 };
 export type TeamAskAnswerPayload = TeamPayload & {
@@ -122,7 +122,7 @@ export type WeeklyProjectionImportPayload = TeamPayload & {
   summary: WeeklyProjectionImportSummary;
 };
 export type RosRankingImportPayload = TeamPayload & {
-  summary: RosRankingImportSummary;
+  summary: SeasonValueRankingImportSummary;
 };
 
 export type WeeklyProjectionStatusPayload = {
@@ -196,7 +196,7 @@ export function conversationalAiProviderStatus(status: AiProviderStatus | null |
   };
 }
 
-export type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, RosRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
+export type { AdpImportSummary, AiDraftDecision, AppSettings, DraftOption, DraftRecommendation, DraftScoringFormat, DraftState, FormatCompatibility, Player, Position, RankingImportSummary, SeasonValueRankingImportSummary, SeasonProjectionImportSummary, TeamActivitySummary, TeamDataReadiness, TeamManagerState, TeamWeekContext, TeamWeekPlayer, WeeklyProjectionImportSummary };
 
 
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DraftScoringFormat, RosRankingImportSummary } from "../types";
+  import type { DraftScoringFormat, SeasonValueRankingImportSummary, TeamManagerState } from "../types";
   import { formatImportDate } from "../format";
   import { getImportFreshness } from "../freshness";
   import Icon from "./Icon.svelte";
@@ -8,6 +8,8 @@
     hasTeam,
     defaultSeason,
     leagueSeason,
+    seasonPhase,
+    currentWeek,
     scoring,
     summary,
     weeklyLoaded,
@@ -17,12 +19,15 @@
     onImport,
     onClear,
     onOpenFantasyPros,
+    onOpenDraftFallback,
   }: {
     hasTeam: boolean;
     defaultSeason: string;
     leagueSeason: string;
+    seasonPhase: TeamManagerState["seasonPhase"] | undefined;
+    currentWeek: number;
     scoring: DraftScoringFormat;
-    summary: RosRankingImportSummary | null;
+    summary: SeasonValueRankingImportSummary | null;
     weeklyLoaded: boolean;
     error: string;
     isImporting: boolean;
@@ -30,6 +35,7 @@
     onImport: (input: { season: string; scoring: DraftScoringFormat; csvText: string }) => void;
     onClear: (input: { season: string; scoring: DraftScoringFormat }) => void;
     onOpenFantasyPros: () => void;
+    onOpenDraftFallback: () => void;
   } = $props();
 
   let season = $state("");
@@ -42,6 +48,9 @@
   const sourceCount = $derived(Number(Boolean(summary)) + Number(weeklyLoaded));
   const mismatch = $derived(Boolean(summary && leagueSeason && summary.season !== leagueSeason));
   const freshness = $derived(summary ? getImportFreshness(summary.appliedAt, 7) : null);
+  const isFallback = $derived(summary?.rankingType === "draft-ecr-fallback");
+  const needsRosUpdate = $derived(Boolean(isFallback && seasonPhase === "regular" && currentWeek >= 2));
+  const sourceLabel = $derived(summary?.rankingType === "ros-ecr" ? "ROS ECR" : "Draft ECR fallback");
 
   async function readFile(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -53,9 +62,9 @@
   <div class="panel-heading compact">
     <div>
       <p class="eyebrow">Team data</p>
-      <h2><Icon name="upload" size={17} /> Rest-of-season rankings</h2>
+      <h2><Icon name="upload" size={17} /> Season value rankings</h2>
       <span class="collapsed-summary">
-        {summary ? `${summary.matched} matched - ${summary.season} ${summary.scoring}` : "Long-term waiver and roster value"}
+        {summary ? `${sourceLabel} · ${summary.matched} matched · ${summary.season} ${summary.scoring}` : "Long-term waiver and roster value"}
       </span>
     </div>
     <span class="pill" class:pill-ready={sourceCount === 2} class:pill-warning={hasTeam && sourceCount < 2}>
@@ -64,8 +73,12 @@
   </div>
 
   <p class="source-purpose">
-    Weekly projections answer who helps now. Overall ROS ECR protects long-term add, drop, and stash decisions.
+    Weekly projections answer who helps now. ROS ECR is preferred; draft ECR is a fallback through Week 1.
   </p>
+
+  {#if needsRosUpdate}
+    <p class="callout callout-warning"><Icon name="alert" size={15} />ROS update recommended. Draft ECR fallback is still active.</p>
+  {/if}
 
   {#if mismatch && summary}
     <p class="callout callout-warning">
@@ -87,13 +100,16 @@
 
   <div class="action-row">
     <button class="btn btn-secondary" type="button" disabled={!hasTeam} onclick={onOpenFantasyPros}>
-      Open FantasyPros <Icon name="external" size={13} />
+      Open ROS ECR <Icon name="external" size={13} />
+    </button>
+    <button class="btn btn-secondary" type="button" disabled={!hasTeam} onclick={onOpenDraftFallback}>
+      Open Draft ECR <Icon name="external" size={13} />
     </button>
     <label class="btn btn-secondary file-button">
       Choose CSV
       <input type="file" accept=".csv,text/csv" disabled={!hasTeam || isImporting || isClearing} onchange={readFile} />
     </label>
-    {#if summary}
+    {#if summary && summary.rankingOrigin !== "draft-import"}
       <button class="btn btn-quiet" type="button" disabled={isClearing || isImporting} onclick={() => onClear({ season: summary.season, scoring: summary.scoring })}>
         {isClearing ? "Clearing" : "Clear"}
       </button>
@@ -106,13 +122,13 @@
     disabled={!hasTeam || !csvText || isImporting || isClearing}
     onclick={() => onImport({ season: season.trim(), scoring, csvText })}
   >
-    {isImporting ? "Importing" : summary ? "Replace ROS rankings" : "Import ROS rankings"}
+    {isImporting ? "Importing" : summary ? "Replace season value rankings" : "Import season value rankings"}
   </button>
 
   {#if summary}
-    <p class="import-status" class:stale={freshness?.stale}>
+    <p class="import-status" class:stale={!isFallback && freshness?.stale}>
       {summary.matched}/{summary.rowsParsed} matched, saved {formatImportDate(summary)}.
-      {freshness?.label}.
+      {#if summary.rankingOrigin === "draft-import"}Reused from the connected draft.{:else if !isFallback}{freshness?.label}.{/if}
       {#if summary.unmatched.length > 0 || summary.ambiguous.length > 0}
         Review: {summary.unmatched.length} unmatched, {summary.ambiguous.length} ambiguous.
       {/if}

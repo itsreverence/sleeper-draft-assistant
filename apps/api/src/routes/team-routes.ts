@@ -1,10 +1,10 @@
 import { buildTeamDataReadiness } from "@sleeper-draft-assistant/engine";
 import {
-  RosRankingImportRequestSchema,
+  SeasonValueRankingImportRequestSchema,
   WeeklyProjectionBatchImportRequestSchema,
   WeeklyProjectionImportRequestSchema,
   type Player,
-  type RosRankingImportSummary,
+  type SeasonValueRankingImportSummary,
   type TeamActivitySummary,
   type TeamDataReadiness,
   type TeamManagerState,
@@ -24,13 +24,17 @@ import {
 } from "../draft-value-import";
 import { applyImportedPlayerValues, type RankingImportStore } from "../rankings-import";
 import {
-  applyRosRankingsToPlayers,
-  applyRosRankingsToTeamState,
-  importFantasyProsRosRankings,
-  isRosRankingImportActive,
-  isRosScoringCompatible,
+  applySeasonValueRankingsToPlayers,
+  applySeasonValueRankingsToTeamState,
+  canReplaceSeasonValueRankings,
+  importFantasyProsSeasonValueRankings,
+  isSeasonValueRankingImportActive,
+  isSeasonValueScoringCompatible,
   normalizeScoringFormat,
-  type RosRankingImportStore,
+  SeasonValueRankingImportError,
+  toDraftEcrFallbackImport,
+  type SeasonValueRankingImportStore,
+  type StoredSeasonValueRankingImport,
 } from "../ros-rankings-import";
 import type { SettingsStore } from "../settings-store";
 import type { SleeperClient } from "../sleeper";
@@ -51,7 +55,7 @@ type TeamPayload = {
   dataReadiness: TeamDataReadiness;
   weekContext: TeamWeekContext | null;
   activitySummary: TeamActivitySummary;
-  rosRankingSummary: RosRankingImportSummary | null;
+  rosRankingSummary: SeasonValueRankingImportSummary | null;
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null;
 };
 
@@ -62,7 +66,7 @@ type TeamRouteDependencies = {
   getRankingImportStore: () => RankingImportStore;
   getSeasonProjectionImportStore: () => SeasonProjectionImportStore;
   getAdpImportStore: () => AdpImportStore;
-  getRosRankingImportStore: () => RosRankingImportStore;
+  getSeasonValueRankingImportStore: () => SeasonValueRankingImportStore;
   getWeeklyProjectionImportStore: () => WeeklyProjectionImportStore;
   handleRouteError: RouteErrorHandler;
 };
@@ -75,7 +79,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
     getRankingImportStore,
     getSeasonProjectionImportStore,
     getAdpImportStore,
-    getRosRankingImportStore,
+    getSeasonValueRankingImportStore,
     getWeeklyProjectionImportStore,
     handleRouteError,
   } = dependencies;
@@ -92,16 +96,15 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const selectedWeek = getWeek(c) ?? state.week ?? 1;
       const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
-      const rosImport = getRosRankingImport(c, leagueId, state.league.season, state.league.scoring);
-      const activeRosImport = isRosRankingImportActive(state, rosImport) ? rosImport : null;
-      const rankedState = applyRosRankingsToTeamState(state, activeRosImport);
+      const seasonValueImport = getActiveSeasonValueImport(c, leagueId, state);
+      const rankedState = applySeasonValueRankingsToTeamState(state, seasonValueImport);
       const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
       return c.json(toTeamPayload(
         projectedState,
         weekContext,
         activitySummary,
         weeklyImport?.summary ?? null,
-        rosImport?.summary ?? null,
+        seasonValueImport?.summary ?? null,
       ));
     } catch (error) {
       return handleRouteError(c, error);
@@ -129,12 +132,11 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const selectedWeek = getWeek(c) ?? state.week ?? 1;
       const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
-      const rosImport = getRosRankingImport(c, leagueId, state.league.season, state.league.scoring);
-      const activeRosImport = isRosRankingImportActive(state, rosImport) ? rosImport : null;
-      const rankedState = applyRosRankingsToTeamState(state, activeRosImport);
+      const seasonValueImport = getActiveSeasonValueImport(c, leagueId, state);
+      const rankedState = applySeasonValueRankingsToTeamState(state, seasonValueImport);
       const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
       const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
-      const availableWithRos = applyRosRankingsToPlayers(rankedAvailablePlayers, activeRosImport);
+      const availableWithRos = applySeasonValueRankingsToPlayers(rankedAvailablePlayers, seasonValueImport);
       const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
       const aiProvider = aiProviderManager.get(getSettingsStore().get());
       const dataReadiness = buildTeamDataReadiness(projectedState, weeklyImport?.summary ?? null);
@@ -160,7 +162,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
           weekContext,
           activitySummary,
           weeklyImport?.summary ?? null,
-          rosImport?.summary ?? null,
+          seasonValueImport?.summary ?? null,
         ),
       });
     } catch (error) {
@@ -176,7 +178,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       if (!season || !scoring) {
         return c.json({ summary: null });
       }
-      const storedImport = getRosRankingImportStore().get({
+      const storedImport = getSeasonValueRankingImportStore().get({
         leagueId,
         season,
         scoring: normalizeScoringFormat(scoring),
@@ -191,33 +193,40 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
     try {
       const leagueId = c.req.param("leagueId");
       const userRosterId = getUserRosterId(c);
-      const body = RosRankingImportRequestSchema.parse(await c.req.json());
+      const body = SeasonValueRankingImportRequestSchema.parse(await c.req.json());
       const [state, weekContext, activitySummary, importPlayers] = await Promise.all([
         sleeperClient.getTeamManagerState(leagueId, userRosterId),
         sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
         sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
         sleeperClient.getProjectionImportPlayers(),
       ]);
-      if (!isRosScoringCompatible(body.scoring, state.league.scoring)) {
+      if (!isSeasonValueScoringCompatible(body.scoring, state.league.scoring)) {
         return c.json({
-          error: `The ${body.scoring} ROS rankings do not match this ${state.league.scoring} league.`,
+          error: `The ${body.scoring} season value rankings do not match this ${state.league.scoring} league.`,
         }, 400);
       }
       const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...importPlayers]);
-      const storedImport = importFantasyProsRosRankings({
+      const storedImport = importFantasyProsSeasonValueRankings({
         players: playerPool,
         season: body.season,
         scoring: body.scoring,
         csvText: body.csvText,
       });
-      getRosRankingImportStore().set({
+      const importKey = {
         leagueId,
         season: body.season,
         scoring: body.scoring,
-      }, storedImport);
+      };
+      const existingImport = getSeasonValueRankingImportStore().get(importKey);
+      if (!canReplaceSeasonValueRankings(existingImport, storedImport)) {
+        return c.json({
+          error: "Current ROS ECR is already active. Draft ECR fallback cannot replace it.",
+        }, 409);
+      }
+      getSeasonValueRankingImportStore().set(importKey, storedImport);
 
-      const activeRosImport = isRosRankingImportActive(state, storedImport) ? storedImport : null;
-      const rankedState = applyRosRankingsToTeamState(state, activeRosImport);
+      const activeRosImport = isSeasonValueRankingImportActive(state, storedImport) ? storedImport : null;
+      const rankedState = applySeasonValueRankingsToTeamState(state, activeRosImport);
       const selectedWeek = getWeek(c) ?? state.week ?? 1;
       const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
@@ -234,6 +243,9 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         ),
       });
     } catch (error) {
+      if (error instanceof SeasonValueRankingImportError) {
+        return c.json({ error: error.message }, 400);
+      }
       return handleRouteError(c, error);
     }
   });
@@ -247,7 +259,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         return c.json({ deleted: false });
       }
       return c.json({
-        deleted: getRosRankingImportStore().delete({
+        deleted: getSeasonValueRankingImportStore().delete({
           leagueId,
           season,
           scoring: normalizeScoringFormat(scoring),
@@ -307,9 +319,8 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       }
       getWeeklyProjectionImportStore().set({ leagueId, season, week }, storedImport!);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, storedImport, week) ? storedImport : null;
-      const rosImport = getRosRankingImport(c, leagueId, state.league.season, state.league.scoring);
-      const activeRosImport = isRosRankingImportActive(state, rosImport) ? rosImport : null;
-      const rankedState = applyRosRankingsToTeamState(state, activeRosImport);
+      const seasonValueImport = getActiveSeasonValueImport(c, leagueId, state);
+      const rankedState = applySeasonValueRankingsToTeamState(state, seasonValueImport);
       const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
 
       return c.json({
@@ -319,7 +330,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
           weekContext,
           activitySummary,
           storedImport!.summary,
-          rosImport?.summary ?? null,
+          seasonValueImport?.summary ?? null,
         ),
       });
     } catch (error) {
@@ -360,7 +371,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
     return getWeeklyProjectionImportStore().get({ leagueId, season, week });
   }
 
-  function getRosRankingImport(
+  function getSeasonValueRankingImport(
     c: Context,
     leagueId: string,
     fallbackSeason: string | null,
@@ -371,11 +382,34 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
     if (!season) {
       return null;
     }
-    return getRosRankingImportStore().get({
+    return getSeasonValueRankingImportStore().get({
       leagueId,
       season,
       scoring: normalizeScoringFormat(scoring),
     });
+  }
+
+  function getActiveSeasonValueImport(
+    c: Context,
+    leagueId: string,
+    state: TeamManagerState,
+  ): StoredSeasonValueRankingImport | null {
+    const storedImport = getSeasonValueRankingImport(c, leagueId, state.league.season, state.league.scoring);
+    if (isSeasonValueRankingImportActive(state, storedImport)) {
+      return storedImport;
+    }
+
+    const draftId = c.req.query("draftId") ?? null;
+    const draftImport = draftId ? getRankingImportStore().get(draftId) : null;
+    if (!draftImport || !state.league.season) {
+      return null;
+    }
+    const leagueScoring = normalizeScoringFormat(state.league.scoring);
+    const importedScoring = draftImport.summary.scoring;
+    if (importedScoring && importedScoring !== "Unknown" && importedScoring !== leagueScoring) {
+      return null;
+    }
+    return toDraftEcrFallbackImport(draftImport, state.league.season, leagueScoring);
   }
 
   function applyTeamRankingImport(c: Context, players: Player[]) {
@@ -395,7 +429,7 @@ function toTeamPayload(
   weekContext: TeamWeekContext | null = null,
   activitySummary: TeamActivitySummary | null = null,
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null = null,
-  rosRankingSummary: RosRankingImportSummary | null = null,
+  rosRankingSummary: SeasonValueRankingImportSummary | null = null,
 ): TeamPayload {
   return {
     state,

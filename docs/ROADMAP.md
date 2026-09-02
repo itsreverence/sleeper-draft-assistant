@@ -2,7 +2,7 @@
 
 This is a direction document, not a promise or release schedule.
 
-## Current alpha
+## Current beta
 
 - Sleeper account, league, and draft discovery
 - live/completed draft-state views
@@ -20,10 +20,9 @@ This is a direction document, not a promise or release schedule.
 - recent recommendation-change review backed by persisted decision snapshots
 - age warnings for imported draft, rest-of-season, and weekly data
 
-## Before beta
+## Before stable
 
-- complete Windows uninstall and local-data deletion testing
-- validate rest-of-season and weekly imports against current FantasyPros exports
+- validate rest-of-season and weekly imports against current FantasyPros exports, including the first 2026 ROS header signature used by season-value auto-classification
 - finish the accessibility and keyboard-navigation pass
 - keep upgrade, rollback, checksum, and provider-recovery checks in the Windows release smoke test
 - sign release builds when the project can sustain the required certificates and release process

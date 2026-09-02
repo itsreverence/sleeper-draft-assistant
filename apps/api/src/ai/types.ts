@@ -53,6 +53,7 @@ export type TeamAiContext = {
   availablePlayerGroups: {
     weeklyProjectionLeaders: string[];
     restOfSeasonRankLeaders: string[];
+    draftEcrFallbackLeaders: string[];
     positionCoverage: Record<Position, string[]>;
   };
 };
@@ -67,6 +68,8 @@ export type TeamAvailablePlayerEvidence = {
   restOfSeasonRank: number | null;
   restOfSeasonBestRank: number | null;
   restOfSeasonWorstRank: number | null;
+  draftEcrFallbackRank: number | null;
+  draftEcrFallbackPositionRank: number | null;
   riskTags: string[];
   sleeperStatus: NonNullable<Player["sleeperStatus"]> | null;
 };
@@ -215,7 +218,6 @@ export interface AiProvider {
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
   close?(): void;
 }
-
 
 
 

@@ -1,6 +1,6 @@
 # Installing on Windows
 
-Sleeper Draft Assistant is currently distributed as an unsigned Windows alpha. Install only artifacts published from this repository's GitHub Releases page.
+Sleeper Draft Assistant is currently distributed as an unsigned Windows beta. Install only artifacts published from this repository's GitHub Releases page.
 
 ## Choose an artifact
 
@@ -22,7 +22,7 @@ Compare the result with the corresponding entry in `SHA256SUMS.txt`. Do not run 
 
 ## Unsigned build warning
 
-Windows SmartScreen may warn that the publisher is unknown because alpha builds are not code-signed. Continue only when:
+Windows SmartScreen may warn that the publisher is unknown because beta builds are not code-signed. Continue only when:
 
 1. the file came from this repository's Releases page;
 2. its SHA-256 checksum matches; and
@@ -44,9 +44,9 @@ For manual removal of substantive records, close Sleeper Draft Assistant complet
 
 ## Updating and rollback
 
-Before installing a newer alpha, close the app and back up the entire `%APPDATA%\Sleeper Draft Assistant` directory. Install the new version over the existing per-user installation or replace the portable files.
+Before installing a newer beta, close the app and back up the entire `%APPDATA%\Sleeper Draft Assistant` directory. Install the new version over the existing per-user installation or replace the portable files.
 
-Alpha database changes may not be backward compatible. To roll back:
+Beta database changes may not be backward compatible. To roll back:
 
 1. close the current version;
 2. restore the application-data backup created before the update; and
@@ -54,4 +54,4 @@ Alpha database changes may not be backward compatible. To roll back:
 
 Never restore a database backup while either version of the app is running.
 
-The app validates both the database schema and each persisted settings/import/history record during startup. Supported alpha records migrate in place. If the app reports that local data uses an unsupported version, install the matching newer release rather than repeatedly retrying. If it reports incompatible stored data, preserve a backup for diagnosis, then use **Delete all local app data** or close the app and remove the `data` directory. These errors do not include the rejected record contents.
+The app validates both the database schema and each persisted settings/import/history record during startup. Supported prerelease records migrate in place. If the app reports that local data uses an unsupported version, install the matching newer release rather than repeatedly retrying. If it reports incompatible stored data, preserve a backup for diagnosis, then use **Delete all local app data** or close the app and remove the `data` directory. These errors do not include the rejected record contents.

@@ -1,5 +1,7 @@
 # 2026 Week 1 data readiness
 
+> Implementation update (September 2, 2026): the season-value importer now distinguishes the known FantasyPros Draft ECR and ROS ECR header signatures, labels Draft ECR as provisional fallback evidence, and prevents it from replacing active ROS ECR. The first real 2026 ROS export still needs replay validation when it becomes available.
+
 Research date: 2026-08-29
 
 ## Question

@@ -2,7 +2,7 @@
   import type {
     DraftScoringFormat,
     Position,
-    RosRankingImportSummary,
+    SeasonValueRankingImportSummary,
     TeamDataReadiness,
     TeamManagerState,
     WeeklyProjectionImportSummary,
@@ -30,6 +30,7 @@
     onImportRos,
     onClearRos,
     onOpenRos,
+    onOpenDraftRankings,
     onImportWeekly,
     onLoadWeek,
     onClearWeekly,
@@ -38,7 +39,7 @@
   }: {
     teamState: TeamManagerState | null;
     readiness: TeamDataReadiness | null;
-    rosSummary: RosRankingImportSummary | null;
+    rosSummary: SeasonValueRankingImportSummary | null;
     weeklySummary: WeeklyProjectionImportSummary | null;
     defaultSeason: string;
     defaultWeek: number;
@@ -53,6 +54,7 @@
     onImportRos: (input: { season: string; scoring: DraftScoringFormat; csvText: string }) => void;
     onClearRos: (input: { season: string; scoring: DraftScoringFormat }) => void;
     onOpenRos: () => void;
+    onOpenDraftRankings: () => void;
     onImportWeekly: (input: { files: Array<{ position: Position; csvText: string }>; season: string; week: number }) => void;
     onLoadWeek: (input: { season: string; week: number }) => void;
     onClearWeekly: (input: { season: string; week: number }) => void;
@@ -76,7 +78,7 @@
   <header class="drawer-heading">
     <p class="eyebrow">Team Manager</p>
     <h2><Icon name="database" size={18} /> Manage data</h2>
-    <p>Update the evidence Codex uses for weekly and rest-of-season decisions.</p>
+    <p>Update the evidence Codex uses for weekly and season-value decisions.</p>
   </header>
 
   <div class="drawer-content">
@@ -85,6 +87,8 @@
       hasTeam={Boolean(teamState)}
       defaultSeason={defaultSeason}
       leagueSeason={teamState?.league.season ?? ""}
+      seasonPhase={teamState?.seasonPhase}
+      currentWeek={teamState?.week ?? 0}
       {scoring}
       summary={rosSummary}
       weeklyLoaded={Boolean(weeklySummary)}
@@ -94,6 +98,7 @@
       onImport={onImportRos}
       onClear={onClearRos}
       onOpenFantasyPros={onOpenRos}
+      onOpenDraftFallback={onOpenDraftRankings}
     />
     <WeeklyProjectionsImportPanel
       hasTeam={Boolean(teamState)}

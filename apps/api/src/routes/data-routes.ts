@@ -7,7 +7,7 @@ import type { DraftStrategyInstructionStore } from "../draft-strategy-instructio
 import type { AdpImportStore, SeasonProjectionImportStore } from "../draft-value-import";
 import type { LocalDataResetCoordinator } from "../local-data-reset";
 import type { RankingImportStore } from "../rankings-import";
-import type { RosRankingImportStore } from "../ros-rankings-import";
+import type { SeasonValueRankingImportStore } from "../ros-rankings-import";
 import type { SettingsStore } from "../settings-store";
 import type { SqliteAppDatabase } from "../sqlite-app-database";
 import type { WeeklyProjectionImportStore } from "../weekly-projections-import";
@@ -21,7 +21,7 @@ type DataRouteDependencies = {
   getRankingImportStore(): RankingImportStore;
   getSeasonProjectionImportStore(): SeasonProjectionImportStore;
   getAdpImportStore(): AdpImportStore;
-  getRosRankingImportStore(): RosRankingImportStore;
+  getSeasonValueRankingImportStore(): SeasonValueRankingImportStore;
   getWeeklyProjectionImportStore(): WeeklyProjectionImportStore;
   getDecisionLogStore(): DecisionLogStore;
   getDraftPlanStore(): DraftPlanStore;
@@ -53,7 +53,7 @@ export function registerDataRoutes(app: Hono, dependencies: DataRouteDependencie
         rankings: () => dependencies.getRankingImportStore().clearAll(),
         "season-projections": () => dependencies.getSeasonProjectionImportStore().clearAll(),
         adp: () => dependencies.getAdpImportStore().clearAll(),
-        "ros-rankings": () => dependencies.getRosRankingImportStore().clearAll(),
+        "ros-rankings": () => dependencies.getSeasonValueRankingImportStore().clearAll(),
         "weekly-projections": () => dependencies.getWeeklyProjectionImportStore().clearAll(),
         "decision-history": () => dependencies.getDecisionLogStore().clearAll(),
         "draft-plans": () => dependencies.getDraftPlanStore().clearAll(),

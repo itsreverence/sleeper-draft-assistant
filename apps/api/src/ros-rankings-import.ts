@@ -6,7 +6,8 @@ import type {
   DraftScoringFormat,
   Player,
   Position,
-  RosRankingImportSummary,
+  SeasonValueRankingImportSummary,
+  SeasonValueRankingType,
   TeamManagerState,
 } from "@sleeper-draft-assistant/shared";
 
@@ -15,16 +16,17 @@ import {
   type SerializedRosRankingImport,
 } from "./persisted-domain-codecs";
 import { persistedRecordError } from "./persisted-record";
+import type { StoredRankingImport } from "./rankings-import";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
-export type RosRankingImportKey = {
+export type SeasonValueRankingImportKey = {
   leagueId: string;
   season: string;
   scoring: DraftScoringFormat;
 };
 
-type ImportedRosRanking = {
+type ImportedSeasonValueRanking = {
   rank: number;
   positionRank: number | null;
   bestRank: number | null;
@@ -33,12 +35,12 @@ type ImportedRosRanking = {
   standardDeviation: number | null;
 };
 
-export type StoredRosRankingImport = {
-  summary: RosRankingImportSummary;
-  playersById: Map<string, ImportedRosRanking>;
+export type StoredSeasonValueRankingImport = {
+  summary: SeasonValueRankingImportSummary;
+  playersById: Map<string, ImportedSeasonValueRanking>;
 };
 
-type RosRow = {
+type SeasonValueRow = {
   rowNumber: number;
   name: string;
   team: string | null;
@@ -51,8 +53,10 @@ type RosRow = {
   standardDeviation: number | null;
 };
 
-export class RosRankingImportStore {
-  private readonly imports = new Map<string, StoredRosRankingImport>();
+export class SeasonValueRankingImportError extends Error {}
+
+export class SeasonValueRankingImportStore {
+  private readonly imports = new Map<string, StoredSeasonValueRankingImport>();
 
   constructor(
     private readonly filePath = getDefaultStorePath(),
@@ -61,8 +65,8 @@ export class RosRankingImportStore {
     this.load();
   }
 
-  set(key: RosRankingImportKey, storedImport: StoredRosRankingImport) {
-    const importKey = toRosImportKey(key);
+  set(key: SeasonValueRankingImportKey, storedImport: StoredSeasonValueRankingImport) {
+    const importKey = toSeasonValueImportKey(key);
     this.imports.set(importKey, storedImport);
     if (this.database) {
       this.database.setRecord("ros_ranking_imports", importKey, rosRankingImportRecordCodec, serialize(storedImport));
@@ -71,12 +75,12 @@ export class RosRankingImportStore {
     }
   }
 
-  get(key: RosRankingImportKey): StoredRosRankingImport | null {
-    return this.imports.get(toRosImportKey(key)) ?? null;
+  get(key: SeasonValueRankingImportKey): StoredSeasonValueRankingImport | null {
+    return this.imports.get(toSeasonValueImportKey(key)) ?? null;
   }
 
-  delete(key: RosRankingImportKey): boolean {
-    const importKey = toRosImportKey(key);
+  delete(key: SeasonValueRankingImportKey): boolean {
+    const importKey = toSeasonValueImportKey(key);
     const deleted = this.imports.delete(importKey);
     if (deleted) {
       if (this.database) {
@@ -122,7 +126,7 @@ export class RosRankingImportStore {
       }
     } catch (error) {
       this.imports.clear();
-      throw persistedRecordError(error, "rest-of-season ranking imports");
+      throw persistedRecordError(error, "season value ranking imports");
     }
   }
 
@@ -134,16 +138,17 @@ export class RosRankingImportStore {
   }
 }
 
-export function importFantasyProsRosRankings(input: {
+export function importFantasyProsSeasonValueRankings(input: {
   players: Player[];
   season: string;
   scoring: DraftScoringFormat;
   csvText: string;
-}): StoredRosRankingImport {
-  const rows = parseRosRows(input.csvText);
-  const playersById = new Map<string, ImportedRosRanking>();
-  const unmatched: RosRankingImportSummary["unmatched"] = [];
-  const ambiguous: RosRankingImportSummary["ambiguous"] = [];
+}): StoredSeasonValueRankingImport {
+  const rankingType = classifyFantasyProsSeasonValueCsv(input.csvText);
+  const rows = parseSeasonValueRows(input.csvText);
+  const playersById = new Map<string, ImportedSeasonValueRanking>();
+  const unmatched: SeasonValueRankingImportSummary["unmatched"] = [];
+  const ambiguous: SeasonValueRankingImportSummary["ambiguous"] = [];
 
   for (const row of rows) {
     if (!row.rank || !row.position) {
@@ -173,6 +178,8 @@ export function importFantasyProsRosRankings(input: {
   return {
     summary: {
       source: "fantasypros",
+      rankingType,
+      rankingOrigin: "team-import",
       season: input.season,
       scoring: input.scoring,
       rowsParsed: rows.length,
@@ -185,51 +192,121 @@ export function importFantasyProsRosRankings(input: {
   };
 }
 
-export function applyRosRankingsToTeamState(
+export function canReplaceSeasonValueRankings(
+  existingImport: StoredSeasonValueRankingImport | null,
+  incomingImport: StoredSeasonValueRankingImport,
+): boolean {
+  return existingImport?.summary.rankingType !== "ros-ecr"
+    || incomingImport.summary.rankingType === "ros-ecr";
+}
+
+export function classifyFantasyProsSeasonValueCsv(csvText: string): SeasonValueRankingType {
+  const [headers] = parseCsv(csvText.trim());
+  if (!headers) {
+    throw new SeasonValueRankingImportError("The selected rankings CSV is empty.");
+  }
+  const normalized = new Set(headers.map(normalizeHeader));
+  const hasCore = ["rk", "playername", "team", "pos"].every((header) => normalized.has(header));
+  const hasRosSignature = ["best", "worst", "avg", "stddev"].every((header) => normalized.has(header));
+  const hasDraftSignature = ["tiers", "byeweek", "ecrvsadp"].every((header) => normalized.has(header));
+
+  if (!hasCore || hasRosSignature === hasDraftSignature) {
+    throw new SeasonValueRankingImportError(
+      "Choose a FantasyPros Overall draft ECR or Overall rest-of-season rankings CSV.",
+    );
+  }
+  return hasRosSignature ? "ros-ecr" : "draft-ecr-fallback";
+}
+
+export function toDraftEcrFallbackImport(
+  storedImport: StoredRankingImport,
+  season: string,
+  scoring: DraftScoringFormat,
+): StoredSeasonValueRankingImport {
+  return {
+    summary: {
+      source: "fantasypros",
+      rankingType: "draft-ecr-fallback",
+      rankingOrigin: "draft-import",
+      season,
+      scoring,
+      rowsParsed: storedImport.summary.rowsParsed,
+      matched: storedImport.summary.matched,
+      unmatched: storedImport.summary.unmatched,
+      ambiguous: storedImport.summary.ambiguous,
+      appliedAt: storedImport.summary.appliedAt,
+    },
+    playersById: new Map(Array.from(storedImport.playersById.entries()).map(([playerId, value]) => [playerId, {
+      rank: value.rank,
+      positionRank: value.positionRank,
+      bestRank: null,
+      worstRank: null,
+      averageRank: null,
+      standardDeviation: null,
+    }])),
+  };
+}
+
+export function applySeasonValueRankingsToTeamState(
   state: TeamManagerState,
-  storedImport: StoredRosRankingImport | null,
+  storedImport: StoredSeasonValueRankingImport | null,
 ): TeamManagerState {
   if (!storedImport) {
     return state;
   }
+  const isFallback = storedImport.summary.rankingType === "draft-ecr-fallback";
+  const retainedLimitations = state.dataQuality.limitations.filter((item) => {
+    const normalized = item.toLowerCase();
+    return !normalized.includes("rest-of-season") && !normalized.includes("draft ecr fallback");
+  });
   return {
     ...state,
     roster: {
       ...state.roster,
       starters: state.roster.starters.map((slot) => ({
         ...slot,
-        player: slot.player ? applyRosRankingToPlayer(slot.player, storedImport) : null,
+        player: slot.player ? applySeasonValueRankingToPlayer(slot.player, storedImport) : null,
       })),
-      bench: applyRosRankingsToPlayers(state.roster.bench, storedImport),
-      injuredReserve: applyRosRankingsToPlayers(state.roster.injuredReserve, storedImport),
-      taxi: applyRosRankingsToPlayers(state.roster.taxi, storedImport),
+      bench: applySeasonValueRankingsToPlayers(state.roster.bench, storedImport),
+      injuredReserve: applySeasonValueRankingsToPlayers(state.roster.injuredReserve, storedImport),
+      taxi: applySeasonValueRankingsToPlayers(state.roster.taxi, storedImport),
     },
     dataQuality: {
       ...state.dataQuality,
-      playerValueSource: `FantasyPros ${storedImport.summary.season} ${storedImport.summary.scoring} rest-of-season ECR`,
-      limitations: state.dataQuality.limitations.filter(
-        (item) => !item.toLowerCase().includes("rest-of-season"),
-      ),
+      playerValueSource: isFallback
+        ? `FantasyPros ${storedImport.summary.season} ${storedImport.summary.scoring} draft ECR fallback`
+        : `FantasyPros ${storedImport.summary.season} ${storedImport.summary.scoring} rest-of-season ECR`,
+      limitations: isFallback
+        ? [...retainedLimitations, "Draft ECR fallback is provisional season-value evidence until current ROS ECR is imported."]
+        : retainedLimitations,
     },
   };
 }
 
-export function applyRosRankingsToPlayers(
+export function applySeasonValueRankingsToPlayers(
   players: Player[],
-  storedImport: StoredRosRankingImport | null,
+  storedImport: StoredSeasonValueRankingImport | null,
 ): Player[] {
   return storedImport
-    ? players.map((player) => applyRosRankingToPlayer(player, storedImport))
+    ? players.map((player) => applySeasonValueRankingToPlayer(player, storedImport))
     : players;
 }
 
-export function applyRosRankingToPlayer(
+export function applySeasonValueRankingToPlayer(
   player: Player,
-  storedImport: StoredRosRankingImport,
+  storedImport: StoredSeasonValueRankingImport,
 ): Player {
   const value = storedImport.playersById.get(player.id);
   if (!value) {
     return player;
+  }
+  if (storedImport.summary.rankingType === "draft-ecr-fallback") {
+    return {
+      ...player,
+      importedRank: value.rank,
+      importedPositionRank: value.positionRank,
+      importedSource: "FantasyPros draft ECR fallback",
+    };
   }
   return {
     ...player,
@@ -245,15 +322,15 @@ export function applyRosRankingToPlayer(
   };
 }
 
-export function isRosRankingImportActive(
+export function isSeasonValueRankingImportActive(
   state: Pick<TeamManagerState, "league">,
-  storedImport: StoredRosRankingImport | null,
+  storedImport: StoredSeasonValueRankingImport | null,
 ): boolean {
   if (!storedImport || !state.league.season) {
     return false;
   }
   return storedImport.summary.season === state.league.season
-    && isRosScoringCompatible(storedImport.summary.scoring, state.league.scoring);
+    && isSeasonValueScoringCompatible(storedImport.summary.scoring, state.league.scoring);
 }
 
 export function normalizeScoringFormat(value: string): DraftScoringFormat {
@@ -264,15 +341,15 @@ export function normalizeScoringFormat(value: string): DraftScoringFormat {
   return normalized ? "Custom" : "Unknown";
 }
 
-export function toRosImportKey(key: RosRankingImportKey): string {
+export function toSeasonValueImportKey(key: SeasonValueRankingImportKey): string {
   return `${key.leagueId}:${key.season}:${key.scoring}`;
 }
 
-export function isRosScoringCompatible(imported: DraftScoringFormat, leagueScoring: string): boolean {
+export function isSeasonValueScoringCompatible(imported: DraftScoringFormat, leagueScoring: string): boolean {
   return imported === normalizeScoringFormat(leagueScoring);
 }
 
-function parseRosRows(csvText: string): RosRow[] {
+function parseSeasonValueRows(csvText: string): SeasonValueRow[] {
   const [headers, ...records] = parseCsv(csvText.trim());
   if (!headers) {
     return [];
@@ -311,7 +388,7 @@ function parsePosition(value: string): { position: Position | null; rank: number
   };
 }
 
-function matchPlayer(row: RosRow, players: Player[]) {
+function matchPlayer(row: SeasonValueRow, players: Player[]) {
   const normalizedName = normalizeName(row.name);
   const candidates = players.filter((player) =>
     player.position === row.position && normalizeName(player.name) === normalizedName,
@@ -329,7 +406,7 @@ function matchPlayer(row: RosRow, players: Player[]) {
   return { kind: "unmatched" as const };
 }
 
-function toMatchIssue(row: RosRow) {
+function toMatchIssue(row: SeasonValueRow) {
   return {
     row: row.rowNumber,
     name: row.name,
@@ -417,14 +494,14 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
-function serialize(storedImport: StoredRosRankingImport): SerializedRosRankingImport {
+function serialize(storedImport: StoredSeasonValueRankingImport): SerializedRosRankingImport {
   return {
     summary: storedImport.summary,
     players: Array.from(storedImport.playersById.entries()),
   };
 }
 
-function deserialize(value: SerializedRosRankingImport): StoredRosRankingImport {
+function deserialize(value: SerializedRosRankingImport): StoredSeasonValueRankingImport {
   return {
     summary: value.summary,
     playersById: new Map(value.players),

@@ -80,7 +80,7 @@
     DecisionSnapshot,
     AiDraftStrategyPayload,
     RankingImportSummary,
-    RosRankingImportSummary,
+    SeasonValueRankingImportSummary,
     TeamActivitySummary,
     TeamDataReadiness,
     TeamManagerState,
@@ -115,7 +115,7 @@
   let teamWeekContext: TeamWeekContext | null = $state(null);
   let teamActivitySummary: TeamActivitySummary | null = $state(null);
   let weeklyProjectionSummary: WeeklyProjectionImportSummary | null = $state(null);
-  let rosRankingSummary: RosRankingImportSummary | null = $state(null);
+  let rosRankingSummary: SeasonValueRankingImportSummary | null = $state(null);
   let teamProjectionSeason = $state("");
   let teamProjectionWeek = $state(0);
   let weeklyProjectionError = $state("");
@@ -1345,13 +1345,23 @@
     window.open(`https://www.fantasypros.com/nfl/rankings/${page}`, "_blank", "noopener,noreferrer");
   }
 
+  function openFantasyProsTeamDraftRankings() {
+    const scoring = normalizeDraftScoring(teamManagerState?.league.scoring);
+    const page = scoring === "PPR"
+      ? "ppr-cheatsheets.php"
+      : scoring === "Half PPR"
+        ? "half-point-ppr-cheatsheets.php"
+        : "consensus-cheatsheets.php";
+    window.open(`https://www.fantasypros.com/nfl/rankings/${page}`, "_blank", "noopener,noreferrer");
+  }
+
   async function importRosRankings(input: {
     season: string;
     scoring: DraftScoringFormat;
     csvText: string;
   }) {
     if (!teamManagerState || !input.season || !input.csvText.trim()) {
-      rosRankingError = "Open a team, enter the season, and choose the Overall ROS rankings CSV.";
+      rosRankingError = "Open a team, enter the season, and choose an Overall ROS or Draft ECR CSV.";
       return;
     }
     isImportingRosRankings = true;
@@ -1367,10 +1377,10 @@
         week: teamProjectionWeek || teamManagerState.week,
       });
       applyTeamPayload(payload);
-      status = "FantasyPros rest-of-season rankings imported";
-      lastEvent = `${payload.summary.matched} ROS ranking rows matched`;
+      status = `FantasyPros ${payload.summary.rankingType === "ros-ecr" ? "ROS ECR" : "Draft ECR fallback"} imported`;
+      lastEvent = `${payload.summary.matched} season value ranking rows matched`;
     } catch (error) {
-      rosRankingError = error instanceof Error ? error.message : "Rest-of-season ranking import failed.";
+      rosRankingError = error instanceof Error ? error.message : "Season value ranking import failed.";
     } finally {
       isImportingRosRankings = false;
     }
@@ -1390,9 +1400,9 @@
         teamProjectionSeason || null,
         teamProjectionWeek || null,
       );
-      status = "Rest-of-season rankings cleared";
+      status = "Season value rankings cleared";
     } catch (error) {
-      rosRankingError = error instanceof Error ? error.message : "Could not clear rest-of-season rankings.";
+      rosRankingError = error instanceof Error ? error.message : "Could not clear season value rankings.";
     } finally {
       isClearingRosRankings = false;
     }
@@ -2222,6 +2232,7 @@
             onImportRos={importRosRankings}
             onClearRos={clearRosRankings}
             onOpenRos={openFantasyProsRosRankings}
+            onOpenDraftRankings={openFantasyProsTeamDraftRankings}
             onImportWeekly={importWeeklyProjections}
             onLoadWeek={loadWeeklyProjectionContext}
             onClearWeekly={clearWeeklyProjections}

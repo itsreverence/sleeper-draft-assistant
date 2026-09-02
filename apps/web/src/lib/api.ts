@@ -211,7 +211,7 @@ export async function importRosRankingsRequest(input: {
     }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not import rest-of-season rankings."));
+    throw new Error(await readErrorMessage(response, "Could not import season value rankings."));
   }
   return (await response.json()) as RosRankingImportPayload;
 }
@@ -226,7 +226,7 @@ export async function clearRosRankingsRequest(
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not clear rest-of-season rankings."));
+    throw new Error(await readErrorMessage(response, "Could not clear season value rankings."));
   }
   return (await response.json()) as { deleted: boolean };
 }
@@ -582,4 +582,3 @@ export async function askTeamManagerRequest(
 
   return (await response.json()) as TeamAskAnswerPayload;
 }
-

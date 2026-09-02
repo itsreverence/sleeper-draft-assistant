@@ -49,6 +49,7 @@ function buildTeamBrief(
   const benchPlayers = state.roster.bench.map(formatPlayer);
   const hasWeeklyProjections = dataReadiness?.status !== "limited" && teamHasWeeklyProjections(state);
   const hasRosRankings = teamHasRosRankings(state);
+  const hasDraftEcrFallback = teamHasDraftEcrFallback(state);
   const effectiveWeek = selectedWeek ?? weekContext?.week ?? state.week;
   const isPinnedWeek = state.seasonPhase === "regular"
     && effectiveWeek !== null
@@ -97,7 +98,9 @@ function buildTeamBrief(
         : "Current weekly projections are incomplete or absent; do not invent them.",
       hasRosRankings
         ? "Use rest-of-season ranks as a separate long-term signal rather than combining them into a hidden score."
-        : "Current rest-of-season rankings are incomplete or absent; say so when long-term value matters.",
+        : hasDraftEcrFallback
+          ? "ROS ECR is absent. Use draft ECR fallback only as provisional season-value evidence and identify it as a fallback when long-term value matters."
+          : "Current season-value rankings are incomplete or absent; say so when long-term value matters.",
       "Use weekContext only for the selected Sleeper week's matchup, lineup, and score state; do not treat it as projections.",
       "For add/drop questions, verify that an add appears in availablePlayerEvidence and that a drop appears on the user's roster.",
       "For lineup questions, verify slot eligibility from teamState before recommending a change.",
@@ -122,6 +125,11 @@ function buildAvailablePlayerEvidence(players: Player[]): {
     .sort((a, b) => (a.rosRank ?? Number.MAX_SAFE_INTEGER) - (b.rosRank ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
     .slice(0, 30)
     .map((player) => player.id);
+  const draftEcrFallbackLeaders = eligible
+    .filter((player) => isDraftEcrFallbackPlayer(player) && player.importedRank !== null && player.importedRank !== undefined)
+    .sort((a, b) => (a.importedRank ?? Number.MAX_SAFE_INTEGER) - (b.importedRank ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
+    .slice(0, 30)
+    .map((player) => player.id);
   const positionCoverage = Object.fromEntries(fantasyPositions.map((position) => [
     position,
     eligible
@@ -133,6 +141,7 @@ function buildAvailablePlayerEvidence(players: Player[]): {
   const includedIds = new Set([
     ...weeklyProjectionLeaders,
     ...restOfSeasonRankLeaders,
+    ...draftEcrFallbackLeaders,
     ...Object.values(positionCoverage).flat(),
   ]);
 
@@ -141,7 +150,7 @@ function buildAvailablePlayerEvidence(players: Player[]): {
       .filter((player) => includedIds.has(player.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(toAvailablePlayerEvidence),
-    groups: { weeklyProjectionLeaders, restOfSeasonRankLeaders, positionCoverage },
+    groups: { weeklyProjectionLeaders, restOfSeasonRankLeaders, draftEcrFallbackLeaders, positionCoverage },
   };
 }
 
@@ -156,6 +165,8 @@ function toAvailablePlayerEvidence(player: Player): TeamAvailablePlayerEvidence 
     restOfSeasonRank: player.rosRank ?? null,
     restOfSeasonBestRank: player.rosBestRank ?? null,
     restOfSeasonWorstRank: player.rosWorstRank ?? null,
+    draftEcrFallbackRank: isDraftEcrFallbackPlayer(player) ? player.importedRank ?? null : null,
+    draftEcrFallbackPositionRank: isDraftEcrFallbackPlayer(player) ? player.importedPositionRank ?? null : null,
     riskTags: player.riskTags,
     sleeperStatus: player.sleeperStatus ?? null,
   };
@@ -170,6 +181,9 @@ function formatPlayer(player: Player): string {
       ? `weekly ${player.weeklyProjectedPoints.toFixed(1)}`
       : null,
     player.rosRank ? `ROS ${player.rosRank}` : null,
+    !player.rosRank && isDraftEcrFallbackPlayer(player) && player.importedRank
+      ? `draft ECR fallback ${player.importedRank}`
+      : null,
     riskTags.length ? `flags ${riskTags.join(", ")}` : null,
     player.sleeperStatus?.injuryStatus ? `injury ${player.sleeperStatus.injuryStatus}` : null,
     player.sleeperStatus?.practiceParticipation ? `practice ${player.sleeperStatus.practiceParticipation}` : null,
@@ -191,6 +205,14 @@ function teamHasWeeklyProjections(state: TeamManagerState): boolean {
 
 function teamHasRosRankings(state: TeamManagerState): boolean {
   return teamPlayers(state).some((player) => Boolean(player.rosRank));
+}
+
+function teamHasDraftEcrFallback(state: TeamManagerState): boolean {
+  return teamPlayers(state).some(isDraftEcrFallbackPlayer);
+}
+
+function isDraftEcrFallbackPlayer(player: Player): boolean {
+  return player.importedSource === "FantasyPros draft ECR fallback";
 }
 
 function teamPlayers(state: TeamManagerState): Player[] {

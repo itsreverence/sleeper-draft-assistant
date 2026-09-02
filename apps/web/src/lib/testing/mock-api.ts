@@ -101,7 +101,13 @@ class ApiMockController {
     }
     return await deferred.promise;
   });
-  readonly fetchTeamManagerState = vi.fn(async () => this.teamPayload);
+  readonly fetchTeamManagerState = vi.fn(async (
+    _leagueId: string,
+    _userRosterId: string | null,
+    _draftId: string | null = null,
+    _season: string | null = null,
+    _week: number | null = null,
+  ) => this.teamPayload);
   readonly fetchDraftRecommendationRequest = vi.fn(async (
     draftId: string,
     userRosterId: string | null,

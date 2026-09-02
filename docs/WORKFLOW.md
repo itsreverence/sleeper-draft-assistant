@@ -76,11 +76,11 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 - **Ranking import is rejected:** choose the FantasyPros ECR or ROS export matching the connected league's standard, half-PPR, or PPR scoring.
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
-- **Team Manager needs two data sources:** import one scoring-specific overall rest-of-season rankings CSV for long-term value, then the six weekly projection files for current-week points.
+- **Team Manager needs two evidence categories:** use scoring-specific season value rankings for long-term value, then the six weekly projection files for current-week points. ROS ECR is preferred; matching draft ECR is a labeled fallback through Week 1 and prompts for replacement beginning in Week 2.
 - **Team Manager imports:** use the data action in the roster heading; closing the drawer keeps the roster and Codex workspace in place.
 - **Weekly position mismatch:** keep the original FantasyPros filenames when selecting several files, or select the matching position when importing one file. The importer rejects a filename/position label that disagrees with the CSV headers and rejects unsupported column orders.
 - **Preseason Team Manager:** verify the roster loads, the page says **Preseason**, and no regular-season matchup or weekly-readiness warning is presented as current.
-- **Rest-of-season rankings are inactive:** confirm the import season and scoring format match the connected league. Historical imports remain stored but do not affect current advice.
+- **Season value rankings are inactive:** confirm the import season and scoring format match the connected league. Historical imports remain stored but do not affect current advice.
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
 - **Weekly scoring warning:** weekly `FPTS` are used as FantasyPros provides them. Confirm the FantasyPros export scoring matches the Sleeper league.
 - **Historical projections are inactive:** confirm the selected season and week match the connected league before evaluating lineup or waiver advice.

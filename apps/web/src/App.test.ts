@@ -161,6 +161,7 @@ describe("App draft lifecycle", () => {
     draftLoad.resolve(draftPayload);
 
     await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(1));
+    expect(apiMock.fetchTeamManagerState.mock.calls[0]?.[2]).toBe("draft-1");
     expect(apiMock.fetchTeamManagerState.mock.calls[0]?.slice(3)).toEqual([null, null]);
 
     apiMock.teamPayload = {

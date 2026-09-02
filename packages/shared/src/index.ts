@@ -243,16 +243,23 @@ export const AdpImportSummarySchema = z.object({
 });
 export type AdpImportSummary = z.infer<typeof AdpImportSummarySchema>;
 
-export const RosRankingImportRequestSchema = z.object({
+export const SeasonValueRankingImportRequestSchema = z.object({
   source: z.literal("fantasypros").default("fantasypros"),
   season: z.string().trim().min(4),
   scoring: DraftScoringFormatSchema,
   csvText: z.string().min(1),
 });
-export type RosRankingImportRequest = z.infer<typeof RosRankingImportRequestSchema>;
+export type SeasonValueRankingImportRequest = z.infer<typeof SeasonValueRankingImportRequestSchema>;
 
-export const RosRankingImportSummarySchema = z.object({
+export const SeasonValueRankingTypeSchema = z.enum(["ros-ecr", "draft-ecr-fallback"]);
+export type SeasonValueRankingType = z.infer<typeof SeasonValueRankingTypeSchema>;
+export const SeasonValueRankingOriginSchema = z.enum(["team-import", "draft-import"]);
+export type SeasonValueRankingOrigin = z.infer<typeof SeasonValueRankingOriginSchema>;
+
+export const SeasonValueRankingImportSummarySchema = z.object({
   source: z.literal("fantasypros"),
+  rankingType: SeasonValueRankingTypeSchema.default("ros-ecr"),
+  rankingOrigin: SeasonValueRankingOriginSchema.default("team-import"),
   season: z.string(),
   scoring: DraftScoringFormatSchema,
   rowsParsed: z.number(),
@@ -272,7 +279,7 @@ export const RosRankingImportSummarySchema = z.object({
   })),
   appliedAt: z.string(),
 });
-export type RosRankingImportSummary = z.infer<typeof RosRankingImportSummarySchema>;
+export type SeasonValueRankingImportSummary = z.infer<typeof SeasonValueRankingImportSummarySchema>;
 
 export const WeeklyProjectionImportSourceSchema = z.enum(["fantasypros"]);
 export type WeeklyProjectionImportSource = z.infer<typeof WeeklyProjectionImportSourceSchema>;
