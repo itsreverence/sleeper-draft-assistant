@@ -36,20 +36,20 @@ Installed and portable builds normally keep their database under:
 %APPDATA%\Sleeper Draft Assistant\data
 ```
 
-This may contain settings, Sleeper identifiers, imported rankings and projections, and recommendation history. Uninstalling the executable may leave this data in place.
+This may contain settings, Sleeper identifiers, imported rankings and projections, and recommendation history. The remembered Sleeper username and similar renderer convenience preferences live elsewhere beneath `%APPDATA%\Sleeper Draft Assistant`. Uninstalling the executable may leave both locations in place.
 
-Settings can clear ranking imports, weekly projections, or recommendation history independently. **Delete all local app data** resets settings and stored app data after typed confirmation. The app reports success only after the local database replacement completes; a failed reset retains the prior usable database and invalidates AI work that began before the attempt.
+Settings can clear ranking imports, weekly projections, or recommendation history independently. **Delete all local app data** resets settings and stored app data after typed confirmation, then returns to the connection screen without requiring an app restart. The app reports success only after the local database replacement completes; a failed reset retains the prior usable database and invalidates AI work that began before the attempt.
 
-For manual removal, close Sleeper Draft Assistant completely and delete its `data` directory. Back it up before deletion when you want to retain imports or history.
+For manual removal of substantive records, close Sleeper Draft Assistant completely and delete its `data` directory. Delete the entire `%APPDATA%\Sleeper Draft Assistant` directory when you also want to remove renderer convenience preferences. Back up the entire application-data directory for a complete local backup; a `data`-only backup preserves the database but may require re-entering the Sleeper username after restoration.
 
 ## Updating and rollback
 
-Before installing a newer alpha, close the app and back up the `data` directory. Install the new version over the existing per-user installation or replace the portable files.
+Before installing a newer alpha, close the app and back up the entire `%APPDATA%\Sleeper Draft Assistant` directory. Install the new version over the existing per-user installation or replace the portable files.
 
 Alpha database changes may not be backward compatible. To roll back:
 
 1. close the current version;
-2. restore the `data` backup created before the update; and
+2. restore the application-data backup created before the update; and
 3. install or run the earlier artifact from its original GitHub release.
 
 Never restore a database backup while either version of the app is running.

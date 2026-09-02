@@ -23,7 +23,7 @@ The local SQLite database may contain:
 - recommendation and decision snapshots.
 - the latest AI draft plan for each draft team and provider.
 
-The packaged app writes beneath Electron's per-user application-data directory, in a `data` subdirectory. Development writes to repository `data/` unless `SLEEPER_AI_DATA_DIR` is set.
+The packaged app writes its substantive records beneath Electron's per-user application-data directory, in a `data` subdirectory. Renderer convenience preferences, including the remembered Sleeper username, are stored separately in Electron's Chromium profile beneath the same application-data directory. Development writes database records to repository `data/` unless `SLEEPER_AI_DATA_DIR` is set.
 
 POSIX directories/files are created with owner-only `0700`/`0600` permissions. Windows uses the current profile's ACLs; chmod-style guarantees do not apply there.
 
@@ -43,8 +43,8 @@ Never post unredacted database files, ranking exports, screenshots with league i
 
 ## Deleting data
 
-Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then restarts the interface. The reset requires explicit typed confirmation. The database portion is committed as one local action: if durable replacement fails, the prior data remains usable and the reset reports failure. Active AI work is closed and invalidated when reset begins, so a response started beforehand cannot repopulate plans or recommendation history afterward.
+Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then returns to the connection screen. The reset requires explicit typed confirmation. The database portion is committed as one local action: if durable replacement fails, the prior data remains usable and the reset reports failure. Active AI work is closed and invalidated when reset begins, so a response started beforehand cannot repopulate plans or recommendation history afterward.
 
-For manual removal, close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
+For manual removal of substantive records, close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. Delete the entire application-data directory if you also want to remove Chromium-backed convenience preferences. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
 
 Deletion is local and immediate; the app has no cloud account to erase. It cannot delete data held independently by Sleeper, FantasyPros, OpenAI, or other providers.

@@ -28,7 +28,7 @@
     diagnosticsStatus: string;
     onSave: (settings: AppSettings) => void;
     onCopyDiagnostics: () => void;
-    onResetComplete: () => void;
+    onResetComplete: (settings: AppSettings) => void | Promise<void>;
     draftDataAvailable?: boolean;
     draftDataStatus?: string;
     embedded?: boolean;

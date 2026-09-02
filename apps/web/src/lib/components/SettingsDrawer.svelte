@@ -29,7 +29,7 @@
     draftDataStatus?: string;
     onSave: (settings: AppSettings) => void;
     onCopyDiagnostics: () => void;
-    onResetComplete: () => void;
+    onResetComplete: (settings: AppSettings) => void | Promise<void>;
     onManageDraftData?: () => void;
     onClose: () => void;
   } = $props();

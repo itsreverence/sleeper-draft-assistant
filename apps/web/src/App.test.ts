@@ -67,6 +67,26 @@ describe("App draft lifecycle", () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it("returns to the connection screen after deleting local data without reloading the page", async () => {
+    window.localStorage.setItem("sleeperUsername", "remembered-user");
+    render(App);
+
+    const username = await screen.findByLabelText("Sleeper username");
+    await waitFor(() => expect((username as HTMLInputElement).value).toBe("remembered-user"));
+
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Delete all local app data" }));
+    await fireEvent.input(screen.getByLabelText("Type DELETE to confirm"), {
+      target: { value: "DELETE" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Delete and reset" }));
+
+    await waitFor(() => expect(apiMock.resetLocalData).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Application settings" })).toBeNull());
+    expect((screen.getByLabelText("Sleeper username") as HTMLInputElement).value).toBe("");
+    expect(window.localStorage.getItem("sleeperUsername")).toBeNull();
+  });
+
   it("one activation commits state/storage/one EventSource", async () => {
     const draftLoad = apiMock.deferDraftState({
       draftId: "draft-1",

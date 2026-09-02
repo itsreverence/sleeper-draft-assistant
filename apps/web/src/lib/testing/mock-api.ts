@@ -19,6 +19,7 @@ import type {
   RecommendationPreferenceRequest,
   RosRankingImportPayload,
   SeasonProjectionImportPayload,
+  StorageInventory,
   TeamAskAnswerPayload,
   TeamPayload,
   WeeklyProjectionImportPayload,
@@ -62,6 +63,18 @@ class ApiMockController {
   decisionHistory: DecisionHistoryPayload = { snapshots: [] };
   draftStrategyInstructions: DraftStrategyInstructionsPayload = { instructions: [] };
   teamPayload: TeamPayload = createTeamPayloadFixture();
+  storageInventory: StorageInventory = {
+    location: "application-data",
+    sqliteStorage: true,
+    rankingImports: 0,
+    seasonProjectionImports: 0,
+    adpImports: 0,
+    rosRankingImports: 0,
+    weeklyProjectionImports: 0,
+    decisionSnapshots: 0,
+    draftPlans: 0,
+    strategyInstructions: 0,
+  };
   readonly draftStateRequests: DraftStateRequest[] = [];
   readonly recommendationRequests: RecommendationRequest[] = [];
   readonly eventSources: FakeEventSource[] = [];
@@ -115,6 +128,10 @@ class ApiMockController {
   });
   readonly fetchAiDraftStrategyRequest = vi.fn(async () => unexpected("fetchAiDraftStrategyRequest"));
   readonly fetchDiagnostics = vi.fn(async () => unexpected("fetchDiagnostics"));
+  readonly fetchStorageInventory = vi.fn(async () => this.storageInventory);
+  readonly fetchSupportReport = vi.fn(async () => ({}));
+  readonly clearLocalDataCategory = vi.fn(async () => ({ deleted: 0, inventory: this.storageInventory }));
+  readonly resetLocalData = vi.fn(async () => ({ settings: this.settings, inventory: this.storageInventory }));
   readonly fetchSleeperConnect = vi.fn<
     (input: {
       username: string;
@@ -230,6 +247,10 @@ class ApiMockController {
       this.createDraftEventSource,
       this.fetchAiDraftStrategyRequest,
       this.fetchDiagnostics,
+      this.fetchStorageInventory,
+      this.fetchSupportReport,
+      this.clearLocalDataCategory,
+      this.resetLocalData,
       this.fetchSleeperConnect,
       this.importWeeklyProjectionFilesRequest,
       this.importAdpRequest,
@@ -287,6 +308,10 @@ export const fetchAiDraftStrategyRequest = (...args: Parameters<typeof apiMock.f
 export const fetchAiStatus = (...args: Parameters<typeof apiMock.fetchAiStatus>) => apiMock.fetchAiStatus(...args);
 export const fetchDecisionHistory = (...args: Parameters<typeof apiMock.fetchDecisionHistory>) => apiMock.fetchDecisionHistory(...args);
 export const fetchDiagnostics = (...args: Parameters<typeof apiMock.fetchDiagnostics>) => apiMock.fetchDiagnostics(...args);
+export const fetchStorageInventory = (...args: Parameters<typeof apiMock.fetchStorageInventory>) => apiMock.fetchStorageInventory(...args);
+export const fetchSupportReport = (...args: Parameters<typeof apiMock.fetchSupportReport>) => apiMock.fetchSupportReport(...args);
+export const clearLocalDataCategory = (...args: Parameters<typeof apiMock.clearLocalDataCategory>) => apiMock.clearLocalDataCategory(...args);
+export const resetLocalData = (...args: Parameters<typeof apiMock.resetLocalData>) => apiMock.resetLocalData(...args);
 export const fetchDraftRecommendationRequest = (...args: Parameters<typeof apiMock.fetchDraftRecommendationRequest>) => apiMock.fetchDraftRecommendationRequest(...args);
 export const fetchDraftState = (...args: Parameters<typeof apiMock.fetchDraftState>) => apiMock.fetchDraftState(...args);
 export const fetchDraftStrategyInstructions = (...args: Parameters<typeof apiMock.fetchDraftStrategyInstructions>) => apiMock.fetchDraftStrategyInstructions(...args);

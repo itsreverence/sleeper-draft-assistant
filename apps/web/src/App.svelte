@@ -505,20 +505,73 @@
     }
   }
 
-  function resetRendererData() {
+  async function resetRendererData(settings: AppSettings) {
     try {
       const keys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
         .filter((key): key is string => Boolean(key))
         .filter((key) =>
           key.startsWith("playerPreferences:") ||
-          ["lastDraftId", "lastUserRosterId", "lastLeagueId", "sleeperUsername", "sleeperSeason", "sleeperLeagueInput"].includes(key),
+          ["lastDraftId", "lastDraftTeamRef", "lastUserRosterId", "lastLeagueId", "sleeperUsername", "sleeperSeason", "sleeperLeagueInput"].includes(key),
         );
       for (const key of keys) {
         window.localStorage.removeItem(key);
       }
-    } finally {
-      window.location.reload();
+    } catch {
+      // Continue resetting in-memory state if renderer storage is unavailable.
     }
+
+    draftQuestionRequest = null;
+    draftQuestionRequestId += 1;
+    teamQuestionRequest = null;
+    teamQuestionRequestId += 1;
+    decisionHistoryRequestId += 1;
+    strategyInstructionLoadKey = "";
+    try {
+      clearActiveDraft();
+    } catch {
+      // State is cleared before the best-effort persisted-key cleanup.
+    }
+    try {
+      resetSleeperLookup();
+    } catch {
+      // State is cleared before the best-effort persisted-key cleanup.
+    }
+
+    draftInput = "";
+    userRosterIdInput = "";
+    playerPreferences = {};
+    switchingDraft = false;
+    draftSwitcherOpen = false;
+    draftStrategyOpen = false;
+    selectedDraftTeamId = null;
+    playerSearchOpen = false;
+    decisionSnapshots = [];
+    decisionHistoryError = "";
+    isLoadingDecisionHistory = false;
+    resolvedAiDraftStrategy = null;
+    strategyInstructions = [];
+    strategyInstructionsBusy = false;
+    strategyInstructionsError = "";
+    appSettings = settings;
+    aiProviderStatus = null;
+    settingsError = "";
+    diagnosticsStatus = "";
+    isCopyingDiagnostics = false;
+    isSavingSettings = false;
+    isConnecting = false;
+    settingsOpen = false;
+    settingsReturnFocus = null;
+    status = "Connect Sleeper";
+    lastEvent = "Enter a username or paste a league URL to begin";
+
+    try {
+      aiProviderStatus = await fetchAiStatus();
+    } catch (error) {
+      settingsError = error instanceof Error ? error.message : "Could not refresh AI status.";
+    }
+
+    await tick();
+    document.getElementById("connect-username")?.focus();
   }
 
   async function findSleeperLeagues() {

@@ -2,10 +2,10 @@
   import { onMount } from "svelte";
 
   import { clearLocalDataCategory, fetchStorageInventory, fetchSupportReport, resetLocalData } from "../api";
-  import type { LocalDataCategory, StorageInventory } from "../types";
+  import type { AppSettings, LocalDataCategory, StorageInventory } from "../types";
   import Icon from "./Icon.svelte";
 
-  let { onResetComplete }: { onResetComplete: () => void } = $props();
+  let { onResetComplete }: { onResetComplete: (settings: AppSettings) => void | Promise<void> } = $props();
 
   let inventory: StorageInventory | null = $state(null);
   let error = $state("");
@@ -84,10 +84,11 @@
     error = "";
     status = "";
     try {
-      await resetLocalData();
-      onResetComplete();
+      const result = await resetLocalData();
+      await onResetComplete(result.settings);
     } catch (caught) {
       error = caught instanceof Error ? caught.message : "Could not reset local app data.";
+    } finally {
       busyAction = "";
     }
   }
@@ -156,7 +157,7 @@
         <div class="reset-actions">
           <button class="btn btn-ghost" type="button" disabled={busyAction !== ""} onclick={() => { resetOpen = false; resetConfirmation = ""; }}>Cancel</button>
           <button class="btn btn-danger" type="button" disabled={busyAction !== "" || resetConfirmation !== "DELETE"} onclick={resetEverything}>
-            {busyAction === "reset" ? "Deleting" : "Delete and restart"}
+            {busyAction === "reset" ? "Deleting" : "Delete and reset"}
           </button>
         </div>
       </div>
