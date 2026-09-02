@@ -68,12 +68,12 @@ export class CodexAppServerProvider implements AiProvider {
   status(): AiProviderStatus {
     return {
       id: "codex-app-server",
-      label: "Codex app-server",
+      label: "Codex",
       configured: true,
       ...(this.availability ? { availability: this.availability } : {}),
       experimental: true,
       detail: this.availabilityDetail
-        ?? `Runs the configured Codex app-server with model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}. Requires local Codex login/session.`,
+        ?? `Codex will use model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}. Codex must be installed and signed in on this computer.`,
     };
   }
 
@@ -218,7 +218,7 @@ export class CodexAppServerProvider implements AiProvider {
 
   private markAvailable(): void {
     this.availability = "available";
-    this.availabilityDetail = `Codex app-server is ready with model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}.`;
+    this.availabilityDetail = `Using model ${this.model}${this.serviceTier === "fast" ? " in Fast mode" : ""}.`;
   }
 
   private markUnavailable(error: unknown, phase: "startup" | "request" = "request") {

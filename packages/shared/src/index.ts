@@ -130,13 +130,14 @@ export function isCodexExecutableReference(value: string): boolean {
 }
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-terra";
+export const CODEX_EXECUTABLE_REFERENCE_MESSAGE = "Enter codex or a path ending in codex, codex.exe, or codex.cmd.";
 export const CodexServiceTierSchema = z.enum(["default", "fast"]);
 export type CodexServiceTier = z.infer<typeof CodexServiceTierSchema>;
 
 export const AppSettingsSchema = z.object({
   aiProvider: AiProviderIdSchema.default("noop"),
   codexBin: z.string().trim().min(1).max(4_096).refine(isCodexExecutableReference, {
-    message: "Codex command must resolve to codex, codex.exe, or codex.cmd.",
+    message: CODEX_EXECUTABLE_REFERENCE_MESSAGE,
   }).default("codex"),
   codexModel: z.string().trim().min(1).default(DEFAULT_CODEX_MODEL),
   codexServiceTier: CodexServiceTierSchema.default("fast"),

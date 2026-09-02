@@ -1,4 +1,7 @@
 import { Hono } from "hono";
+import { ZodError } from "zod";
+
+import { CODEX_EXECUTABLE_REFERENCE_MESSAGE } from "@sleeper-draft-assistant/shared";
 
 import type { AiProviderManager } from "../ai/provider-factory";
 import type { SettingsStore } from "../settings-store";
@@ -18,6 +21,9 @@ export function registerSettingsRoutes(app: Hono, dependencies: SettingsRouteDep
       const input = await c.req.json<Record<string, unknown>>();
       return c.json(dependencies.getSettingsStore().update(input));
     } catch (error) {
+      if (error instanceof ZodError && error.issues.some((issue) => issue.path[0] === "codexBin")) {
+        return c.json({ error: CODEX_EXECUTABLE_REFERENCE_MESSAGE }, 400);
+      }
       return dependencies.handleRouteError(c, error);
     }
   });

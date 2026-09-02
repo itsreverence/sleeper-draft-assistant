@@ -196,6 +196,7 @@ describe("Codex app-server executable resolution", () => {
 
     await expect(provider.checkStatus()).resolves.toMatchObject({
       id: "codex-app-server",
+      label: "Codex",
       configured: true,
       availability: "unavailable",
       detail: expect.stringContaining("Codex could not start"),

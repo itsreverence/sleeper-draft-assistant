@@ -3,7 +3,7 @@
   import AiProviderForm from "./AiProviderForm.svelte";
   import DataManagementPanel from "./DataManagementPanel.svelte";
   import type { AiProviderStatus, AppSettings } from "../types";
-  import { isAiProviderAvailable } from "../types";
+  import { aiProviderAvailability, isAiProviderAvailable } from "../types";
 
   let {
     settings,
@@ -35,16 +35,24 @@
     onManageDraftData?: () => void;
   } = $props();
 
+  const providerSummary = $derived(
+    aiProviderAvailability(providerStatus) === "disabled"
+      ? "AI off"
+      : isAiProviderAvailable(providerStatus)
+        ? "Codex ready"
+        : "Codex needs attention",
+  );
+
 </script>
 
 <section class="panel settings-panel" class:embedded aria-label="Application settings">
   <div class="panel-heading">
     <div>
-      <h2>AI provider</h2>
+      <h2>AI assistant</h2>
     </div>
     {#if providerStatus}
       <span class="pill" class:pill-ready={isAiProviderAvailable(providerStatus)} class:pill-warning={!isAiProviderAvailable(providerStatus)}>
-        {providerStatus.label}{providerStatus.availability === "unavailable" ? " needs attention" : ""}
+        {providerSummary}
       </span>
     {/if}
   </div>

@@ -14,26 +14,23 @@ This is a direction document, not a promise or release schedule.
 - compact roster, week, readiness, import, and activity views
 - local Codex app-server analysis for the core assistant workflow
 - local SQLite persistence and Electron packaging
+- redacted support reports and in-app controls for clearing local data
 - explicit format compatibility warnings for custom scoring, TE premium, IDP, and auction leagues
 - draft sync age, bounded retry backoff, and last-valid-state messaging
 - recent recommendation-change review backed by persisted decision snapshots
 - age warnings for imported draft, rest-of-season, and weekly data
 
-## Before the first published alpha installer
+## Before beta
 
-- complete clean Windows first-run and uninstall testing
-- validate unsigned-build and rollback guidance against the published artifacts
-- confirm CI packaging on the release commit
-- confirm tag-driven release checksums and provenance on the first prerelease
-- validate diagnostics and local-data deletion on Windows
+- complete Windows uninstall and local-data deletion testing
+- validate rest-of-season and weekly imports against current FantasyPros exports
+- finish the accessibility and keyboard-navigation pass
+- keep upgrade, rollback, checksum, and provider-recovery checks in the Windows release smoke test
+- sign release builds when the project can sustain the required certificates and release process
 
 ## Candidate follow-up work
 
-- validate the weekly projection importer against current-season exports as formats evolve
-- validate readiness thresholds against current-season projection imports
-- export/delete controls inside the application
-- stronger accessibility and keyboard-navigation coverage
-- release signing when sustainable
+- recheck import shapes and readiness thresholds as provider exports change
 - stronger AI-context validation and Team Manager interaction tests
 - dedicated dynasty, keeper, auction, and IDP models if demand justifies their separate complexity
 

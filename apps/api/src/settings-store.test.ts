@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { CODEX_EXECUTABLE_REFERENCE_MESSAGE } from "@sleeper-draft-assistant/shared";
+
 import { PersistedRecordError } from "./persisted-record";
 import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
@@ -157,7 +159,7 @@ describe("SettingsStore", () => {
     const store = new SettingsStore(filePath);
 
     expect(() => store.update({ codexBin: process.platform === "win32" ? "calc.exe" : "/bin/sh" })).toThrow(
-      /Codex command/,
+      CODEX_EXECUTABLE_REFERENCE_MESSAGE,
     );
   });
 });

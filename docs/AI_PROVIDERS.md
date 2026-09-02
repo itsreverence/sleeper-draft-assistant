@@ -13,9 +13,9 @@ The supported provider runs a user-installed Codex CLI as a local subprocess and
 1. Install Codex CLI through its official instructions.
 2. Run `codex login` or `codex login --device-auth` separately.
 3. Open app **Settings**.
-4. Select **Codex app-server** and save.
+4. Select **Codex (local)** and save.
 
-Provider status is verified by initializing the configured app-server; selecting Codex alone is not treated as readiness. If the CLI cannot start, the renderer shows **Needs attention** with retry and settings actions. Known startup, login, model, and timeout failures return bounded recovery guidance without exposing local paths, configuration contents, or raw provider errors.
+The app verifies the provider by starting the configured Codex session. Selecting Codex alone does not mean it is ready. If the CLI cannot start, the app shows **Needs attention** with actions to retry or open Settings. Known startup, login, model, and timeout failures return short recovery guidance without exposing local paths, configuration contents, or raw provider errors.
 
 The executable setting accepts `codex`, `codex.exe`, `codex.cmd`, or a full path ending in one of those names. Arbitrary subprocess commands are rejected.
 

@@ -38,6 +38,35 @@ describe("App draft lifecycle", () => {
     };
   });
 
+  it("keeps keyboard focus inside Settings and restores the opener when closed", async () => {
+    render(App);
+
+    const opener = screen.getByRole("button", { name: "Open settings" });
+    opener.focus();
+    await fireEvent.click(opener);
+
+    const dialog = screen.getByRole("dialog", { name: "Application settings" });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    expect((document.querySelector("main") as HTMLElement & { inert: boolean }).inert).toBe(true);
+
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ));
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    expect(first).toBeTruthy();
+    expect(last).toBeTruthy();
+    last?.focus();
+    await fireEvent.keyDown(window, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    await fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Application settings" })).toBeNull());
+    expect(document.activeElement).toBe(opener);
+  });
+
   it("one activation commits state/storage/one EventSource", async () => {
     const draftLoad = apiMock.deferDraftState({
       draftId: "draft-1",

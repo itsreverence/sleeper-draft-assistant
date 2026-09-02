@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
 
   import TopBar from "./lib/components/TopBar.svelte";
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
@@ -151,6 +151,7 @@
   let isConnecting = $state(false);
   let isSavingSettings = $state(false);
   let settingsOpen = $state(false);
+  let settingsReturnFocus: HTMLElement | null = $state(null);
   let draftSwitcherOpen = $state(false);
   let teamDataOpen = $state(false);
   let appSettings: AppSettings | null = $state(null);
@@ -1534,6 +1535,28 @@
     draftPreparationOpen = true;
   }
 
+  function openSettings() {
+    settingsReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    settingsOpen = true;
+  }
+
+  async function closeSettings() {
+    const returnFocus = settingsReturnFocus;
+    settingsOpen = false;
+    await tick();
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+    }
+  }
+
+  function toggleSettings() {
+    if (settingsOpen) {
+      void closeSettings();
+    } else {
+      openSettings();
+    }
+  }
+
   function askAboutSearchedPlayer(playerName: string) {
     const recommendedPlayerName = visibleAiDraftStrategy?.recommendedCandidate.player.name;
     draftQuestionRequest = {
@@ -1803,10 +1826,29 @@
   });
 </script>
 
+{#if settingsOpen}
+  <SettingsDrawer
+    settings={appSettings}
+    providerStatus={aiProviderStatus}
+    isSaving={isSavingSettings}
+    error={settingsError}
+    {isCopyingDiagnostics}
+    {diagnosticsStatus}
+    onSave={saveSettings}
+    onCopyDiagnostics={copyDiagnostics}
+    onResetComplete={resetRendererData}
+    draftDataAvailable={isRealDraftActive}
+    draftDataStatus={draftDataSettingsStatus}
+    onManageDraftData={manageDraftDataFromSettings}
+    onClose={closeSettings}
+  />
+{/if}
+
 <main
   class="app-shell"
   class:preconnect-shell={isPreconnect || switchingDraft}
   class:preconnect-landing={(isPreconnect || switchingDraft) && !settingsOpen}
+  inert={settingsOpen}
 >
   <TopBar
     title={draftState?.name ?? (switchingDraft ? "Choose another draft" : "Connect your Sleeper draft")}
@@ -1820,26 +1862,8 @@
     draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
     onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
-    onOpenSettings={() => (settingsOpen = !settingsOpen)}
+    onOpenSettings={toggleSettings}
   />
-
-  {#if settingsOpen}
-    <SettingsDrawer
-      settings={appSettings}
-      providerStatus={aiProviderStatus}
-      isSaving={isSavingSettings}
-      error={settingsError}
-      {isCopyingDiagnostics}
-      {diagnosticsStatus}
-      onSave={saveSettings}
-      onCopyDiagnostics={copyDiagnostics}
-      onResetComplete={resetRendererData}
-      draftDataAvailable={isRealDraftActive}
-      draftDataStatus={draftDataSettingsStatus}
-      onManageDraftData={manageDraftDataFromSettings}
-      onClose={() => (settingsOpen = false)}
-    />
-  {/if}
 
   {#if draftSwitcherOpen && draftState}
     <DraftSwitcherDrawer
@@ -2016,7 +2040,7 @@
                   onSetPreference={setPlayerPreference}
                   onClearPreferences={clearPlayerPreferences}
                   onOpenRankings={openDraftPreparation}
-                  onOpenSettings={() => (settingsOpen = true)}
+                  onOpenSettings={openSettings}
                   onOpenPlayerSearch={() => {
                     draftStrategyOpen = false;
                     selectedDraftTeamId = null;
@@ -2032,7 +2056,7 @@
                   onAsk={askManager}
                   onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
                   promptRequest={draftQuestionRequest}
-                  onOpenSettings={() => (settingsOpen = true)}
+                  onOpenSettings={openSettings}
                   providerStatus={conversationalProviderStatus}
                   {hasImportedRankings}
                   {hasSeasonProjections}
@@ -2110,7 +2134,7 @@
             providerStatus={conversationalProviderStatus}
             promptRequest={teamQuestionRequest}
             onPromptRequestHandled={acknowledgeTeamQuestionRequest}
-            onOpenSettings={() => (settingsOpen = true)}
+            onOpenSettings={openSettings}
             onRetryProvider={retryAiProvider}
           />
           <MyTeamPanel
@@ -2160,15 +2184,17 @@
 
 <style>
   .app-shell {
-    width: min(1440px, 100%);
+    width: auto;
+    max-width: 1440px;
     margin: 0 auto;
     padding: var(--space-6);
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
 
   .app-shell.preconnect-shell {
-    width: min(720px, 100%);
+    max-width: 720px;
     min-height: 100vh;
   }
 

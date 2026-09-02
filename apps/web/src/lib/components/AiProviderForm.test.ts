@@ -23,6 +23,8 @@ describe("AI provider form", () => {
     const fastResponses = screen.getByRole("checkbox", { name: "Fast responses" }) as HTMLInputElement;
     expect(fastResponses.checked).toBe(true);
     expect(screen.getByText(/2.5× ChatGPT credits/i)).toBeTruthy();
+    expect(screen.getByText("Codex command or path")).toBeTruthy();
+    expect(screen.getByText("Response timeout (ms)")).toBeTruthy();
 
     await fireEvent.click(fastResponses);
     await fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));

@@ -29,11 +29,15 @@ The three reception-bearing positions must use the league's scoring variant. The
 
 The first-party tables still expose the positional shapes the importer models: QB passing plus rushing; RB rushing plus receiving; WR receiving plus rushing; TE receiving; K field goals and extra points; and DST sacks, turnovers, touchdowns, safeties, points allowed, yards allowed, and `FPTS`. The six real FantasyPros Week 1 CSVs downloaded during the August 28 check used the expected `Player`, `Team`, position-specific statistics, and trailing `FPTS` columns. Replaying that batch parsed 671 rows, matched 667, left 4 unmatched, and produced no ambiguous matches. A fresh authenticated CSV download was not available to this automated check, so the page shape is current while the export-file replay remains dated August 28.
 
+The pages were checked again on September 1. QB and RB reported August 31 updates; WR, TE, K, and DST reported September 1 updates. Their visible table shapes still match the importer contracts above. This confirms the current page schema, but not a newly downloaded authenticated CSV export.
+
 The official [2026 Week 1 schedule](https://www.nfl.com/schedules/2026/by-week/reg-1) begins in September. Projections imported on August 28 are useful for testing file parsing, player matching, position coverage, and roster coverage. They should be downloaded again close to kickoff to incorporate role, roster, and injury changes. The application treats a weekly import as stale after three days and excludes stale position files from roster, available-player, readiness, and Codex evidence while retaining the stored summary for replacement.
 
 ### 2026 ROS rankings are not live
 
 The official FantasyPros [PPR](https://www.fantasypros.com/nfl/rankings/ros-ppr-overall.php), [Half-PPR](https://www.fantasypros.com/nfl/rankings/ros-half-point-ppr-overall.php), and [standard](https://www.fantasypros.com/nfl/rankings/ros-overall.php) routes exist, but did not expose a current 2026 ranking table in the unauthenticated response checked on August 29. More decisively, the canonical [PPR ROS rankings view](https://www.fantasypros.com/nfl/rankings/?scoring=PPR&type=ros) still identifies itself as “2025 Fantasy Football Rankings” and “Overall Rest of Season Rankings - Dec 31, 2025.” There is therefore no first-party evidence that a 2026 ROS export is ready.
+
+That canonical view still showed the 2025 title and December 31, 2025 date when rechecked on September 1.
 
 Do not import a CSV from these pages as 2026 ROS evidence yet. The current importer validates CSV structure, player matching, season, and scoring selections supplied by the user. It does not verify that the export itself is an ROS dataset. Its freshness timestamp records when the user imported the file, not when FantasyPros produced the underlying rankings. A freshly imported draft export could therefore appear to be fresh ROS data.
 
@@ -81,7 +85,7 @@ The missing fields should remain evidence, not become a parallel deterministic r
 
 ## Source limitations
 
-- Projection and ranking availability is a point-in-time finding from August 29, 2026. FantasyPros can refresh or replace these datasets without changing the route.
+- Projection and ranking availability is a point-in-time finding last rechecked on September 1, 2026. FantasyPros can refresh or replace these datasets without changing the route.
 - The current FantasyPros tables were accessible without authentication, but a new authenticated CSV export was not downloaded during this check; CSV-shape confidence combines the current first-party tables with the August 28 real-export replay.
 - FantasyPros injury and depth-chart pages are current editorial aggregations, not official NFL or team injury reports.
 - Sleeper's public API is live and read-only, but its documented fields do not guarantee that every player record has every optional field populated.

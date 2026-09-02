@@ -11,19 +11,19 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 
 - Connects to Sleeper's tokenless, read-only API by username, league, or draft.
 - Tracks live and completed draft boards.
-- Tracks active Sleeper drafts with lightweight two-second pick checks, while preserving the last valid board during transient failures with visible sync age and bounded retries.
+- Checks active Sleeper drafts for picks every two seconds. During transient failures, it keeps the last valid board visible, shows its sync age, and retries with bounded backoff.
 - Keeps imported ECR, projections, and ADP as grounding evidence for AI strategy rather than presenting a local ranking as draft advice.
-- Guides real drafts through a preparation stage and opens the AI workspace only after current ECR, season projections, Sleeper ADP, and Codex are ready.
+- Requires current ECR, season projections, Sleeper ADP, and Codex before opening the normal AI draft workspace.
 - Imports user-downloaded FantasyPros draft rankings, season projections, and Sleeper ADP exports; no third-party data is bundled or redistributed.
 - Imports user-downloaded FantasyPros overall rest-of-season rankings and weekly projection CSVs for team-management analysis.
 - Stops weekly projection evidence from reaching Codex after the three-day freshness window and follows Sleeper automatically when the active fantasy week advances.
 - Gives Codex the live roster, inferred availability, weekly projections, rest-of-season ranks, Sleeper injury/practice/depth-chart status, matchup state, and league activity as separate evidence for team-management advice.
-- Keeps Team Manager compact: a contextual Codex command bar and the actual Sleeper roster are primary, matchup and evidence readiness stay glanceable in the roster heading, and detailed import controls open only when managing data.
+- Keeps Team Manager focused on the Codex command bar and live Sleeper roster. Matchup and data readiness appear in the roster heading; imports stay in **Manage data**.
 - Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
-- Uses a local Codex app-server provider for the core draft and team-assistant experience.
-- Reuses one local Codex app-server process and scoped draft/team threads during each run, preserving conversational continuity without resending prior chat messages from the UI.
-- Uses a configured AI provider as the primary draft strategist near your turn, reasoning from neutral draft evidence and searching the full available-player snapshot through a read-only tool.
+- Runs Codex locally through the supported app-server integration.
+- Keeps one local Codex process and one temporary thread per draft or team while the app is running. Follow-up questions keep their context without the UI resending earlier messages.
+- Uses Codex as the primary draft strategist near your turn. It reasons from neutral draft evidence and can search the full read-only available-player snapshot.
 - Labels recommendations as contingent targets until your team is on the clock, shows the exact wait and snake-turn pairing, and separates elite fallers from turn-range contingencies.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.

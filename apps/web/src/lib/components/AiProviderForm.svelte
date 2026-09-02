@@ -60,14 +60,14 @@
       {#if !requireCodex}
         <option value="noop">Disable AI</option>
       {/if}
-      <option value="codex-app-server">Codex app-server</option>
+      <option value="codex-app-server">Codex (local)</option>
     </select>
   </label>
 
   {#if aiProvider === "codex-app-server"}
     <div class="provider-fields">
       <label class="field">
-        <span>Codex command</span>
+        <span>Codex command or path</span>
         <input class="input" bind:value={codexBin} type="text" placeholder="codex" />
       </label>
       <label class="field">
@@ -80,7 +80,7 @@
         </datalist>
       </label>
       <label class="field">
-        <span>Timeout ms</span>
+        <span>Response timeout (ms)</span>
         <input class="input" bind:value={codexTimeoutMs} type="number" min="5000" max="300000" step="1000" />
       </label>
     </div>
@@ -91,9 +91,8 @@
         <small>About 1.5× faster. GPT-5.6 uses 2.5× ChatGPT credits while enabled.</small>
       </span>
     </label>
-    <p class="form-note">Terra is the balanced default. Choose Luna for efficiency or Sol for maximum capability.</p>
-    <p class="form-note">Requires the Codex CLI to be installed and signed in on this machine. Authentication remains in Codex.</p>
-    <p class="form-note">The backend keeps one local app-server session active and reuses draft conversations while the app is running.</p>
+    <p class="form-note">Terra is the balanced default. Luna uses fewer resources; Sol offers the most capability.</p>
+    <p class="form-note">Codex must be installed and signed in on this computer. The app keeps one local Codex session running and reuses conversations until you close it.</p>
   {:else}
     <p class="form-note">AI recommendations and assistant questions are disabled.</p>
   {/if}
