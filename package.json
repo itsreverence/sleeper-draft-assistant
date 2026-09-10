@@ -21,7 +21,7 @@
     "@types/node": "^26.0.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.0"
   },
   "description": "Unofficial, local-first fantasy football draft and team-management assistant for Sleeper.",
   "author": "Sleeper Draft Assistant contributors",

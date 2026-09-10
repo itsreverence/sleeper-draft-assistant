@@ -16,6 +16,6 @@
     "@sleeper-draft-assistant/shared": "0.1.0-beta.1"
   },
   "devDependencies": {
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.0"
   }
 }
