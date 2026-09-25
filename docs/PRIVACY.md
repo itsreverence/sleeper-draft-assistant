@@ -42,7 +42,7 @@ The local API capability token is generated for each launch and kept in process 
 
 The **Copy diagnostics** action excludes provider tokens and raw imported rankings. The downloadable support report adds redacted decision-event metadata such as timestamps, triggers, pick counts, confidence, and aggregate assumption/risk counts. It excludes draft, league, roster, team, snapshot, and player identifiers; names; recommendation text; imported values; configured executable paths; and provider credentials.
 
-Diagnostics and support reports can still contain versions, provider and model names, storage counts, and runtime details. Review the JSON before sharing it, and redact anything you consider sensitive.
+Diagnostics and support reports can still contain versions, provider and model names, storage counts, and runtime details. They also include up to 20 recent news-lookup outcomes and elapsed milliseconds from the current provider session. These entries contain no player names, prompts, source URLs, article contents, local paths, or raw errors. They are held in memory and discarded when the provider is replaced or the app closes. Review the JSON before sharing it, and redact anything you consider sensitive.
 
 Never post unredacted database files, ranking exports, screenshots with league identifiers, or provider-auth material to public issues.
 

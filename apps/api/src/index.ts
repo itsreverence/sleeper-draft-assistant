@@ -168,6 +168,7 @@ function createDiagnosticsPayload() {
   return {
     ...createHealthPayload(),
     diagnosticsVersion: 1,
+    newsLookups: aiProviderManager.newsDiagnostics(),
     settings: redactSettings(settingsStore.get()),
     storage: {
       sqliteStorage: true,

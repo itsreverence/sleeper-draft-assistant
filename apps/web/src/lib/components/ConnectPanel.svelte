@@ -133,6 +133,7 @@
 
     {#if leaguePanelOpen}
       <form class="mini-form" onsubmit={submitLeagueLookup}>
+        <p id="league-username-help" class="demo-caption">Enter your Sleeper username above so we can identify your team in this league.</p>
         {#if noLeaguesFound}
           <p class="callout callout-warning">
             <Icon name="alert" size={15} />
@@ -141,7 +142,7 @@
         {/if}
         <label class="field">
           <span>League URL or ID</span>
-          <input class="input" bind:value={leagueInput} type="text" placeholder="sleeper.com/leagues/..." />
+          <input class="input" bind:value={leagueInput} type="text" placeholder="sleeper.com/leagues/..." aria-describedby="league-username-help" />
         </label>
         <label class="field">
           <span>Season</span>

@@ -32,6 +32,7 @@ describe("Connection alternatives", () => {
     await fireEvent.click(league);
     expect(league.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByLabelText("League URL or ID")).toBeTruthy();
+    expect(screen.getByText("Enter your Sleeper username above so we can identify your team in this league.")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Find this league" }));
     expect(onFindLeagues).toHaveBeenCalledOnce();
     await fireEvent.click(draft);

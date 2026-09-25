@@ -28,17 +28,42 @@ describe("bounded public player news", () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it.each(["javascript:alert(1)", "https://www.nfl.com.evil.test/report", "https://user:secret@nfl.com/report", "http://nfl.com/report", "https://127.0.0.1/report"])("rejects unsafe source %s", async (url) => {
+  it("accepts dated articles on the official NFL AMP host", async () => {
+    const news = createPlayerNewsTool(players, async () => response.replace("www.nfl.com", "amp.nfl.com"));
+    expect(await news.tool.execute({ playerId: "private-id", topic: "practice" })).toMatchObject({ status: "available" });
+    expect(news.sources[0]?.url).toBe("https://amp.nfl.com/news/report");
+  });
+
+  it.each(["javascript:alert(1)", "https://www.nfl.com.evil.test/report", "https://amp.nfl.com.evil.test/report", "https://unknown.nfl.com/report", "https://user:secret@nfl.com/report", "http://nfl.com/report", "https://127.0.0.1/report"])("rejects unsafe source %s", async (url) => {
     const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url, reportedAt: null }] }));
     expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "unavailable" });
     expect(news.sources).toEqual([]);
   });
 
   it("returns a safe gap instead of exposing provider errors", async () => {
-    const news = createPlayerNewsTool(players, async () => { throw Error("private config path"); });
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => {
+      vi.setSystemTime(Date.now() + 250);
+      throw Error("private config path");
+    }, record);
     const result = await news.tool.execute({ playerId: "private-id", topic: "role" });
     expect(result).toMatchObject({ status: "unavailable" });
     expect(JSON.stringify(result)).not.toContain("private config");
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "provider_error", elapsedMs: 250 });
+  });
+
+  it.each([
+    ["not JSON", "invalid_json"],
+    [JSON.stringify({ summary: "No recent articles", sources: [] }), "no_recent_sources"],
+    [JSON.stringify({ summary: "News", sources: [{ title: "Report", url: "https://evil.test/private", reportedAt: "2026-09-24" }] }), "invalid_source"],
+    [JSON.stringify({ summary: "News", sources: [{ title: "Report", url: "https://nfl.com/news/report", reportedAt: null }] }), "invalid_date"],
+    [JSON.stringify({ sources: [] }), "invalid_response"],
+    [response, "available"],
+  ])("records a bounded category for %s", async (raw, outcome) => {
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => raw, record);
+    await news.tool.execute({ playerId: "private-id", topic: "injury" });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome, elapsedMs: 0 });
   });
 
   it.each([null, "2025-11-16", "2026-09-25", "2026-02-31"])("does not present an old, unknown, future, or invalid date as current: %s", async (reportedAt) => {

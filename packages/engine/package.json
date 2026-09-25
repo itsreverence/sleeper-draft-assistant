@@ -1,6 +1,6 @@
 {
   "name": "@sleeper-draft-assistant/engine",
-  "version": "0.1.0-beta.2",
+  "version": "0.1.0-beta.3",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sleeper-draft-assistant/shared": "0.1.0-beta.2"
+    "@sleeper-draft-assistant/shared": "0.1.0-beta.3"
   },
   "devDependencies": {
     "vitest": "^4.1.11"

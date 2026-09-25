@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NewsSourceSchema, type NewsSource } from "@sleeper-draft-assistant/shared";
-import type { AiTool } from "./types";
+import type { AiTool, NewsLookupDiagnostic, NewsLookupOutcome } from "./types";
 
 export type NewsPlayer = { playerId: string; name: string; team: string; position: string };
 export const newsDomains = ["nfl.com", "espn.com"];
@@ -10,12 +10,20 @@ const requestSchema = z.object({
 }).strict();
 const resultSchema = z.object({
   summary: z.string().min(1).max(1800),
-  sources: z.array(NewsSourceSchema).min(1).max(3),
+  sources: z.array(NewsSourceSchema).max(3),
 });
+
+// Only app-owned categories cross the diagnostic boundary, never exception text.
+export class NewsLookupError extends Error {
+  constructor(readonly outcome: "timeout" | "cancelled") {
+    super(outcome);
+  }
+}
 
 export function createPlayerNewsTool(
   players: NewsPlayer[],
   lookup: (publicPrompt: string) => Promise<string>,
+  record: (diagnostic: NewsLookupDiagnostic) => void = () => undefined,
 ) {
   const byId = new Map(players.map((player) => [player.playerId, player]));
   const sources: NewsSource[] = [];
@@ -35,6 +43,8 @@ export function createPlayerNewsTool(
       if (!player) throw new Error("Player is not in the current evidence snapshot.");
       if (++calls > 2) return { status: "unavailable", reason: "News lookup limit reached. Use existing evidence." };
       const checkedAt = new Date().toISOString();
+      const startedAt = Date.now();
+      let outcome: NewsLookupOutcome = "provider_error";
       try {
         // Deliberately omit IDs, the user's question, league state, and imported values.
         const prompt = [
@@ -45,7 +55,20 @@ export function createPlayerNewsTool(
           "Use only nfl.com or espn.com sources actually found during this lookup and published within the last seven days. Do not invent dates or links. If no usable recent dated reporting is found, return an empty sources array.",
         ].join("\n");
         const raw = await lookup(prompt);
-        const result = resultSchema.parse(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)));
+        outcome = "invalid_json";
+        const parsed: unknown = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+        const validated = resultSchema.safeParse(parsed);
+        if (!validated.success) {
+          outcome = validated.error.issues.some((issue) => issue.path[0] === "sources" && typeof issue.path[1] === "number")
+            ? "invalid_source" : "invalid_response";
+          throw new Error("Invalid news response.");
+        }
+        const result = validated.data;
+        if (!result.sources.length) {
+          outcome = "no_recent_sources";
+          throw new Error("No recent sources.");
+        }
+        outcome = "invalid_date";
         const today = Date.parse(checkedAt.slice(0, 10));
         if (!result.sources.every((source) => {
           if (!source.reportedAt) return false;
@@ -55,9 +78,13 @@ export function createPlayerNewsTool(
         })) throw new Error("No verified recent reporting.");
         const dated = result.sources.map((source) => ({ ...source, checkedAt }));
         sources.push(...dated);
+        outcome = "available";
         return { status: "available", playerId: player.playerId, summary: result.summary, sources: dated, advisory: "Reporting supplements, but does not override, Sleeper roster and availability. Recheck time-sensitive claims." };
-      } catch {
+      } catch (error) {
+        if (error instanceof NewsLookupError) outcome = error.outcome;
         return { status: "unavailable", reason: "Current news could not be verified. Continue with supplied evidence and disclose the gap." };
+      } finally {
+        record({ outcome, elapsedMs: Math.max(0, Date.now() - startedAt) });
       }
     },
   };

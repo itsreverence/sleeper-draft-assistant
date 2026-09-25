@@ -2,6 +2,10 @@ import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction
 
 export type AiProviderId = "noop" | "codex-app-server";
 
+export type NewsLookupOutcome = "available" | "provider_error" | "timeout" | "cancelled"
+  | "invalid_json" | "invalid_response" | "invalid_source" | "invalid_date" | "no_recent_sources";
+export type NewsLookupDiagnostic = { outcome: NewsLookupOutcome; elapsedMs: number };
+
 export type AiProviderStatus = {
   id: AiProviderId;
   label: string;
@@ -211,6 +215,7 @@ export type AiDraftStrategy = {
 };
 
 export interface AiProvider {
+  newsDiagnostics?(): NewsLookupDiagnostic[];
   status(): AiProviderStatus;
   checkStatus?(): Promise<AiProviderStatus>;
   strategizeDraft(context: DraftStrategyContext, tools?: AiTool[]): Promise<AiDraftStrategy>;
@@ -218,7 +223,6 @@ export interface AiProvider {
   answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
   close?(): void;
 }
-
 
 
 

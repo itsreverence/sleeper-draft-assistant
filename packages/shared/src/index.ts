@@ -114,7 +114,7 @@ export function isNewsSourceUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.port
-      && ["nfl.com", "www.nfl.com", "espn.com", "www.espn.com"].includes(url.hostname);
+      && ["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"].includes(url.hostname);
   } catch { return false; }
 }
 export const NewsSourceSchema = z.object({
