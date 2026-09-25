@@ -55,6 +55,7 @@ describe("local data management", () => {
       codexBin: "C:\\Users\\private\\bin\\codex.exe",
       codexModel: "gpt-5.4",
       codexServiceTier: "fast",
+      codexWebSearch: true,
       codexTimeoutMs: 60000,
       automaticAiAudit: "off",
       aiSetupAcknowledged: true,

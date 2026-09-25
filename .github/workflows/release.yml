@@ -69,7 +69,7 @@ jobs:
           }
           $checksums | Set-Content (Join-Path $output "SHA256SUMS.txt") -Encoding ascii
 
-      - name: Publish GitHub prerelease
+      - name: Publish GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -85,6 +85,12 @@ jobs:
           )
           $artifacts += Get-Item (Join-Path $output "SHA256SUMS.txt")
           $artifactPaths = $artifacts.FullName
+          $isPrerelease = $env:GITHUB_REF_NAME.Contains("-").ToString().ToLowerInvariant()
+          $notesPath = "docs/releases/$($env:GITHUB_REF_NAME.TrimStart('v')).md"
+          $notesArgs = @()
+          if (Test-Path $notesPath) {
+            $notesArgs = @("--notes-file", $notesPath)
+          }
 
           & gh release view $env:GITHUB_REF_NAME *> $null
           if ($LASTEXITCODE -eq 0) {
@@ -93,8 +99,8 @@ jobs:
             & gh release create $env:GITHUB_REF_NAME @artifactPaths `
               --title "Sleeper Draft Assistant $env:GITHUB_REF_NAME" `
               --generate-notes `
-              --prerelease `
-              --verify-tag
+              "--prerelease=$isPrerelease" `
+              --verify-tag @notesArgs
           }
           if ($LASTEXITCODE -ne 0) {
             throw "GitHub release publication failed."

@@ -15,6 +15,7 @@ import {
   rosRankingImportRecordCodec,
   type SerializedRosRankingImport,
 } from "./persisted-domain-codecs";
+import { mutatePersistedMap } from "./persisted-cache";
 import { persistedRecordError } from "./persisted-record";
 import type { StoredRankingImport } from "./rankings-import";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
@@ -66,13 +67,15 @@ export class SeasonValueRankingImportStore {
   }
 
   set(key: SeasonValueRankingImportKey, storedImport: StoredSeasonValueRankingImport) {
-    const importKey = toSeasonValueImportKey(key);
-    this.imports.set(importKey, storedImport);
-    if (this.database) {
-      this.database.setRecord("ros_ranking_imports", importKey, rosRankingImportRecordCodec, serialize(storedImport));
-    } else {
-      this.saveFile();
-    }
+    return mutatePersistedMap(this.imports, () => {
+      const importKey = toSeasonValueImportKey(key);
+      this.imports.set(importKey, storedImport);
+      if (this.database) {
+        this.database.setRecord("ros_ranking_imports", importKey, rosRankingImportRecordCodec, serialize(storedImport));
+      } else {
+        this.saveFile();
+      }
+    });
   }
 
   get(key: SeasonValueRankingImportKey): StoredSeasonValueRankingImport | null {
@@ -80,28 +83,32 @@ export class SeasonValueRankingImportStore {
   }
 
   delete(key: SeasonValueRankingImportKey): boolean {
-    const importKey = toSeasonValueImportKey(key);
-    const deleted = this.imports.delete(importKey);
-    if (deleted) {
-      if (this.database) {
-        this.database.deleteJson("ros_ranking_imports", importKey);
-      } else {
-        this.saveFile();
+    return mutatePersistedMap(this.imports, () => {
+      const importKey = toSeasonValueImportKey(key);
+      const deleted = this.imports.delete(importKey);
+      if (deleted) {
+        if (this.database) {
+          this.database.deleteJson("ros_ranking_imports", importKey);
+        } else {
+          this.saveFile();
+        }
       }
-    }
-    return deleted;
+      return deleted;
+    });
   }
 
   clearAll(): number {
-    const deleted = this.imports.size;
-    this.imports.clear();
-    if (this.database) {
-      this.database.clearJson("ros_ranking_imports");
-    } else {
-      this.saveFile();
-    }
-    removePrivateFile(this.filePath);
-    return deleted;
+    return mutatePersistedMap(this.imports, () => {
+      const deleted = this.imports.size;
+      this.imports.clear();
+      if (this.database) {
+        removePrivateFile(this.filePath);
+        this.database.clearJson("ros_ranking_imports");
+      } else {
+        this.saveFile();
+      }
+      return deleted;
+    });
   }
 
   private load() {
@@ -207,7 +214,8 @@ export function classifyFantasyProsSeasonValueCsv(csvText: string): SeasonValueR
   }
   const normalized = new Set(headers.map(normalizeHeader));
   const hasCore = ["rk", "playername", "team", "pos"].every((header) => normalized.has(header));
-  const hasRosSignature = ["best", "worst", "avg", "stddev"].every((header) => normalized.has(header));
+  // Verified Overall ROS export; expert-disagreement columns are not required.
+  const hasRosSignature = ["sosseason", "sosplayoffs", "ecrvsadp"].every((header) => normalized.has(header));
   const hasDraftSignature = ["tiers", "byeweek", "ecrvsadp"].every((header) => normalized.has(header));
 
   if (!hasCore || hasRosSignature === hasDraftSignature) {

@@ -6,7 +6,7 @@ import { AppSettingsSchema, AppSettingsUpdateSchema, DEFAULT_CODEX_MODEL, type A
 
 import { createPersistedRecordCodec, persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
-import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
+import { CommittedFileWriteError, readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
 
 const LEGACY_DIRECT_PROVIDER_ID = "experimental-codex-backend";
 const LEGACY_DIRECT_PROVIDER_TOKEN_FILE = "experimental-codex-tokens.json";
@@ -34,18 +34,18 @@ export class SettingsStore {
 
   update(input: unknown): AppSettings {
     const update = AppSettingsUpdateSchema.parse(input) satisfies AppSettingsUpdate;
-    this.settings = AppSettingsSchema.parse({
+    const settings = AppSettingsSchema.parse({
       ...this.settings,
       ...update,
     });
-    this.save();
+    this.save(settings);
     return this.settings;
   }
 
   reset(): AppSettings {
-    this.settings = getDefaultSettings();
-    removePrivateFile(this.filePath);
-    this.save();
+    const settings = getDefaultSettings();
+    if (this.database) removePrivateFile(this.filePath);
+    this.save(settings);
     return this.settings;
   }
 
@@ -78,13 +78,18 @@ export class SettingsStore {
     }
   }
 
-  private save() {
-    if (this.database) {
-      this.database.setRecord("settings", "app", settingsRecordCodec, this.settings);
-      return;
+  private save(settings: AppSettings) {
+    try {
+      if (this.database) {
+        this.database.setRecord("settings", "app", settingsRecordCodec, settings);
+      } else {
+        writePrivateFile(this.filePath, `${JSON.stringify(settings, null, 2)}\n`);
+      }
+    } catch (error) {
+      if (error instanceof CommittedFileWriteError) this.settings = settings;
+      throw error;
     }
-
-    writePrivateFile(this.filePath, `${JSON.stringify(this.settings, null, 2)}\n`);
+    this.settings = settings;
   }
 }
 

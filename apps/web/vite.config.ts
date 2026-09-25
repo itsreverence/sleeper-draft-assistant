@@ -1,5 +1,6 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { createLogger, defineConfig, type Plugin } from "vite";
+import { createLogger, type Plugin } from "vite";
+import { defineConfig } from "vitest/config";
 
 import { redactViteLogMessage } from "./vite-log-redaction";
 

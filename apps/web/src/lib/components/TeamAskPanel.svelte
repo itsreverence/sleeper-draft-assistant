@@ -10,6 +10,9 @@
     teamState,
     weekContext = null,
     activitySummary = null,
+    selectedSeason = null,
+    selectedWeek = null,
+    contextKey = "",
     onAsk,
     providerStatus = null,
     promptRequest = null,
@@ -20,6 +23,9 @@
     teamState: TeamManagerState | null;
     weekContext?: TeamWeekContext | null;
     activitySummary?: TeamActivitySummary | null;
+    selectedSeason?: string | null;
+    selectedWeek?: number | null;
+    contextKey?: string;
     onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
     promptRequest?: { id: number; question: string } | null;
@@ -84,7 +90,7 @@
     hasWeeklyProjections ? "weekly data ready" : "weekly data limited",
   ] : ["No team loaded"]);
   const conversationIdentity = $derived(teamState
-    ? `${teamState.league.id}:${teamState.userTeam.rosterId}`
+    ? `${teamState.league.id}:${teamState.userTeam.rosterId}:${selectedSeason ?? teamState.league.season}:${selectedWeek ?? weekContext?.week ?? teamState.week}`
     : "no-team");
   const conversation = createAiConversation({
     ask: async (nextQuestion, history) => ({ answer: await onAsk(nextQuestion, history) }),
@@ -92,7 +98,7 @@
     fallbackError: "Codex could not answer because team context is unavailable.",
   });
 
-  $effect(() => conversation.syncIdentity(conversationIdentity));
+  $effect(() => conversation.syncIdentity(`${conversationIdentity}:${contextKey}`));
 
   $effect(() => {
     const request = promptRequest;

@@ -1,6 +1,6 @@
 {
   "name": "@sleeper-draft-assistant/desktop",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "private": true,
   "main": "src/main.cjs",
   "description": "Unofficial, local-first fantasy football draft and team-management assistant for Sleeper.",
@@ -27,6 +27,7 @@
       "assets/icon.ico",
       "src/config.cjs",
       "src/main.cjs",
+      "src/startup.cjs",
       "dist/**/*",
       "package.json"
     ],
@@ -49,6 +50,6 @@
   "devDependencies": {
     "electron": "43.0.0",
     "electron-builder": "26.15.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   }
 }

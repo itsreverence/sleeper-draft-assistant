@@ -32,7 +32,10 @@ describe("AiProviderManager", () => {
     expect(close).toHaveBeenCalledTimes(2);
     expect(factory).toHaveBeenCalledTimes(3);
 
-    manager.close();
+    const noSearch = manager.get({ ...settings, codexModel: "gpt-test", codexServiceTier: "default", codexWebSearch: false });
+    expect(noSearch).not.toBe(standard);
     expect(close).toHaveBeenCalledTimes(3);
+    manager.close();
+    expect(close).toHaveBeenCalledTimes(4);
   });
 });

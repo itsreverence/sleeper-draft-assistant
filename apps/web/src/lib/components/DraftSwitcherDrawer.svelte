@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from "../modal";
   import type { ConnectDraft, ConnectLeague, ConnectPayload } from "../types";
   import Icon from "./Icon.svelte";
   import ConnectPanel from "./ConnectPanel.svelte";
@@ -55,11 +56,6 @@
     onClose: () => void;
   } = $props();
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
 
   async function selectKnownDraft(draftId: string) {
     const opened = await onSelectKnownDraft(draftId);
@@ -77,10 +73,8 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <button class="drawer-backdrop" type="button" aria-label="Close draft switcher" onclick={onClose}></button>
-<div class="switcher-drawer" role="dialog" aria-modal="true" aria-label="Switch league or draft">
+<div class="switcher-drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label="Switch league or draft">
   <button class="drawer-close" type="button" aria-label="Close draft switcher" onclick={onClose}>
     <Icon name="close" size={16} />
   </button>
@@ -313,6 +307,9 @@
   }
 
   .find-section :global(.connect-panel) {
+    width: 100%;
+    max-width: none;
+    margin: 0;
     gap: var(--space-4);
     border: 0;
     border-radius: 0;
@@ -323,6 +320,11 @@
 
   .find-section :global(.connect-panel > .section-header h2) {
     font-size: var(--text-lg);
+  }
+
+  .find-section :global(.mini-links) {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   @media (max-width: 720px) {

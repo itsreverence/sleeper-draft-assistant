@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { modal } from "../modal";
   import type { AiProviderStatus, AppSettings } from "../types";
   import Icon from "./Icon.svelte";
   import SettingsPanel from "./SettingsPanel.svelte";
@@ -34,56 +34,11 @@
     onClose: () => void;
   } = $props();
 
-  let drawer: HTMLDivElement;
-  let closeButton: HTMLButtonElement;
-
-  function focusableElements(): HTMLElement[] {
-    return drawer
-      ? Array.from(drawer.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-        ))
-      : [];
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-      return;
-    }
-
-    if (event.key !== "Tab") {
-      return;
-    }
-
-    const focusable = focusableElements();
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (!first || !last) {
-      event.preventDefault();
-      drawer?.focus();
-      return;
-    }
-
-    if (event.shiftKey && (document.activeElement === first || !drawer.contains(document.activeElement))) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
-  onMount(() => {
-    closeButton.focus();
-  });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <button class="drawer-backdrop" type="button" aria-label="Close settings" onclick={onClose}></button>
-<div class="settings-drawer" role="dialog" aria-modal="true" aria-label="Application settings" tabindex="-1" bind:this={drawer}>
-  <button class="drawer-close" type="button" aria-label="Close settings" title="Close settings" onclick={onClose} bind:this={closeButton}>
+<div class="settings-drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label="Application settings">
+  <button class="drawer-close" type="button" aria-label="Close settings" title="Close settings" onclick={onClose}>
     <Icon name="close" size={16} />
   </button>
 

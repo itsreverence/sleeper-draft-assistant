@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Sleeper Draft Assistant is pre-release alpha software. Security fixes are applied to the latest code on the default branch; older commits and local builds are not supported.
+Sleeper Draft Assistant is beta software. Security fixes are applied to the latest code on the default branch; older commits and local builds are not supported.
 
 ## Reporting a vulnerability
 

@@ -5,9 +5,11 @@ import { CODEX_EXECUTABLE_REFERENCE_MESSAGE } from "@sleeper-draft-assistant/sha
 
 import type { AiProviderManager } from "../ai/provider-factory";
 import type { SettingsStore } from "../settings-store";
+import type { LocalDataResetCoordinator } from "../local-data-reset";
 import type { RouteErrorHandler } from "./types";
 
 type SettingsRouteDependencies = {
+  localDataReset: LocalDataResetCoordinator;
   aiProviderManager: AiProviderManager;
   getSettingsStore(): SettingsStore;
   handleRouteError: RouteErrorHandler;
@@ -17,9 +19,14 @@ export function registerSettingsRoutes(app: Hono, dependencies: SettingsRouteDep
   app.get("/settings", (c) => c.json(dependencies.getSettingsStore().get()));
 
   app.put("/settings", async (c) => {
+    const generation = dependencies.localDataReset.captureGeneration();
     try {
       const input = await c.req.json<Record<string, unknown>>();
-      return c.json(dependencies.getSettingsStore().update(input));
+      dependencies.localDataReset.assertCurrent(generation);
+      const settings = dependencies.getSettingsStore().update(input);
+      // Apply provider changes immediately, including cancellation of active news work.
+      dependencies.aiProviderManager.get(settings);
+      return c.json(settings);
     } catch (error) {
       if (error instanceof ZodError && error.issues.some((issue) => issue.path[0] === "codexBin")) {
         return c.json({ error: CODEX_EXECUTABLE_REFERENCE_MESSAGE }, 400);

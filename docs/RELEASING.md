@@ -28,7 +28,7 @@ Then:
 8. Build distributable targets with `npm run desktop:make`.
 9. Confirm the package version is unused, then merge the release commit to `master`.
 10. Create and push the matching tag, such as `v0.1.0-beta.1`.
-11. Confirm the tag-triggered release workflow publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt` as a GitHub prerelease.
+11. Confirm the tag-triggered release workflow publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`. Tags with a prerelease suffix publish as GitHub prereleases; stable version tags publish as regular releases.
 
 The release workflow rejects tags that do not exactly match the root package version. Artifacts and checksums are produced in the same GitHub-hosted Windows job from the tagged commit. Do not replace a published artifact manually without also replacing its checksum.
 
@@ -46,3 +46,5 @@ State plainly:
 - known limitations and rollback instructions.
 
 Do not claim Windows readiness based only on Linux packaging or CI. A real clean-profile Windows launch remains the final distribution gate.
+
+A maintainer may explicitly authorize a beta testing candidate before manual Windows sign-off so testers can download it. Such a candidate must remain a prerelease, pass the automated gates, and state in its release notes which manual checks are pending. This exception does not apply to stable releases.

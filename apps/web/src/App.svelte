@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
+  import { draftStateRevision } from "@sleeper-draft-assistant/shared";
 
   import TopBar from "./lib/components/TopBar.svelte";
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
@@ -59,8 +60,8 @@
     normalizeTeamProjectionOverride,
     shouldRefreshTeamManager,
     TEAM_REFRESH_INTERVAL_MS,
-    teamPayloadFingerprint,
   } from "./lib/team-refresh";
+  import { createTeamSession } from "./lib/team-session.svelte";
   import { buildCandidateDiscussionQuestion, buildPlayerDiscussionQuestion, currentAiDraftStrategy, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import { createDraftSession, type DraftSessionGuard } from "./lib/draft-session.svelte";
   import { buildFantasyProsWeeklyProjectionUrl } from "./lib/fantasypros";
@@ -120,18 +121,17 @@
   let teamProjectionWeek = $state(0);
   let weeklyProjectionError = $state("");
   let rosRankingError = $state("");
-  let isImportingWeeklyProjections = $state(false);
-  let isClearingWeeklyProjections = $state(false);
-  let isImportingRosRankings = $state(false);
-  let isClearingRosRankings = $state(false);
+  const teamSession = createTeamSession();
+  const isImportingWeeklyProjections = $derived(teamSession.activity === "import-weekly");
+  const isClearingWeeklyProjections = $derived(teamSession.activity === "clear-weekly");
+  const isImportingRosRankings = $derived(teamSession.activity === "import-ros");
+  const isClearingRosRankings = $derived(teamSession.activity === "clear-ros");
   let teamManagerError = $state("");
-  let isLoadingTeamManager = $state(false);
-  let isRefreshingTeamManager = $state(false);
+  const isLoadingTeamManager = $derived(teamSession.activity === "load");
+  const isRefreshingTeamManager = $derived(teamSession.activity === "refresh");
   let teamRefreshError = $state("");
-  let teamLastCheckedAt: number | null = $state(null);
-  let teamLastChangedAt: number | null = $state(null);
-  let teamPayloadHash = "";
-  let teamManagerRequestId = 0;
+  const teamLastCheckedAt = $derived(teamSession.lastCheckedAt);
+  const teamLastChangedAt = $derived(teamSession.lastChangedAt);
   let loadDraftRequestId = 0;
   let teamRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let playerPreferences: PlayerPreferences = $state({});
@@ -170,7 +170,8 @@
   let draftQuestionRequestId = 0;
   let teamQuestionRequest: { id: number; question: string } | null = $state(null);
   let teamQuestionRequestId = 0;
-  let resolvedAiDraftStrategy: { draftId: string; payload: AiDraftStrategyPayload } | null = $state(null);
+  let resolvedAiDraftStrategy: { draftId: string; revision: string; payload: AiDraftStrategyPayload } | null = $state(null);
+  let aiDraftStrategyRequestId = 0;
   let strategyInstructions: DraftStrategyInstruction[] = $state([]);
   let strategyInstructionsBusy = $state(false);
   let strategyInstructionsError = $state("");
@@ -415,6 +416,7 @@
 
   onDestroy(() => {
     draftSession.destroy();
+    teamSession.reset();
     window.removeEventListener("focus", handleTeamRefreshFocus);
     document.removeEventListener("visibilitychange", handleTeamRefreshVisibility);
     if (teamRefreshInterval) {
@@ -437,7 +439,14 @@
     isSavingSettings = true;
     settingsError = "";
     try {
+      const priorWebSearch = appSettings?.codexWebSearch;
       appSettings = await updateSettings(settings);
+      if (priorWebSearch !== appSettings.codexWebSearch) {
+        aiDraftStrategyRequestId += 1;
+        resolvedAiDraftStrategy = null;
+        draftQuestionRequest = null;
+        teamQuestionRequest = null;
+      }
       const nextProviderStatus = await fetchAiStatus();
       aiProviderStatus = nextProviderStatus;
       const codexReady = nextProviderStatus.id === "codex-app-server"
@@ -806,6 +815,7 @@
     userIdentifier: string | null = null,
   ): Promise<boolean> {
     const requestId = ++loadDraftRequestId;
+    resetTeamRefreshTracking();
     isLoading = true;
     loadError = "";
     resetDraftImportState();
@@ -912,65 +922,41 @@
       weeklyProjectionError = "";
       rosRankingError = "";
       teamManagerError = "";
-      isLoadingTeamManager = false;
       return;
     }
 
-    const requestId = ++teamManagerRequestId;
     const isBackgroundRefresh = background && Boolean(teamManagerState);
-    if (isBackgroundRefresh) {
-      isRefreshingTeamManager = true;
-    } else {
-      isLoadingTeamManager = true;
+    if (!isBackgroundRefresh) {
       teamManagerError = "";
     }
     teamRefreshError = "";
 
-    try {
-      const payload = await fetchTeamManagerState(
+    await teamSession.run(isBackgroundRefresh ? "refresh" : "load", () => fetchTeamManagerState(
         leagueId,
         userRosterId,
         activeDraftId,
         projectionSeason,
         projectionWeek,
-      );
-      if (requestId !== teamManagerRequestId) {
-        return;
-      }
-
-      const nextPayloadHash = teamPayloadFingerprint(payload);
-      const checkedAt = Date.now();
-      const changed = teamPayloadHash === "" || nextPayloadHash !== teamPayloadHash;
-      applyTeamPayload(payload);
-      teamPayloadHash = nextPayloadHash;
-      teamLastCheckedAt = checkedAt;
-      if (changed) {
-        teamLastChangedAt = checkedAt;
-      }
-      teamManagerError = "";
-    } catch (error) {
-      if (requestId !== teamManagerRequestId) {
-        return;
-      }
-
-      const message = error instanceof Error ? error.message : "Could not load team roster.";
-      if (isBackgroundRefresh) {
-        teamRefreshError = message;
-      } else {
-        teamManagerState = null;
-        teamDataReadiness = null;
-        teamWeekContext = null;
-        teamActivitySummary = null;
-        weeklyProjectionSummary = null;
-        rosRankingSummary = null;
-        teamManagerError = message;
-      }
-    } finally {
-      if (requestId === teamManagerRequestId) {
-        isLoadingTeamManager = false;
-        isRefreshingTeamManager = false;
-      }
-    }
+      ), {
+        accept: (payload) => {
+          applyTeamPayload(payload);
+          teamManagerError = "";
+        },
+        reject: (error) => {
+          const message = error instanceof Error ? error.message : "Could not load team roster.";
+          if (isBackgroundRefresh) {
+            teamRefreshError = message;
+          } else {
+            teamManagerState = null;
+            teamDataReadiness = null;
+            teamWeekContext = null;
+            teamActivitySummary = null;
+            weeklyProjectionSummary = null;
+            rosRankingSummary = null;
+            teamManagerError = message;
+          }
+        },
+      });
   }
 
   async function refreshTeamManagerIfEligible(force = false) {
@@ -979,7 +965,7 @@
       workspaceMode,
       manageAvailable,
       visibilityState: document.visibilityState,
-      isRefreshing: isLoadingTeamManager || isRefreshingTeamManager,
+      isRefreshing: teamSession.activity !== null,
       lastCheckedAt: teamLastCheckedAt,
       now: Date.now(),
       force,
@@ -997,13 +983,8 @@
   }
 
   function resetTeamRefreshTracking() {
-    teamManagerRequestId += 1;
-    isLoadingTeamManager = false;
-    isRefreshingTeamManager = false;
+    teamSession.reset();
     teamRefreshError = "";
-    teamLastCheckedAt = null;
-    teamLastChangedAt = null;
-    teamPayloadHash = "";
   }
 
   function applyTeamPayload(payload: TeamPayload) {
@@ -1364,48 +1345,49 @@
       rosRankingError = "Open a team, enter the season, and choose an Overall ROS or Draft ECR CSV.";
       return;
     }
-    isImportingRosRankings = true;
     rosRankingError = "";
-    try {
-      const payload = await importRosRankingsRequest({
-        leagueId: teamManagerState.league.id,
+    const leagueId = teamManagerState.league.id;
+    const week = teamProjectionWeek || teamManagerState.week;
+    await teamSession.run("import-ros", () => importRosRankingsRequest({
+        leagueId,
         season: input.season,
         scoring: input.scoring,
         csvText: input.csvText,
         userRosterId: activeUserRosterId,
         draftId: activeDraftId,
-        week: teamProjectionWeek || teamManagerState.week,
+        week,
+      }), {
+        accept: (payload) => {
+          applyTeamPayload(payload);
+          status = `FantasyPros ${payload.summary.rankingType === "ros-ecr" ? "ROS ECR" : "Draft ECR fallback"} imported`;
+          lastEvent = `${payload.summary.matched} season value ranking rows matched`;
+        },
+        reject: (error) => {
+          rosRankingError = error instanceof Error ? error.message : "Season value ranking import failed.";
+        },
       });
-      applyTeamPayload(payload);
-      status = `FantasyPros ${payload.summary.rankingType === "ros-ecr" ? "ROS ECR" : "Draft ECR fallback"} imported`;
-      lastEvent = `${payload.summary.matched} season value ranking rows matched`;
-    } catch (error) {
-      rosRankingError = error instanceof Error ? error.message : "Season value ranking import failed.";
-    } finally {
-      isImportingRosRankings = false;
-    }
   }
 
   async function clearRosRankings(input: { season: string; scoring: DraftScoringFormat }) {
     if (!teamManagerState) {
       return;
     }
-    isClearingRosRankings = true;
     rosRankingError = "";
-    try {
-      await clearRosRankingsRequest(teamManagerState.league.id, input.season, input.scoring);
-      await loadTeamManager(
-        teamManagerState.league.id,
-        activeUserRosterId,
-        teamProjectionSeason || null,
-        teamProjectionWeek || null,
-      );
-      status = "Season value rankings cleared";
-    } catch (error) {
-      rosRankingError = error instanceof Error ? error.message : "Could not clear season value rankings.";
-    } finally {
-      isClearingRosRankings = false;
-    }
+    const leagueId = teamManagerState.league.id;
+    await teamSession.run("clear-ros", () => clearRosRankingsRequest(leagueId, input.season, input.scoring), {
+      accept: async () => {
+        status = "Season value rankings cleared";
+        await loadTeamManager(
+          leagueId,
+          activeUserRosterId,
+          teamProjectionSeason || null,
+          teamProjectionWeek || null,
+        );
+      },
+      reject: (error) => {
+        rosRankingError = error instanceof Error ? error.message : "Could not clear season value rankings.";
+      },
+    });
   }
 
   async function importWeeklyProjections(input: {
@@ -1430,28 +1412,28 @@
       return;
     }
 
-    isImportingWeeklyProjections = true;
     weeklyProjectionError = "";
     teamProjectionSeason = input.season;
     teamProjectionWeek = input.week;
 
-    try {
-      const payload = await importWeeklyProjectionFilesRequest({
-        leagueId: teamManagerState.league.id,
+    const leagueId = teamManagerState.league.id;
+    await teamSession.run("import-weekly", () => importWeeklyProjectionFilesRequest({
+        leagueId,
         season: input.season,
         week: input.week,
         files: input.files,
         userRosterId: activeUserRosterId,
         draftId: activeDraftId,
+      }), {
+        accept: (payload) => {
+          applyTeamPayload(payload);
+          status = "FantasyPros weekly projections imported";
+          lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
+        },
+        reject: (error) => {
+          weeklyProjectionError = error instanceof Error ? error.message : "Weekly projection import failed.";
+        },
       });
-      applyTeamPayload(payload);
-      status = "FantasyPros weekly projections imported";
-      lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
-    } catch (error) {
-      weeklyProjectionError = error instanceof Error ? error.message : "Weekly projection import failed.";
-    } finally {
-      isImportingWeeklyProjections = false;
-    }
   }
 
   async function loadWeeklyProjectionContext(input: { season: string; week: number }) {
@@ -1480,19 +1462,19 @@
       return;
     }
 
-    isClearingWeeklyProjections = true;
     weeklyProjectionError = "";
 
-    try {
-      await clearWeeklyProjectionsRequest(teamManagerState.league.id, input.season, input.week);
-      await loadTeamManager(teamManagerState.league.id, activeUserRosterId, input.season, input.week);
-      status = "FantasyPros weekly projections cleared";
-      lastEvent = `Cleared Week ${input.week} projection import`;
-    } catch (error) {
-      weeklyProjectionError = error instanceof Error ? error.message : "Could not clear weekly projections.";
-    } finally {
-      isClearingWeeklyProjections = false;
-    }
+    const leagueId = teamManagerState.league.id;
+    await teamSession.run("clear-weekly", () => clearWeeklyProjectionsRequest(leagueId, input.season, input.week), {
+      accept: async () => {
+        status = "FantasyPros weekly projections cleared";
+        lastEvent = `Cleared Week ${input.week} projection import`;
+        await loadTeamManager(leagueId, activeUserRosterId, input.season, input.week);
+      },
+      reject: (error) => {
+        weeklyProjectionError = error instanceof Error ? error.message : "Could not clear weekly projections.";
+      },
+    });
   }
 
   async function askTeamManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
@@ -1509,7 +1491,6 @@
       teamProjectionSeason || null,
       teamProjectionWeek || null,
     );
-    applyTeamPayload(payload);
     return payload.answer;
   }
 
@@ -1654,14 +1635,22 @@
 
   async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
     const draftId = activeDraftId;
+    const guard = draftSession.captureGuard();
+    const state = draftState;
+    if (!state || !guard) throw new Error("Open a draft before requesting a strategy.");
+    const revision = draftStateRevision(state);
+    const requestId = ++aiDraftStrategyRequestId;
     const payload = await fetchAiDraftStrategyRequest(
       draftId,
       activeDraftTeamRef,
       playerPreferenceSummary(),
       recommendationPreferenceRequest(),
     );
-    resolvedAiDraftStrategy = { draftId, payload };
-    void loadDecisionHistory();
+    if (requestId === aiDraftStrategyRequestId && draftSession.isGuardCurrent(guard)
+      && draftState && draftStateRevision(draftState) === revision) {
+      resolvedAiDraftStrategy = { draftId, revision, payload };
+      void loadDecisionHistory();
+    }
     return payload;
   }
 
@@ -1679,8 +1668,8 @@
   );
   const visibleAiDraftStrategy = $derived.by(() => {
     const state: DraftState | null = draftState;
-    const resolved: { draftId: string; payload: AiDraftStrategyPayload } | null = resolvedAiDraftStrategy;
-    if (!state || !resolved || resolved.draftId !== activeDraftId) {
+    const resolved = resolvedAiDraftStrategy;
+    if (!state || !resolved || resolved.draftId !== activeDraftId || resolved.revision !== draftStateRevision(state)) {
       return null;
     }
     return currentAiDraftStrategy(resolved.payload, state.currentPick);
@@ -2095,7 +2084,7 @@
                   aiEnabled={codexProviderReady}
                   aiStrategyEnabled={aiDraftStrategyEnabled}
                   shouldRequestAiStrategy={shouldRequestAiStrategy}
-                  strategyRequestKey={`${activeDraftId}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
+                  strategyRequestKey={`${activeDraftId}:${appSettings?.codexWebSearch}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
                   onRequestAiStrategy={requestAiDraftStrategy}
                   onAskAboutCandidate={askAboutCandidate}
                   playerPreferences={playerPreferences}
@@ -2126,7 +2115,7 @@
                   {hasImportedAdp}
                   showPlaceholderWarning={draftValuesIncomplete}
                   {draftState}
-                  draftIdentity={activeDraftIdentity}
+                  draftIdentity={`${activeDraftIdentity}:${appSettings?.codexWebSearch}`}
                   {recommendation}
                 />
               {/if}
@@ -2190,7 +2179,10 @@
         />
         <section class="team-workspace">
           <TeamAskPanel
+            contextKey={String(appSettings?.codexWebSearch)}
             teamState={teamManagerState}
+            selectedSeason={teamProjectionSeason || null}
+            selectedWeek={teamProjectionWeek || null}
             weekContext={teamWeekContext}
             activitySummary={teamActivitySummary}
             onAsk={askTeamManager}

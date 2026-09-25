@@ -19,7 +19,8 @@ import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 import { requireApiToken } from "./api-auth";
 import { parseApiPort } from "./config";
-import { LocalDataResetCoordinator } from "./local-data-reset";
+import { LocalDataResetCoordinator, LocalDataResetError } from "./local-data-reset";
+import { CommittedFileWriteError } from "./secure-file";
 import { registerDataRoutes } from "./routes/data-routes";
 import { registerSettingsRoutes } from "./routes/settings-routes";
 import { registerSystemRoutes } from "./routes/system-routes";
@@ -111,6 +112,7 @@ registerDataRoutes(app, {
   handleRouteError,
 });
 registerSettingsRoutes(app, {
+  localDataReset,
   aiProviderManager,
   getSettingsStore: () => settingsStore,
   handleRouteError,
@@ -136,6 +138,7 @@ draftRoutes.registerGuidanceRoutes(app);
 registerConnectionRoutes(app, { sleeperClient, handleRouteError });
 
 registerTeamRoutes(app, {
+  localDataReset,
   sleeperClient,
   aiProviderManager,
   getSettingsStore: () => settingsStore,
@@ -191,6 +194,7 @@ function redactSettings(settings: AppSettings) {
     codexBinConfigured: settings.codexBin.trim().length > 0,
     codexModel: settings.codexModel,
     codexServiceTier: settings.codexServiceTier,
+    codexWebSearch: settings.codexWebSearch,
     codexTimeoutMs: settings.codexTimeoutMs,
   };
 }
@@ -203,6 +207,13 @@ function logRouteError(c: Context, error: unknown) {
 
 function handleRouteError(c: Context, error: unknown) {
   logRouteError(c, error);
+
+  if (error instanceof LocalDataResetError) {
+    return c.json({ error: error.message }, 409);
+  }
+  if (error instanceof CommittedFileWriteError) {
+    return c.json({ error: error.message }, 500);
+  }
 
   if (error instanceof AiProviderUnavailableError) {
     return c.json({ error: error.publicMessage, code: error.code, action: "open_settings" }, 503);

@@ -110,6 +110,21 @@ export const DraftStrategyInstructionSchema = DraftStrategyProposalSchema.extend
 });
 export type DraftStrategyInstruction = z.infer<typeof DraftStrategyInstructionSchema>;
 
+export function isNewsSourceUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port
+      && ["nfl.com", "www.nfl.com", "espn.com", "www.espn.com"].includes(url.hostname);
+  } catch { return false; }
+}
+export const NewsSourceSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  url: z.string().max(2000).refine(isNewsSourceUrl),
+  reportedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  checkedAt: z.string().datetime().optional(),
+});
+export type NewsSource = z.infer<typeof NewsSourceSchema>;
+
 export const AiDraftDecisionSchema = z.object({
   basedOnPick: z.number().int().positive(),
   recommendedPlayerId: z.string().min(1),
@@ -121,6 +136,7 @@ export const AiDraftDecisionSchema = z.object({
   reasons: z.array(z.string().min(1).max(240)).min(1).max(5),
   risks: z.array(z.string().min(1).max(240)).max(4).default([]),
   plan: AiDraftPlanSchema,
+  newsSources: z.array(NewsSourceSchema).max(6).optional(),
 });
 export type AiDraftDecision = z.infer<typeof AiDraftDecisionSchema>;
 
@@ -141,6 +157,7 @@ export const AppSettingsSchema = z.object({
   }).default("codex"),
   codexModel: z.string().trim().min(1).default(DEFAULT_CODEX_MODEL),
   codexServiceTier: CodexServiceTierSchema.default("fast"),
+  codexWebSearch: z.boolean().default(true),
   codexTimeoutMs: z.number().int().min(5_000).max(300_000).default(60_000),
   automaticAiAudit: AutomaticAiAuditModeSchema.default("off"),
   aiSetupAcknowledged: z.boolean().default(false),
@@ -403,6 +420,10 @@ export const DraftStateSchema = z.object({
   updatedAt: z.string(),
 });
 export type DraftState = z.infer<typeof DraftStateSchema>;
+
+export function draftStateRevision({ updatedAt: _updatedAt, ...state }: DraftState): string {
+  return JSON.stringify(state);
+}
 
 
 export const TeamRosterSlotSchema = z.object({

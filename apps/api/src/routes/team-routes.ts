@@ -37,6 +37,7 @@ import {
   type StoredSeasonValueRankingImport,
 } from "../ros-rankings-import";
 import type { SettingsStore } from "../settings-store";
+import type { LocalDataResetCoordinator } from "../local-data-reset";
 import type { SleeperClient } from "../sleeper";
 import {
   applyWeeklyProjectionsToPlayers,
@@ -60,6 +61,7 @@ type TeamPayload = {
 };
 
 type TeamRouteDependencies = {
+  localDataReset: LocalDataResetCoordinator;
   sleeperClient: SleeperClient;
   aiProviderManager: AiProviderManager;
   getSettingsStore: () => SettingsStore;
@@ -73,6 +75,7 @@ type TeamRouteDependencies = {
 
 export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencies): void {
   const {
+    localDataReset,
     sleeperClient,
     aiProviderManager,
     getSettingsStore,
@@ -85,6 +88,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
   } = dependencies;
 
   app.get("/leagues/:leagueId/team", async (c) => {
+    const generation = localDataReset.captureGeneration();
     try {
       const leagueId = c.req.param("leagueId");
       const userRosterId = getUserRosterId(c);
@@ -93,6 +97,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         sleeperClient.getTeamWeekContext(leagueId, getWeek(c), userRosterId).catch(() => null),
         sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
       ]);
+      localDataReset.assertCurrent(generation);
       const selectedWeek = getWeek(c) ?? state.week ?? 1;
       const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
@@ -112,11 +117,13 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
   });
 
   app.post("/leagues/:leagueId/team/ask", async (c) => {
+    const generation = localDataReset.captureGeneration();
     try {
       const body = await c.req
         .json<{ question?: string; conversationHistory?: Array<{ role?: string; content?: string }> }>()
         .catch(() => ({ question: "", conversationHistory: [] }));
       const question = body.question?.trim() ?? "";
+      localDataReset.assertCurrent(generation);
       if (!question) {
         return c.json({ error: "Ask a team question before requesting AI advice." }, 400);
       }
@@ -129,6 +136,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         sleeperClient.getAvailablePlayers(leagueId).catch(() => []),
         sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
       ]);
+      localDataReset.assertCurrent(generation);
       const selectedWeek = getWeek(c) ?? state.week ?? 1;
       const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
@@ -152,7 +160,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
           selectedWeek,
         ),
       );
-
+      localDataReset.assertCurrent(generation);
       return c.json({
         provider: aiAnswer.provider,
         question,
@@ -190,6 +198,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
   });
 
   app.post("/leagues/:leagueId/rankings/ros/import", async (c) => {
+    const generation = localDataReset.captureGeneration();
     try {
       const leagueId = c.req.param("leagueId");
       const userRosterId = getUserRosterId(c);
@@ -200,6 +209,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         sleeperClient.getTeamActivitySummary(leagueId, getWeek(c)).catch(() => null),
         sleeperClient.getProjectionImportPlayers(),
       ]);
+      localDataReset.assertCurrent(generation);
       if (!isSeasonValueScoringCompatible(body.scoring, state.league.scoring)) {
         return c.json({
           error: `The ${body.scoring} season value rankings do not match this ${state.league.scoring} league.`,
@@ -287,6 +297,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
   });
 
   app.post("/leagues/:leagueId/projections/weekly/import", async (c) => {
+    const generation = localDataReset.captureGeneration();
     try {
       const leagueId = c.req.param("leagueId");
       const userRosterId = getUserRosterId(c);
@@ -304,6 +315,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
         sleeperClient.getTeamActivitySummary(leagueId, week).catch(() => null),
         sleeperClient.getProjectionImportPlayers(),
       ]);
+      localDataReset.assertCurrent(generation);
       const playerPool = uniquePlayers([...getTeamRosterPlayers(state), ...projectionImportPlayers]);
       let storedImport = getWeeklyProjectionImportStore().get({ leagueId, season, week });
       for (const file of files) {

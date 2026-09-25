@@ -8,10 +8,35 @@ import { describe, expect, it } from "vitest";
 import { LocalDataResetCoordinator } from "./local-data-reset";
 import { importFantasyProsCsv, RankingImportStore } from "./rankings-import";
 import { SettingsStore } from "./settings-store";
-import { writePrivateFile } from "./secure-file";
+import { CommittedFileWriteError, writePrivateFile } from "./secure-file";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 describe("LocalDataResetCoordinator", () => {
+  it("keeps the reset committed when replacement succeeded but directory sync failed", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sda-reset-committed-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    let failAfterCommit = false;
+    const database = await SqliteAppDatabase.open(dbPath, { writeFile(file, bytes) {
+      writePrivateFile(file, bytes);
+      if (failAfterCommit) throw new CommittedFileWriteError(new Error("sync failed"));
+    } });
+    let settingsStore = new SettingsStore(path.join(dir, "settings.json"), database);
+    settingsStore.update({ codexTimeoutMs: 42000 });
+    database.setJson("ranking_imports", "test", { value: "old" });
+    const coordinator = new LocalDataResetCoordinator({
+      database,
+      getResetTargets: () => ({ clearers: [() => database.clearJson("ranking_imports")], settingsStore }),
+      restoreStores: () => { settingsStore = new SettingsStore(path.join(dir, "settings.json"), database); },
+      closeActiveProvider: () => undefined,
+    });
+    failAfterCommit = true;
+    expect(() => coordinator.reset()).toThrow(CommittedFileWriteError);
+    expect(database.countJson("ranking_imports")).toBe(0);
+    expect(settingsStore.get().codexTimeoutMs).not.toBe(42000);
+    const reopened = await SqliteAppDatabase.open(dbPath);
+    expect(reopened.countJson("ranking_imports")).toBe(0);
+    expect(new SettingsStore(path.join(dir, "settings.json"), reopened).get()).toEqual(settingsStore.get());
+  });
   it("restores database and store state when durable reset fails", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "sleeper-reset-failure-"));
     const dbPath = path.join(dir, "app.sqlite");

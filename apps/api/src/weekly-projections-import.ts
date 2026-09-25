@@ -9,6 +9,7 @@ import {
   weeklyProjectionImportRecordCodec,
   type SerializedWeeklyProjectionImport,
 } from "./persisted-domain-codecs";
+import { mutatePersistedMap } from "./persisted-cache";
 import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -59,9 +60,11 @@ export class WeeklyProjectionImportStore {
   }
 
   set(key: WeeklyProjectionImportKey, storedImport: StoredWeeklyProjectionImport) {
-    const importKey = toImportKey(key);
-    this.imports.set(importKey, storedImport);
-    this.saveImport(importKey, storedImport);
+    return mutatePersistedMap(this.imports, () => {
+      const importKey = toImportKey(key);
+      this.imports.set(importKey, storedImport);
+      this.saveImport(importKey, storedImport);
+    });
   }
 
   get(key: WeeklyProjectionImportKey): StoredWeeklyProjectionImport | null {
@@ -69,28 +72,32 @@ export class WeeklyProjectionImportStore {
   }
 
   delete(key: WeeklyProjectionImportKey): boolean {
-    const importKey = toImportKey(key);
-    const deleted = this.imports.delete(importKey);
-    if (deleted) {
-      if (this.database) {
-        this.database.deleteJson("weekly_projection_imports", importKey);
-      } else {
-        this.saveFile();
+    return mutatePersistedMap(this.imports, () => {
+      const importKey = toImportKey(key);
+      const deleted = this.imports.delete(importKey);
+      if (deleted) {
+        if (this.database) {
+          this.database.deleteJson("weekly_projection_imports", importKey);
+        } else {
+          this.saveFile();
+        }
       }
-    }
-    return deleted;
+      return deleted;
+    });
   }
 
   clearAll(): number {
-    const deleted = this.imports.size;
-    this.imports.clear();
-    if (this.database) {
-      this.database.clearJson("weekly_projection_imports");
-    } else {
-      this.saveFile();
-    }
-    removePrivateFile(this.filePath);
-    return deleted;
+    return mutatePersistedMap(this.imports, () => {
+      const deleted = this.imports.size;
+      this.imports.clear();
+      if (this.database) {
+        removePrivateFile(this.filePath);
+        this.database.clearJson("weekly_projection_imports");
+      } else {
+        this.saveFile();
+      }
+      return deleted;
+    });
   }
 
   private load() {

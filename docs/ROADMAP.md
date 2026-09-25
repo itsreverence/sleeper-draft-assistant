@@ -22,7 +22,7 @@ This is a direction document, not a promise or release schedule.
 
 ## Before stable
 
-- validate rest-of-season and weekly imports against current FantasyPros exports, including the first 2026 ROS header signature used by season-value auto-classification
+- continue checking provider export changes; the supplied 2026 ROS header and all 404 player matches are now verified ([validation](research/week-2-ros-availability-2026.md))
 - finish the accessibility and keyboard-navigation pass
 - keep upgrade, rollback, checksum, and provider-recovery checks in the Windows release smoke test
 - sign release builds when the project can sustain the required certificates and release process

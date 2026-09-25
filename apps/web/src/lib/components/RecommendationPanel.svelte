@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { draftStateRevision } from "@sleeper-draft-assistant/shared";
   import Icon from "./Icon.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
   import { currentAiDraftStrategy, recommendationTurnPresentation } from "../ai-panel";
@@ -65,13 +66,17 @@
   let isLoadingAiStrategy = $state(false);
   let analysisOpen = $state(false);
   let lastAiStrategyKey = $state("");
+  let completedBoardRevision = $state("");
   let aiStrategyRequestId = 0;
+  const boardRevision = $derived(draftStateRevision(draftState));
+  const currentRequestKey = $derived(`${currentPick}:${strategyRequestKey}:${boardRevision}`);
   const currentAiStrategy = $derived(
     aiEnabled ? currentAiDraftStrategy(aiStrategy, currentPick) : null,
   );
   const displayedAiStrategy = $derived(aiEnabled ? (currentAiStrategy ?? aiStrategy) : null);
   const isPreviousRecommendation = $derived(
-    displayedAiStrategy !== null && displayedAiStrategy.pickNumber !== currentPick,
+    displayedAiStrategy !== null
+      && (displayedAiStrategy.pickNumber !== currentPick || completedBoardRevision !== boardRevision),
   );
   const strategyInteractionDisabled = $derived(
     isLoadingAiStrategy || isPreviousRecommendation || aiStrategyError.length > 0,
@@ -141,7 +146,8 @@
   }
 
   $effect(() => {
-    const requestKey = `${currentPick}:${strategyRequestKey}`;
+    const requestKey = currentRequestKey;
+    const requestedBoardRevision = boardRevision;
     if (
       aiStrategyEnabled &&
       shouldRequestAiStrategy &&
@@ -154,12 +160,13 @@
       aiStrategyError = "";
       void onRequestAiStrategy()
         .then((payload) => {
-          if (requestId === aiStrategyRequestId && payload.pickNumber === currentPick) {
+          if (requestId === aiStrategyRequestId && requestKey === currentRequestKey && payload.pickNumber === currentPick) {
             aiStrategy = payload;
+            completedBoardRevision = requestedBoardRevision;
           }
         })
         .catch((error) => {
-          if (requestId === aiStrategyRequestId) {
+          if (requestId === aiStrategyRequestId && requestKey === currentRequestKey) {
             aiStrategyError = error instanceof Error ? error.message : "The AI strategist could not evaluate this board.";
           }
         })
@@ -272,6 +279,19 @@
       </div>
       {#if analysisOpen}
         <div class="analysis-content">
+          {#if displayedAiStrategy.decision.newsSources?.length}
+            <section>
+              <h3>News sources checked</h3>
+              <ul>
+                {#each displayedAiStrategy.decision.newsSources as source}
+                  <li>
+                    <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>
+                    · Reported {source.reportedAt ?? "date unavailable"} · Checked {source.checkedAt}
+                  </li>
+                {/each}
+              </ul>
+            </section>
+          {/if}
           <section>
             <h3>Why this call</h3>
             <ul>

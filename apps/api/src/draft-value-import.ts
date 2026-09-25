@@ -16,6 +16,7 @@ import {
   type SerializedAdpImport,
   type SerializedSeasonProjectionImport,
 } from "./persisted-domain-codecs";
+import { mutatePersistedMap } from "./persisted-cache";
 import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -83,8 +84,10 @@ export class SeasonProjectionImportStore {
   }
 
   set(draftId: string, storedImport: StoredSeasonProjectionImport) {
-    this.imports.set(draftId, storedImport);
-    this.saveDraft(draftId, storedImport);
+    return mutatePersistedMap(this.imports, () => {
+      this.imports.set(draftId, storedImport);
+      this.saveDraft(draftId, storedImport);
+    });
   }
 
   get(draftId: string): StoredSeasonProjectionImport | null {
@@ -92,27 +95,31 @@ export class SeasonProjectionImportStore {
   }
 
   delete(draftId: string): boolean {
-    const deleted = this.imports.delete(draftId);
-    if (deleted) {
-      if (this.database) {
-        this.database.deleteJson("season_projection_imports", draftId);
-      } else {
-        this.saveFile();
+    return mutatePersistedMap(this.imports, () => {
+      const deleted = this.imports.delete(draftId);
+      if (deleted) {
+        if (this.database) {
+          this.database.deleteJson("season_projection_imports", draftId);
+        } else {
+          this.saveFile();
+        }
       }
-    }
-    return deleted;
+      return deleted;
+    });
   }
 
   clearAll(): number {
-    const deleted = this.imports.size;
-    this.imports.clear();
-    if (this.database) {
-      this.database.clearJson("season_projection_imports");
-    } else {
-      this.saveFile();
-    }
-    removePrivateFile(this.filePath);
-    return deleted;
+    return mutatePersistedMap(this.imports, () => {
+      const deleted = this.imports.size;
+      this.imports.clear();
+      if (this.database) {
+        removePrivateFile(this.filePath);
+        this.database.clearJson("season_projection_imports");
+      } else {
+        this.saveFile();
+      }
+      return deleted;
+    });
   }
 
   apply(draftId: string, state: DraftState): DraftState {
@@ -181,8 +188,10 @@ export class AdpImportStore {
   }
 
   set(draftId: string, storedImport: StoredAdpImport) {
-    this.imports.set(draftId, storedImport);
-    this.saveDraft(draftId, storedImport);
+    return mutatePersistedMap(this.imports, () => {
+      this.imports.set(draftId, storedImport);
+      this.saveDraft(draftId, storedImport);
+    });
   }
 
   get(draftId: string): StoredAdpImport | null {
@@ -190,27 +199,31 @@ export class AdpImportStore {
   }
 
   delete(draftId: string): boolean {
-    const deleted = this.imports.delete(draftId);
-    if (deleted) {
-      if (this.database) {
-        this.database.deleteJson("adp_imports", draftId);
-      } else {
-        this.saveFile();
+    return mutatePersistedMap(this.imports, () => {
+      const deleted = this.imports.delete(draftId);
+      if (deleted) {
+        if (this.database) {
+          this.database.deleteJson("adp_imports", draftId);
+        } else {
+          this.saveFile();
+        }
       }
-    }
-    return deleted;
+      return deleted;
+    });
   }
 
   clearAll(): number {
-    const deleted = this.imports.size;
-    this.imports.clear();
-    if (this.database) {
-      this.database.clearJson("adp_imports");
-    } else {
-      this.saveFile();
-    }
-    removePrivateFile(this.filePath);
-    return deleted;
+    return mutatePersistedMap(this.imports, () => {
+      const deleted = this.imports.size;
+      this.imports.clear();
+      if (this.database) {
+        removePrivateFile(this.filePath);
+        this.database.clearJson("adp_imports");
+      } else {
+        this.saveFile();
+      }
+      return deleted;
+    });
   }
 
   apply(draftId: string, state: DraftState): DraftState {

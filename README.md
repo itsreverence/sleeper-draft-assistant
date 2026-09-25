@@ -22,6 +22,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Runs Codex locally through the supported app-server integration.
+- Lets Codex check public NFL.com and ESPN injury, practice, or role reporting when useful, with dated source links and bounded lookups. News supplements Sleeper state and imported values.
 - Keeps one local Codex process and one temporary thread per draft or team while the app is running. Follow-up questions keep their context without the UI resending earlier messages.
 - Uses Codex as the primary draft strategist near your turn. It reasons from neutral draft evidence and can search the full read-only available-player snapshot.
 - Labels recommendations as contingent targets until your team is on the clock, shows the exact wait and snake-turn pairing, and separates elite fallers from turn-range contingencies.

@@ -4,8 +4,25 @@ import { describe, expect, it } from "vitest";
 import { buildTeamAiContext } from "./team-context";
 import { buildTeamManagerInstructions, buildTeamManagerPrompt } from "./prompt";
 import { NoopAiProvider } from "./noop-provider";
+import { normalizeSleeperAvailablePlayers } from "../sleeper";
 
 describe("team AI context", () => {
+  it("considers imported evidence beyond the first 160 Sleeper search results", () => {
+    const players = Object.fromEntries(Array.from({ length: 200 }, (_, index) => {
+      const id = `candidate-${index}`;
+      return [id, { player_id: id, full_name: id, sport: "nfl", active: true,
+        position: "RB", fantasy_positions: ["RB"], team: "FA", search_rank: index + 1 }];
+    }));
+    const available = normalizeSleeperAvailablePlayers({ players, rosters: [] });
+    expect(available).toHaveLength(200);
+    const enriched = available.map((entry) => entry.id === "candidate-199"
+      ? { ...entry, ...weeklyProjectionFields(30), rosRank: 1 }
+      : entry);
+    const context = buildTeamAiContext(createTeamState(), "Who should I add?", [], null, enriched);
+    expect(context.availablePlayerGroups.weeklyProjectionLeaders).toContain("candidate-199");
+    expect(context.availablePlayerGroups.restOfSeasonRankLeaders).toContain("candidate-199");
+    expect(context.availablePlayerEvidence.length).toBeLessThan(200);
+  });
   it("builds a neutral team-management brief without local strategic conclusions", () => {
     const context = buildTeamAiContext(createTeamState(), "What is my weakest position?", [
       { role: "user", content: "Previous question" },

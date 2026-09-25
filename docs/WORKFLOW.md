@@ -22,6 +22,10 @@ Running the API or web workspace separately requires coordinating `SLEEPER_AI_AP
 
 ## Canonical validation
 
+For popup checks, open Settings, the draft switcher, a team roster, the draft plan, player search, and Manage team data. Verify initial focus (search starts in its input), Tab/Shift+Tab containment, Escape dismissal, opener focus restoration, and page-scroll restoration. Closed disclosures must not expose their controls to Tab. If dialogs overlap, only the top dialog should handle Escape, and the page must stay scroll-locked until the last dialog closes.
+
+In player search, open a preference menu and press Escape. Only the menu should close, with focus returned to its preference button; a second Escape closes search.
+
 ```bash
 npm run check
 npm test
@@ -41,6 +45,12 @@ npm run desktop:make
 `desktop:package` creates an unpacked application for the current platform. Do not report a Linux package as Windows evidence. Windows CI checks the unpacked executable; a clean Windows first-run test remains required before publishing an installer.
 
 For the packaged local-data reset smoke, first close the app and back up the complete `%APPDATA%\Sleeper Draft Assistant` directory. Launch the app, open **Settings > Delete all local app data**, type `DELETE`, and choose **Delete and reset**. Verify the settings drawer closes promptly, the connection screen is usable without restarting the app, the remembered username is cleared, and no prior league or draft reloads. Close and relaunch once more to confirm the reset persists. Restore the backup only while the app is fully closed.
+
+For startup recovery, occupy the configured API port with a disposable listener and launch the app. Verify a safe Retry/Exit dialog appears without an empty app window. Stop the listener and retry; the app should start. Exit should close the failed launch without leaving its owned API process running. Never stop an unrelated process to free a port.
+
+For async regression checks, switch teams or projection weeks during an AI question and confirm the late answer cannot replace the selected context. Reset during a pending import, reconnect, and confirm the old import does not reappear. For draft synchronization, correct a pick without changing the count and change draft status before the first pick; both changes should reach the board.
+
+On Windows, quit during an active Codex request and check the process tree for the app's Codex descendant as well as Sleeper processes. Do not terminate unrelated Codex sessions. This platform-specific shutdown check remains required; Linux child-process tests do not prove it.
 
 ## API security smoke
 
@@ -64,6 +74,10 @@ In another shell, confirm:
 Delete the disposable directory afterward. Never paste production tokens into shell history or issue reports.
 
 ## Troubleshooting
+
+For news lookup checks, ask about a public player's current injury or practice report. Verify the answer either includes dated NFL.com/ESPN sources or acknowledges unavailable news. Ordinary roster questions need not search. Source links must open outside Electron; arbitrary domains, credentials in URLs, and non-HTTPS links must not. Switch team or reset during a lookup and verify the old answer cannot populate the new context. Quit during research and check that the app-owned research process closes as well as its main Codex process.
+
+Toggle **Web search** off in AI settings and save during a lookup. Verify the old request cannot repopulate chat, fresh questions still work from supplied evidence, and the setting stays off after relaunch. Turn it back on and verify fresh conversations can request news again. A full reset restores the enabled default.
 
 - **Port already in use:** close the prior development or desktop process; the app intentionally refuses to attach to an API that cannot prove possession of its token.
 - **Web requests return 401:** use the root `npm run dev` launcher so renderer and API receive the same token.

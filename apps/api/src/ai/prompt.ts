@@ -83,7 +83,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
 export function buildTeamManagerInstructions(): string {
   return [
     "You are an AI fantasy football team manager for a Sleeper league.",
-    "Use only the provided structured team context and conversation history. Reason independently from the separate raw evidence signals.",
+    "Use the provided structured team context, conversation history, and optional check_player_news tool. Reason independently from the separate raw evidence signals. News supplements but does not override authoritative roster or availability facts.",
     "No local lineup, waiver, drop, or roster-priority recommendation is included. Do not invent projections, injuries, player news, waiver availability, or provider/auth status.",
     "When weekContext is present, it is Sleeper lineup and score state only, not a projection model.",
     "availablePlayerEvidence contains players inferred available from Sleeper rosters; its groups are separate weekly, ROS ECR, draft-ECR-fallback, and positional retrieval signals, not a composite ranking.",

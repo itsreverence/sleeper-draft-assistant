@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { tick } from "svelte";
 
 vi.mock("./lib/api", async () => await import("./lib/testing/mock-api"));
 vi.mock("./lib/components/RecommendationPanel.svelte", async () => ({
@@ -16,6 +17,83 @@ import { apiMock } from "./lib/testing/mock-api";
 import type { ConnectPayload } from "./lib/types";
 
 describe("App draft lifecycle", () => {
+  it("does not overwrite a newly connected team when an old weekly import finishes after reset", async () => {
+    const draftLoad = apiMock.deferDraftState({ draftId: "draft-1", userRosterId: null, userIdentifier: null });
+    const pendingImport = createDeferred<Awaited<ReturnType<typeof apiMock.importWeeklyProjectionFilesRequest>>>();
+    apiMock.importWeeklyProjectionFilesRequest.mockImplementation(() => pendingImport.promise);
+    const oldPayload = structuredClone(apiMock.teamPayload);
+    render(App);
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), { target: { value: "draft-1" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const draftPayload = createDraftPayloadFixture({ draftId: "draft-1", name: "Completed Draft", leagueId: DEFAULT_LEAGUE_ID });
+    draftPayload.state.status = "complete";
+    draftLoad.resolve(draftPayload);
+    await fireEvent.click(await screen.findByRole("button", { name: "Manage team data" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage team data" });
+    await fireEvent.click(within(drawer).getByText("Paste CSV instead"));
+    await fireEvent.input(within(drawer).getByLabelText("CSV for the selected position"), { target: { value: "test CSV" } });
+    await fireEvent.click(within(drawer).getByRole("button", { name: "Import QB" }));
+    await waitFor(() => expect(apiMock.importWeeklyProjectionFilesRequest).toHaveBeenCalledOnce());
+    await fireEvent.click(within(drawer).getByRole("button", { name: "Close team data" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Delete all local app data" }));
+    await fireEvent.input(screen.getByLabelText("Type DELETE to confirm"), { target: { value: "DELETE" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Delete and reset" }));
+    await waitFor(() => expect(apiMock.resetLocalData).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Application settings" })).toBeNull());
+    expect(screen.getByLabelText("Sleeper username")).toBeTruthy();
+    apiMock.teamPayload = {
+      ...apiMock.teamPayload,
+      state: { ...apiMock.teamPayload.state, userTeam: { ...apiMock.teamPayload.state.userTeam, name: "Newly connected team" } },
+    };
+    const nextDraft = apiMock.deferDraftState({ draftId: "draft-2", userRosterId: null, userIdentifier: null });
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), { target: { value: "draft-2" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const nextPayload = createDraftPayloadFixture({ draftId: "draft-2", name: "Next completed draft", leagueId: DEFAULT_LEAGUE_ID });
+    nextPayload.state.status = "complete";
+    nextDraft.resolve(nextPayload);
+    expect(await screen.findByRole("heading", { name: "Newly connected team" })).toBeTruthy();
+    pendingImport.resolve({
+      ...oldPayload,
+      summary: {
+        source: "fantasypros", season: "2026", week: 1, position: "QB", positions: ["QB"],
+        positionResults: [], rowsParsed: 1, matched: 1, unmatched: [], ambiguous: [], appliedAt: "2026-08-20T12:00:00.000Z",
+      },
+    });
+    await pendingImport.promise;
+    await tick();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Newly connected team" })).toBeTruthy());
+  });
+
+  it("does not replace a refreshed roster with a delayed team answer snapshot", async () => {
+    const draftLoad = apiMock.deferDraftState({ draftId: "draft-1", userRosterId: null, userIdentifier: null });
+    const oldPayload = structuredClone(apiMock.teamPayload);
+    const answer = createDeferred<Awaited<ReturnType<typeof apiMock.askTeamManagerRequest>>>();
+    apiMock.askTeamManagerRequest.mockImplementation(() => answer.promise);
+    render(App);
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), { target: { value: "draft-1" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const draftPayload = createDraftPayloadFixture({ draftId: "draft-1", name: "Completed Draft", leagueId: DEFAULT_LEAGUE_ID });
+    draftPayload.state.status = "complete";
+    draftLoad.resolve(draftPayload);
+    const textbox = await screen.findByRole("textbox", { name: "Ask Codex about your team" });
+    await fireEvent.input(textbox, { target: { value: "Review my roster" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await waitFor(() => expect(apiMock.askTeamManagerRequest).toHaveBeenCalledOnce());
+    apiMock.teamPayload = {
+      ...apiMock.teamPayload,
+      state: { ...apiMock.teamPayload.state, userTeam: { ...apiMock.teamPayload.state.userTeam, name: "Refreshed roster" } },
+    };
+    await fireEvent.click(screen.getByRole("button", { name: "Refresh team data" }));
+    expect(await screen.findByRole("heading", { name: "Refreshed roster" })).toBeTruthy();
+    answer.resolve({ ...oldPayload, answer: "Roster review complete" });
+    expect(await screen.findByText("Roster review complete")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Refreshed roster" })).toBeTruthy();
+  });
+
   beforeAll(() => {
     vi.spyOn(Date, "now").mockReturnValue(new Date("2026-08-20T12:00:00.000Z").getTime());
   });

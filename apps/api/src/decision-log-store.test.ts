@@ -8,10 +8,43 @@ import { describe, expect, it } from "vitest";
 
 import { DecisionLogStore } from "./decision-log-store";
 import { decisionSnapshotRecordCodec } from "./persisted-domain-codecs";
-import { writePrivateFile } from "./secure-file";
+import { CommittedFileWriteError, writePrivateFile } from "./secure-file";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 describe("DecisionLogStore", () => {
+  it("reads the database outcome after outer batch rollback, committed errors, and failed clears", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sda-history-transaction-"));
+    const dbPath = path.join(dir, "app.sqlite");
+    const file = path.join(dir, "legacy.json");
+    let failure: "before" | "after" | null = null;
+    const database = await SqliteAppDatabase.open(dbPath, { writeFile(filePath, bytes) {
+      if (failure === "before") throw new Error("disk full");
+      writePrivateFile(filePath, bytes);
+      if (failure === "after") throw new CommittedFileWriteError(new Error("sync failed"));
+    } });
+    const state = createMockDraftState(2);
+    const recommendation = buildDraftRecommendation(state);
+    const store = new DecisionLogStore(file, 200, database);
+    const first = store.record({ draftId: state.id, state, recommendation, trigger: "state-load" });
+    failure = "before";
+    expect(() => database.batch(() => {
+      database.setJson("draft_plans", "test", { provisional: true });
+      store.record({ draftId: state.id, state, recommendation, trigger: "ai-strategy" });
+      expect(store.list(state.id)).toHaveLength(2);
+    })).toThrow("disk full");
+    expect(store.list(state.id)).toEqual([first]);
+    expect(database.countJson("draft_plans")).toBe(0);
+    expect(() => store.clear(state.id)).toThrow("disk full");
+    expect(() => store.clearAll()).toThrow("disk full");
+    expect(store.list(state.id)).toEqual([first]);
+    failure = "after";
+    expect(() => store.record({ draftId: state.id, state, recommendation, trigger: "manual-refresh" })).toThrow(CommittedFileWriteError);
+    expect(store.list(state.id)).toHaveLength(2);
+    expect(new DecisionLogStore(file, 200, await SqliteAppDatabase.open(dbPath)).list(state.id)).toEqual(store.list(state.id));
+    expect(() => store.clear(state.id)).toThrow(CommittedFileWriteError);
+    expect(store.list(state.id)).toEqual([]);
+    expect(new DecisionLogStore(file, 200, await SqliteAppDatabase.open(dbPath)).list(state.id)).toEqual([]);
+  });
   it("persists recommendation snapshots by draft", () => {
     const filePath = path.join(mkdtempSync(path.join(tmpdir(), "sleeper-decisions-")), "decision-log.json");
     const state = { ...createMockDraftState(2), leagueId: "league-1" };

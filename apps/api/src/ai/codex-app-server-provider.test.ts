@@ -4,6 +4,7 @@ import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDraftQuestionContext } from "./context";
+import type { AiTool } from "./types";
 import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
@@ -205,6 +206,61 @@ describe("Codex app-server executable resolution", () => {
     expect(provider.status().detail).not.toContain("config.toml");
   });
 
+  it("lets the model request isolated news without exposing private context to the research thread", async () => {
+    const main = new FakeCodexClient();
+    const research = new FakeCodexClient();
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Private league question");
+    const player = context.playerEvidence[0]!;
+    main.runTurn = async (_thread, _prompt, tools: AiTool[] = []) => {
+      const news = tools.find((tool) => tool.definition.name === "check_player_news")!;
+      expect(await news.execute({ playerId: player.playerId, topic: "injury" })).toMatchObject({ status: "available" });
+      return "Consider the report alongside your projections.";
+    };
+    research.runTurn = async (_thread, prompt) => {
+      expect(prompt).toContain(player.name);
+      expect(prompt).not.toContain("Private league question");
+      expect(prompt).not.toContain(context.draft.id);
+      return JSON.stringify({ summary: "Status uncertain.", sources: [{ title: "Report", url: "https://www.nfl.com/news/report", reportedAt: new Date().toISOString().slice(0, 10) }] });
+    };
+    const provider = new CodexAppServerProvider({ clientFactory: vi.fn().mockResolvedValueOnce(main).mockResolvedValueOnce(research) });
+    const result = await provider.answerDraftQuestion(context);
+    expect(main.threadStartParams[0]).toMatchObject({ config: { web_search: "disabled" } });
+    expect(research.threadStartParams[0]).toMatchObject({ config: { web_search: "live" }, ephemeral: true, sandbox: "read-only" });
+    expect(result.answer).toContain("https://www.nfl.com/news/report");
+    expect(research.closed).toBe(true);
+    expect(main.closed).toBe(false);
+    provider.close();
+  });
+
+  it("removes news capability and historical chat evidence when search is disabled", async () => {
+    const client = new FakeCodexClient();
+    const runTurn = vi.spyOn(client, "runTurn");
+    const factory = vi.fn(async () => client);
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: factory });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Compare my players", [{ role: "assistant", content: "Old web report" }]);
+    await provider.answerDraftQuestion(context);
+    expect(client.threadStartParams[0]).toMatchObject({ config: { web_search: "disabled" }, dynamicTools: [] });
+    expect(runTurn.mock.calls[0]?.[1]).toContain("Web search is disabled");
+    expect(runTurn.mock.calls[0]?.[1]).not.toContain("Old web report");
+    expect(runTurn.mock.calls[0]?.[2]).toEqual([]);
+    expect(factory).toHaveBeenCalledTimes(1);
+    provider.close();
+  });
+
+  it("rejects an active turn immediately when its client closes", async () => {
+    const proc = spawn(process.execPath, ["-e", `
+      require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
+        const m = JSON.parse(line);
+        if (m.id) process.stdout.write(JSON.stringify({id:m.id,result:{}})+'\\n');
+      });
+    `], { stdio: ["pipe", "pipe", "pipe"] });
+    const client = attachCodexAppServerProcess(proc, 10000);
+    const pending = client.runTurn("thread", "public fixture");
+    const assertion = expect(pending).rejects.toThrow("closed");
+    client.close();
+    await assertion;
+  });
+
   it("drains large app-server stderr output without retaining diagnostics", async () => {
     const fixture = String.raw`
       const fs = require("node:fs");
@@ -253,7 +309,7 @@ class FakeCodexClient implements CodexAppServerClient {
     return {} as T;
   }
 
-  async runTurn(threadId: string, prompt: string): Promise<string> {
+  async runTurn(threadId: string, prompt: string, _tools: AiTool[] = []): Promise<string> {
     this.turnThreadIds.push(threadId);
     this.prompts.push(prompt);
     if (this.failNextTurn) {

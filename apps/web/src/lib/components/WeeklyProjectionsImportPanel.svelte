@@ -217,13 +217,19 @@
       Ignored {ignoredFiles.join(", ")}. FLEX is redundant when RB, WR, and TE files are included.
     </p>
   {/if}
-  <textarea
-    class="input"
-    bind:value={csvText}
-    rows="5"
-    placeholder="Or paste a FantasyPros weekly projections CSV here. Expected columns vary by position and end with FPTS."
-    disabled={!hasTeam || isImporting || isClearing}
-  ></textarea>
+  <details class="disclosure">
+    <summary>Paste CSV instead</summary>
+    <label class="field">
+      <span>CSV for the selected position</span>
+      <textarea
+        class="input"
+        bind:value={csvText}
+        rows="5"
+        placeholder="Paste a FantasyPros weekly projections CSV."
+        disabled={!hasTeam || isImporting || isClearing}
+      ></textarea>
+    </label>
+  </details>
 
   <button class="btn btn-primary btn-block" type="button" disabled={!hasTeam || isImporting || isClearing || (selectedFiles.length === 0 && !csvText.trim())} onclick={submitImport}>
     {#if isImporting}<span class="spinner"></span>{/if}

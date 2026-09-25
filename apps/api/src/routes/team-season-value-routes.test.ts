@@ -1,10 +1,11 @@
 import type { Player, TeamManagerState } from "@sleeper-draft-assistant/shared";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { StoredRankingImport } from "../rankings-import";
 import type { StoredSeasonValueRankingImport } from "../ros-rankings-import";
 import { registerTeamRoutes } from "./team-routes";
+import { LocalDataResetCoordinator, LocalDataResetError } from "../local-data-reset";
 
 const player: Player = {
   id: "gibbs",
@@ -45,10 +46,53 @@ const state: TeamManagerState = {
 
 const draftCsv = `RK,TIERS,PLAYER NAME,TEAM,POS,BYE WEEK,ECR VS. ADP
 1,1,Jahmyr Gibbs,DET,RB1,8,-`;
-const rosCsv = `RK,PLAYER NAME,TEAM,POS,BEST,WORST,AVG.,STD.DEV,ECR VS. ADP
-2,Jahmyr Gibbs,DET,RB1,1,4,2.1,0.9,-`;
+const rosCsv = `RK,PLAYER NAME,TEAM,POS,SOS SEASON,SOS PLAYOFFS,ECR VS. ADP
+2,Jahmyr Gibbs,DET,RB1,3 out of 5 stars,4 out of 5 stars,-`;
 
 describe("Team Manager season value routes", () => {
+  it.each([
+    ["rankings/ros/import", { season: "2026", scoring: "PPR", csvText: rosCsv }],
+    ["projections/weekly/import", { season: "2026", week: 1, files: [{ position: "RB", csvText: "pending CSV" }] }],
+  ])("rejects a pending %s import after local data reset", async (path, body) => {
+    let resolveState!: (value: TeamManagerState) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const pendingState = new Promise<TeamManagerState>((resolve) => { resolveState = resolve; });
+    const set = vi.fn();
+    const localDataReset = new LocalDataResetCoordinator({
+      database: { batch: (action: () => void) => action() } as never,
+      getResetTargets: () => ({ clearers: [], settingsStore: { reset: () => ({}) } as never }),
+      restoreStores: () => {},
+      closeActiveProvider: () => {},
+    });
+    const app = new Hono();
+    registerTeamRoutes(app, {
+      localDataReset,
+      sleeperClient: {
+        getTeamManagerState: () => { markStarted(); return pendingState; },
+        getTeamWeekContext: async () => null,
+        getTeamActivitySummary: async () => null,
+        getProjectionImportPlayers: async () => [player],
+      } as never,
+      aiProviderManager: {} as never,
+      getSettingsStore: () => ({} as never),
+      getRankingImportStore: () => ({ get: () => null }) as never,
+      getSeasonProjectionImportStore: () => ({ get: () => null }) as never,
+      getAdpImportStore: () => ({ get: () => null }) as never,
+      getSeasonValueRankingImportStore: () => ({ get: () => null, set }) as never,
+      getWeeklyProjectionImportStore: () => ({ get: () => null, set }) as never,
+      handleRouteError: (context, error) => context.json({ error: String(error) }, error instanceof LocalDataResetError ? 409 : 500),
+    });
+    const response = app.request(`/leagues/league-1/${path}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    await started;
+    localDataReset.reset();
+    resolveState(state);
+    expect((await response).status).toBe(409);
+    expect(set).not.toHaveBeenCalled();
+  });
+
   it("reuses connected draft ECR, upgrades to ROS, and blocks a fallback downgrade", async () => {
     const draftImport: StoredRankingImport = {
       summary: {
@@ -72,6 +116,7 @@ describe("Team Manager season value routes", () => {
     let explicitImport: StoredSeasonValueRankingImport | null = null;
     const app = new Hono();
     registerTeamRoutes(app, {
+      localDataReset: new LocalDataResetCoordinator({} as never),
       sleeperClient: {
         getTeamManagerState: async () => structuredClone(state),
         getTeamWeekContext: async () => null,
@@ -110,12 +155,29 @@ describe("Team Manager season value routes", () => {
     expect(rosResponse.status).toBe(200);
     expect((await rosResponse.json()).summary.rankingType).toBe("ros-ecr");
 
+    const teamResponse = await app.request("/leagues/league-1/team?userRosterId=1&draftId=draft-1");
+    expect(teamResponse.status).toBe(200);
+    const teamPayload = await teamResponse.json();
+    expect(teamPayload.rosRankingSummary.rankingType).toBe("ros-ecr");
+    expect(teamPayload.state.roster.starters[0].player).toMatchObject({
+      rosRank: 2, rosPositionRank: 1, rosSource: "FantasyPros", rosBestRank: null,
+    });
+    expect(teamPayload.state.roster.starters[0].player.importedRank).toBeUndefined();
+
     const downgradeResponse = await importRankings(app, draftCsv);
     expect(downgradeResponse.status).toBe(409);
     expect(await downgradeResponse.json()).toEqual({
       error: "Current ROS ECR is already active. Draft ECR fallback cannot replace it.",
     });
     expect((explicitImport as unknown as StoredSeasonValueRankingImport).summary.rankingType).toBe("ros-ecr");
+
+    const clearResponse = await app.request("/leagues/league-1/rankings/ros?season=2026&scoring=PPR", { method: "DELETE" });
+    expect(await clearResponse.json()).toEqual({ deleted: true });
+    const restoredResponse = await app.request("/leagues/league-1/team?userRosterId=1&draftId=draft-1");
+    const restoredPayload = await restoredResponse.json();
+    expect(restoredPayload.rosRankingSummary.rankingType).toBe("draft-ecr-fallback");
+    expect(restoredPayload.state.roster.starters[0].player.rosRank).toBeUndefined();
+    expect(restoredPayload.state.roster.starters[0].player.importedRank).toBe(1);
   });
 });
 

@@ -8,9 +8,14 @@ The application may contact:
 
 - Sleeper's public, tokenless API for users, leagues, rosters, drafts, picks, players, and NFL state;
 - a locally installed Codex app-server when that provider is selected;
-- external websites only when the user follows an allowlisted link.
+- public NFL.com and ESPN news through Codex hosted web search when the AI requests a player-news lookup;
+- external websites when the user follows an allowlisted link.
 
 The default no-provider mode makes no external AI request and does not show local pick recommendations. FantasyPros files are selected and imported by the user; the app does not download rankings or redistribute their contents. When Codex strategy is enabled, the local app-server receives a compact draft packet and may query an immutable in-memory available-player snapshot through the app's read-only search tool.
+
+Player-news lookups send a separate Codex context containing only public player identity, topic, and time. They do not receive league identifiers, roster history, imported values, or the original user question. Hosted searches are handled by OpenAI and may retrieve external public pages. This can add latency and account usage. Source links and summaries may appear in chat and persisted draft decisions; no separate news database is created. Read-only sandboxing does not itself disable hosted search: ordinary threads explicitly disable it and isolated research threads enable it. Retrieved content remains untrusted.
+
+Web search defaults on and can be disabled in AI settings. Saving a change closes active provider/research sessions and resets chat context. Disabling it prevents further news lookups but does not delete sources already saved in draft decision history or erase data held by external providers.
 
 ## Local data
 
@@ -43,7 +48,7 @@ Never post unredacted database files, ranking exports, screenshots with league i
 
 ## Deleting data
 
-Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then returns to the connection screen. The reset requires explicit typed confirmation. The database portion is committed as one local action: if durable replacement fails, the prior data remains usable and the reset reports failure. Active AI work is closed and invalidated when reset begins, so a response started beforehand cannot repopulate plans or recommendation history afterward.
+Settings includes controls to clear all ranking imports, weekly projections, or recommendation history. **Delete all local app data** resets those records, provider settings, and renderer connection preferences, then returns to the connection screen. The reset requires explicit typed confirmation. The database portion is committed as one local action. Failure before file replacement preserves prior data. If the file was replaced but durability could not be confirmed, the app keeps the new state and asks you to retry. Active AI work is closed when reset begins; pending requests cannot repopulate imports, settings, plans, or recommendation history afterward.
 
 For manual removal of substantive records, close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. Delete the entire application-data directory if you also want to remove Chromium-backed convenience preferences. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
 

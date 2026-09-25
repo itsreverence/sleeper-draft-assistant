@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { modal } from "../modal";
   import type { DraftState, PlayerPreferenceLevel, PlayerPreferences, Position } from "../types";
   import { searchDraftPlayers } from "../player-search";
   import Icon from "./Icon.svelte";
@@ -22,35 +22,19 @@
   const positions: Array<Position | null> = [null, "QB", "RB", "WR", "TE", "K", "DEF"];
   let query = $state("");
   let position: Position | null = $state(null);
-  let searchInput: HTMLInputElement;
   const results = $derived(searchDraftPlayers(draftState, query, position, preferences));
   const preferenceCount = $derived(Object.keys(preferences).length);
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
 
   function askAboutPlayer(playerName: string) {
     onClose();
     onAskAboutPlayer?.(playerName);
   }
 
-  onMount(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    searchInput.focus();
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <button class="dialog-backdrop" type="button" aria-label="Close player search" onclick={onClose}></button>
-<div class="player-dialog" role="dialog" aria-modal="true" aria-labelledby="player-search-title">
+<div class="player-dialog" use:modal={{ onClose: () => onClose(), initialFocus: 'input[type="search"]' }} role="dialog" aria-modal="true" aria-labelledby="player-search-title">
   <header>
     <div>
       <span class="eyebrow">Draft preferences</span>
@@ -67,7 +51,6 @@
   <div class="search-field">
     <Icon name="search" size={17} />
     <input
-      bind:this={searchInput}
       bind:value={query}
       type="search"
       placeholder="Search players"

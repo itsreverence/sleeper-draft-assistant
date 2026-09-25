@@ -16,6 +16,13 @@ import {
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 
+export class CommittedFileWriteError extends Error {
+  constructor(cause: unknown) {
+    super("Local data was saved, but its durability could not be confirmed. Keep the app open and retry before closing it.", { cause });
+    this.name = "CommittedFileWriteError";
+  }
+}
+
 export function ensurePrivateDirectory(directoryPath: string): void {
   assertNoSymlinkPath(directoryPath);
   mkdirSync(directoryPath, { recursive: true, mode: 0o700 });
@@ -45,6 +52,7 @@ export function writePrivateFile(filePath: string, data: string | Buffer): void 
   );
   const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0);
   let descriptor: number | null = null;
+  let committed = false;
 
   try {
     descriptor = openSync(temporaryPath, flags, 0o600);
@@ -58,15 +66,19 @@ export function writePrivateFile(filePath: string, data: string | Buffer): void 
 
     assertNoSymlinkPath(filePath);
     renameSync(temporaryPath, filePath);
-    if (process.platform !== "win32") {
-      chmodSync(filePath, 0o600);
-    }
+    committed = true;
     fsyncDirectory(directoryPath);
+  } catch (error) {
+    if (committed) throw new CommittedFileWriteError(error);
+    throw error;
   } finally {
-    if (descriptor !== null) {
-      closeSync(descriptor);
+    if (!committed) {
+      try {
+        if (descriptor !== null) closeSync(descriptor);
+      } finally {
+        rmSync(temporaryPath, { force: true });
+      }
     }
-    rmSync(temporaryPath, { force: true });
   }
 }
 

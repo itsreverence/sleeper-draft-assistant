@@ -7,6 +7,47 @@ import { createDeferred } from "../testing/deferred";
 import RecommendationPanel from "./RecommendationPanel.svelte";
 
 describe("Recommendation panel", () => {
+  it("re-evaluates same-pick board corrections, rejects old responses, and ignores check timestamps", async () => {
+    const state = createMockDraftState(8);
+    const initial = createDeferred<AiDraftStrategyPayload>();
+    const correction = createDeferred<AiDraftStrategyPayload>();
+    const newerCorrection = createDeferred<AiDraftStrategyPayload>();
+    const onRequestAiStrategy = vi.fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(correction.promise)
+      .mockReturnValueOnce(newerCorrection.promise);
+    const props = {
+      draftState: state, currentPick: state.currentPick, aiEnabled: true,
+      aiStrategyEnabled: true, shouldRequestAiStrategy: true,
+      strategyRequestKey: "same-preferences", onRequestAiStrategy,
+    };
+    const view = render(RecommendationPanel, props);
+    const strategy = createStrategy(state, 0);
+    initial.resolve(strategy);
+    expect(await screen.findByText("Target Jahmyr Gibbs at 2.08 if available")).toBeTruthy();
+    await view.rerender({ ...props, draftState: { ...state, updatedAt: "new check timestamp" } });
+    expect(onRequestAiStrategy).toHaveBeenCalledTimes(1);
+
+    const correctedState = { ...state, picks: state.picks.map((pick, index) => index === 0
+      ? { ...pick, playerId: strategy.recommendedCandidate.player.id } : pick) };
+    await view.rerender({ ...props, draftState: correctedState });
+    await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(`Previous: ${strategy.decision.headline}`)).toBeTruthy();
+    expect(screen.getByText("Reviewing latest board…")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
+
+    const latestState = { ...correctedState, status: "complete" as const };
+    await view.rerender({ ...props, draftState: latestState });
+    await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(3));
+    correction.resolve(createStrategy(correctedState, 1));
+    await correction.promise;
+    expect(screen.getByText(`Previous: ${strategy.decision.headline}`)).toBeTruthy();
+    const finalStrategy = createStrategy(latestState, 1);
+    newerCorrection.resolve(finalStrategy);
+    expect(await screen.findByRole("heading", { name: finalStrategy.decision.headline })).toBeTruthy();
+    expect(screen.queryByText("Previous recommendation")).toBeNull();
+  });
+
   it("keeps the completed recommendation visible while the same board is re-evaluated", async () => {
     const state = createMockDraftState(8);
     const first = createDeferred<AiDraftStrategyPayload>();

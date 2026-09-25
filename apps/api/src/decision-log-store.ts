@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { AiDraftDecision, DraftRecommendation, DraftState } from "@sleeper-draft-assistant/shared";
 
 import { decisionSnapshotRecordCodec } from "./persisted-domain-codecs";
+import { mutatePersistedMap } from "./persisted-cache";
 import { persistedRecordError } from "./persisted-record";
 import type { SqliteAppDatabase } from "./sqlite-app-database";
 import { readPrivateTextFile, removePrivateFile, writePrivateFile } from "./secure-file";
@@ -77,8 +78,6 @@ export class DecisionLogStore {
     userRosterId?: string | null;
   }): DecisionSnapshot {
     const snapshot = createDecisionSnapshot(input);
-    const existing = this.snapshotsByDraft.get(input.draftId) ?? [];
-    const nextSnapshots = [snapshot, ...existing].slice(0, this.maxSnapshotsPerDraft);
 
     if (this.database) {
       const database = this.database;
@@ -92,50 +91,48 @@ export class DecisionLogStore {
         }, decisionSnapshotRecordCodec);
         database.pruneDecisionSnapshots(input.draftId, this.maxSnapshotsPerDraft);
       });
-      this.snapshotsByDraft.set(input.draftId, nextSnapshots);
     } else {
-      this.snapshotsByDraft.set(input.draftId, nextSnapshots);
-      this.save();
+      mutatePersistedMap(this.snapshotsByDraft, () => {
+        const existing = this.snapshotsByDraft.get(input.draftId) ?? [];
+        this.snapshotsByDraft.set(input.draftId, [snapshot, ...existing].slice(0, this.maxSnapshotsPerDraft));
+        this.save();
+      });
     }
 
     return snapshot;
   }
 
   list(draftId: string, limit = 50): DecisionSnapshot[] {
-    return (this.snapshotsByDraft.get(draftId) ?? []).slice(0, Math.max(1, Math.min(limit, this.maxSnapshotsPerDraft)));
+    const boundedLimit = Math.max(1, Math.min(limit, this.maxSnapshotsPerDraft));
+    if (this.database) return this.database.listDecisionRecords(draftId, boundedLimit, decisionSnapshotRecordCodec);
+    return (this.snapshotsByDraft.get(draftId) ?? []).slice(0, boundedLimit);
   }
 
   clear(draftId: string): boolean {
-    const deleted = this.snapshotsByDraft.delete(draftId);
-    if (deleted) {
-      if (this.database) {
-        this.database.clearDecisionSnapshots(draftId);
-      } else {
-        this.save();
-      }
-    }
-    return deleted;
+    if (this.database) return this.database.clearDecisionSnapshots(draftId);
+    return mutatePersistedMap(this.snapshotsByDraft, () => {
+      const deleted = this.snapshotsByDraft.delete(draftId);
+      if (deleted) this.save();
+      return deleted;
+    });
   }
 
   clearAll(): number {
-    const deleted = Array.from(this.snapshotsByDraft.values()).reduce((total, snapshots) => total + snapshots.length, 0);
-    this.snapshotsByDraft.clear();
     if (this.database) {
-      this.database.clearAllDecisionSnapshots();
-    } else {
-      this.save();
+      removePrivateFile(this.filePath);
+      return this.database.clearAllDecisionSnapshots();
     }
-    removePrivateFile(this.filePath);
-    return deleted;
+    return mutatePersistedMap(this.snapshotsByDraft, () => {
+      const deleted = Array.from(this.snapshotsByDraft.values()).reduce((total, snapshots) => total + snapshots.length, 0);
+      this.snapshotsByDraft.clear();
+      this.save();
+      return deleted;
+    });
   }
 
   private load() {
     if (this.database) {
       const snapshots = this.database.listAllDecisionRecords(decisionSnapshotRecordCodec);
-      for (const snapshot of snapshots) {
-        const existing = this.snapshotsByDraft.get(snapshot.draftId) ?? [];
-        this.snapshotsByDraft.set(snapshot.draftId, [...existing, snapshot].slice(0, this.maxSnapshotsPerDraft));
-      }
       if (snapshots.length > 0) {
         return;
       }
@@ -150,7 +147,7 @@ export class DecisionLogStore {
       for (const [draftId, snapshots] of Object.entries(parsed)) {
         const safeSnapshots = Array.isArray(snapshots) ? snapshots.slice(0, this.maxSnapshotsPerDraft) : [];
         const decodedSnapshots = safeSnapshots.map((snapshot) => decisionSnapshotRecordCodec.decode(snapshot).data);
-        this.snapshotsByDraft.set(draftId, decodedSnapshots);
+        if (!this.database) this.snapshotsByDraft.set(draftId, decodedSnapshots);
         for (const snapshot of decodedSnapshots) {
           this.database?.insertDecisionRecord({
             id: snapshot.id,

@@ -104,8 +104,11 @@
     }
 
     function handleKeydown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.isComposing && !event.defaultPrevented) {
+        event.preventDefault();
+        event.stopPropagation();
         closeMenu();
+        triggerElement.focus({ preventScroll: true });
       }
     }
 

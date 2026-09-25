@@ -7,7 +7,7 @@ import initSqlJs from "sql.js/dist/sql-asm.js";
 import type { Database } from "sql.js";
 
 import type { PersistedRecordCodec } from "./persisted-record";
-import { ensurePrivateDirectory, readPrivateFile, writePrivateFile } from "./secure-file";
+import { CommittedFileWriteError, ensurePrivateDirectory, readPrivateFile, writePrivateFile } from "./secure-file";
 
 export type JsonNamespace =
   | "settings"
@@ -284,7 +284,7 @@ export class SqliteAppDatabase {
     } catch (error) {
       this.batchDepth = 0;
       this.batchDirty = false;
-      this.restore(before);
+      if (!(error instanceof CommittedFileWriteError)) this.restore(before);
       throw error;
     }
   }
@@ -358,7 +358,7 @@ export class SqliteAppDatabase {
       if (result.changed) this.persist();
       return result.value;
     } catch (error) {
-      this.restore(before);
+      if (!(error instanceof CommittedFileWriteError)) this.restore(before);
       throw error;
     }
   }

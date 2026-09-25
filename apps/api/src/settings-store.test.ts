@@ -11,6 +11,20 @@ import { SettingsStore } from "./settings-store";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
 describe("SettingsStore", () => {
+  it("defaults legacy settings to search enabled, persists off in SQLite, and resets to enabled", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sda-search-settings-"));
+    const file = path.join(dir, "settings.json");
+    writeFileSync(file, JSON.stringify({ aiProvider: "noop" }));
+    const dbPath = path.join(dir, "app.sqlite");
+    const store = new SettingsStore(file, await SqliteAppDatabase.open(dbPath));
+    expect(store.get().codexWebSearch).toBe(true);
+    store.update({ codexWebSearch: false });
+    store.update({ codexModel: "test-model" });
+    const reopened = new SettingsStore(file, await SqliteAppDatabase.open(dbPath));
+    expect(reopened.get().codexWebSearch).toBe(false);
+    expect(() => reopened.update({ codexWebSearch: "false" })).toThrow();
+    expect(reopened.reset().codexWebSearch).toBe(true);
+  });
   it("persists AI provider settings", () => {
     const filePath = path.join(mkdtempSync(path.join(tmpdir(), "sleeper-ai-settings-")), "settings.json");
     const codexBin = path.join(path.dirname(filePath), "codex");

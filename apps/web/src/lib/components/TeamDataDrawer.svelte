@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from "../modal";
   import type {
     DraftScoringFormat,
     Position,
@@ -62,15 +63,10 @@
     onClose: () => void;
   } = $props();
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") onClose();
-  }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <button class="drawer-backdrop" type="button" aria-label="Close team data" onclick={onClose}></button>
-<div class="data-drawer" role="dialog" aria-modal="true" aria-label="Manage team data">
+<div class="data-drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label="Manage team data">
   <button class="drawer-close" type="button" aria-label="Close team data" title="Close" onclick={onClose}>
     <Icon name="close" size={16} />
   </button>

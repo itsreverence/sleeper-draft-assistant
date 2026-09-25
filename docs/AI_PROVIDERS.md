@@ -70,7 +70,7 @@ Users can add concise `next-pick` or `draft` strategy guidance. Active guidance 
 
 The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows explicit reviewing, unavailable, or not-configured states when no current AI strategy exists.
 
-AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use only supplied evidence and these bounded draft tools.
+AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use supplied evidence and bounded fantasy tools. Direct web search is explicitly disabled on strategy and conversation threads.
 
 ## Contextual draft conversation
 
@@ -80,7 +80,17 @@ The conversation supports comparisons, challenges to the current plan, and what-
 
 When a user explicitly asks the conversation to adopt or change draft strategy, the provider may append a validated strategy proposal. Candidate-comparison actions explicitly request such a proposal when the answer overturns the primary recommendation, preventing contradictory advice from silently remaining beside the main call. The proposal is displayed separately from the answer and is not active until the user selects **Apply to strategy**. Provider tools remain read-only and cannot persist guidance directly.
 
-Draft questions are grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations. The model can search the complete immutable available-player snapshot for positional or named alternatives. The prompt does not include a local strategic lean or score, and the model does not receive or claim live news outside the supplied draft context.
+Draft questions are grounded in the current roster, board, league settings, separate rank/projection/ADP evidence, and imported-data limitations. The model can search the complete immutable available-player snapshot for positional or named alternatives. Optional news lookups supplement this context without adding a local strategic lean or score.
+
+## AI-controlled news lookup
+
+Codex may call `check_player_news` when injury, practice, or role reporting could materially change an answer or draft decision. No separate user search button is required. The tool accepts only a player ID from the current supplied evidence and one of those three topics, never arbitrary search text. The backend constructs a public-only prompt containing name, NFL team, position, topic, and current timestamp, without league identifiers, the user's question, or imported values.
+
+**Settings > AI > Web search** controls this capability and defaults on, including when upgrading older settings. Turning it off and saving immediately closes the old provider and active research clients, removes the news tool, and starts fresh draft/team conversations. Normal roster and imported-data analysis remains available. The setting persists locally; a full local-data reset restores the enabled default. Existing saved draft decisions/history are not deleted, but their news is not treated as current evidence when search is off.
+
+Each lookup uses a separate ephemeral Codex process/thread with live hosted search restricted to NFL.com and ESPN. At most two lookups are allowed per answer, each with a 20-second budget after process creation; the main turn retains its existing timeout. Closing or failing the parent turn closes research clients. Unsupported search configuration, failed retrieval, missing citations, and invalid source links return a safe evidence gap so Codex can continue. Source structure and URL allowlisting do not prove that an article or claim is accurate.
+
+Answers append the sources checked, report dates, and retrieval timestamps. Reports must have a valid date within the preceding seven days, not a future or unknown date; otherwise the lookup returns an evidence gap. This checks model-reported dates, not independent verification of article truth. Draft sources appear under **Why**. HTTPS links open externally only for the approved news hosts; in-app navigation remains blocked. News is advisory and cannot establish fantasy availability, override lineup validation, or replace rankings/projections. Old conversation reports must be rechecked before treating them as current. Current request UI shows the ordinary reviewing state; per-search streaming progress is not implemented.
 
 ## AI-first Team Manager
 

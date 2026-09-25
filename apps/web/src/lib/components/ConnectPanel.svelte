@@ -127,8 +127,8 @@
   {#if !hasLookupResults}
     <div class="alternate-connections">
     <div class="mini-links">
-      <button type="button" class="text-link" onclick={() => (leaguePanelOpen = !leaguePanelOpen)}>Paste a league URL</button>
-      <button type="button" class="text-link" onclick={() => (draftPanelOpen = !draftPanelOpen)}>Paste a draft ID</button>
+      <button type="button" class="text-link" aria-expanded={leaguePanelOpen} onclick={() => (leaguePanelOpen = !leaguePanelOpen)}>Paste a league URL</button>
+      <button type="button" class="text-link" aria-expanded={draftPanelOpen} onclick={() => (draftPanelOpen = !draftPanelOpen)}>Paste a draft ID</button>
     </div>
 
     {#if leaguePanelOpen}

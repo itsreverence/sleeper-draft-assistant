@@ -6,6 +6,43 @@ import { createAiProviderStatusFixture, createTeamPayloadFixture } from "../test
 import { createDeferred } from "../testing/deferred";
 
 describe("Team ask panel", () => {
+  it("drops an in-flight news answer when the search setting changes", async () => {
+    const answer = createDeferred<string>();
+    const props = {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk: vi.fn(() => answer.promise),
+    };
+    const view = render(TeamAskPanel, { ...props, contextKey: "true" });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Check player news" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await waitFor(() => expect(props.onAsk).toHaveBeenCalledOnce());
+    await view.rerender({ ...props, contextKey: "false" });
+    answer.resolve("Old news result");
+    await waitFor(() => expect(screen.queryByText("Check player news")).toBeNull());
+    expect(screen.queryByText("Old news result")).toBeNull();
+  });
+  it("discards a pending answer when the selected week changes even without matchup data", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const answer = createDeferred<string>();
+    const onAsk = vi.fn(() => answer.promise);
+    const props = {
+      teamState: teamPayload.state,
+      weekContext: null,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk,
+    };
+    const view = render(TeamAskPanel, { ...props, selectedWeek: 1 });
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Week one question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await waitFor(() => expect(onAsk).toHaveBeenCalledOnce());
+    await view.rerender({ ...props, selectedWeek: 2 });
+    answer.resolve("Old week answer");
+    await waitFor(() => expect(screen.queryByText("Week one question")).toBeNull());
+    expect(screen.queryByText("Old week answer")).toBeNull();
+    expect(screen.getByPlaceholderText("Ask something else…")).toBeTruthy();
+  });
+
   it("configured provider submits team question", async () => {
     const teamPayload = createTeamPayloadFixture();
     const onAsk = vi.fn(async () => "Start your best running backs first.");

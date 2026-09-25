@@ -16,9 +16,12 @@ import {
 } from "./ros-rankings-import";
 import { SqliteAppDatabase } from "./sqlite-app-database";
 
-const rosCsv = `"RK","PLAYER NAME",TEAM,"POS","BEST","WORST","AVG.","STD.DEV","ECR VS. ADP"
-"1","Jahmyr Gibbs",DET,"RB1","1","5","2.6","1.1","-"
-"2","Josh Allen",BUF,"QB1","20","30","25.0","3.2","-"`;
+// Synthetic values with the header from the user-provided 2026 ROS export.
+const rosCsv = `"RK","PLAYER NAME",TEAM,"POS","SOS SEASON","SOS PLAYOFFS","ECR VS. ADP"
+"1","Jahmyr Gibbs",DET,"RB1","5 out of 5 stars","3 out of 5 stars","-2"
+"2","Josh Allen",BUF,"QB1","3 out of 5 stars","4 out of 5 stars","+1"
+""
+""`;
 const draftCsv = `"RK","TIERS","PLAYER NAME","TEAM","POS","BYE WEEK","ECR VS. ADP"
 "1","1","Jahmyr Gibbs","DET","RB1","8","-"`;
 
@@ -29,7 +32,7 @@ describe("FantasyPros season value ranking imports", () => {
     expect(isSeasonValueScoringCompatible("Custom", "PPR")).toBe(false);
   });
 
-  it("imports overall ranks and expert disagreement", () => {
+  it("imports the verified ROS format without inventing absent expert statistics", () => {
     const players = createMockDraftState(0).players;
     const storedImport = importFantasyProsSeasonValueRankings({
       players,
@@ -50,10 +53,10 @@ describe("FantasyPros season value ranking imports", () => {
     expect(rankedPlayers.find((player) => player.name === "Jahmyr Gibbs")).toMatchObject({
       rosRank: 1,
       rosPositionRank: 1,
-      rosBestRank: 1,
-      rosWorstRank: 5,
-      rosAverageRank: 2.6,
-      rosStdDev: 1.1,
+      rosBestRank: null,
+      rosWorstRank: null,
+      rosAverageRank: null,
+      rosStdDev: null,
       rosSource: "FantasyPros",
     });
   });
@@ -83,6 +86,14 @@ describe("FantasyPros season value ranking imports", () => {
       .toThrow(SeasonValueRankingImportError);
   });
 
+  it.each([
+    "RK,PLAYER NAME,TEAM,POS,BEST,WORST,AVG.,STD.DEV,ECR VS. ADP",
+    "RK,PLAYER NAME,TEAM,POS,SOS SEASON,ECR VS. ADP",
+    "RK,PLAYER NAME,TEAM,POS,SOS SEASON,SOS PLAYOFFS,ECR VS. ADP,TIERS,BYE WEEK",
+  ])("rejects unverified or ambiguous headers: %s", (header) => {
+    expect(() => classifyFantasyProsSeasonValueCsv(header)).toThrow(SeasonValueRankingImportError);
+  });
+
   it("never lets draft fallback downgrade active ROS ECR", () => {
     const players = createMockDraftState(0).players;
     const ros = importFantasyProsSeasonValueRankings({ players, season: "2026", scoring: "PPR", csvText: rosCsv });
@@ -93,21 +104,25 @@ describe("FantasyPros season value ranking imports", () => {
     expect(canReplaceSeasonValueRankings(null, fallback)).toBe(true);
   });
 
-  it("persists draft ECR fallback by league, season, and scoring", async () => {
+  it.each([
+    [draftCsv, "draft-ecr-fallback", 1],
+    [rosCsv, "ros-ecr", 2],
+  ] as const)("persists season value rankings by league, season, and scoring (%s)", async (csvText, rankingType, matched) => {
     const players = createMockDraftState(0).players;
     const dir = mkdtempSync(path.join(tmpdir(), "sda-ros-rankings-"));
     const database = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
     const store = new SeasonValueRankingImportStore(path.join(dir, "ros.json"), database);
     const key = { leagueId: "league-1", season: "2025", scoring: "PPR" as const };
 
-    store.set(key, importFantasyProsSeasonValueRankings({ players, season: "2025", scoring: "PPR", csvText: draftCsv }));
+    store.set(key, importFantasyProsSeasonValueRankings({ players, season: "2025", scoring: "PPR", csvText }));
 
     const reopenedDatabase = await SqliteAppDatabase.open(path.join(dir, "app.sqlite"));
     const reopened = new SeasonValueRankingImportStore(path.join(dir, "ros.json"), reopenedDatabase);
     expect(reopened.get(key)?.summary).toMatchObject({
-      rankingType: "draft-ecr-fallback",
+      rankingType,
       rankingOrigin: "team-import",
-      matched: 1,
+      matched,
     });
+    expect(reopened.get(key)?.playersById).toEqual(store.get(key)?.playersById);
   });
 });

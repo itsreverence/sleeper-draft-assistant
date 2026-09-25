@@ -22,6 +22,7 @@ export function createAppSettingsFixture(overrides: Partial<AppSettings> = {}): 
     codexBin: "codex",
     codexModel: "gpt-5.6-terra",
     codexServiceTier: "fast",
+    codexWebSearch: true,
     codexTimeoutMs: 60_000,
     automaticAiAudit: "off",
     aiSetupAcknowledged: true,

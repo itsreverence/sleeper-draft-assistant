@@ -22,13 +22,16 @@ describe("AI provider form", () => {
 
     const fastResponses = screen.getByRole("checkbox", { name: "Fast responses" }) as HTMLInputElement;
     expect(fastResponses.checked).toBe(true);
+    const webSearch = screen.getByRole("checkbox", { name: "Web search" }) as HTMLInputElement;
+    expect(webSearch.checked).toBe(true);
     expect(screen.getByText(/2.5× ChatGPT credits/i)).toBeTruthy();
     expect(screen.getByText("Codex command or path")).toBeTruthy();
     expect(screen.getByText("Response timeout (ms)")).toBeTruthy();
 
     await fireEvent.click(fastResponses);
+    await fireEvent.click(webSearch);
     await fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
 
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ codexServiceTier: "default" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ codexServiceTier: "default", codexWebSearch: false }));
   });
 });

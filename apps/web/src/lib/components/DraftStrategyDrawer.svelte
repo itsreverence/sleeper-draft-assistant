@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from "../modal";
   import type { AiDraftStrategyPayload, DecisionSnapshot, DraftStrategyInstruction, DraftStrategyProposal } from "../types";
   import DraftStrategyPanel from "./DraftStrategyPanel.svelte";
   import Icon from "./Icon.svelte";
@@ -30,17 +31,10 @@
     onClose: () => void;
   } = $props();
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onClose();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 <button class="drawer-backdrop" type="button" aria-label="Close draft plan" onclick={onClose}></button>
-<div class="strategy-drawer" role="dialog" aria-modal="true" aria-label="Draft plan">
+<div class="strategy-drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label="Draft plan">
   <button class="drawer-close" type="button" aria-label="Close draft plan" onclick={onClose}>
     <Icon name="close" size={16} />
   </button>

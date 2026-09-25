@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import ResponseText from "./ResponseText.svelte";
   type MarkdownBlock =
     | { type: "heading"; text: string }
     | { type: "paragraph"; text: string }
@@ -79,15 +80,15 @@
 <div class="response-markdown">
   {#each blocks as block}
     {#if block.type === "heading"}
-      <h3>{block.text}</h3>
+      <h3><ResponseText text={block.text} /></h3>
     {:else if block.type === "list"}
       <ul>
         {#each block.items as item}
-          <li>{item}</li>
+          <li><ResponseText text={item} /></li>
         {/each}
       </ul>
     {:else}
-      <p>{block.text}</p>
+      <p><ResponseText text={block.text} /></p>
     {/if}
   {/each}
 </div>

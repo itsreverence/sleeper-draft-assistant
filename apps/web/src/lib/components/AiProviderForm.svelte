@@ -25,6 +25,7 @@
   let codexBin = $state("codex");
   let codexModel = $state(defaultCodexModel);
   let fastResponses = $state(true);
+  let webSearch = $state(true);
   let codexTimeoutMs = $state(60000);
 
   $effect(() => {
@@ -36,6 +37,7 @@
     codexBin = settings.codexBin;
     codexModel = settings.codexModel;
     fastResponses = settings.codexServiceTier === "fast";
+    webSearch = settings.codexWebSearch;
     codexTimeoutMs = settings.codexTimeoutMs;
   });
 
@@ -46,6 +48,7 @@
       codexBin: codexBin.trim() || "codex",
       codexModel: codexModel.trim() || defaultCodexModel,
       codexServiceTier: fastResponses ? "fast" : "default",
+      codexWebSearch: webSearch,
       codexTimeoutMs: Number(codexTimeoutMs),
       automaticAiAudit: settings?.automaticAiAudit ?? "off",
       aiSetupAcknowledged: true,
@@ -89,6 +92,13 @@
       <span>
         <strong>Fast responses</strong>
         <small>About 1.5× faster. GPT-5.6 uses 2.5× ChatGPT credits while enabled.</small>
+      </span>
+    </label>
+    <label class="fast-mode-control">
+      <input bind:checked={webSearch} type="checkbox" aria-label="Web search" />
+      <span>
+        <strong>Web search</strong>
+        <small>Let Codex check recent player news when useful. May increase response time and usage. Saving a change starts fresh conversations.</small>
       </span>
     </label>
     <p class="form-note">Terra is the balanced default. Luna uses fewer resources; Sol offers the most capability.</p>

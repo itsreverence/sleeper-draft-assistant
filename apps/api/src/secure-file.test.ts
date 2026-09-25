@@ -1,13 +1,37 @@
 import { lstatSync, mkdtempSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ensurePrivateDirectory, readPrivateTextFile, writePrivateFile } from "./secure-file";
+import { CommittedFileWriteError, ensurePrivateDirectory, readPrivateTextFile, writePrivateFile } from "./secure-file";
+
+const faults = vi.hoisted(() => ({ failDirectorySync: false, failFileSync: false }));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, fsyncSync(descriptor: number) {
+    const directory = actual.fstatSync(descriptor).isDirectory();
+    if ((directory && faults.failDirectorySync) || (!directory && faults.failFileSync)) throw new Error("simulated sync failure");
+    actual.fsyncSync(descriptor);
+  } };
+});
+afterEach(() => { faults.failDirectorySync = false; faults.failFileSync = false; });
 
 const describePosix = process.platform === "win32" ? describe.skip : describe;
 
 describePosix("private local artifacts", () => {
+  it("distinguishes failure before replacement from unconfirmed durability after replacement", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "sda-private-commit-"));
+    const file = path.join(directory, "settings.json");
+    writePrivateFile(file, "before");
+    faults.failFileSync = true;
+    expect(() => writePrivateFile(file, "not committed")).toThrow("simulated sync failure");
+    expect(readFileSync(file, "utf8")).toBe("before");
+    faults.failFileSync = false;
+    faults.failDirectorySync = true;
+    expect(() => writePrivateFile(file, "committed")).toThrow(CommittedFileWriteError);
+    expect(readFileSync(file, "utf8")).toBe("committed");
+    expect(lstatSync(file).mode & 0o777).toBe(0o600);
+  });
   it("creates owner-only directories and atomically replaces owner-only files", () => {
     const root = mkdtempSync(path.join(tmpdir(), "sleeper-private-file-"));
     const directory = path.join(root, "data");

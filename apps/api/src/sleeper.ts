@@ -226,7 +226,7 @@ export class SleeperClient {
     });
   }
 
-  async getAvailablePlayers(leagueId: string, limit = 160): Promise<Player[]> {
+  async getAvailablePlayers(leagueId: string, limit?: number): Promise<Player[]> {
     const [leagueBundle, players, nflState] = await Promise.all([
       this.getLeagueBundle(leagueId),
       this.getPlayers(),
@@ -301,8 +301,9 @@ export class SleeperClient {
     draftId: string,
     userRosterId?: string | null,
     userIdentifier?: string | null,
+    snapshot?: { draft: SleeperDraft; picks: SleeperPick[] },
   ): Promise<DraftState> {
-    const draft = await this.getDraft(draftId);
+    const draft = snapshot?.draft ?? await this.getDraft(draftId);
     const leagueId = draft.league_id ?? null;
     let resolvedUserTeamRef = userRosterId;
     if (!resolvedUserTeamRef && userIdentifier) {
@@ -314,7 +315,7 @@ export class SleeperClient {
     }
 
     const [picks, tradedPicks, players, leagueBundle] = await Promise.all([
-      this.getDraftPicks(draftId),
+      snapshot?.picks ?? this.getDraftPicks(draftId),
       this.getDraftTradedPicks(draftId).catch(() => []),
       this.getPlayers(),
       leagueId ? this.getLeagueBundle(leagueId) : Promise.resolve({ league: null, rosters: [], users: [] }),
@@ -507,7 +508,7 @@ export function normalizeSleeperAvailablePlayers(input: { rosters: SleeperRoster
     .map(toPlayer)
     .filter(isPresent)
     .sort(compareSleeperPlayers)
-    .slice(0, input.limit ?? 160);
+    .slice(0, input.limit);
 }
 
 function normalizeTransactionItem(transaction: SleeperTransaction, players: SleeperPlayerMap): TeamActivitySummary["recentTransactions"][number] {
@@ -1415,5 +1416,3 @@ function isoTimestampFromEpochMilliseconds(value: unknown): string | null {
 function isPresent<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
-
-

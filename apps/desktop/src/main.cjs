@@ -1,23 +1,27 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, dialog } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
 const net = require("node:net");
 const path = require("node:path");
 const { parseApiPort } = require("./config.cjs");
+const { StartupError, startWithRecovery, stopChild } = require("./startup.cjs");
 
-const apiPort = parseApiPort(process.env.PORT);
+let apiPort;
 const webDevUrl = process.env.SLEEPER_AI_WEB_URL ?? "http://127.0.0.1:5173";
-const apiUrl = `http://127.0.0.1:${apiPort}`;
+let apiUrl;
 const apiToken = process.env.SLEEPER_AI_API_TOKEN?.trim() || randomBytes(32).toString("base64url");
 const userDataOverride = process.env.SLEEPER_AI_PACKAGE_SMOKE === "1"
   ? process.env.SLEEPER_AI_USER_DATA_DIR?.trim() || null
   : null;
 const expectedWebTitle = "Sleeper Draft Assistant";
-const allowedExternalHosts = new Set(["www.fantasypros.com"]);
+const allowedExternalHosts = new Set(["www.fantasypros.com", "nfl.com", "www.nfl.com", "espn.com", "www.espn.com"]);
 
 let apiProcess = null;
 let webProcess = null;
 let mainWindow = null;
+let starting = false;
+let apiStartupError = null;
+let webStartupError = null;
 
 // CI and package smoke hosts may not expose a usable GPU process.
 if (process.env.SLEEPER_AI_PACKAGE_SMOKE === "1") {
@@ -44,20 +48,51 @@ app.on("second-instance", () => {
   }
 });
 
-app.whenReady().then(async () => {
-  await ensureApiServer();
-  await createWindow();
-});
+if (gotLock) {
+  app.whenReady().then(startApplication).catch(() => app.quit());
+}
+
+async function startApplication() {
+  if (starting) return;
+  starting = true;
+  try {
+    await startWithRecovery({
+      start: async () => {
+        try {
+          apiPort = parseApiPort(process.env.PORT);
+        } catch {
+          throw new StartupError("configuration");
+        }
+        apiUrl = `http://127.0.0.1:${apiPort}`;
+        apiStartupError = null;
+        webStartupError = null;
+        await ensureApiServer();
+        await createWindow();
+      },
+      cleanup: async () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
+        mainWindow = null;
+        await Promise.all([stopChild(apiProcess), stopChild(webProcess)]);
+        apiProcess = null;
+        webProcess = null;
+      },
+      showMessageBox: (options) => dialog.showMessageBox(options),
+      quit: () => app.quit(),
+    });
+  } finally {
+    starting = false;
+  }
+}
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (!starting && process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on("activate", async () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    await createWindow();
+    void startApplication().catch(() => app.quit());
   }
 });
 
@@ -78,6 +113,7 @@ async function createWindow() {
     minHeight: 720,
     backgroundColor: "#f7f6f1",
     title: "Sleeper Draft Assistant",
+    show: false,
     icon: getAppAssetPath("assets", "icon.ico"),
     webPreferences: {
       contextIsolation: true,
@@ -101,6 +137,7 @@ async function createWindow() {
     await ensureWebServer();
     await waitForSleeperWeb(30000);
     await mainWindow.loadURL(webDevUrl);
+    mainWindow.show();
     mainWindow.webContents.openDevTools({ mode: "detach" });
     return;
   }
@@ -108,6 +145,7 @@ async function createWindow() {
   await mainWindow.loadFile(getAppAssetPath("dist", "web", "index.html"), {
     query: { apiToken, apiPort: String(apiPort) },
   });
+  mainWindow.show();
 }
 
 async function ensureApiServer() {
@@ -115,7 +153,7 @@ async function ensureApiServer() {
     if (await isCompatibleApiServer()) {
       return;
     }
-    throw new Error(`Port ${apiPort} is already running a different or stale Sleeper API server.`);
+    throw new StartupError("port");
   }
 
   if (app.isPackaged) {
@@ -146,7 +184,11 @@ async function ensureApiServer() {
     });
   }
 
+  apiProcess.on("error", () => {
+    apiStartupError = new StartupError("service");
+  });
   apiProcess.on("exit", (code) => {
+    apiStartupError = new StartupError("service");
     if (code && code !== 0) {
       console.error(`Sleeper API exited with code ${code}`);
     }
@@ -176,7 +218,11 @@ async function ensureWebServer() {
     shell: process.platform === "win32",
   });
 
+  webProcess.on("error", () => {
+    webStartupError = new StartupError("service");
+  });
   webProcess.on("exit", (code) => {
+    webStartupError = new StartupError("service");
     if (code && code !== 0) {
       console.error(`Sleeper web dev server exited with code ${code}`);
     }
@@ -212,6 +258,7 @@ function isPortOpen(port) {
 async function waitForApiServer(timeoutMs) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    if (apiStartupError) throw apiStartupError;
     if (await isCompatibleApiServer()) {
       return;
     }
@@ -237,6 +284,7 @@ async function isCompatibleApiServer() {
 async function waitForSleeperWeb(timeoutMs) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    if (webStartupError) throw webStartupError;
     const html = await fetchText(webDevUrl, 1200).catch(() => null);
     if (html !== null && isSleeperWebHtml(html)) {
       return;
@@ -279,7 +327,7 @@ async function fetchWithTimeout(url, timeoutMs, init = {}) {
 function isAllowedExternalUrl(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    return url.protocol === "https:" && allowedExternalHosts.has(url.hostname);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port && allowedExternalHosts.has(url.hostname);
   } catch {
     return false;
   }

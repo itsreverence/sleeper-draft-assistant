@@ -8,6 +8,13 @@ type ResetTargets = {
   settingsStore: Pick<SettingsStore, "reset">;
 };
 
+export class LocalDataResetError extends Error {
+  constructor() {
+    super("Local data changed while this request was running. Please try again.");
+    this.name = "LocalDataResetError";
+  }
+}
+
 export class LocalDataResetCoordinator {
   private generation = 0;
 
@@ -24,6 +31,10 @@ export class LocalDataResetCoordinator {
 
   isCurrent(generation: number): boolean {
     return generation === this.generation;
+  }
+
+  assertCurrent(generation: number): void {
+    if (!this.isCurrent(generation)) throw new LocalDataResetError();
   }
 
   commitIfCurrent(generation: number, persist: () => void): boolean {

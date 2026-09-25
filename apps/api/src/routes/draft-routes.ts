@@ -27,6 +27,7 @@ import type { DecisionLogStore, DecisionSnapshotTrigger } from "../decision-log-
 import type { DraftPlanStore } from "../draft-plan-store";
 import type { DraftStrategyInstructionStore } from "../draft-strategy-instruction-store";
 import { draftPollDelayMs } from "../draft-refresh";
+import { draftStateRevision } from "@sleeper-draft-assistant/shared";
 import {
   AdpImportStore,
   SeasonProjectionImportStore,
@@ -41,7 +42,7 @@ import {
   isDraftRankingImportCompatible,
 } from "../rankings-import";
 import type { SettingsStore } from "../settings-store";
-import type { SleeperClient } from "../sleeper";
+import type { SleeperClient, SleeperDraft, SleeperPick } from "../sleeper";
 import type { SqliteAppDatabase } from "../sqlite-app-database";
 import type { RouteErrorHandler } from "./types";
 import { getUserRosterId, normalizeConversationHistory } from "./request-context";
@@ -113,12 +114,14 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/strategy-instructions", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
         const body = await c.req.json<Record<string, unknown>>();
         const proposal = DraftStrategyProposalSchema.parse(body);
         const source = DraftStrategyInstructionSourceSchema.parse(body.source ?? "manual");
+        localDataReset.assertCurrent(generation);
         return c.json({
           instructions: getDraftStrategyInstructionStore().create(
             draftId,
@@ -134,10 +137,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.put("/drafts/:draftId/strategy-instructions/:instructionId", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
         const proposal = DraftStrategyProposalSchema.parse(await c.req.json<Record<string, unknown>>());
+        localDataReset.assertCurrent(generation);
         const instructions = getDraftStrategyInstructionStore().update(
           draftId,
           state.userTeamId,
@@ -152,9 +157,11 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.delete("/drafts/:draftId/strategy-instructions/:instructionId", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
+        localDataReset.assertCurrent(generation);
         const instructions = getDraftStrategyInstructionStore().delete(
           draftId,
           state.userTeamId,
@@ -174,8 +181,10 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
 
   function registerWorkspaceRoutes(app: Hono): void {
     app.get("/drafts/:draftId/state", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c), c.req.query("userIdentifier"));
+        localDataReset.assertCurrent(generation);
         const draftId = c.req.param("draftId");
         return c.json(toDraftPayload(state, draftId, { recordTrigger: "state-load", userRosterId: getUserRosterId(c) }));
       } catch (error) {
@@ -184,6 +193,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/rankings/import", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
@@ -194,6 +204,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
             error: `The ${body.scoring} rankings do not match this ${state.settings.scoring} league.`,
           }, 400);
         }
+        localDataReset.assertCurrent(generation);
         getRankingImportStore().set(draftId, storedImport);
         const importedState = applyDraftData(draftId, state);
 
@@ -207,6 +218,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/projections/season/import", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
@@ -216,6 +228,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           season: body.season,
           files: body.files,
         });
+        localDataReset.assertCurrent(generation);
         getSeasonProjectionImportStore().set(draftId, storedImport);
         return c.json({
           summary: storedImport.summary,
@@ -230,10 +243,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.delete("/drafts/:draftId/projections/season/import", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         getSeasonProjectionImportStore().delete(draftId);
         const state = await loadDraftState(draftId, getUserRosterId(c));
+        localDataReset.assertCurrent(generation);
         return c.json(toDraftPayload(state, draftId, {
           recordTrigger: "rankings-clear",
           userRosterId: getUserRosterId(c),
@@ -244,6 +259,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/adp/import", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
@@ -253,6 +269,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           season: body.season,
           csvText: body.csvText,
         });
+        localDataReset.assertCurrent(generation);
         getAdpImportStore().set(draftId, storedImport);
         return c.json({
           summary: storedImport.summary,
@@ -267,10 +284,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.delete("/drafts/:draftId/adp/import", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         getAdpImportStore().delete(draftId);
         const state = await loadDraftState(draftId, getUserRosterId(c));
+        localDataReset.assertCurrent(generation);
         return c.json(toDraftPayload(state, draftId, {
           recordTrigger: "rankings-clear",
           userRosterId: getUserRosterId(c),
@@ -281,10 +300,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.delete("/drafts/:draftId/rankings/import", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         getRankingImportStore().delete(draftId);
         const state = await loadDraftState(draftId, getUserRosterId(c));
+        localDataReset.assertCurrent(generation);
         return c.json(toDraftPayload(state, draftId, { recordTrigger: "rankings-clear", userRosterId: getUserRosterId(c) }));
       } catch (error) {
         return handleRouteError(c, error);
@@ -292,10 +313,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.get("/drafts/:draftId/recommendations", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
         const draftId = c.req.param("draftId");
         const recommendation = buildDraftRecommendation(state);
+        localDataReset.assertCurrent(generation);
         getDecisionLogStore().record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
         return c.json(recommendation);
       } catch (error) {
@@ -303,11 +326,13 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
       }
     });
     app.post("/drafts/:draftId/recommendations", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
         const body = (await c.req.json<{ recommendationPreferences?: DraftRecommendationOptions["preferences"] }>().catch(() => ({}))) as { recommendationPreferences?: DraftRecommendationOptions["preferences"] };
         const draftId = c.req.param("draftId");
         const recommendation = buildDraftRecommendation(state, { preferences: normalizeRecommendationPreferences(body.recommendationPreferences) });
+        localDataReset.assertCurrent(generation);
         getDecisionLogStore().record({ draftId, state, recommendation, trigger: "manual-refresh", userRosterId: getUserRosterId(c) });
         return c.json(recommendation);
       } catch (error) {
@@ -316,6 +341,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/strategy", async (c) => {
+      const requestGeneration = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const state = await loadDraftState(draftId, getUserRosterId(c));
@@ -348,7 +374,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           previousPlan,
           strategyInstructions,
         );
-        const requestGeneration = localDataReset.captureGeneration();
+        localDataReset.assertCurrent(requestGeneration);
         const strategy = await provider.strategizeDraft(
           strategyContext,
           tools,
@@ -357,7 +383,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           return c.json({ error: "Local data was reset while AI strategy was running. Request a fresh recommendation." }, 409);
         }
         const latestState = await loadDraftState(draftId, getUserRosterId(c));
-        if (latestState.currentPick !== state.currentPick) {
+        if (draftStateRevision(latestState) !== draftStateRevision(state)) {
           return c.json({ error: "The draft board changed while AI strategy was running. Refreshing the recommendation." }, 409);
         }
         const availableIds = new Set(
@@ -444,6 +470,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/ask", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const state = await loadDraftState(c.req.param("draftId"), getUserRosterId(c));
         const body = await c.req
@@ -463,6 +490,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           faded: recommendationPreferences?.fadedPlayerIds ?? userPreferences.faded,
           excluded: recommendationPreferences?.excludedPlayerIds ?? userPreferences.excluded,
         });
+        localDataReset.assertCurrent(generation);
         getDecisionLogStore().record({ draftId, state, recommendation, trigger: "ai-question", userRosterId: getUserRosterId(c) });
         const aiProvider = aiProviderManager.get(getSettingsStore().get());
         const strategyInstructions = getDraftStrategyInstructionStore().list(draftId, state.userTeamId, state.currentPick);
@@ -470,7 +498,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot, [], strategyInstructions),
           createDraftStrategyTools(snapshot),
         );
-
+        localDataReset.assertCurrent(generation);
         return c.json({
           provider: aiAnswer.provider,
           question,
@@ -484,6 +512,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     });
 
     app.post("/drafts/:draftId/candidates/:playerId/evaluate", async (c) => {
+      const generation = localDataReset.captureGeneration();
       try {
         const draftId = c.req.param("draftId");
         const playerId = c.req.param("playerId");
@@ -511,6 +540,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           return c.json({ error: "That player is no longer available for this draft pick." }, 409);
         }
 
+        localDataReset.assertCurrent(generation);
         getDecisionLogStore().record({
           draftId,
           state,
@@ -531,7 +561,8 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           createDraftStrategyTools(snapshot),
         );
         const latestState = await loadDraftState(draftId, getUserRosterId(c));
-        if (latestState.currentPick !== state.currentPick) {
+        localDataReset.assertCurrent(generation);
+        if (draftStateRevision(latestState) !== draftStateRevision(state)) {
           return c.json({ error: "The draft board changed while AI evaluation was running. Refreshing the recommendation." }, 409);
         }
 
@@ -573,12 +604,13 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     draftId: string,
     userRosterId?: string | null,
     userIdentifier?: string | null,
+    snapshot?: { draft: SleeperDraft; picks: SleeperPick[] },
   ): Promise<DraftState> {
     if (isMockDraft(draftId)) {
       return applyDraftData(draftId, mockState);
     }
 
-    const state = await sleeperClient.getDraftState(draftId, userRosterId, userIdentifier);
+    const state = await sleeperClient.getDraftState(draftId, userRosterId, userIdentifier, snapshot);
     return applyDraftData(draftId, state);
   }
 
@@ -635,6 +667,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
 
   function streamMockDraftEvents(): Response {
     const channel = createEventStreamChannel();
+    const generation = localDataReset.captureGeneration();
     let localState: DraftState = applyDraftData("mock-draft", mockState);
     let interval: ReturnType<typeof setInterval> | undefined;
 
@@ -646,6 +679,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         });
 
         interval = setInterval(() => {
+          if (!localDataReset.isCurrent(generation)) {
+            clearInterval(interval);
+            channel.close();
+            controller.close();
+            return;
+          }
           if (localState.status === "complete") {
             channel.send(controller, "heartbeat", {
               type: "heartbeat",
@@ -679,8 +718,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
 
   async function streamSleeperDraftEvents(draftId: string, userRosterId: string | null): Promise<Response> {
     const channel = createEventStreamChannel();
-    let localState = await loadDraftState(draftId, userRosterId);
-    let lastPickCount = localState.picks.length;
+    const generation = localDataReset.captureGeneration();
+    const initialSnapshot = await readSnapshot();
+    let localState = await loadDraftState(draftId, userRosterId, undefined, initialSnapshot);
+    localDataReset.assertCurrent(generation);
+    let lastSnapshot = JSON.stringify(initialSnapshot);
+    let lastRebuildAt = Date.now();
     let consecutiveFailures = 0;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
@@ -705,6 +748,14 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
 
     return createEventStreamResponse(stream);
 
+    async function readSnapshot() {
+      const [draft, picks] = await Promise.all([
+        sleeperClient.getDraft(draftId),
+        sleeperClient.getDraftPicks(draftId),
+      ]);
+      return { draft, picks: [...picks].sort((a, b) => (a.pick_no ?? 0) - (b.pick_no ?? 0)) };
+    }
+
     function scheduleRefresh(
       controller: ReadableStreamDefaultController<Uint8Array>,
       delay = draftPollDelayMs(consecutiveFailures, localState.status),
@@ -720,25 +771,35 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     async function refresh(controller: ReadableStreamDefaultController<Uint8Array>) {
       let sent = false;
       try {
-        const picks = await sleeperClient.getDraftPicks(draftId);
-        consecutiveFailures = 0;
-        const previousPickCount = lastPickCount;
-
-        if (picks.length !== previousPickCount) {
-          const nextState = await loadDraftState(draftId, userRosterId);
-          localState = nextState;
-          lastPickCount = nextState.picks.length;
-          sent = channel.send(controller, "pick", {
-            type: "pick",
-            pick: nextState.picks[nextState.picks.length - 1],
+        if (cancelled || !localDataReset.isCurrent(generation)) {
+          channel.close();
+          controller.close();
+          return;
+        }
+        const snapshot = await readSnapshot();
+        const snapshotRevision = JSON.stringify(snapshot);
+        if (snapshotRevision !== lastSnapshot || Date.now() - lastRebuildAt >= 30_000) {
+          const nextState = await loadDraftState(draftId, userRosterId, undefined, snapshot);
+          localDataReset.assertCurrent(generation);
+          if (cancelled) return;
+          const changed = draftStateRevision(nextState) !== draftStateRevision(localState);
+          if (changed) sent = channel.send(controller, "snapshot", {
+            type: "snapshot",
             ...toDraftPayload(nextState, draftId, { recordTrigger: "pick-update", userRosterId }),
           });
-        } else {
+          localState = nextState;
+          lastSnapshot = snapshotRevision;
+          lastRebuildAt = Date.now();
+        }
+        localDataReset.assertCurrent(generation);
+        if (cancelled) return;
+        if (!sent) {
           sent = channel.send(controller, "heartbeat", {
             type: "heartbeat",
             at: new Date().toISOString(),
           });
         }
+        consecutiveFailures = 0;
       } catch (error) {
         consecutiveFailures += 1;
         logRouteErrorMessage("draft event refresh", error);
