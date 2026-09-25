@@ -229,7 +229,55 @@ describe("Codex app-server executable resolution", () => {
     expect(result.answer).toContain("https://www.nfl.com/news/report");
     expect(research.closed).toBe(true);
     expect(main.closed).toBe(false);
+    expect(provider.newsDiagnostics()).toEqual([{ outcome: "available", elapsedMs: expect.any(Number) }]);
     provider.close();
+  });
+
+  it.each(["timeout", "cancelled"] as const)("records %s without retaining provider errors and closes research", async (outcome) => {
+    const main = new FakeCodexClient();
+    const research = new FakeCodexClient();
+    const context = buildDraftQuestionContext(createMockDraftState(0), "private question");
+    let rejectResearch: (error: Error) => void = () => undefined;
+    research.runTurn = vi.fn(() => new Promise<string>((_resolve, reject) => { rejectResearch = reject; }));
+    research.close = () => { research.closed = true; rejectResearch(new Error("private provider path and credentials")); };
+    main.runTurn = async (_thread, _prompt, tools: AiTool[] = []) => {
+      const news = tools.find((tool) => tool.definition.name === "check_player_news")!;
+      expect(await news.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" })).toMatchObject({ status: "unavailable" });
+      return "News unavailable.";
+    };
+    const provider = new CodexAppServerProvider({ timeoutMs: outcome === "timeout" ? 30 : 10000,
+      clientFactory: vi.fn().mockResolvedValueOnce(main).mockResolvedValueOnce(research) });
+    try {
+      const answer = provider.answerDraftQuestion(context);
+      await vi.waitFor(() => expect(research.runTurn).toHaveBeenCalled(), { interval: 1 });
+      if (outcome === "cancelled") provider.close();
+      await answer;
+      expect(provider.newsDiagnostics()).toEqual([{ outcome, elapsedMs: expect.any(Number) }]);
+      expect(research.closed).toBe(true);
+      expect(JSON.stringify(provider.newsDiagnostics())).not.toContain("private");
+    } finally { provider.close(); }
+  });
+
+  it("keeps only 20 recent news outcomes and returns detached diagnostic copies", async () => {
+    const main = new FakeCodexClient();
+    const context = buildDraftQuestionContext(createMockDraftState(0), "public fixture");
+    main.runTurn = async (_thread, _prompt, tools: AiTool[] = []) => {
+      await tools.find((tool) => tool.definition.name === "check_player_news")!.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" });
+      return "No current news.";
+    };
+    const factory = vi.fn(async () => {
+      const research = new FakeCodexClient();
+      research.runTurn = async () => '{"summary":"No recent reporting","sources":[]}';
+      return research;
+    }).mockResolvedValueOnce(main);
+    const provider = new CodexAppServerProvider({ clientFactory: factory });
+    try {
+      for (let i = 0; i < 22; i++) await provider.answerDraftQuestion(context);
+      const entries = provider.newsDiagnostics();
+      expect(entries).toHaveLength(20);
+      entries[0]!.outcome = "available";
+      expect(provider.newsDiagnostics()[0]!.outcome).toBe("no_recent_sources");
+    } finally { provider.close(); }
   });
 
   it("removes news capability and historical chat evidence when search is disabled", async () => {

@@ -138,6 +138,7 @@
     top: 10vh;
     left: 50%;
     display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     width: min(660px, calc(100vw - 32px));
     max-height: 80vh;
     border: 1px solid var(--border-strong);
@@ -242,7 +243,7 @@
   }
 
   .results {
-    min-height: 160px;
+    min-height: 0;
     overflow-y: auto;
     border-top: 1px solid var(--border);
   }

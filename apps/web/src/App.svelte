@@ -2215,7 +2215,7 @@
             defaultWeek={weeklyProjectionDefaultWeek}
             scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
             rosError={rosRankingError}
-            weeklyError={weeklyProjectionError}
+            bind:weeklyError={weeklyProjectionError}
             isLoading={isLoadingTeamManager}
             isImportingRos={isImportingRosRankings}
             isClearingRos={isClearingRosRankings}

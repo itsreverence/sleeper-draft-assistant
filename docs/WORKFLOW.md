@@ -26,6 +26,10 @@ For popup checks, open Settings, the draft switcher, a team roster, the draft pl
 
 In player search, open a preference menu and press Escape. Only the menu should close, with focus returned to its preference button; a second Escape closes search.
 
+Search for a broad term such as `a` with enough results to exceed the dialog height. Scroll over the result rows and confirm the final row is reachable while the header and filters stay visible. Repeat in a short/narrow window; the page behind the dialog should remain locked. Component tests do not measure browser layout, so this requires a real browser or packaged-app check.
+
+On the connection screen, expand **Paste a league URL** and confirm the username prerequisite is explained before submission. For weekly imports, test an unrecognized single filename (uses the selected position), an unrecognized filename in a batch (asks for a separate import), and a FLEX/FLX export (skipped as redundant). Selecting replacement files or pasting CSV must clear the previous import error; new server validation errors must still appear. Pasting replaces any selected files.
+
 ```bash
 npm run check
 npm test
@@ -76,6 +80,8 @@ Delete the disposable directory afterward. Never paste production tokens into sh
 ## Troubleshooting
 
 For news lookup checks, ask about a public player's current injury or practice report. Verify the answer either includes dated NFL.com/ESPN sources or acknowledges unavailable news. Ordinary roster questions need not search. Source links must open outside Electron; arbitrary domains, credentials in URLs, and non-HTTPS links must not. Switch team or reset during a lookup and verify the old answer cannot populate the new context. Quit during research and check that the app-owned research process closes as well as its main Codex process.
+
+After a news request, inspect `newsLookups` in **Copy diagnostics**. A completed lookup records a bounded outcome and elapsed milliseconds, not raw errors or private context. A timeout is distinct from a response rejected for sources/dates. No entries means no completed lookup in this provider session, not a successful retrieval test. Changing provider settings or resetting discards these in-memory entries.
 
 Toggle **Web search** off in AI settings and save during a lookup. Verify the old request cannot repopulate chat, fresh questions still work from supplied evidence, and the setting stays off after relaunch. Turn it back on and verify fresh conversations can request news again. A full reset restores the enabled default.
 

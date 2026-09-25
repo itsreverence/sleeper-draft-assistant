@@ -14,7 +14,7 @@ const userDataOverride = process.env.SLEEPER_AI_PACKAGE_SMOKE === "1"
   ? process.env.SLEEPER_AI_USER_DATA_DIR?.trim() || null
   : null;
 const expectedWebTitle = "Sleeper Draft Assistant";
-const allowedExternalHosts = new Set(["www.fantasypros.com", "nfl.com", "www.nfl.com", "espn.com", "www.espn.com"]);
+const allowedExternalHosts = new Set(["www.fantasypros.com", "nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"]);
 
 let apiProcess = null;
 let webProcess = null;

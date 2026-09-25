@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "./Icon.svelte";
   import type { Position, WeeklyProjectionImportSummary } from "../types";
   import { formatImportDate } from "../format";
@@ -22,7 +23,7 @@
     currentWeek,
     summary,
     rosLoaded,
-    error,
+    error = $bindable(""),
     isImporting,
     isClearing,
     onImport,
@@ -49,9 +50,13 @@
   let csvText = $state("");
   let selectedFiles: Array<{ name: string; position: Position; csvText: string }> = $state([]);
   let ignoredFiles: string[] = $state([]);
+  let unknownFiles: string[] = $state([]);
+  let fileReadVersion = 0;
   let position: Position = $state("QB");
   let season = $state("");
   let week = $state(0);
+
+  onDestroy(() => { fileReadVersion++; });
 
   $effect(() => {
     if (!season && defaultSeason) {
@@ -91,21 +96,48 @@
       return;
     }
 
-    const parsedFiles = await Promise.all(files.map(async (file) => ({
-      name: file.name,
-      position: inferPositionFromFilename(file.name),
-      csvText: await file.text(),
-    })));
-    ignoredFiles = parsedFiles.filter((file) => !file.position).map((file) => file.name);
-    const byPosition = new Map<Position, { name: string; position: Position; csvText: string }>();
-    for (const file of parsedFiles) {
-      const resolvedPosition = file.position ?? (files.length === 1 ? position : null);
-      if (resolvedPosition) {
-        byPosition.set(resolvedPosition, { ...file, position: resolvedPosition });
-      }
-    }
-    selectedFiles = Array.from(byPosition.values());
+    const version = ++fileReadVersion;
+    const selectedPosition = position;
+    error = "";
+    selectedFiles = [];
+    ignoredFiles = [];
+    unknownFiles = [];
     csvText = "";
+    try {
+      const parsedFiles = await Promise.all(files.map(async (file) => ({
+        name: file.name,
+        position: inferPositionFromFilename(file.name),
+        csvText: await file.text(),
+      })));
+      if (version !== fileReadVersion) return;
+      ignoredFiles = parsedFiles.filter((file) => isFlexFilename(file.name)).map((file) => file.name);
+      unknownFiles = files.length > 1
+        ? parsedFiles.filter((file) => !file.position && !isFlexFilename(file.name)).map((file) => file.name)
+        : [];
+      const byPosition = new Map<Position, { name: string; position: Position; csvText: string }>();
+      for (const file of parsedFiles) {
+        if (isFlexFilename(file.name)) continue;
+        const resolvedPosition = file.position ?? (files.length === 1 ? selectedPosition : null);
+        if (resolvedPosition) {
+          byPosition.set(resolvedPosition, { ...file, position: resolvedPosition });
+        }
+      }
+      selectedFiles = Array.from(byPosition.values());
+    } catch {
+      if (version === fileReadVersion) error = "Could not read the selected files. Select them again or paste the CSV.";
+    }
+  }
+
+  function usePastedCsv() {
+    fileReadVersion++;
+    selectedFiles = [];
+    ignoredFiles = [];
+    unknownFiles = [];
+    error = "";
+  }
+
+  function isFlexFilename(filename: string) {
+    return /(?:^|[_\s-])(?:FLEX|FLX)(?:[_.\s-]|$)/i.test(filename);
   }
 
   function submitImport() {
@@ -128,7 +160,7 @@
         return candidate;
       }
     }
-    return /(?:DST|DEF)/.test(normalized) ? "DEF" : null;
+    return /(?:^|[_\s-])(?:DST|DEF)(?:[_.\s-]|$)/.test(normalized) ? "DEF" : null;
   }
 </script>
 
@@ -217,6 +249,9 @@
       Ignored {ignoredFiles.join(", ")}. FLEX is redundant when RB, WR, and TE files are included.
     </p>
   {/if}
+  {#if unknownFiles.length > 0}
+    <p class="muted-file-note">Could not identify a position for {unknownFiles.join(", ")}. Import each file separately with its position selected, or keep the original FantasyPros filenames.</p>
+  {/if}
   <details class="disclosure">
     <summary>Paste CSV instead</summary>
     <label class="field">
@@ -224,6 +259,7 @@
       <textarea
         class="input"
         bind:value={csvText}
+        oninput={usePastedCsv}
         rows="5"
         placeholder="Paste a FantasyPros weekly projections CSV."
         disabled={!hasTeam || isImporting || isClearing}

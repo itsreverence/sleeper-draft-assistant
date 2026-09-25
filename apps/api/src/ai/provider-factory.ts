@@ -41,6 +41,11 @@ export class AiProviderManager {
     this.provider = null;
     this.settingsKey = "";
   }
+
+  newsDiagnostics() {
+    // Reading a support report must not create a provider or launch Codex.
+    return this.provider?.newsDiagnostics?.() ?? [];
+  }
 }
 
 function providerSettingsKey(settings: AppSettings): string {

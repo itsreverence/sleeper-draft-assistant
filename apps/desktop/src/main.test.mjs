@@ -39,7 +39,7 @@ function launch({ occupiedPort = false, rendererFailure = false } = {}) {
     async loadFile() { throw new Error("private file failed to load"); }
     static getAllWindows() { return windows; }
   }
-  vm.runInNewContext(readFileSync(mainUrl, "utf8"), {
+  const isAllowedExternalUrl = vm.runInNewContext(`${readFileSync(mainUrl, "utf8")}\n;isAllowedExternalUrl;`, {
     require(name) {
       if (name === "electron") return { app, dialog, BrowserWindow, shell: {} };
       if (name === "node:child_process") return { spawn };
@@ -65,10 +65,18 @@ function launch({ occupiedPort = false, rendererFailure = false } = {}) {
     console,
     URL,
   });
-  return { completed, app, dialog, spawn, windows };
+  return { completed, app, dialog, spawn, windows, isAllowedExternalUrl };
 }
 
 describe("desktop main startup failures", () => {
+  it("accepts the official NFL AMP host without allowing arbitrary subdomains or unsafe URLs", async () => {
+    const launched = launch({ occupiedPort: true });
+    await launched.completed;
+    expect(launched.isAllowedExternalUrl("https://amp.nfl.com/news/report")).toBe(true);
+    for (const url of ["https://amp.nfl.com.evil.test/news", "https://unknown.nfl.com/news", "http://amp.nfl.com/news", "https://user:secret@amp.nfl.com/news", "https://amp.nfl.com:8080/news"]) {
+      expect(launched.isAllowedExternalUrl(url)).toBe(false);
+    }
+  });
   it("reports an incompatible occupied port before opening a window", async () => {
     const launched = launch({ occupiedPort: true });
     await launched.completed;

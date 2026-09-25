@@ -22,7 +22,7 @@
     defaultWeek,
     scoring,
     rosError,
-    weeklyError,
+    weeklyError = $bindable(""),
     isLoading = false,
     isImportingRos,
     isClearingRos,
@@ -104,7 +104,7 @@
       currentWeek={teamState?.week ?? 0}
       summary={weeklySummary}
       rosLoaded={Boolean(rosSummary)}
-      error={weeklyError}
+      bind:error={weeklyError}
       isImporting={isImportingWeekly}
       isClearing={isClearingWeekly}
       onImport={onImportWeekly}
