@@ -48,6 +48,7 @@
   } = $props();
 
   let csvText = $state("");
+  let fileInput: HTMLInputElement | undefined = $state();
   let selectedFiles: Array<{ name: string; position: Position; csvText: string }> = $state([]);
   let ignoredFiles: string[] = $state([]);
   let unknownFiles: string[] = $state([]);
@@ -130,6 +131,7 @@
 
   function usePastedCsv() {
     fileReadVersion++;
+    if (fileInput) fileInput.value = "";
     selectedFiles = [];
     ignoredFiles = [];
     unknownFiles = [];
@@ -235,7 +237,7 @@
 
   <label class="field">
     <span>Projection CSV</span>
-    <input class="input" type="file" accept=".csv,text/csv" multiple disabled={!hasTeam || isImporting || isClearing} onchange={readProjectionFiles} />
+    <input class="input" type="file" accept=".csv,text/csv" multiple bind:this={fileInput} disabled={!hasTeam || isImporting || isClearing} onchange={readProjectionFiles} />
   </label>
   {#if selectedFiles.length > 0}
     <div class="selected-files">
