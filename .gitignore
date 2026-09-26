@@ -4,6 +4,8 @@ build/
 .svelte-kit/
 .vite/
 coverage/
+playwright-report/
+test-results/
 .tmp/
 *.log
 .env
@@ -20,7 +22,10 @@ data/*.sqlite
 .impeccable/app-root.json
 **/.impeccable/live/*
 clips/
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/verify-sleeper/
 .codex/
 .github/agents/
 .github/hooks/

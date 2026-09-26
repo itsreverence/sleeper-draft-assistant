@@ -59,7 +59,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`, then choose **Load demo draft**. The demo uses synthetic data and requires no Sleeper account or AI provider.
+Open `http://127.0.0.1:5173`, then choose **Try a demo draft**. The demo uses synthetic data and requires no Sleeper account or AI provider.
 
 ## Use your Sleeper league
 
@@ -120,6 +120,7 @@ Useful docs:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Development workflow](docs/WORKFLOW.md)
+- [Browser verification](docs/VERIFICATION.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release process](docs/RELEASING.md)
 - [Installing on Windows](docs/INSTALLING.md)
