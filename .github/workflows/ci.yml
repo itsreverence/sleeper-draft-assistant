@@ -25,6 +25,19 @@ jobs:
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
 
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
   windows-package-smoke:
     runs-on: windows-latest
     timeout-minutes: 25

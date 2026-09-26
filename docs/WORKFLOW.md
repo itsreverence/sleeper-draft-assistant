@@ -14,13 +14,15 @@ npm ci
 npm run dev
 ```
 
-The development launcher creates one random API token and passes it to both the API and Vite. Use `http://127.0.0.1:5173` and choose **Load demo draft** for a synthetic-data smoke test.
+The development launcher creates one random API token and passes it to both the API and Vite. Use `http://127.0.0.1:5173` and choose **Try a demo draft** for a synthetic-data smoke test.
 
 For a real draft smoke test, confirm that any missing or stale ECR, missing season projections, missing Sleeper ADP, or unavailable Codex provider opens **Draft preparation** and keeps normal entry disabled. A fully ready returning draft should bypass preparation. Before the draft starts there must be no bypass. Once Sleeper reports the draft as actively drafting, incomplete setup may expose **Open emergency board only**; confirm the warning and verify that live pick tracking opens while AI recommendations and draft questions remain absent. In the normal workspace, verify that an early recommendation says **Target ... if available**, displays the exact selections until the user's pick and the following user pick, and labels contingencies as elite fallers or upcoming-pick range. In Settings, verify that **Fast responses** defaults on, can be saved off and back on, and leaves the provider ready after each change. **Settings > Manage draft data** must reopen the dedicated preparation workspace.
 
 Running the API or web workspace separately requires coordinating `SLEEPER_AI_API_TOKEN` and `VITE_SLEEPER_AI_API_TOKEN`; the root launcher is the supported path.
 
 ## Canonical validation
+
+For repeatable, harness-independent Chromium checks, see [Verification](VERIFICATION.md). Run `npm run test:browser` after installing Playwright Chromium. This supplements component tests and does not replace packaged Windows gates.
 
 For popup checks, open Settings, the draft switcher, a team roster, the draft plan, player search, and Manage team data. Verify initial focus (search starts in its input), Tab/Shift+Tab containment, Escape dismissal, opener focus restoration, and page-scroll restoration. Closed disclosures must not expose their controls to Tab. If dialogs overlap, only the top dialog should handle Escape, and the page must stay scroll-locked until the last dialog closes.
 
