@@ -23,7 +23,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "node --import tsx apps/api/src/index.ts",
+      command: "node --import tsx --import ./tests/browser/sleeper-upstream.mjs apps/api/src/index.ts",
       url: "http://127.0.0.1:18887/health",
       reuseExistingServer: false,
     },
