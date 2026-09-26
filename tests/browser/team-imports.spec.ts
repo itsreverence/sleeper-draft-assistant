@@ -24,6 +24,31 @@ function panels(page: Page) {
 
 const weeklyCsv = (points: number) => `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,${points}`;
 
+test("pasting weekly CSV clears the native file selection and allows reselecting the same file", async ({ page }) => {
+  await page.goto("/");
+  await connect(page);
+  await page.getByRole("button", { name: "Manage team data" }).click();
+  const { weekly } = panels(page);
+  const picker = weekly.getByLabel("Projection CSV", { exact: true });
+  const file = { name: "synthetic-QB.csv", mimeType: "text/csv", buffer: Buffer.from(weeklyCsv(15)) };
+  await picker.setInputFiles(file);
+  await expect(weekly.getByText("synthetic-QB.csv")).toBeVisible();
+  await weekly.getByText("Paste CSV instead", { exact: true }).click();
+  await weekly.getByLabel("CSV for the selected position").fill(weeklyCsv(17));
+  await expect(picker).toHaveValue("");
+  await expect.poll(() => picker.evaluate((input: HTMLInputElement) => input.files?.length)).toBe(0);
+  const pasted = page.waitForResponse(r => r.url().includes("/projections/weekly/import") && r.request().method() === "POST");
+  await weekly.getByRole("button", { name: "Import QB", exact: true }).click();
+  expect((await (await pasted).json()).state.roster.starters[0].player.weeklyProjectedPoints).toBe(17);
+  await expect(weekly.getByText("1 matched for 2026 Week 2")).toBeVisible();
+  await expect(picker).toHaveValue("");
+  await picker.setInputFiles(file);
+  await expect(weekly.getByText("synthetic-QB.csv")).toBeVisible();
+  const imported = page.waitForResponse(r => r.url().includes("/projections/weekly/import") && r.request().method() === "POST");
+  await weekly.getByRole("button", { name: "Import QB", exact: true }).click();
+  expect((await (await imported).json()).state.roster.starters[0].player.weeklyProjectedPoints).toBe(15);
+});
+
 test("a delayed import response cannot resurrect reset data or replace a newly connected team", async ({ page }) => {
   await page.goto("/");
   const oldLeague = await connect(page);
