@@ -1,3 +1,4 @@
+import { expectAccessible } from "./accessibility";
 import { expect, test } from "@playwright/test";
 import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
 
@@ -100,4 +101,72 @@ test("search scrolls to the last result without losing its header or scrolling t
   await expect(dialog).toBeHidden();
   await expect(opener).toBeFocused();
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
+});
+
+// Browser focus/geometry proof for each distinct modal entry point; the modal
+// unit suite owns synthetic event edge cases, not actual keyboard navigation.
+test("draft plan, roster, and switcher contain keyboard focus and restore their openers", async ({ page }) => {
+  const cases = [
+    { opener: page.getByRole("button", { name: "Draft plan", exact: true }), name: "Draft plan" },
+    { opener: page.getByTitle(/^View .* roster$/).first(), name: / roster$/ },
+    { opener: page.getByTitle("Switch league or draft", { exact: true }), name: "Switch league or draft" },
+  ];
+  for (const { opener, name } of cases) {
+    await opener.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name });
+    await expect(dialog).toBeVisible();
+    await expect.poll(() => dialog.evaluate(node => node.contains(document.activeElement))).toBe(true);
+    const first = page.locator(":focus");
+    const label = await first.getAttribute("aria-label");
+    await page.keyboard.press("Shift+Tab");
+    await expect.poll(() => dialog.evaluate(node => node.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press("Tab");
+    await expect(page.locator(":focus")).toHaveAttribute("aria-label", label!);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
+  }
+});
+
+// The API suite owns persistence. This checks whether real renderer interactions
+// unexpectedly invoke its plan-writing route, which an API-only trace misses.
+test("draft questions preserve the plan while preference changes request fresh strategy", async ({ page }) => {
+  let refreshes = 0;
+  page.on("request", request => {
+    if (/\/drafts\/[^/]+\/strategy(?:\?|$)/.test(request.url())) refreshes++;
+  });
+  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), answer: "Synthetic answer without a strategy change.", strategyProposal: null } });
+  });
+  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
+  await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Compare my options without changing the plan.");
+  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await expect(page.getByText("Synthetic answer without a strategy change.")).toBeVisible();
+  await page.getByRole("button", { name: "Draft plan", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Draft plan" }).getByText("Synthetic plan", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(refreshes).toBe(0);
+  await page.getByRole("button", { name: "Find player", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Find player" });
+  await dialog.getByRole("searchbox").fill("Achane");
+  await dialog.getByRole("button", { name: "Preference for De'Von Achane" }).click();
+  const refreshed = page.waitForResponse(response => /\/drafts\/[^/]+\/strategy(?:\?|$)/.test(response.url()));
+  await page.getByRole("menuitemradio", { name: /Prioritize/ }).click();
+  expect((await refreshed).ok()).toBe(true);
+  await expect.poll(() => refreshes).toBe(1);
+});
+
+
+test("draft and its dialogs meet automated accessibility checks", async ({ page }) => {
+  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
+  await expectAccessible(page);
+  for (const name of ["Open settings", "Find player", "Draft plan"]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expectAccessible(page);
+    await page.keyboard.press("Escape");
+  }
 });

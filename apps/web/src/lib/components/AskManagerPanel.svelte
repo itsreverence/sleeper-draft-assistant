@@ -188,6 +188,7 @@
           {/if}
           <div class="composer">
             <input
+              aria-label="Ask about your draft"
               bind:value={conversation.question}
               onkeydown={handleKeydown}
               placeholder={conversation.messages.length > 0

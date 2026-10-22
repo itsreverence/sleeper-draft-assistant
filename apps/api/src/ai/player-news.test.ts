@@ -14,6 +14,9 @@ describe("bounded public player news", () => {
     expect(await news.tool.execute(args)).toMatchObject({ status: "available" });
     expect(lookup.mock.calls[0]?.[0]).not.toContain("private-id");
     expect(lookup.mock.calls[0]?.[0]).toContain("Test Player");
+    // Search domain filters may include subdomains that citation validation rejects.
+    expect(lookup.mock.calls[0]?.[0]).toContain("exact HTTPS hosts: nfl.com, www.nfl.com, amp.nfl.com, espn.com, www.espn.com");
+    expect(lookup.mock.calls[0]?.[0]).toContain("Do not rewrite a URL");
     expect(news.sources[0]).toMatchObject({ reportedAt: "2026-09-24", checkedAt: expect.any(String) });
     await news.tool.execute(args);
     expect(await news.tool.execute(args)).toMatchObject({ status: "unavailable" });
@@ -34,7 +37,7 @@ describe("bounded public player news", () => {
     expect(news.sources[0]?.url).toBe("https://amp.nfl.com/news/report");
   });
 
-  it.each(["javascript:alert(1)", "https://www.nfl.com.evil.test/report", "https://amp.nfl.com.evil.test/report", "https://unknown.nfl.com/report", "https://user:secret@nfl.com/report", "http://nfl.com/report", "https://127.0.0.1/report"])("rejects unsafe source %s", async (url) => {
+  it.each(["javascript:alert(1)", "https://www.nfl.com.evil.test/report", "https://amp.nfl.com.evil.test/report", "https://unknown.nfl.com/report", "https://fantasy-www.nfl.com/report", "https://user:secret@nfl.com/report", "http://nfl.com/report", "https://127.0.0.1/report"])("rejects unsafe source %s", async (url) => {
     const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url, reportedAt: null }] }));
     expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "unavailable" });
     expect(news.sources).toEqual([]);

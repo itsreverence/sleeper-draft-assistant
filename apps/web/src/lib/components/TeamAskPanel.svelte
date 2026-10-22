@@ -150,6 +150,7 @@
         <span
           class:offline={!providerReady}
           class="provider-state"
+          role="status"
           title={providerLabel}
           aria-label={providerReady ? `${providerLabel} ready` : providerLabel}
         ><i></i>{#if !providerReady}<span>{providerDisabled ? "Disabled" : "Needs attention"}</span>{/if}</span>
