@@ -110,11 +110,13 @@ export const DraftStrategyInstructionSchema = DraftStrategyProposalSchema.extend
 });
 export type DraftStrategyInstruction = z.infer<typeof DraftStrategyInstructionSchema>;
 
+export const NEWS_SOURCE_HOSTS: readonly string[] = Object.freeze(["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"]);
+
 export function isNewsSourceUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.port
-      && ["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"].includes(url.hostname);
+      && NEWS_SOURCE_HOSTS.includes(url.hostname);
   } catch { return false; }
 }
 export const NewsSourceSchema = z.object({

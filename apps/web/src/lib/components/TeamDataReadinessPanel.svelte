@@ -52,7 +52,7 @@
       </div>
     </div>
 
-    <div class="coverage-track" aria-label={`Roster projection coverage ${rosterCoverage}%`}>
+    <div class="coverage-track" role="meter" aria-label="Roster projection coverage" aria-valuemin={0} aria-valuemax={100} aria-valuenow={rosterCoverage}>
       <span style={`width:${rosterCoverage}%`}></span>
     </div>
 

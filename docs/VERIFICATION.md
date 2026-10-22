@@ -49,6 +49,21 @@ Before deleting a candidate, inspect its production owner, callers, neighboring 
 
 These criteria are informed by [OpenClaw's test-audit](https://github.com/openclaw/openclaw/blob/main/.agents/skills/test-audit/SKILL.md); its repository-specific commands and deletion campaigns are not adopted. Runner lifecycle follows [Playwright webServer](https://playwright.dev/docs/test-webserver).
 
+## Stable-readiness coverage
+
+The browser suite also checks keyboard focus containment and restoration for the
+draft plan, roster, switcher and team-data drawers, plus collapsed import tab
+order. Axe checks WCAG A/AA rules on connection, draft conversation, Settings,
+player search, draft plan, Team Manager and team-data views at desktop and compact
+sizes. This includes text contrast and accessible control semantics; it is not a
+screen-reader certification or native Windows accessibility sign-off.
+
+A renderer interaction test verifies that an ordinary draft question and opening
+the plan do not invoke the strategy route, while changing a player preference
+does. The strategy response is synthetic, so this proves renderer request
+triggers, not live AI quality or database persistence. The API/store tests and
+recorded isolated API trace cover the server side separately.
+
 ## Completion and remaining scope
 
 Run the canonical gates in WORKFLOW.md in addition to browser tests. Report the browser projects actually run, failures/artifacts, and any untested behavior. This suite does not certify live Sleeper or FantasyPros responses, live Codex, web research, every reset category, Electron navigation/CSP, Windows scaling, or installation. Windows interrupted-run server cleanup also needs platform verification; normal Linux completion is not proof of Windows signal handling. Keep those existing manual/platform gates until independently automated.

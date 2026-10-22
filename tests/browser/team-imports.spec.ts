@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { expectAccessible } from "./accessibility";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/*", route => new URL(route.request().url()).origin === "http://127.0.0.1:15173"
@@ -183,4 +184,42 @@ test("weekly uploads replace only the selected week and clearing survives reload
   expect((await (await retained).json()).state.roster.starters[0].player.weeklyProjectedPoints).toBe(10.5);
   await expect(weekly.getByText("1 matched for 2026 Week 1")).toBeVisible();
   await checkRoster(10.5);
+});
+
+test("team data is keyboard accessible and collapsed imports stay outside the tab order", async ({ page }) => {
+  await page.goto("/");
+  await connect(page);
+  const opener = page.getByRole("button", { name: "Manage team data" });
+  await opener.focus();
+  await page.keyboard.press("Enter");
+  const { drawer, weekly } = panels(page);
+  const close = drawer.getByRole("button", { name: "Close team data" });
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect.poll(() => drawer.evaluate(node => node.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  const disclosure = weekly.getByText("Paste CSV instead", { exact: true });
+  await disclosure.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(weekly.getByLabel("CSV for the selected position")).toBeFocused();
+  await disclosure.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(weekly.getByLabel("CSV for the selected position")).not.toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(opener).toBeFocused();
+});
+
+test("connection, Team Manager, and import controls meet automated accessibility checks", async ({ page }) => {
+  await page.route("**/api/ai/status", route => route.fulfill({ json: { id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available" } }));
+  await page.goto("/");
+  await expectAccessible(page);
+  await connect(page);
+  await expectAccessible(page);
+  await page.getByRole("button", { name: "Manage team data" }).click();
+  await expect(panels(page).drawer).toBeVisible();
+  await expectAccessible(page);
 });

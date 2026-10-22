@@ -32,6 +32,18 @@ Then:
 
 The release workflow rejects tags that do not exactly match the root package version. Artifacts and checksums are produced in the same GitHub-hosted Windows job from the tagged commit. Do not replace a published artifact manually without also replacing its checksum.
 
+## Stable candidate handoff
+
+Shared Linux verification and Windows distribution sign-off are separate. Use
+[the stable-readiness report](releases/stable-readiness.md) for current evidence
+and the remaining candidate checks. Keep prerelease versioning until Windows
+sign-off and the final release gates pass. Re-run gates on the exact release
+commit after the stable version change; older beta CI is not candidate evidence.
+
+The first stable release may remain unsigned, as long as installation guidance
+and release notes disclose that fact and SmartScreen expectations. Signing is
+follow-up work, not a substitute for the Windows distribution gate.
+
 ## Release notes
 
 State plainly:
