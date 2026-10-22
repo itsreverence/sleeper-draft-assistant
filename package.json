@@ -16,7 +16,8 @@
     "desktop:package": "npm run package -w @sleeper-draft-assistant/desktop",
     "desktop:make": "npm run make -w @sleeper-draft-assistant/desktop",
     "desktop:dist": "npm run dist -w @sleeper-draft-assistant/desktop",
-    "test:browser": "node scripts/test-browser.mjs"
+    "test:browser": "node scripts/test-browser.mjs",
+    "verify:roster-feasibility": "tsx packages/engine/verify/roster-feasibility.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

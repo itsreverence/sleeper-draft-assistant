@@ -64,6 +64,10 @@ does. The strategy response is synthetic, so this proves renderer request
 triggers, not live AI quality or database persistence. The API/store tests and
 recorded isolated API trace cover the server side separately.
 
+## Roster feasibility (bounded exhaustive check)
+
+`npm run verify:roster-feasibility` checks every roster state within stated bounds. It compares `isDraftChoiceRosterFeasible`, which guards AI picks, and the required-position filter in `buildDraftOptions` against a brute-force lineup matcher. It is not part of `npm test`, because it currently reports two known superflex findings in the reference board. The bounds, the baseline output, the findings and the update procedure are in [the verify-roster-feasibility skill](../.agents/skills/verify-roster-feasibility/SKILL.md). Run it when changing roster slots, flex or superflex handling, remaining-pick counting, or AI pick validation.
+
 ## Completion and remaining scope
 
 Run the canonical gates in WORKFLOW.md in addition to browser tests. Report the browser projects actually run, failures/artifacts, and any untested behavior. This suite does not certify live Sleeper or FantasyPros responses, live Codex, web research, every reset category, Electron navigation/CSP, Windows scaling, or installation. Windows interrupted-run server cleanup also needs platform verification; normal Linux completion is not proof of Windows signal handling. Keep those existing manual/platform gates until independently automated.
