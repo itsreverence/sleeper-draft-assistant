@@ -1,6 +1,6 @@
-import { expectAccessible } from "./accessibility";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { expectAccessible } from "./accessibility";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/*", route => new URL(route.request().url()).origin === "http://127.0.0.1:15173"
@@ -212,7 +212,6 @@ test("team data is keyboard accessible and collapsed imports stay outside the ta
   await expect(drawer).toBeHidden();
   await expect(opener).toBeFocused();
 });
-
 
 test("connection, Team Manager, and import controls meet automated accessibility checks", async ({ page }) => {
   await page.route("**/api/ai/status", route => route.fulfill({ json: { id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available" } }));

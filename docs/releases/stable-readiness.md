@@ -1,7 +1,7 @@
 # Stable release readiness
 
-Prepared October 4, 2026 against beta.4 source (`6694db7`) plus the working-tree
-changes described here. This is preparation evidence, not a published release or
+Prepared October 4, 2026 on beta.4 source (`6694db7`) with the changes described
+here, which were later rebased onto the October dependency updates. This is preparation evidence, not a published release or
 Windows sign-off. The app deliberately remains `0.1.0-beta.4` until a new candidate
 is selected. Existing beta.4 downloads do not contain these fixes.
 
@@ -12,17 +12,18 @@ is selected. Existing beta.4 downloads do not contain these fixes.
   before citation; guessing or rewriting URLs is forbidden. Validation, Electron
   link restrictions, date checks, the two-lookup limit and 20-second deadline are
   unchanged.
-- Electron updated from 43.0.0 to 43.7.7. Compatible transitive dependency updates
-  address the audit findings in brace-expansion, fast-uri, http-cache-semantics,
-  and undici. The current full dependency audit is clean.
+- Electron updated from 43.0.0 to 43.7.7; versions through 43.6.0 are flagged by
+  `npm audit`. Hono, Vite and other audit fixes landed in a separate dependency
+  update. The full `npm audit` is clean again as of October 22.
 - Muted text contrast improved; draft chat has a persistent accessible name;
   roster coverage uses meter semantics and provider readiness uses status
   semantics. Browser checks cover these alongside keyboard and import flows.
 
 ## Verification
 
-- `npm ci`, `npm run check`, `npm test`, `npm run build`, `npm audit`, and
-  `git diff --check`: passed. Unit/component/API suites contain 412 tests.
+- `npm ci`, `npm run check`, `npm test`, `npm run build`, and `git diff --check`:
+  passed. Unit/component/API suites contain 412 tests. `npm audit` was clean on
+  October 4; advisories published since then are covered above.
 - `npm run test:browser`: all 24 checks passed across Chromium desktop
   (1280×800) and compact (480×600): keyboard containment,
   Escape, opener restoration, scroll behavior, imports/reset, strategy request

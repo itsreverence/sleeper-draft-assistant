@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import vm from "node:vm";
 import { describe, expect, it, vi } from "vitest";
+import { NEWS_SOURCE_HOSTS } from "../../../packages/shared/src/index.ts";
 
 const mainUrl = new URL("./main.cjs", import.meta.url);
 const requireMain = createRequire(mainUrl);
@@ -76,6 +77,11 @@ describe("desktop main startup failures", () => {
     for (const url of ["https://amp.nfl.com.evil.test/news", "https://unknown.nfl.com/news", "http://amp.nfl.com/news", "https://user:secret@amp.nfl.com/news", "https://amp.nfl.com:8080/news"]) {
       expect(launched.isAllowedExternalUrl(url)).toBe(false);
     }
+  });
+  it("opens every news host that citation validation accepts", async () => {
+    const launched = launch({ occupiedPort: true });
+    await launched.completed;
+    for (const host of NEWS_SOURCE_HOSTS) expect(launched.isAllowedExternalUrl(`https://${host}/news/report`)).toBe(true);
   });
   it("reports an incompatible occupied port before opening a window", async () => {
     const launched = launch({ occupiedPort: true });

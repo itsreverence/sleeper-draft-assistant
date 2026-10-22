@@ -1,6 +1,6 @@
-import { expectAccessible } from "./accessibility";
 import { expect, test } from "@playwright/test";
 import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
+import { expectAccessible } from "./accessibility";
 
 test.beforeEach(async ({ page }) => {
   // No third-party requests from the browser, even if a future UI adds one.
@@ -117,12 +117,11 @@ test("draft plan, roster, and switcher contain keyboard focus and restore their 
     const dialog = page.getByRole("dialog", { name });
     await expect(dialog).toBeVisible();
     await expect.poll(() => dialog.evaluate(node => node.contains(document.activeElement))).toBe(true);
-    const first = page.locator(":focus");
-    const label = await first.getAttribute("aria-label");
+    const first = await page.evaluateHandle(() => document.activeElement);
     await page.keyboard.press("Shift+Tab");
     await expect.poll(() => dialog.evaluate(node => node.contains(document.activeElement))).toBe(true);
     await page.keyboard.press("Tab");
-    await expect(page.locator(":focus")).toHaveAttribute("aria-label", label!);
+    await expect.poll(() => page.evaluate(node => document.activeElement === node, first)).toBe(true);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(opener).toBeFocused();
@@ -159,7 +158,6 @@ test("draft questions preserve the plan while preference changes request fresh s
   await expect.poll(() => refreshes).toBe(1);
 });
 
-
 test("draft and its dialogs meet automated accessibility checks", async ({ page }) => {
   await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   await expectAccessible(page);
@@ -168,5 +166,6 @@ test("draft and its dialogs meet automated accessibility checks", async ({ page 
     await expect(page.getByRole("dialog")).toBeVisible();
     await expectAccessible(page);
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   }
 });

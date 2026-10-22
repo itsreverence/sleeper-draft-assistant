@@ -110,7 +110,7 @@ export const DraftStrategyInstructionSchema = DraftStrategyProposalSchema.extend
 });
 export type DraftStrategyInstruction = z.infer<typeof DraftStrategyInstructionSchema>;
 
-export const NEWS_SOURCE_HOSTS = ["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"];
+export const NEWS_SOURCE_HOSTS: readonly string[] = Object.freeze(["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"]);
 
 export function isNewsSourceUrl(value: string): boolean {
   try {
