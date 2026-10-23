@@ -26,6 +26,7 @@ clips/
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/verify-sleeper/
+!.agents/skills/verify-roster-feasibility/
 .codex/
 .github/agents/
 .github/hooks/
