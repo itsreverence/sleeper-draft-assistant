@@ -153,4 +153,8 @@ describe("formatRosterSlots", () => {
   it("lists Sleeper's restricted flex slots", () => {
     expect(formatRosterSlots({ QB: 1, FLEX: 1, WRRB_FLEX: 1, REC_FLEX: 1, BN: 5 })).toBe("QB 1 / FLEX 1 / WRRB_FLEX 1 / REC_FLEX 1 / BN 5");
   });
+
+  it.each(["SUPER_FLEX", "SF"])("lists %s slots between regular flex and bench slots", (slot) => {
+    expect(formatRosterSlots({ QB: 1, FLEX: 1, [slot]: 1, BN: 5 })).toBe(`QB 1 / FLEX 1 / ${slot} 1 / BN 5`);
+  });
 });
