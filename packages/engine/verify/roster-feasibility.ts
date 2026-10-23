@@ -6,10 +6,12 @@ import { buildDraftOptions, isDraftChoiceRosterFeasible } from "../src/index";
 
 const POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
-// Lineup semantics the app applies elsewhere: apps/api/src/sleeper.ts getEligiblePositions.
+// Sleeper's starter-slot rules, kept independent of the app's STARTER_SLOT_POSITIONS
+// (packages/shared/src/roster-slots.ts) so the check never compares code with itself.
+// WRRB_FLEX is RB/WR and REC_FLEX is WR/TE; see the skill for sources.
 const SLOT_ELIGIBILITY: Record<string, Position[]> = {
   QB: ["QB"], RB: ["RB"], WR: ["WR"], TE: ["TE"], K: ["K"], DEF: ["DEF"],
-  FLEX: ["RB", "WR", "TE"], WR_RB_FLEX: ["RB", "WR", "TE"], REC_FLEX: ["RB", "WR", "TE"],
+  FLEX: ["RB", "WR", "TE"], WRRB_FLEX: ["RB", "WR"], REC_FLEX: ["WR", "TE"],
   SUPER_FLEX: ["QB", "RB", "WR", "TE"], SF: ["QB", "RB", "WR", "TE"],
 };
 
@@ -38,8 +40,8 @@ function unfilledStarters(slots: Slots, counts: Counts): number {
 }
 
 // Bounds: every engine quantity is a clipped difference (max(0, a - b)); these reach
-// both sides of each clip. RB and WR are handled identically, so WR stays smaller; K and
-// DEF are too, so K slots and rostered K stay at 0 (K candidates are still checked).
+// both sides of each clip. K and DEF are handled identically, so K slots and rostered K
+// stay at 0 (K candidates are still checked).
 const MAX_COUNT: Counts = { QB: 2, RB: 3, WR: 2, TE: 2, K: 0, DEF: 1 };
 const MAX_REMAINING = 3;
 const USER = "user-team";
@@ -86,10 +88,10 @@ function* range(max: number): Generator<number> { for (let n = 0; n <= max; n +=
 function* slotConfigs(): Generator<Slots> {
   for (const QB of range(1)) for (const RB of range(2)) for (const WR of range(1)) for (const TE of range(1))
     for (const K of range(0)) for (const DEF of range(1))
-      for (const [flexKey, flexMax] of [["FLEX", 2], ["WR_RB_FLEX", 1], ["REC_FLEX", 1]] as const) for (const flex of range(flexMax))
+      for (const FLEX of range(1)) for (const WRRB_FLEX of range(1)) for (const REC_FLEX of range(1))
         for (const [sfKey, sfMax] of [["SUPER_FLEX", 1], ["SF", 1]] as const) for (const sf of range(sfMax)) {
-          if ((flexKey !== "FLEX" && flex === 0) || (sfKey !== "SUPER_FLEX" && sf === 0)) continue;
-          yield { QB, RB, WR, TE, K, DEF, [flexKey]: flex, [sfKey]: sf };
+          if (sfKey !== "SUPER_FLEX" && sf === 0) continue;
+          yield { QB, RB, WR, TE, K, DEF, FLEX, WRRB_FLEX, REC_FLEX, [sfKey]: sf };
         }
 }
 

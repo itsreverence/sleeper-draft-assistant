@@ -114,6 +114,20 @@ describe("AI provider context", () => {
     expect(context.roster.openFlexSlots).toBe(0);
     expect(context.roster.positionCounts.WR).toBe(4);
   });
+  it("does not let surplus RBs fill a WR/TE flex slot", () => {
+    const state = createEightTeamTwoFlexState();
+    state.settings.rosterSlots = { QB: 1, RB: 2, WR: 2, TE: 1, REC_FLEX: 1, SUPER_FLEX: 1, BN: 6 };
+    const backs = Array.from({ length: 4 }, (_, index) =>
+      contextPlayer(`context-rostered-rb-${index}`, `Rostered RB ${index}`, "SEA", "RB", 250, index + 1, 1),
+    );
+    state.players.push(...backs);
+    state.teams[0]!.roster = backs.map((player) => player.id);
+
+    const context = buildDraftQuestionContext(state, "Can another RB start?");
+
+    expect(context.roster.openFlexSlots).toBe(1);
+    expect(context.roster.openSuperFlexSlots).toBe(0);
+  });
 });
 function createEightTeamTwoFlexState(): DraftState {
   const teams = Array.from({ length: 8 }, (_, index) => ({

@@ -24,6 +24,14 @@ describe("league format compatibility", () => {
     expect(result.features).toContain("superflex");
   });
 
+  it("recognizes Sleeper's RB/WR and WR/TE flex slots", () => {
+    expect(assessFormatCompatibility({ scoring: "PPR", rosterSlots: { ...baseSlots, WRRB_FLEX: 1, REC_FLEX: 1 } })).toEqual({
+      level: "supported",
+      features: [],
+      warnings: [],
+    });
+  });
+
   it("warns for custom and TE-premium scoring", () => {
     const result = assessFormatCompatibility({
       scoring: "Custom",

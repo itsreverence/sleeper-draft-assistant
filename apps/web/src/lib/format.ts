@@ -9,7 +9,7 @@ export function draftTeamReference(draft: ConnectDraft, userRosterId: string | n
   return draft.userDraftSlot ? `slot-${draft.userDraftSlot}` : userRosterId;
 }
 
-const ROSTER_SLOT_ORDER = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "BN", "K", "DEF"];
+const ROSTER_SLOT_ORDER = ["QB", "RB", "WR", "TE", "FLEX", "WRRB_FLEX", "REC_FLEX", "SUPER_FLEX", "BN", "K", "DEF"];
 
 export function formatRosterSlots(slots: Record<string, number>) {
   return ROSTER_SLOT_ORDER.filter((slot) => slots[slot])

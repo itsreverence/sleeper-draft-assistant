@@ -1,4 +1,5 @@
 import type { DraftState, Player, Position, TeamManagerState, WeeklyProjectionImportSummary } from "@sleeper-draft-assistant/shared";
+import { countUnfilledStarterSlots } from "@sleeper-draft-assistant/shared/roster-slots";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -311,6 +312,36 @@ function formatPlayer(
   };
 }
 
+describe("restricted Sleeper flex slots", () => {
+  it("keeps a surplus RB out of a WR/TE flex on the final pick", () => {
+    const rostered = (["QB", "RB", "WR", "TE", "RB"] as Position[]).map((position, index) =>
+      formatPlayer(`rec-${index}`, `Rostered ${position} ${index}`, "SIM", position, 200, index + 1, 1));
+    const available = (["RB", "WR", "TE"] as Position[]).map((position, index) =>
+      formatPlayer(`rec-available-${position.toLowerCase()}`, `Available ${position}`, "SIM", position, 300, 10 + index, 1));
+    const state: DraftState = {
+      id: "rec-flex-draft",
+      name: "REC_FLEX Draft",
+      status: "drafting",
+      currentPick: 6,
+      userTeamId: "rec-team",
+      settings: { teams: 1, rounds: 6, scoring: "PPR", rosterSlots: { QB: 1, RB: 1, WR: 1, TE: 1, REC_FLEX: 1, BN: 1 } },
+      teams: [{ id: "rec-team", name: "Your Team", draftSlot: 1, roster: rostered.map((player) => player.id) }],
+      players: [...rostered, ...available],
+      picks: rostered.map((player, index) => ({ pickNo: index + 1, round: index + 1, draftSlot: 1, teamId: "rec-team", playerId: player.id })),
+      pickOrder: {
+        source: "sleeper",
+        entries: [{ pickNo: 6, round: 6, draftSlot: 1, teamId: "rec-team", originalTeamId: "rec-team", isTraded: false }],
+      },
+      updatedAt: "2026-10-22T00:00:00.000Z",
+    };
+
+    expect(isDraftChoiceRosterFeasible(state, "rec-available-rb")).toBe(false);
+    expect(isDraftChoiceRosterFeasible(state, "rec-available-wr")).toBe(true);
+    expect(isDraftChoiceRosterFeasible(state, "rec-available-te")).toBe(true);
+    expect(buildDraftOptions(state).map((option) => option.player.position).sort()).toEqual(["TE", "WR"]);
+  });
+});
+
 describe("full draft simulations", () => {
   it("hard-requires K and DEF when only two roster selections remain", () => {
     const teams = Array.from({ length: 8 }, (_, index) => ({
@@ -454,7 +485,9 @@ describe("full draft simulations", () => {
     expect(state.teams.find((team) => team.id === state.userTeamId)?.roster).toHaveLength(15);
   });
 
-  it("drafts a second starting QB in an 8-team superflex room", () => {
+  // Superflex accepts QB/RB/WR/TE, so the reference board only has to complete the
+  // lineup; whether a second QB is worth it is Codex's strategy call.
+  it("completes every starting slot in an 8-team superflex room", () => {
     const state = simulateRecommendationDraft({
       QB: 1,
       RB: 2,
@@ -466,10 +499,8 @@ describe("full draft simulations", () => {
     });
     const counts = simulatedUserPositionCounts(state);
 
-    expect(counts.QB).toBeGreaterThanOrEqual(2);
-    expect(counts.RB).toBeGreaterThanOrEqual(2);
-    expect(counts.WR).toBeGreaterThanOrEqual(2);
-    expect(counts.TE).toBeGreaterThanOrEqual(1);
+    expect(countUnfilledStarterSlots(state.settings.rosterSlots, counts)).toBe(0);
+    expect(counts.QB).toBeGreaterThanOrEqual(1);
   });
 });
 

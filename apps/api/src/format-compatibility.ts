@@ -2,7 +2,7 @@ import type { FormatCompatibility } from "@sleeper-draft-assistant/shared";
 
 const supportedRosterSlots = new Set([
   "QB", "RB", "WR", "TE", "K", "DEF",
-  "FLEX", "WR_RB_FLEX", "REC_FLEX", "SUPER_FLEX", "SF",
+  "FLEX", "WRRB_FLEX", "REC_FLEX", "SUPER_FLEX", "SF",
   "BN", "IR", "TAXI",
 ]);
 const idpRosterSlots = new Set(["DL", "DE", "DT", "LB", "DB", "CB", "S", "IDP", "IDP_FLEX"]);

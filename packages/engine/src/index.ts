@@ -7,12 +7,20 @@ import type {
   Position,
   Team,
 } from "@sleeper-draft-assistant/shared";
+import {
+  countRegularFlexSlots,
+  countUnfilledStarterSlots,
+  SUPER_FLEX_SLOTS,
+  withoutSuperFlexSlots,
+} from "@sleeper-draft-assistant/shared/roster-slots";
 
 export {
   buildTeamDataReadiness,
   isWeeklyProjectionSummaryFresh,
   WEEKLY_PROJECTION_STALE_AFTER_DAYS,
 } from "./team-data-readiness";
+
+const DRAFT_POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
 export type DraftRecommendationPreferences = {
   pinnedPlayerIds?: string[];
@@ -147,27 +155,7 @@ function getHardRequiredStarterGapCount(
   state: DraftState,
   rosterCounts: Record<Position, number>,
 ): number {
-  const slots = state.settings.rosterSlots;
-  const directGaps =
-    Math.max(0, (slots.QB ?? 0) - rosterCounts.QB) +
-    Math.max(0, (slots.RB ?? 0) - rosterCounts.RB) +
-    Math.max(0, (slots.WR ?? 0) - rosterCounts.WR) +
-    Math.max(0, (slots.TE ?? 0) - rosterCounts.TE) +
-    Math.max(0, (slots.K ?? 0) - rosterCounts.K) +
-    Math.max(0, (slots.DEF ?? 0) - rosterCounts.DEF);
-  const regularFlexSlots = getDraftFlexSlotCount(slots);
-  const rbWrTeSurplus =
-    Math.max(0, rosterCounts.RB - (slots.RB ?? 0)) +
-    Math.max(0, rosterCounts.WR - (slots.WR ?? 0)) +
-    Math.max(0, rosterCounts.TE - (slots.TE ?? 0));
-  const flexGap = Math.max(0, regularFlexSlots - rbWrTeSurplus);
-  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
-  const qbSurplus = Math.max(0, rosterCounts.QB - (slots.QB ?? 0));
-  const superFlexGap = Math.max(
-    0,
-    superFlexSlots - qbSurplus - Math.max(0, rbWrTeSurplus - regularFlexSlots),
-  );
-  return directGaps + flexGap + superFlexGap;
+  return countUnfilledStarterSlots(state.settings.rosterSlots, rosterCounts);
 }
 
 function hasImportedDraftSignal(player: Player): boolean {
@@ -388,18 +376,18 @@ function getRosterFit(
   rosterCounts: Record<Position, number>,
 ): DraftOption["rosterFit"] {
   const slots = state.settings.rosterSlots;
-  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
+  const superFlexSlots = SUPER_FLEX_SLOTS.reduce((total, slot) => total + (slots[slot] ?? 0), 0);
   const directDemand = (slots[position] ?? 0) + (position === "QB" ? superFlexSlots : 0);
   if (rosterCounts[position] < directDemand) {
     return "need";
   }
 
   if (position === "RB" || position === "WR") {
-    const flexSlots = getDraftFlexSlotCount(slots);
-    const flexEligibleRostered = rosterCounts.RB + rosterCounts.WR + rosterCounts.TE;
-    const flexEligibleDemand = (slots.RB ?? 0) + (slots.WR ?? 0) + (slots.TE ?? 0) + flexSlots;
-    const maximumStartingCapacity = directDemand + flexSlots;
-    if (flexEligibleRostered < flexEligibleDemand && rosterCounts[position] < maximumStartingCapacity) {
+    const maximumStartingCapacity = directDemand + countRegularFlexSlots(slots, position);
+    const regularSlots = withoutSuperFlexSlots(slots);
+    const fillsRegularFlex = countUnfilledStarterSlots(regularSlots, { ...rosterCounts, [position]: rosterCounts[position] + 1 })
+      < countUnfilledStarterSlots(regularSlots, rosterCounts);
+    if (fillsRegularFlex && rosterCounts[position] < maximumStartingCapacity) {
       return "need";
     }
 
@@ -409,64 +397,16 @@ function getRosterFit(
   return "luxury";
 }
 
-function getDraftFlexSlotCount(slots: Record<string, number>): number {
-  return (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
-}
-
 function getMandatoryCompletionPositions(
   state: DraftState,
   rosterCounts: Record<Position, number>,
 ): Set<Position> {
-  const directGaps = getDirectStarterGaps(state, rosterCounts);
-  const flexGap = getFlexibleStarterGap(state, rosterCounts);
-  const requiredPositions = (Object.entries(directGaps) as Array<[Position, number]>)
-    .filter(([, gap]) => gap > 0)
-    .map(([position]) => position);
-  if (flexGap > 0) {
-    requiredPositions.push("RB", "WR", "TE");
-  }
-
-  if (requiredPositions.length === 0) {
+  const gap = getHardRequiredStarterGapCount(state, rosterCounts);
+  if (gap === 0 || countRemainingUserPicks(state) !== gap) {
     return new Set();
   }
-
-  const totalRequiredGaps = Object.values(directGaps).reduce((total, gap) => total + gap, flexGap);
-  const remainingPicks = countRemainingUserPicks(state);
-  return remainingPicks === totalRequiredGaps
-    ? new Set(requiredPositions)
-    : new Set();
-}
-
-function getFlexibleStarterGap(
-  state: DraftState,
-  rosterCounts: Record<Position, number>,
-): number {
-  const slots = state.settings.rosterSlots;
-  const flexSlots = getDraftFlexSlotCount(slots);
-  if (flexSlots <= 0) {
-    return 0;
-  }
-
-  const surplusRb = Math.max(0, rosterCounts.RB - (slots.RB ?? 0));
-  const surplusWr = Math.max(0, rosterCounts.WR - (slots.WR ?? 0));
-  const surplusTe = Math.max(0, rosterCounts.TE - (slots.TE ?? 0));
-  return Math.max(0, flexSlots - surplusRb - surplusWr - surplusTe);
-}
-
-function getDirectStarterGaps(
-  state: DraftState,
-  rosterCounts: Record<Position, number>,
-): Record<Position, number> {
-  const slots = state.settings.rosterSlots;
-  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
-  return {
-    QB: Math.max(0, (slots.QB ?? 0) + superFlexSlots - rosterCounts.QB),
-    RB: Math.max(0, (slots.RB ?? 0) - rosterCounts.RB),
-    WR: Math.max(0, (slots.WR ?? 0) - rosterCounts.WR),
-    TE: Math.max(0, (slots.TE ?? 0) - rosterCounts.TE),
-    K: Math.max(0, (slots.K ?? 0) - rosterCounts.K),
-    DEF: Math.max(0, (slots.DEF ?? 0) - rosterCounts.DEF),
-  };
+  return new Set(DRAFT_POSITIONS.filter((position) =>
+    getHardRequiredStarterGapCount(state, { ...rosterCounts, [position]: rosterCounts[position] + 1 }) < gap));
 }
 
 function countRemainingUserPicks(state: DraftState): number {

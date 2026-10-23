@@ -40,7 +40,7 @@ Sleeper is currently the only supported fantasy platform. Sleeper search rank is
 | Format | Beta support |
 | --- | --- |
 | Standard, half-PPR, and PPR redraft | Supported |
-| FLEX and superflex roster construction | Supported |
+| FLEX (including RB/WR and WR/TE flex) and superflex roster construction | Supported |
 | Custom scoring and TE premium | Limited; the app warns when imported values may not match |
 | IDP | Unsupported; defensive players are excluded from recommendations |
 | Auction/salary drafts | Unsupported; budgets and nomination strategy are not modeled |

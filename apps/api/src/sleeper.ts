@@ -1,4 +1,5 @@
 import type { DraftPickOrder, DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
+import { STARTER_SLOT_POSITIONS } from "@sleeper-draft-assistant/shared/roster-slots";
 
 import { assessFormatCompatibility } from "./format-compatibility";
 
@@ -781,15 +782,7 @@ function getStarterSlots(rosterPositions: string[]): string[] {
 }
 
 function getEligiblePositions(slot: string): string[] {
-  if (slot === "FLEX" || slot === "WR_RB_FLEX" || slot === "REC_FLEX") {
-    return ["RB", "WR", "TE"];
-  }
-
-  if (slot === "SUPER_FLEX" || slot === "SF") {
-    return ["QB", "RB", "WR", "TE"];
-  }
-
-  return [slot];
+  return [...(STARTER_SLOT_POSITIONS[slot] ?? [slot])];
 }
 
 function countPlayersByPosition(players: Player[]): Record<Position, number> {
@@ -974,6 +967,8 @@ function getRosterSlots(input: SleeperDraftStateInput): Record<string, number> {
     slots_wr: "WR",
     slots_te: "TE",
     slots_flex: "FLEX",
+    slots_wrrb_flex: "WRRB_FLEX",
+    slots_rec_flex: "REC_FLEX",
     slots_super_flex: "SUPER_FLEX",
     slots_bn: "BN",
     slots_k: "K",

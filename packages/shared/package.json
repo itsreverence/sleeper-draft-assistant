@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./player-status": "./src/player-status.ts"
+    "./player-status": "./src/player-status.ts",
+    "./roster-slots": "./src/roster-slots.ts"
   },
   "types": "./src/index.ts",
   "scripts": {
