@@ -18,7 +18,7 @@ npm audit --omit=dev --audit-level=high
 
 Then:
 
-1. Confirm CI passes on Linux and the Windows packaged API/desktop startup smoke job succeeds.
+1. Confirm CI passes on Linux and the Windows packaged API/desktop startup smoke job succeeds. The desktop check waits for the local database and a smoke-only marker. The marker proves the renderer app mounted (`#app` has content) after the packaged page loaded. It does not verify every UI interaction.
 2. Run `npm run desktop:package` on Windows.
 3. Use a clean Windows user profile to verify launch, demo mode, Sleeper connection, import, settings, diagnostics, data permissions/ACL location, shutdown, relaunch, and uninstall.
 4. Confirm API binding/authentication with the smoke test in `WORKFLOW.md`.

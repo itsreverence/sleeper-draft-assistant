@@ -1,6 +1,7 @@
 const { app, BrowserWindow, shell, dialog } = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
+const { writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 const { parseApiPort } = require("./config.cjs");
@@ -146,6 +147,22 @@ async function createWindow() {
     query: { apiToken, apiPort: String(apiPort) },
   });
   mainWindow.show();
+
+  if (process.env.SLEEPER_AI_PACKAGE_SMOKE === "1") {
+    try {
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        if (await mainWindow.webContents.executeJavaScript("document.querySelector('#app')?.childElementCount > 0")) {
+          writeFileSync(path.join(app.getPath("userData"), "renderer-ready"), "ready\n");
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      console.error("Packaged renderer did not mount before the smoke timeout.");
+    } catch {
+      console.error("Could not verify packaged renderer readiness.");
+    }
+  }
 }
 
 async function ensureApiServer() {
