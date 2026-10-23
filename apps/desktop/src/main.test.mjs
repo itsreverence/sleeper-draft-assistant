@@ -8,7 +8,7 @@ import { NEWS_SOURCE_HOSTS } from "../../../packages/shared/src/index.ts";
 const mainUrl = new URL("./main.cjs", import.meta.url);
 const requireMain = createRequire(mainUrl);
 
-function launch({ occupiedPort = false, rendererFailure = false } = {}) {
+function launch({ occupiedPort = false, rendererFailure = false, rendererReady = false } = {}) {
   let finish;
   const completed = new Promise((resolve) => { finish = resolve; });
   const app = new EventEmitter();
@@ -29,27 +29,32 @@ function launch({ occupiedPort = false, rendererFailure = false } = {}) {
     return child;
   });
   const windows = [];
+  const shell = { openExternal: vi.fn() };
   class BrowserWindow {
-    constructor() {
+    constructor(options) {
       windows.push(this);
-      this.webContents = { setWindowOpenHandler() {}, on() {} };
-      this.show = vi.fn();
+      this.options = options;
+      this.webContents = new EventEmitter();
+      this.webContents.setWindowOpenHandler = (handler) => { this.windowOpenHandler = handler; };
+      this.show = vi.fn(() => finish());
       this.destroy = vi.fn(() => app.emit("window-all-closed"));
     }
     isDestroyed() { return false; }
-    async loadFile() { throw new Error("private file failed to load"); }
+    async loadFile() {
+      if (rendererFailure || !rendererReady) throw new Error("private file failed to load");
+    }
     static getAllWindows() { return windows; }
   }
   const isAllowedExternalUrl = vm.runInNewContext(`${readFileSync(mainUrl, "utf8")}\n;isAllowedExternalUrl;`, {
     require(name) {
-      if (name === "electron") return { app, dialog, BrowserWindow, shell: {} };
+      if (name === "electron") return { app, dialog, BrowserWindow, shell };
       if (name === "node:child_process") return { spawn };
       if (name === "node:net") return {
         createConnection() {
           const socket = new EventEmitter();
           socket.destroy = vi.fn();
           socket.setTimeout = vi.fn();
-          queueMicrotask(() => socket.emit(occupiedPort || rendererFailure ? "connect" : "error"));
+          queueMicrotask(() => socket.emit(occupiedPort || rendererFailure || rendererReady ? "connect" : "error"));
           return socket;
         },
       };
@@ -57,7 +62,7 @@ function launch({ occupiedPort = false, rendererFailure = false } = {}) {
     },
     process: { env: {}, platform: process.platform, execPath: process.execPath, resourcesPath: "/package" },
     __dirname: new URL(".", mainUrl).pathname,
-    fetch: rendererFailure
+    fetch: rendererFailure || rendererReady
       ? async () => ({ ok: true, json: async () => ({ ok: true, service: "sleeper-ai-api", capabilities: { decisionLog: true, draftLeagueId: true } }) })
       : async () => { throw new Error("unavailable"); },
     AbortController,
@@ -66,8 +71,34 @@ function launch({ occupiedPort = false, rendererFailure = false } = {}) {
     console,
     URL,
   });
-  return { completed, app, dialog, spawn, windows, isAllowedExternalUrl };
+  return { completed, app, dialog, spawn, windows, shell, isAllowedExternalUrl };
 }
+
+describe("desktop window security", () => {
+  it("isolates the renderer, denies popup windows, and prevents external navigation", async () => {
+    const launched = launch({ rendererReady: true });
+    await launched.completed;
+    expect(launched.windows).toHaveLength(1);
+    const [window] = launched.windows;
+    expect(window.show).toHaveBeenCalledOnce();
+    expect(window.options.webPreferences).toEqual({
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    });
+
+    expect(window.windowOpenHandler({ url: "https://arbitrary.example/path" })).toEqual({ action: "deny" });
+    expect(launched.shell.openExternal).not.toHaveBeenCalled();
+    const allowedUrl = "https://www.fantasypros.com/nfl/rankings/";
+    expect(window.windowOpenHandler({ url: allowedUrl })).toEqual({ action: "deny" });
+    expect(launched.shell.openExternal).toHaveBeenCalledExactlyOnceWith(allowedUrl);
+
+    const event = { preventDefault: vi.fn() };
+    window.webContents.emit("will-navigate", event, "https://arbitrary.example/path");
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(launched.shell.openExternal).toHaveBeenCalledExactlyOnceWith(allowedUrl);
+  });
+});
 
 describe("desktop main startup failures", () => {
   it("accepts the official NFL AMP host without allowing arbitrary subdomains or unsafe URLs", async () => {
