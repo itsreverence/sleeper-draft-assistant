@@ -22,4 +22,20 @@ describe("composed API authentication", () => {
       );
     }
   });
+
+  it("requires the capability token even when Origin is null", async () => {
+    const token = "composed-app-test-capability";
+    vi.stubEnv("SLEEPER_AI_API_TOKEN", token);
+    vi.stubEnv("SLEEPER_AI_TEST_ENFORCE_AUTH", "1");
+    vi.resetModules();
+
+    const { app } = await import("./index");
+    const unauthenticated = await app.request("/diagnostics", { headers: { Origin: "null" } });
+    expect(unauthenticated.status).toBe(401);
+
+    const authenticated = await app.request("/diagnostics", {
+      headers: { Origin: "null", Authorization: `Bearer ${token}` },
+    });
+    expect(authenticated.status).toBe(200);
+  });
 });

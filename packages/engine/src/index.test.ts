@@ -184,15 +184,32 @@ describe("mock draft engine", () => {
   });
   it("orders imported options by ECR without strategic roster reweighting", () => {
     const state = createEightTeamTwoFlexState();
-    state.players = state.players.map((player, index) => ({
+    const ranks: Record<string, number> = {
+      "format-qb-hurts": 1,
+      "format-rb-bijan": 2,
+      "format-qb-allen": 3,
+      "format-te-bowers": 4,
+      "format-wr-chase": 5,
+      "format-rb-gibbs": 6,
+    };
+    state.players = state.players.map((player) => ({
       ...player,
       projectionSource: "imported",
-      importedRank: index + 1,
+      importedRank: ranks[player.id],
       importedSource: "FantasyPros",
+      seasonProjectedPoints: player.projectedPoints,
     }));
-    const recommendation = buildDraftRecommendation(state);
+    const recommendation = buildDraftRecommendation(state, { candidateLimit: state.players.length });
 
-    expect(recommendation.recommendedPlayerId).toBe("format-qb-allen");
+    expect(recommendation.recommendedPlayerId).toBe("format-qb-hurts");
+    expect(recommendation.candidates.map((candidate) => candidate.player.id)).toEqual([
+      "format-qb-hurts",
+      "format-rb-bijan",
+      "format-qb-allen",
+      "format-te-bowers",
+      "format-wr-chase",
+      "format-rb-gibbs",
+    ]);
     expect(recommendation.candidates[0]?.orderSource).toBe("ecr");
     expect(recommendation.summary).toContain("not a strategic recommendation");
   });
@@ -217,7 +234,7 @@ describe("mock draft engine", () => {
 
   it("uses season projection when ECR is unavailable", () => {
     const state = createEightTeamTwoFlexState();
-    state.players = state.players.map((player) => ({
+    state.players = state.players.slice().reverse().map((player) => ({
       ...player,
       projectionSource: "season_projection",
       seasonProjectedPoints: player.projectedPoints,
@@ -227,7 +244,14 @@ describe("mock draft engine", () => {
     }));
 
     const options = buildDraftOptions(state, state.players.length);
-    expect(options[0]?.player.id).toBe("format-qb-allen");
+    expect(options.map((option) => option.player.id)).toEqual([
+      "format-qb-allen",
+      "format-qb-hurts",
+      "format-wr-chase",
+      "format-rb-gibbs",
+      "format-rb-bijan",
+      "format-te-bowers",
+    ]);
     expect(options[0]?.orderSource).toBe("projection");
   });
 
