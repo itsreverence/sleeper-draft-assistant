@@ -66,7 +66,7 @@ recorded isolated API trace cover the server side separately.
 
 ## Roster feasibility (bounded exhaustive check)
 
-`npm run verify:roster-feasibility` checks every roster state within stated bounds. It compares `isDraftChoiceRosterFeasible`, which guards AI picks, and the required-position filter in `buildDraftOptions` against a brute-force lineup matcher. It is not part of `npm test`, because it currently reports two known superflex findings in the reference board. The bounds, the baseline output, the findings and the update procedure are in [the verify-roster-feasibility skill](../.agents/skills/verify-roster-feasibility/SKILL.md). Run it when changing roster slots, flex or superflex handling, remaining-pick counting, or AI pick validation.
+`npm run verify:roster-feasibility` checks every roster state within stated bounds. It compares `isDraftChoiceRosterFeasible`, which guards AI picks, and the required-position filter in `buildDraftOptions` against a brute-force lineup matcher. It takes about 30 s, so it runs as its own command rather than in `npm test`. The expected baseline is a full pass. The bounds, the slot-rule sources and the update procedure are in [the verify-roster-feasibility skill](../.agents/skills/verify-roster-feasibility/SKILL.md). Run it when changing roster slots, flex or superflex handling, remaining-pick counting, or AI pick validation.
 
 ## Completion and remaining scope
 

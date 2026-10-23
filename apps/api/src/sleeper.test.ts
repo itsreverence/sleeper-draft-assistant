@@ -280,6 +280,22 @@ describe("Sleeper draft normalization", () => {
     });
   });
 
+  it("reads Sleeper's restricted flex slots from league positions and draft settings", () => {
+    const fromLeague = normalizeSleeperDraftState({
+      ...fixture,
+      league: { ...fixture.league!, roster_positions: ["QB", "RB", "WR", "TE", "WRRB_FLEX", "REC_FLEX", "BN"] },
+    });
+    const fromDraft = normalizeSleeperDraftState({
+      ...fixture,
+      league: { ...fixture.league!, roster_positions: [] },
+      draft: { ...fixture.draft, settings: { ...fixture.draft.settings, slots_qb: 1, slots_wrrb_flex: 1, slots_rec_flex: 1 } },
+    });
+
+    expect(fromLeague.settings.rosterSlots).toMatchObject({ WRRB_FLEX: 1, REC_FLEX: 1 });
+    expect(fromLeague.settings.formatCompatibility).toMatchObject({ level: "supported", warnings: [] });
+    expect(fromDraft.settings.rosterSlots).toMatchObject({ QB: 1, WRRB_FLEX: 1, REC_FLEX: 1 });
+  });
+
   it("surfaces unsupported IDP and auction settings", () => {
     const state = normalizeSleeperDraftState({
       ...fixture,
@@ -493,6 +509,24 @@ describe("Sleeper team manager normalization", () => {
     expect(state.dataQuality.limitations[0]).toContain("Sleeper roster data");
   });
 
+
+  it("limits Team Manager flex slots to the positions Sleeper allows", () => {
+    const state = normalizeSleeperTeamManagerState({
+      league: { ...fixture.league!, roster_positions: ["FLEX", "WRRB_FLEX", "REC_FLEX", "SUPER_FLEX", "BN"] },
+      rosters: [{ roster_id: 12, owner_id: "user-2", players: [], starters: [] }],
+      users: fixture.users!,
+      players: fixture.players,
+      userRosterId: "12",
+      week: 1,
+    });
+
+    expect(state.roster.starters.map(({ slot, eligiblePositions }) => [slot, eligiblePositions])).toEqual([
+      ["FLEX", ["RB", "WR", "TE"]],
+      ["WRRB_FLEX", ["RB", "WR"]],
+      ["REC_FLEX", ["WR", "TE"]],
+      ["SUPER_FLEX", ["QB", "RB", "WR", "TE"]],
+    ]);
+  });
 
   it("infers available players by excluding league rostered players", () => {
     const players = normalizeSleeperAvailablePlayers({

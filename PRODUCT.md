@@ -36,7 +36,7 @@ The product is AI-first rather than a rankings-only draft board. The AI owns str
 - Imported FantasyPros files are user-supplied and are not bundled or redistributed by the repository.
 - The interface should stay clean, focused, scan-friendly, and progressively disclosed. Live-draft users should see the next useful action without being overwhelmed by every available tool.
 - AI assistance must remain transparent about evidence, uncertainty, stale data, provider state, and unavailable upstream services.
-- Standard, half-PPR, PPR, FLEX, and superflex roster construction are supported. Custom scoring and TE premium are limited; IDP, auction, and dedicated dynasty strategy are outside the current model.
+- Standard, half-PPR, PPR, FLEX (including RB/WR and WR/TE flex), and superflex roster construction are supported. Custom scoring and TE premium are limited; IDP, auction, and dedicated dynasty strategy are outside the current model.
 
 ## Brand Commitments
 

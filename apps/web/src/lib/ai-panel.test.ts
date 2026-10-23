@@ -72,7 +72,7 @@ describe("AI panel helpers", () => {
           RB: 2,
           WR: 3,
           TE: 1,
-          WR_RB_FLEX: 1,
+          WRRB_FLEX: 1,
           SF: 1,
           K: 1,
           DEF: 1,
@@ -86,7 +86,7 @@ describe("AI panel helpers", () => {
     const summary = buildAiPanelContextSummary(customState, recommendation, true, false, false, false);
 
     expect(summary.starters).toBe(
-      "1 QB · 2 RB · 3 WR · 1 TE · 1 FLEX · 1 SUPER FLEX · 1 K · 1 DEF · 2 IDP FLEX",
+      "1 QB · 2 RB · 3 WR · 1 TE · 1 RB/WR FLEX · 1 SUPER FLEX · 1 K · 1 DEF · 2 IDP FLEX",
     );
     expect(summary.starters).not.toContain("BN");
     expect(summary.starters).not.toContain("IR");

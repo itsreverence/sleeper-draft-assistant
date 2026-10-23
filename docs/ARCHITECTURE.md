@@ -38,7 +38,7 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 
 1. The user identifies a Sleeper account, league, or draft.
 2. The API reads tokenless data from Sleeper and normalizes it into shared models.
-3. Normalization produces one format-compatibility assessment for draft and team workflows. Conventional standard, half-PPR, PPR, FLEX, and superflex leagues are supported; custom scoring and TE premium produce cautions; IDP and auction formats are marked unsupported.
+3. Normalization produces one format-compatibility assessment for draft and team workflows. Conventional standard, half-PPR, PPR, FLEX (including Sleeper's RB/WR `WRRB_FLEX` and WR/TE `REC_FLEX`), and superflex leagues are supported. Starter-slot eligibility lives in `packages/shared/src/roster-slots.ts`; custom scoring and TE premium produce cautions; IDP and auction formats are marked unsupported.
 4. A user-supplied FantasyPros draft rankings CSV adds scoring-specific ECR, tiers, bye weeks, and expert-versus-market context. Known scoring mismatches are rejected.
 5. User-supplied FantasyPros season projection files for QB, RB, WR, TE, K, and DST are normalized and, where the export exposes the required statistics, rescored with the connected Sleeper league settings. K and DST retain provider points when exact league scoring cannot be reproduced.
 6. A user-supplied FantasyPros Overall ADP CSV adds Sleeper ADP and Real-Time ADP as separate market-timing evidence.

@@ -94,7 +94,7 @@ Toggle **Web search** off in AI settings and save during a lookup. Verify the ol
 - **Windows Codex launcher:** prefer the default `codex` setting. The backend resolves the npm launcher without invoking `cmd.exe`; explicit non-npm `.cmd` wrappers are unsupported.
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
 - **Draft room entry remains disabled:** import current scoring-specific ECR, season projections, and Overall ADP, then confirm the Codex provider is ready.
-- **League format warning:** standard, half-PPR, PPR, FLEX, and superflex are supported. Custom scoring and TE premium require matching imports; IDP and auction advice is unsupported.
+- **League format warning:** standard, half-PPR, PPR, FLEX (including RB/WR and WR/TE flex), and superflex are supported. Custom scoring and TE premium require matching imports; IDP and auction advice is unsupported.
 - **Ranking import is rejected:** choose the FantasyPros ECR or ROS export matching the connected league's standard, half-PPR, or PPR scoring.
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.

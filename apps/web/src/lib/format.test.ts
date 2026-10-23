@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DraftState } from "./types";
-import { draftSlotForPick, draftTeamReference, formatDraftPick, formatSleeperStatusSummary, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
+import { draftSlotForPick, draftTeamReference, formatDraftPick, formatRosterSlots, formatSleeperStatusSummary, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
 
 describe("draft team identity", () => {
   it("prefers the draft-specific slot over the league roster ID", () => {
@@ -148,3 +148,9 @@ function createState({ currentPick, userSlot }: { currentPick: number; userSlot:
     updatedAt: "2026-07-08T12:00:00.000Z",
   };
 }
+
+describe("formatRosterSlots", () => {
+  it("lists Sleeper's restricted flex slots", () => {
+    expect(formatRosterSlots({ QB: 1, FLEX: 1, WRRB_FLEX: 1, REC_FLEX: 1, BN: 5 })).toBe("QB 1 / FLEX 1 / WRRB_FLEX 1 / REC_FLEX 1 / BN 5");
+  });
+});

@@ -1,4 +1,5 @@
 import type { AiDraftPlan, DraftState, DraftStrategyInstruction, Player, Position } from "@sleeper-draft-assistant/shared";
+import { countUnfilledStarterSlots, withoutSuperFlexSlots } from "@sleeper-draft-assistant/shared/roster-slots";
 
 import { buildGroupedPlayerEvidence, createDraftPlayerSnapshot, toDraftPlayerEvidence, type DraftPlayerSnapshot } from "./draft-tools";
 import type { AiConversationMessage, DraftQuestionContext, DraftStrategyContext, PlayerPreferenceSummary } from "./types";
@@ -146,27 +147,15 @@ function getOpenDirectStarterSlots(
   };
 }
 
+// Regular flex slots are filled before superflex, matching how surplus players are assigned.
 function getOpenSuperFlexSlots(state: DraftState, counts: Record<Position, number>): number {
   const slots = state.settings.rosterSlots;
-  const superFlexSlots = (slots.SUPER_FLEX ?? 0) + (slots.SF ?? 0);
-  const regularFlexSlots = (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
-  const rbWrTeSurplus =
-    Math.max(0, counts.RB - (slots.RB ?? 0)) +
-    Math.max(0, counts.WR - (slots.WR ?? 0)) +
-    Math.max(0, counts.TE - (slots.TE ?? 0));
-  const qbSurplus = Math.max(0, counts.QB - (slots.QB ?? 0));
-  const surplusAfterRegularFlex = qbSurplus + Math.max(0, rbWrTeSurplus - regularFlexSlots);
-  return Math.max(0, superFlexSlots - surplusAfterRegularFlex);
+  return countUnfilledStarterSlots(slots, counts) - countUnfilledStarterSlots(withoutSuperFlexSlots(slots), counts);
 }
 
 function getOpenFlexSlots(state: DraftState, counts: Record<Position, number>): number {
-  const slots = state.settings.rosterSlots;
-  const flexSlots = (slots.FLEX ?? 0) + (slots.WR_RB_FLEX ?? 0) + (slots.REC_FLEX ?? 0);
-  const surplus =
-    Math.max(0, counts.RB - (slots.RB ?? 0)) +
-    Math.max(0, counts.WR - (slots.WR ?? 0)) +
-    Math.max(0, counts.TE - (slots.TE ?? 0));
-  return Math.max(0, flexSlots - surplus);
+  const directGaps = Object.values(getOpenDirectStarterSlots(state, counts)).reduce((total, gap) => total + gap, 0);
+  return countUnfilledStarterSlots(withoutSuperFlexSlots(state.settings.rosterSlots), counts) - directGaps;
 }
 
 function findUpcomingUserPicks(state: DraftState, limit: number): number[] {
