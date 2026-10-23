@@ -38,7 +38,7 @@ npm run verify:roster-feasibility
 npm run check -w @sleeper-draft-assistant/engine   # type-checks the harness and the engine
 ```
 
-It takes about 30 s and needs no network or app data. It runs as its own command rather than in `npm test` because of that runtime.
+It takes about 30 s and needs no network or app data. It runs separately from `npm test`; CI also runs it in the `validate` job.
 
 ## Read the result
 

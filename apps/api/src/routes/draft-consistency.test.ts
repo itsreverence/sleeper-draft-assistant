@@ -2,11 +2,12 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import type { DraftState } from "@sleeper-draft-assistant/shared";
+import type { AiDraftStrategy } from "../ai/types";
 import { LocalDataResetCoordinator, LocalDataResetError } from "../local-data-reset";
 import { createDraftRoutes } from "./draft-routes";
 
-function fixture() {
-  let state: DraftState = { ...createMockDraftState(8), status: "pre_draft" };
+function fixture(initialState: DraftState = { ...createMockDraftState(8), status: "pre_draft" }) {
+  let state = initialState;
   let draft = { draft_id: "live", status: "pre_draft" };
   let picks: Array<{ pick_no: number; player_id: string }> = [];
   const record = vi.fn();
@@ -27,7 +28,7 @@ function fixture() {
       getDraftState,
     } as never,
     aiProviderManager: { get: () => ({ status: () => ({ id: "noop" }), strategizeDraft }) } as never,
-    appDatabase: {} as never,
+    appDatabase: { batch: (action: () => unknown) => action() } as never,
     localDataReset: reset,
     getSettingsStore: () => ({ get: () => ({}) }) as never,
     getRankingImportStore: () => identityStore as never,
@@ -54,9 +55,117 @@ function fixture() {
   };
 }
 
+function finalTightEndPick(): DraftState {
+  return {
+    id: "live",
+    name: "Final starter pick",
+    status: "drafting",
+    currentPick: 3,
+    userTeamId: "user",
+    settings: { teams: 2, rounds: 2, scoring: "PPR", rosterSlots: { RB: 1, TE: 1 } },
+    teams: [
+      { id: "other", name: "Other team", draftSlot: 1, roster: ["other-rb"] },
+      { id: "user", name: "User team", draftSlot: 2, roster: ["rostered-rb"] },
+    ],
+    players: ([
+      { id: "other-rb", position: "RB" },
+      { id: "rostered-rb", position: "RB" },
+      { id: "available-rb", position: "RB" },
+      { id: "recommended-te", position: "TE" },
+      { id: "alternative-te", position: "TE" },
+    ] satisfies Array<Pick<DraftState["players"][number], "id" | "position">>).map((player) => ({
+      ...player,
+      sleeperId: player.id,
+      name: player.id,
+      team: "BUF",
+      projectedPoints: 100,
+      projectionSource: "mock",
+      adp: null,
+      tier: null,
+      riskTags: [],
+    })),
+    picks: [
+      { pickNo: 1, round: 1, draftSlot: 1, teamId: "other", playerId: "other-rb" },
+      { pickNo: 2, round: 1, draftSlot: 2, teamId: "user", playerId: "rostered-rb" },
+    ],
+    pickOrder: {
+      source: "sleeper",
+      entries: [
+        { pickNo: 3, round: 2, draftSlot: 2, teamId: "user", originalTeamId: "user", isTraded: false },
+        { pickNo: 4, round: 2, draftSlot: 1, teamId: "other", originalTeamId: "other", isTraded: false },
+      ],
+    },
+    updatedAt: "2026-10-23T12:00:00.000Z",
+  };
+}
+
+function finalPickStrategy(recommendedPlayerId: string, alternativePlayerIds: string[] = []): AiDraftStrategy {
+  return {
+    provider: { id: "noop", label: "Test strategist", configured: true },
+    decision: {
+      basedOnPick: 3,
+      recommendedPlayerId,
+      alternativePlayerIds,
+      verdict: "reasonable",
+      confidence: "medium",
+      headline: "Fill the last starter slot",
+      summary: "Complete the starting lineup with the final pick.",
+      reasons: ["The TE starter slot is empty."],
+      risks: [],
+      plan: {
+        updatedAtPick: 3,
+        approach: "Complete the starting lineup.",
+        currentPickFocus: ["TE"],
+        nextTurnPriorities: [],
+        positionsThatCanWait: [],
+        rosterGoals: ["Fill the TE starter slot."],
+        watchItems: [],
+        changeSummary: "One user pick remains.",
+      },
+    },
+  };
+}
+
 afterEach(() => vi.useRealTimers());
 
 describe("draft request consistency", () => {
+  it("rejects an available RB recommendation when the final pick must fill an empty TE slot", async () => {
+    const f = fixture(finalTightEndPick());
+    f.strategizeDraft.mockResolvedValue(finalPickStrategy("available-rb"));
+
+    const response = await f.app.request("/drafts/live/strategy", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: expect.any(String) });
+    expect(f.record).not.toHaveBeenCalled();
+  });
+
+  it("accepts a TE recommendation and keeps only the TE alternative when one TE slot and one pick remain", async () => {
+    const f = fixture(finalTightEndPick());
+    f.strategizeDraft.mockResolvedValue(finalPickStrategy("recommended-te", ["alternative-te", "available-rb"]));
+
+    const response = await f.app.request("/drafts/live/strategy", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      pickNumber: 3,
+      decision: { recommendedPlayerId: "recommended-te", alternativePlayerIds: ["alternative-te"] },
+      recommendedCandidate: { player: { id: "recommended-te" } },
+      alternativeCandidates: [{ player: { id: "alternative-te" } }],
+    });
+    expect(f.record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      trigger: "ai-strategy",
+      aiStrategy: expect.objectContaining({
+        recommendedPlayerId: "recommended-te",
+        alternativePlayerIds: ["alternative-te"],
+      }),
+    }));
+  });
+
   it("rejects an AI strategy if a pick is replaced without advancing the pick number", async () => {
     const f = fixture();
     f.correct("first-player");
