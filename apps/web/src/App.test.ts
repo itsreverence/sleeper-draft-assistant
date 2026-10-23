@@ -13,6 +13,7 @@ vi.mock("./lib/components/AskManagerPanel.svelte", async () => ({
 import App from "./App.svelte";
 import { DEFAULT_LEAGUE_ID, PIN_PLAYER_ID, createDraftPayloadFixture } from "./lib/testing/draft-fixtures";
 import { createDeferred } from "./lib/testing/deferred";
+import { settle } from "./lib/testing/settle";
 import { apiMock } from "./lib/testing/mock-api";
 import type { ConnectPayload } from "./lib/types";
 
@@ -569,9 +570,9 @@ describe("App draft lifecycle", () => {
       },
     }).recommendation);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
-    });
+    await pinnedRecommendation.promise;
+    await settle();
+    expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
     expect(window.localStorage.getItem("playerPreferences:draft-1")).toBe(JSON.stringify({
       [PIN_PLAYER_ID]: "fade",
     }));
@@ -631,10 +632,10 @@ describe("App draft lifecycle", () => {
       },
     }).recommendation);
 
-    await waitFor(() => {
-      expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
-      expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
-    });
+    await pinnedRecommendation.promise;
+    await settle();
+    expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
+    expect(screen.getByTestId("ask-manager-recommendation").textContent).not.toContain("Local reference: De'Von Achane");
     expect(apiMock.getOpenEventSources()).toHaveLength(1);
     expect(apiMock.getOpenEventSources()[0]?.draftId).toBe("draft-2");
   });
@@ -1008,10 +1009,10 @@ describe("App draft lifecycle", () => {
       summary: staleImportPayload.rankingImportSummary!,
     });
 
-    await waitFor(() => {
-      expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
-      expect(screen.queryByText("Sleeper Alpha Draft")).toBeNull();
-    });
+    await importPayload.promise;
+    await settle();
+    expect(screen.getByText("Sleeper Beta Draft")).toBeTruthy();
+    expect(screen.queryByText("Sleeper Alpha Draft")).toBeNull();
   });
 
   it("rankings import then clear overlap leaves no stuck busy flag and the stale import cannot win", async () => {

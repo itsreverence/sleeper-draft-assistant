@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
-import { tick } from "svelte";
 import { afterEach, expect, it, vi } from "vitest";
 
 vi.mock("./lib/api", async () => await import("./lib/testing/mock-api"));
@@ -8,6 +7,7 @@ import App from "./App.svelte";
 import { apiMock } from "./lib/testing/mock-api";
 import { createDraftPayloadFixture } from "./lib/testing/draft-fixtures";
 import { createDeferred } from "./lib/testing/deferred";
+import { settle } from "./lib/testing/settle";
 import type { AiDraftStrategyPayload, DraftPayload } from "./lib/types";
 
 afterEach(() => vi.restoreAllMocks());
@@ -37,7 +37,7 @@ it("keeps the parent draft plan on the latest same-pick correction when requests
   expect(await within(drawer).findByText("Current corrected plan")).toBeTruthy();
   initial.resolve(strategy(payload, "Obsolete plan"));
   await initial.promise;
-  await tick();
+  await settle();
   expect(within(drawer).getByText("Current corrected plan")).toBeTruthy();
   expect(within(drawer).queryByText("Obsolete plan")).toBeNull();
 });
