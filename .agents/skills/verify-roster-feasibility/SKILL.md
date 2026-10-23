@@ -26,7 +26,7 @@ Sources for these rules were confirmed in October 2026. Three widely used Sleepe
 Rerun when a diff touches the functions under **Coverage**, `DraftState` roster or pick-order fields in `packages/shared/src/index.ts`, or the slot names accepted in `apps/api/src/format-compatibility.ts`. To see what changed since the verification was last confirmed:
 
 ```bash
-git diff 7802924 -- packages/shared/src/roster-slots.ts packages/engine/src/index.ts apps/api/src/routes/draft-routes.ts packages/shared/src/index.ts apps/api/src/format-compatibility.ts
+git diff b93a1ae -- packages/shared/src/roster-slots.ts packages/engine/src/index.ts apps/api/src/routes/draft-routes.ts packages/shared/src/index.ts apps/api/src/format-compatibility.ts
 ```
 
 Not every hunk matters: only the functions in **Coverage** and the fields above do. If a covered function changed and nobody rechecked it, follow **Updating** even when the check still passes.
@@ -84,13 +84,13 @@ The process exits with code 0. Any `FAIL` line means behavior changed. Each line
 | P2 | `packages/engine/src/index.ts`: `buildDraftOptions`, `getMandatoryCompletionPositions`, plus the P1 slot count |
 | Reference | `SLOT_ELIGIBILITY` in the harness: Sleeper's rules, sourced above, not the app's table |
 
-**Sync commit:** `7802924`, the commit at which the harness was last confirmed to describe the covered code. It was confirmed to catch these scratch breaks:
+**Sync commit:** `b93a1ae`, the commit at which the harness was last confirmed to describe the covered code. It was confirmed to catch these scratch breaks:
 
 - `REC_FLEX` accepting RB in `STARTER_SLOT_POSITIONS` (P1 for every position, plus P2b)
 - filling flex slots greedily without reassigning earlier players in `countUnfilledStarterSlots` (P1 and P2)
 - counting non-reducing picks as required in `getMandatoryCompletionPositions` (P2b)
 
-At the earlier sync commit `6958fbf`, the harness used the app's previous rules. It found two superflex board bugs, which `7802924` fixed: superflex was counted as QB-only when deciding required positions.
+At the earlier sync commit `6958fbf`, the harness used the app's previous rules. It found two superflex board bugs, which `b93a1ae` fixed: superflex was counted as QB-only when deciding required positions.
 
 ## Updating
 
@@ -99,4 +99,4 @@ Only when covered code or Sleeper's slot rules change on purpose:
 1. Read the changed functions and check that the harness still matches them. `SLOT_ELIGIBILITY` must still match Sleeper's rules: change it only with a new source, and keep it independent of the app's table. Check that `setRemainingPicks` still reaches the code path `countRemainingUserPicks` uses, and that the P1 policy still matches the code. If the intended policy changed, update the property and say so in the change.
 2. Run the check, and explain every failure as either a modeling change or a bug. Keep the runtime around 30 s.
 3. Break the changed code in a scratch edit, confirm the check fails, then restore the file.
-4. Only then move the sync commit to the commit you verified, and update **Read the result**.
+4. Only then move the sync commit to the commit you verified, and update **Read the result**. PRs are squash-merged, so branch commits disappear from `master`: use the `master` commit the change landed as, in a follow-up if needed.
