@@ -28,6 +28,10 @@ export function countRegularFlexSlots(rosterSlots: Record<string, number>, posit
     .reduce((total, slot) => total + Math.max(0, rosterSlots[slot] ?? 0), 0);
 }
 
+export function countSuperFlexSlots(rosterSlots: Record<string, number>): number {
+  return SUPER_FLEX_SLOTS.reduce((total, slot) => total + Math.max(0, rosterSlots[slot] ?? 0), 0);
+}
+
 export function withoutSuperFlexSlots(rosterSlots: Record<string, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(rosterSlots).filter(([slot]) => !(SUPER_FLEX_SLOTS as readonly string[]).includes(slot)));
 }

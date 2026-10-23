@@ -43,6 +43,15 @@ describe("AI panel helpers", () => {
     expect(questions.some((question) => question.prompt.includes("Jahmyr Gibbs"))).toBe(false);
   });
 
+  it.each(["SUPER_FLEX", "SF"])("omits the pass-on-QB question in a %s league", (slot) => {
+    const superflexState = createState();
+    superflexState.settings.rosterSlots[slot] = 1;
+
+    const questions = buildSuggestedQuestions(superflexState, recommendation, true, false);
+
+    expect(questions.map((question) => question.label)).not.toContain("Pass on QB?");
+  });
+
   it("builds a complete, grouped context summary for the AI panel", () => {
     const summary = buildAiPanelContextSummary(state, recommendation, true, true, true, false);
 

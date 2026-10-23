@@ -9,8 +9,8 @@ import type {
 } from "@sleeper-draft-assistant/shared";
 import {
   countRegularFlexSlots,
+  countSuperFlexSlots,
   countUnfilledStarterSlots,
-  SUPER_FLEX_SLOTS,
   withoutSuperFlexSlots,
 } from "@sleeper-draft-assistant/shared/roster-slots";
 
@@ -376,7 +376,7 @@ function getRosterFit(
   rosterCounts: Record<Position, number>,
 ): DraftOption["rosterFit"] {
   const slots = state.settings.rosterSlots;
-  const superFlexSlots = SUPER_FLEX_SLOTS.reduce((total, slot) => total + (slots[slot] ?? 0), 0);
+  const superFlexSlots = countSuperFlexSlots(slots);
   const directDemand = (slots[position] ?? 0) + (position === "QB" ? superFlexSlots : 0);
   if (rosterCounts[position] < directDemand) {
     return "need";
