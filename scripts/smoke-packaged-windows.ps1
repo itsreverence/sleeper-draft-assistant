@@ -101,11 +101,17 @@ $env:SLEEPER_AI_PACKAGE_SMOKE = "1"
 $env:SLEEPER_AI_USER_DATA_DIR = $profileRoot
 $env:PORT = [string](Get-FreeTcpPort)
 New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
+$rendererReadyPath = Join-Path $profileRoot "renderer-ready"
 $databasePath = Join-Path $profileRoot "data/app.sqlite"
 $appProcess = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru
 
 try {
-  Wait-Until { Test-Path $databasePath }
+  Wait-Until {
+    if ($appProcess.HasExited) {
+      throw "Packaged desktop exited before the renderer mounted and local database was ready."
+    }
+    (Test-Path -LiteralPath $databasePath) -and (Test-Path -LiteralPath $rendererReadyPath)
+  } 60
   Write-Output "Packaged desktop startup smoke check passed."
 } finally {
   if (-not $appProcess.HasExited) {
