@@ -5,7 +5,7 @@ import type {
   DraftState,
   Position,
 } from "./types";
-import { countRegularFlexSlots } from "@sleeper-draft-assistant/shared/roster-slots";
+import { countRegularFlexSlots, countSuperFlexSlots, SUPER_FLEX_SLOTS } from "@sleeper-draft-assistant/shared/roster-slots";
 import { formatDraftPick, upcomingUserPicks } from "./format";
 
 export type AiPanelContextSummary = {
@@ -213,7 +213,8 @@ function getRosterNeeds(state: DraftState): Position[] {
 }
 
 function hasSingleQbFormat(state: DraftState): boolean {
-  return (state.settings.rosterSlots.QB ?? 0) <= 1 && (state.settings.rosterSlots.SUPER_FLEX ?? 0) === 0;
+  const slots = state.settings.rosterSlots;
+  return (slots.QB ?? 0) <= 1 && countSuperFlexSlots(slots) === 0;
 }
 
 function formatPositionList(positions: Position[]): string {
@@ -243,7 +244,7 @@ function formatStarterSlots(rosterSlots: Record<string, number>): string {
     { label: "FLEX", keys: ["FLEX"] },
     { label: "RB/WR FLEX", keys: ["WRRB_FLEX"] },
     { label: "WR/TE FLEX", keys: ["REC_FLEX"] },
-    { label: "SUPER FLEX", keys: ["SUPER_FLEX", "SF"] },
+    { label: "SUPER FLEX", keys: [...SUPER_FLEX_SLOTS] },
     { label: "K", keys: ["K"] },
     { label: "DEF", keys: ["DEF", "DST"] },
   ];

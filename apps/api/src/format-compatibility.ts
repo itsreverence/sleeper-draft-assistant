@@ -1,8 +1,9 @@
 import type { FormatCompatibility } from "@sleeper-draft-assistant/shared";
+import { SUPER_FLEX_SLOTS } from "@sleeper-draft-assistant/shared/roster-slots";
 
 const supportedRosterSlots = new Set([
   "QB", "RB", "WR", "TE", "K", "DEF",
-  "FLEX", "WRRB_FLEX", "REC_FLEX", "SUPER_FLEX", "SF",
+  "FLEX", "WRRB_FLEX", "REC_FLEX", ...SUPER_FLEX_SLOTS,
   "BN", "IR", "TAXI",
 ]);
 const idpRosterSlots = new Set(["DL", "DE", "DT", "LB", "DB", "CB", "S", "IDP", "IDP_FLEX"]);
@@ -21,7 +22,7 @@ export function assessFormatCompatibility(input: {
   const draftType = input.draftType?.trim().toLowerCase() ?? "";
   const hasIdp = activeSlots.some((slot) => idpRosterSlots.has(slot));
   const unknownSlots = activeSlots.filter((slot) => !supportedRosterSlots.has(slot) && !idpRosterSlots.has(slot));
-  const hasSuperflex = activeSlots.some((slot) => slot === "SUPER_FLEX" || slot === "SF");
+  const hasSuperflex = SUPER_FLEX_SLOTS.some((slot) => activeSlots.includes(slot));
   const hasTePremium = isTePremium(input.scoringSettings);
   const hasCustomScoring = input.scoring.trim().toLowerCase() === "custom";
   const hasAuction = draftType === "auction";
