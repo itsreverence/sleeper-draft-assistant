@@ -38,9 +38,11 @@ describe("bounded public player news", () => {
   });
 
   it.each(["javascript:alert(1)", "https://www.nfl.com.evil.test/report", "https://amp.nfl.com.evil.test/report", "https://unknown.nfl.com/report", "https://fantasy-www.nfl.com/report", "https://user:secret@nfl.com/report", "http://nfl.com/report", "https://127.0.0.1/report"])("rejects unsafe source %s", async (url) => {
-    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url, reportedAt: null }] }));
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url, reportedAt: "2026-09-24" }] }), record);
     expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "unavailable" });
     expect(news.sources).toEqual([]);
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_source", elapsedMs: 0 });
   });
 
   it("returns a safe gap instead of exposing provider errors", async () => {
