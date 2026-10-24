@@ -12,9 +12,10 @@ is selected. Existing beta.4 downloads do not contain these fixes.
   before citation; guessing or rewriting URLs is forbidden. Validation, Electron
   link restrictions, date checks, the two-lookup limit and 20-second deadline are
   unchanged.
-- Electron updated from 43.0.0 to 43.7.7; versions through 43.6.0 are flagged by
-  `npm audit`. Hono, Vite and other audit fixes landed in a separate dependency
-  update. The full `npm audit` is clean again as of October 22.
+- Electron updated from 43.0.0 to 43.8.3. The October 23 advisories prompted
+  further Electron and Undici updates and a native Zod 4 migration. Hono, Vite
+  and earlier audit fixes landed in a separate dependency update. The full
+  `npm audit` is clean again as of October 23.
 - Muted text contrast improved; draft chat has a persistent accessible name;
   roster coverage uses meter semantics and provider readiness uses status
   semantics. Browser checks cover these alongside keyboard and import flows.
