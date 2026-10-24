@@ -15,7 +15,7 @@
     "@sleeper-draft-assistant/shared": "0.1.0-beta.4",
     "hono": "4.13.13",
     "sql.js": "^1.14.1",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/sql.js": "^1.4.11"

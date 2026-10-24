@@ -15,7 +15,7 @@ import { z } from "zod";
 import { createPersistedRecordCodec } from "./persisted-record";
 
 const nullableNumber = z.number().nullable();
-const playerEntries = <T extends z.ZodTypeAny>(valueSchema: T) => z.array(z.tuple([z.string(), valueSchema]));
+const playerEntries = <T extends z.ZodType>(valueSchema: T) => z.array(z.tuple([z.string(), valueSchema]));
 
 export const SerializedRankingImportSchema = z.object({
   summary: RankingImportSummarySchema,
@@ -67,7 +67,7 @@ export const SerializedWeeklyProjectionImportSchema = z.object({
     projectedPoints: z.number(),
     position: z.enum(["QB", "RB", "WR", "TE", "K", "DEF"]),
     positionRank: nullableNumber,
-    stats: z.record(z.number()),
+    stats: z.record(z.string(), z.number()),
   })),
 });
 export type SerializedWeeklyProjectionImport = z.infer<typeof SerializedWeeklyProjectionImportSchema>;
