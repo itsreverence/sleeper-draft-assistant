@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { getAvailablePlayers } from "@sleeper-draft-assistant/engine";
-import type { DraftState, Player, Position } from "@sleeper-draft-assistant/shared";
+import { PositionSchema, type DraftState, type Player, type Position } from "@sleeper-draft-assistant/shared";
 
 import type { AiTool, DraftPlayerEvidence, DraftPlayerEvidenceGroups, PlayerPreferenceSummary } from "./types";
 
@@ -9,7 +9,7 @@ const positions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 const sortOptions = ["ecr", "projection", "sleeper_adp", "realtime_adp", "sleeper_search_rank"] as const;
 
 const SearchPlayersInputSchema = z.object({
-  positions: z.array(z.enum(positions as [Position, ...Position[]])).max(6).optional(),
+  positions: z.array(PositionSchema).max(6).optional(),
   sortBy: z.enum(sortOptions).default("ecr"),
   limit: z.number().int().min(1).max(20).default(10),
   tier: z.number().int().positive().optional(),
@@ -19,7 +19,7 @@ const ComparePlayersInputSchema = z.object({
   playerIds: z.array(z.string().trim().min(1).max(100)).min(2).max(6),
 });
 const PositionMarketInputSchema = z.object({
-  positions: z.array(z.enum(positions as [Position, ...Position[]])).min(1).max(3),
+  positions: z.array(PositionSchema).min(1).max(3),
   tierLimit: z.number().int().min(1).max(6).default(4),
 });
 

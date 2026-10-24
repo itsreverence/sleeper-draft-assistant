@@ -4,10 +4,10 @@ import type { AiTool, NewsLookupDiagnostic, NewsLookupOutcome } from "./types";
 
 export type NewsPlayer = { playerId: string; name: string; team: string; position: string };
 export const newsDomains = ["nfl.com", "espn.com"];
-const requestSchema = z.object({
+const requestSchema = z.strictObject({
   playerId: z.string().min(1),
   topic: z.enum(["injury", "practice", "role"]),
-}).strict();
+});
 const resultSchema = z.object({
   summary: z.string().min(1).max(1800),
   sources: z.array(NewsSourceSchema).max(3),

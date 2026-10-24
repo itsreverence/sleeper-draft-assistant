@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// Stored timestamps may omit seconds; Zod 4 requires an explicit minute-precision branch.
+const UtcDateTimeSchema = z.union([z.iso.datetime(), z.iso.datetime({ precision: -1 })]);
+
 export const PositionSchema = z.enum(["QB", "RB", "WR", "TE", "K", "DEF"]);
 export type Position = z.infer<typeof PositionSchema>;
 
@@ -23,7 +26,7 @@ export const SleeperPlayerStatusSchema = z.object({
   practiceParticipation: z.string().nullable(),
   depthChartPosition: z.string().nullable(),
   depthChartOrder: z.number().int().positive().nullable(),
-  newsUpdatedAt: z.string().datetime().nullable(),
+  newsUpdatedAt: UtcDateTimeSchema.nullable(),
 });
 export type SleeperPlayerStatus = z.infer<typeof SleeperPlayerStatusSchema>;
 
@@ -106,7 +109,7 @@ export const DraftStrategyInstructionSchema = DraftStrategyProposalSchema.extend
   id: z.string().min(1).max(100),
   source: DraftStrategyInstructionSourceSchema,
   createdAtPick: z.number().int().positive(),
-  createdAt: z.string().datetime(),
+  createdAt: UtcDateTimeSchema,
 });
 export type DraftStrategyInstruction = z.infer<typeof DraftStrategyInstructionSchema>;
 
@@ -123,7 +126,7 @@ export const NewsSourceSchema = z.object({
   title: z.string().trim().min(1).max(200),
   url: z.string().max(2000).refine(isNewsSourceUrl),
   reportedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
-  checkedAt: z.string().datetime().optional(),
+  checkedAt: UtcDateTimeSchema.optional(),
 });
 export type NewsSource = z.infer<typeof NewsSourceSchema>;
 
@@ -155,7 +158,7 @@ export type CodexServiceTier = z.infer<typeof CodexServiceTierSchema>;
 export const AppSettingsSchema = z.object({
   aiProvider: AiProviderIdSchema.default("noop"),
   codexBin: z.string().trim().min(1).max(4_096).refine(isCodexExecutableReference, {
-    message: CODEX_EXECUTABLE_REFERENCE_MESSAGE,
+    error: CODEX_EXECUTABLE_REFERENCE_MESSAGE,
   }).default("codex"),
   codexModel: z.string().trim().min(1).default(DEFAULT_CODEX_MODEL),
   codexServiceTier: CodexServiceTierSchema.default("fast"),
@@ -166,7 +169,16 @@ export const AppSettingsSchema = z.object({
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
-export const AppSettingsUpdateSchema = AppSettingsSchema.partial();
+export const AppSettingsUpdateSchema = z.object({
+  aiProvider: AppSettingsSchema.shape.aiProvider.unwrap().optional(),
+  codexBin: AppSettingsSchema.shape.codexBin.unwrap().optional(),
+  codexModel: AppSettingsSchema.shape.codexModel.unwrap().optional(),
+  codexServiceTier: AppSettingsSchema.shape.codexServiceTier.unwrap().optional(),
+  codexWebSearch: AppSettingsSchema.shape.codexWebSearch.unwrap().optional(),
+  codexTimeoutMs: AppSettingsSchema.shape.codexTimeoutMs.unwrap().optional(),
+  automaticAiAudit: AppSettingsSchema.shape.automaticAiAudit.unwrap().optional(),
+  aiSetupAcknowledged: AppSettingsSchema.shape.aiSetupAcknowledged.unwrap().optional(),
+} satisfies Record<keyof typeof AppSettingsSchema.shape, z.ZodOptional>);
 export type AppSettingsUpdate = z.infer<typeof AppSettingsUpdateSchema>;
 
 export const RankingImportSummarySchema = z.object({
@@ -459,7 +471,7 @@ export const TeamManagerStateSchema = z.object({
     bench: z.array(PlayerSchema),
     injuredReserve: z.array(PlayerSchema),
     taxi: z.array(PlayerSchema),
-    positionCounts: z.record(PositionSchema, z.number()),
+    positionCounts: z.partialRecord(PositionSchema, z.number()),
   }),
   seasonPhase: SeasonPhaseSchema,
   week: z.number().nullable(),
