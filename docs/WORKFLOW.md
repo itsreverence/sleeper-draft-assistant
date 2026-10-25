@@ -48,7 +48,7 @@ npm run desktop:package
 npm run desktop:make
 ```
 
-`desktop:package` creates an unpacked application for the current platform. Do not report a Linux package as Windows evidence. Windows CI checks the unpacked executable; a clean Windows first-run test remains required before publishing an installer.
+`desktop:package` creates an unpacked application for the current platform. Do not report a Linux package as Windows evidence. Windows CI checks the unpacked API, the NSIS install/restart/uninstall lifecycle with default per-user data and ACLs, and portable renderer startup. A clean Windows first-run test in a real desktop session remains required before publishing an installer. See [Releasing](RELEASING.md) for the remaining manual checks.
 
 For the packaged local-data reset smoke, first close the app and back up the complete `%APPDATA%\Sleeper Draft Assistant` directory. Launch the app, open **Settings > Delete all local app data**, type `DELETE`, and choose **Delete and reset**. Verify the settings drawer closes promptly, the connection screen is usable without restarting the app, the remembered username is cleared, and no prior league or draft reloads. Close and relaunch once more to confirm the reset persists. Restore the backup only while the app is fully closed.
 

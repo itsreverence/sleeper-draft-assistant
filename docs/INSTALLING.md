@@ -36,7 +36,7 @@ Installed and portable builds normally keep their database under:
 %APPDATA%\Sleeper Draft Assistant\data
 ```
 
-This may contain settings, Sleeper identifiers, imported rankings and projections, and recommendation history. The remembered Sleeper username and similar renderer convenience preferences live elsewhere beneath `%APPDATA%\Sleeper Draft Assistant`. Uninstalling the executable may leave both locations in place.
+This may contain settings, Sleeper identifiers, imported rankings and projections, and recommendation history. The remembered Sleeper username and similar renderer convenience preferences live elsewhere beneath `%APPDATA%\Sleeper Draft Assistant`. The default uninstaller retains both locations, including settings and the database. Remove them separately to erase local data.
 
 Settings can clear ranking imports, weekly projections, or recommendation history independently. **Delete all local app data** resets settings and stored app data after typed confirmation, then returns to the connection screen without requiring an app restart. The app reports success only after the local database replacement completes; a failed reset retains the prior usable database and invalidates AI work that began before the attempt.
 
