@@ -38,7 +38,7 @@ npm run verify:roster-feasibility
 npm run check -w @sleeper-draft-assistant/engine   # type-checks the harness and the engine
 ```
 
-It takes under a minute and needs no network or app data. It runs separately from `npm test`; CI also runs it in the `validate` job.
+It takes about 45 s locally and about a minute in CI, and needs no network or app data. It runs separately from `npm test`; CI also runs it in the `validate` job.
 
 ## Read the result
 
@@ -97,6 +97,6 @@ At the earlier sync commit `6958fbf`, the harness used the app's previous rules.
 Only when covered code or Sleeper's slot rules change on purpose:
 
 1. Read the changed functions and check that the harness still matches them. `SLOT_ELIGIBILITY` must still match Sleeper's rules: change it only with a new source, and keep it independent of the app's table. Check that `setRemainingPicks` still reaches the code path `countRemainingUserPicks` uses, and that the P1 policy still matches the code. If the intended policy changed, update the property and say so in the change.
-2. Run the check, and explain every failure as either a modeling change or a bug. Keep the runtime under a minute.
+2. Run the check, and explain every failure as either a modeling change or a bug. Keep the runtime around a minute in CI.
 3. Break the changed code in a scratch edit, confirm the check fails, then restore the file.
 4. Only then move the sync commit to the commit you verified, and update **Read the result**. PRs are squash-merged, so branch commits disappear from `master`: use the `master` commit the change landed as, in a follow-up if needed.
