@@ -2,7 +2,6 @@ name: Release
 
 on:
   push:
-    branches: [ci/windows-upgrade-reset-smoke]
     tags:
       - "v*"
 
@@ -32,7 +31,6 @@ jobs:
           package-manager-cache: false
 
       - name: Verify tag matches package version
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
@@ -134,37 +132,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/publish-release.ps1
-
-  dry-run-publish:
-    if: github.ref == 'refs/heads/ci/windows-upgrade-reset-smoke'
-    needs: [build, smoke]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22.12.0
-          package-manager-cache: false
-      - uses: actions/download-artifact@v8
-        with:
-          artifact-ids: ${{ needs.build.outputs.release-artifact-id }}
-          merge-multiple: true
-          path: build/windows-candidate
-      - name: Verify build hashes and create release checksums
-        run: node scripts/candidate-artifacts.mjs verify --release
-      - name: Force an existing-asset hash mismatch for the negative control
-        shell: pwsh
-        run: |
-          $manifest = Get-Content build/windows-candidate/candidate-hashes.json | ConvertFrom-Json
-          $path = Join-Path "build/windows-candidate/files" $manifest.artifacts[0].name
-          [System.IO.File]::AppendAllText($path, "negative control")
-      - name: Dry run GitHub release publication
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./scripts/publish-release.ps1 -Tag "v0.1.0-beta.4" -DryRun
