@@ -2,8 +2,9 @@
 
 Prepared October 4, 2026 on beta.4 source (`6694db7`) with the changes described
 here, which were later rebased onto the October dependency updates. This is preparation evidence, not a published release or
-Windows sign-off. The app deliberately remains `0.1.0-beta.4` until a new candidate
-is selected. Existing beta.4 downloads do not contain these fixes.
+Windows sign-off. The selected Windows testing candidate is `0.1.0-beta.5`.
+The remaining gates below now run against beta.5. Existing beta.4 downloads do
+not contain these fixes.
 
 ## Changes prepared
 
@@ -85,27 +86,32 @@ updates are expected behavior. Do not restore or compare an open SQLite database
 
 ## Remaining Windows and publication gates
 
-Run these against the **new candidate**, not the old beta.4 installer:
+Run these against **0.1.0-beta.5**, not the old beta.4 installer:
 
-1. Pass current Linux CI and Windows packaged startup CI. Build the candidate
-   installer, portable executable and ZIP with matching checksums.
-2. In a clean Windows profile: install interactively, launch/demo, connect Sleeper,
-   import user-owned data, configure Codex and exercise its recovery guidance.
-   Check native file selection → paste → same-file reselection, keyboard/focus
-   and display scaling. Open an actual returned news citation in the default
-   browser.
-3. Upgrade from beta.4 with a closed-app backup. Verify imports/settings/history,
-   shutdown and relaunch, including quitting during a main AI request and research.
-   Check only app-owned descendant processes. Exercise occupied-port Retry/Exit.
-4. Verify local-data location/profile ACLs, diagnostics redaction, category clears,
-   full reset/relaunch, backup restore/rollback, and uninstall/reinstall as
-   described in WORKFLOW.md and INSTALLING.md.
-5. Select the stable version and synchronize workspace versions and lockfile.
-   Run all canonical gates on that exact commit, inspect Windows artifacts and
-   scan history. Review release notes/privacy/attribution, merge/tag, and verify
-   published downloads/checksums. Keep the supported-format limits and unsigned
-   SmartScreen disclosure. Signing is follow-up work under RELEASING.md.
+1. Pass current Linux CI and Windows package smoke CI on the candidate. Windows
+   CI now covers clean-profile installation, previous-release upgrade with seeded
+   state preserved, installed redaction, guidance clear and full API reset across
+   relaunch, native occupied-port Retry/Exit, data placement/ACLs, uninstall
+   retention, and portable startup. See [automated gates](../RELEASING.md#automated-gates)
+   for exact coverage and limits.
+2. Complete the [every-release real Windows smoke](../RELEASING.md#real-windows-smoke-about-10-minutes)
+   before tagging, using the exact commit's passing pre-smoke `windows-candidate`
+   artifact and its logged ID/digest. Record the maintainer's confirmation in the
+   [beta.5 release notes](0.1.0-beta.5.md#manual-checks).
+3. Complete the [once-before-stable pass](../RELEASING.md#once-before-the-first-stable-release).
+   It remains pending for beta.5. Use that list for the native interaction,
+   live-provider recovery, additional reset categories, shutdown, profile access,
+   and backup restore/rollback checks that CI does not prove.
+4. Select the stable version and synchronize workspace versions and lockfile.
+   Follow [publication checks](../RELEASING.md#publish-the-verified-commit) on that
+   exact commit, including package inspection, history scanning, release-note and
+   attribution review, and published-download checksums. Keep supported-format
+   limits and unsigned SmartScreen disclosure. Signing remains follow-up work.
 
-No new installer, stable tag, or GitHub release was published during this work.
-No Windows tests were run. Automated accessibility coverage is not a substitute
-for assistive-technology testing or the native Windows checks above.
+Do not claim Windows readiness based only on Linux packaging or CI. A real
+clean-profile Windows launch remains the final distribution gate.
+
+No new installer, stable tag, or GitHub release was published during the original
+readiness work above. Its historical Linux and browser results are not beta.5
+Windows sign-off. Automated accessibility coverage does not replace the native
+Windows checks in RELEASING.md.
