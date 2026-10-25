@@ -87,8 +87,17 @@ describe("FantasyPros season value ranking imports", () => {
   });
 
   it.each([
+    '"RK","PLAYER NAME",TEAM,"POS","SOS SEASON","SOS PLAYOFFS","ECR VS. ADP"',
+    '"RK","PLAYER NAME",TEAM,"POS","SOS","PLAYOFFS","ECR VS ADP"',
+  ])("classifies both verified ROS header layouts: %s", (header) => {
+    expect(classifyFantasyProsSeasonValueCsv(header)).toBe("ros-ecr");
+  });
+
+  it.each([
     "RK,PLAYER NAME,TEAM,POS,BEST,WORST,AVG.,STD.DEV,ECR VS. ADP",
     "RK,PLAYER NAME,TEAM,POS,SOS SEASON,ECR VS. ADP",
+    "RK,PLAYER NAME,TEAM,POS,SOS,ECR VS ADP",
+    "RK,PLAYER NAME,TEAM,POS,SOS,PLAYOFFS,ECR VS ADP,TIERS,BYE WEEK",
     "RK,PLAYER NAME,TEAM,POS,SOS SEASON,SOS PLAYOFFS,ECR VS. ADP,TIERS,BYE WEEK",
   ])("rejects unverified or ambiguous headers: %s", (header) => {
     expect(() => classifyFantasyProsSeasonValueCsv(header)).toThrow(SeasonValueRankingImportError);

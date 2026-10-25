@@ -66,7 +66,7 @@ Electron runs with `contextIsolation: true`, `nodeIntegration: false`, and `sand
 
 ## Persistence
 
-Season-value CSV classification recognizes the verified Overall ROS `SOS SEASON` / `SOS PLAYOFFS` / `ECR VS. ADP` header and the separate Overall Draft ECR signature. Missing expert-disagreement statistics remain null; schedule-star values are not repurposed as those statistics. See [actual ROS export validation](research/week-2-ros-availability-2026.md).
+Season-value CSV classification recognizes both verified Overall ROS header layouts, `SOS SEASON` / `SOS PLAYOFFS` / `ECR VS. ADP` and `SOS` / `PLAYOFFS` / `ECR VS ADP`, and the separate Overall Draft ECR signature. Missing expert-disagreement statistics remain null; schedule-star values are not repurposed as those statistics. See [actual ROS export validation](research/week-2-ros-availability-2026.md).
 
 File replacement is the commit point. A failure before replacement rolls back the live database and import caches. If replacement succeeds but directory durability confirmation fails, `CommittedFileWriteError` preserves the committed state and returns safe retry guidance. Reset reconstructs store views from the database for either error outcome. It does not claim that already-replaced disk contents were rolled back.
 
