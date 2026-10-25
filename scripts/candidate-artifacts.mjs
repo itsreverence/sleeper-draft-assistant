@@ -7,6 +7,9 @@ if (!["record", "verify"].includes(command) || options.some((option) => option !
   throw new Error("Usage: node scripts/candidate-artifacts.mjs <record|verify> [--release]");
 }
 const release = options.includes("--release");
+if (command === "verify" && !release) {
+  throw new Error("verify requires --release");
+}
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 const names = [
   `Sleeper Draft Assistant Setup ${version}.exe`,

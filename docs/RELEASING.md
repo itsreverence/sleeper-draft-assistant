@@ -24,7 +24,7 @@ Require Linux CI and the `windows-package-smoke` job to pass. The Windows job an
 - Unpacked API startup, unauthenticated health, authenticated diagnostics, and rejection without a capability token.
 - One exact candidate artifact set, defined in `scripts/candidate-artifacts.mjs`. Unexpected executables or ZIPs fail the build. CI records hashes and uploads the installer, portable executable, and checksums before either smoke runs a binary. The release build uploads its installer, portable executable, ZIP, and hash manifest before smoke runs on a fresh runner. A third runner verifies the build manifest before generating release checksums and publishing. Smoke uploads nothing consumed by publication.
 - Download of the highest semantic version among published, non-draft releases, including prereleases. PR and master CI use that release even when the candidate has the same package version. Tag pushes select only versions strictly lower than the built version, including re-runs and backports. The selected tag is logged. Its NSIS installer must match its own `SHA256SUMS.txt` before execution.
-- Release build and smoke jobs have only `contents: read`. Only the fresh publish runner has `contents: write`, and it never executes an app or installer. Release checkouts disable persisted credentials. The installer script removes `GITHUB_TOKEN` and `GH_TOKEN` from its environment immediately after download and verification, before any installer or app runs.
+- Release build and smoke jobs have only `contents: read`. Only the fresh publish runner has `contents: write`, and it never executes an app or installer. Release checkouts disable persisted credentials. Build and publish explicitly disable setup-node package-manager caching and restore no shared caches. The installer script removes `GITHUB_TOKEN` and `GH_TOKEN` from its environment immediately after download and verification, before any installer or app runs.
 - A clean-profile candidate installation, launch, renderer/API readiness check, and clean close before the separate upgrade test. CI uninstalls this copy and removes only its disposable profile before installing the baseline.
 - Silent per-user installation of the baseline, offline seeding through its authenticated API, clean close, and installation of the candidate over it. Checks compare persisted settings, guidance IDs/text/timestamps, import counts/timestamps, ranking and projection/ADP values, and decision snapshot IDs/timestamps. Added JSON fields and key order do not affect these comparisons. The demo draft supplies synthetic data without Sleeper, FantasyPros, or Codex requests. Old-release readiness uses health, authenticated diagnostics, and the database because older builds lack the renderer-ready marker. Every close waits for that launched process's visible main window.
 - Candidate renderer mount, default `%APPDATA%\Sleeper Draft Assistant` data placement, IPv4 loopback binding, and API authentication. Private ACL checks on the data directory and database permit only the current user, SYSTEM, and Administrators. Hosted-runner ACLs do not prove every standard-user profile configuration.
@@ -43,16 +43,21 @@ The scripts require disposable hosted Windows runners. The installer script refu
 
 Run this smoke **before tagging**, using CI's pre-smoke `windows-candidate` artifact from a passing run of the exact commit to be tagged. That artifact contains the installer, portable executable, and `SHA256SUMS.txt`, and expires after 7 days. If it expires or the commit changes, run CI again and repeat this smoke.
 
-Find the run in GitHub Actions, confirm its full commit SHA, and download **windows-candidate** from its artifacts. With GitHub CLI:
+Find the run in GitHub Actions and confirm its full commit SHA. Open the Windows job's **Log candidate identity before executing smoke binaries** step. Copy its pre-smoke artifact ID and ZIP SHA-256 digest. Download that exact ID with the API, rather than selecting the artifact by name. Use Bash or PowerShell 7.4 or later to preserve binary output:
 
 ```bash
 gh run list --workflow ci.yml --commit <full-commit-sha>
-gh run download <passing-run-id> --name windows-candidate --dir windows-candidate
+gh api repos/itsreverence/sleeper-draft-assistant/actions/artifacts/<logged-artifact-id>/zip > candidate.zip
 ```
 
-In PowerShell, verify both executables against the downloaded manifest before running either:
+The logged `artifact-digest` hashes the uploaded ZIP bytes, not the individual executables. The default archived upload uses the [artifact toolkit's ZIP stream and SHA-256 hash](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/blob-upload.ts). In PowerShell, verify the downloaded archive against the digest from that pre-smoke log before extracting it:
 
 ```powershell
+$expectedZipHash = "<logged-pre-smoke-zip-sha256>"
+if ((Get-FileHash -LiteralPath candidate.zip -Algorithm SHA256).Hash -ine $expectedZipHash) {
+  throw "Candidate ZIP does not match the pre-smoke upload."
+}
+Expand-Archive -LiteralPath candidate.zip -DestinationPath windows-candidate
 Get-Content windows-candidate/SHA256SUMS.txt | ForEach-Object {
   $expected = $_.Substring(0, 64)
   $file = Join-Path windows-candidate $_.Substring(66)
@@ -84,7 +89,7 @@ A maintainer may explicitly authorize a beta testing candidate before manual Win
 6. Create and push the matching tag, such as `v0.1.0-beta.5`, at that verified commit.
 7. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
 
-The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Published binaries come from the tagged release build of that same commit. The manual smoke uses CI's pre-smoke artifact. Separate build, smoke, and publish jobs use fresh runners. Publish selects the build job's immutable artifact ID and downloads only its artifacts and hash manifest, verifies the exact set, and creates `SHA256SUMS.txt` with GitHub's dotted download names. Do not replace an artifact manually without replacing its checksum. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
+The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Published binaries come from the tagged release build of that same commit. The manual smoke uses CI's pre-smoke artifact. Separate build, smoke, and publish jobs use fresh runners. Publish selects the build job's immutable artifact ID and downloads only its artifacts and hash manifest, verifies the exact set, and creates `SHA256SUMS.txt` with GitHub's dotted download names. A rerun checks every existing release asset against its new SHA-256 before uploading anything. Matching assets keep their published bytes, and missing assets can be added. Any changed asset, including `SHA256SUMS.txt`, fails publication. Rebuilt binaries can differ, so publish changed bytes under a new version and tag instead of replacing existing assets. `scripts/publish-release.ps1 -Tag <tag> -DryRun` runs the same guard without changing a release. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
 
 ## Once before the first stable release
 

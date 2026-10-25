@@ -342,21 +342,38 @@ function Test-OccupiedPort {
 
 function Stop-SmokeApp {
   param($Launch)
-  $window = [pscustomobject]@{ Process = $null }
-  Wait-Until {
-    $Launch.Process.Refresh()
-    if ($Launch.Process.HasExited) { throw "App exited before its visible main window was ready." }
-    $ownedIds = @($Launch.Process.Id)
-    $processes = @(Get-CimInstance Win32_Process)
-    do {
-      $children = @($processes | Where-Object { $_.ParentProcessId -in $ownedIds -and $_.ProcessId -notin $ownedIds })
-      $ownedIds += @($children | ForEach-Object { $_.ProcessId })
-    } while ($children.Count -gt 0)
-    $windows = @(Get-Process -Id $ownedIds -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
-    if ($windows.Count -ne 1) { return $false }
-    $window.Process = $windows[0]
-    return $true
-  } "launched process tree's visible main window" 60
+  $launchTime = $Launch.Process.StartTime
+  $window = [pscustomobject]@{ Process = $null; Candidates = @() }
+  try {
+    Wait-Until {
+      $Launch.Process.Refresh()
+      if ($Launch.Process.HasExited) { throw "App exited before its visible main window was ready." }
+      if ($Launch.Process.MainWindowHandle -ne 0) {
+        $window.Process = $Launch.Process
+        return $true
+      }
+      $ownedIds = @($Launch.Process.Id)
+      $processes = @(Get-CimInstance Win32_Process | Where-Object {
+        $_.ProcessId -eq $Launch.Process.Id -or $_.CreationDate -ge $launchTime
+      })
+      do {
+        $children = @($processes | Where-Object { $_.ParentProcessId -in $ownedIds -and $_.ProcessId -notin $ownedIds })
+        $ownedIds += @($children | ForEach-Object { $_.ProcessId })
+      } while ($children.Count -gt 0)
+      $window.Candidates = @($processes | Where-Object { $_.ProcessId -in $ownedIds })
+      $windows = @(Get-Process -Id $ownedIds -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+      if ($windows.Count -ne 1) { return $false }
+      $window.Process = $windows[0]
+      return $true
+    } "launched process tree's visible main window" 60
+  } catch {
+    foreach ($candidate in $window.Candidates) {
+      $process = Get-Process -Id $candidate.ProcessId -ErrorAction SilentlyContinue
+      $hasWindow = $null -ne $process -and $process.MainWindowHandle -ne 0
+      Write-Host "Window candidate PID=$($candidate.ProcessId) Name=$($candidate.Name) ParentPID=$($candidate.ParentProcessId) Created=$($candidate.CreationDate.ToString('o')) HasWindow=$hasWindow"
+    }
+    throw
+  }
   if (-not $window.Process.CloseMainWindow()) {
     throw "Could not close the launched app's main window cleanly."
   }

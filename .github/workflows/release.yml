@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
-          cache: npm
+          package-manager-cache: false
 
       - name: Verify tag matches package version
         shell: pwsh
@@ -49,6 +49,7 @@ jobs:
 
       - run: npm ci
       - run: node --test scripts/candidate-artifacts.test.mjs
+      - run: pwsh -NoProfile -File scripts/publish-release.test.ps1
       - run: npm run check
       - run: npm test
       - run: npm run build
@@ -72,7 +73,7 @@ jobs:
           name: windows-unpacked
           path: apps/desktop/out-builder/win-unpacked/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   smoke:
     needs: build
@@ -118,6 +119,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
+          package-manager-cache: false
       - uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{ needs.build.outputs.release-artifact-id }}
@@ -129,28 +131,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $output = Resolve-Path "build/windows-candidate/files"
-          $manifest = Get-Content build/windows-candidate/candidate-hashes.json | ConvertFrom-Json
-          $artifactPaths = @($manifest.artifacts | ForEach-Object { Join-Path $output $_.name })
-          $artifactPaths += Join-Path $output "SHA256SUMS.txt"
-          $isPrerelease = $env:GITHUB_REF_NAME.Contains("-").ToString().ToLowerInvariant()
-          $notesPath = "docs/releases/$($env:GITHUB_REF_NAME.TrimStart('v')).md"
-          $notesArgs = @()
-          if (Test-Path $notesPath) {
-            $notesArgs = @("--notes-file", $notesPath)
-          }
-
-          & gh release view $env:GITHUB_REF_NAME *> $null
-          if ($LASTEXITCODE -eq 0) {
-            & gh release upload $env:GITHUB_REF_NAME @artifactPaths --clobber
-          } else {
-            & gh release create $env:GITHUB_REF_NAME @artifactPaths `
-              --title "Sleeper Draft Assistant $env:GITHUB_REF_NAME" `
-              --generate-notes `
-              "--prerelease=$isPrerelease" `
-              --verify-tag @notesArgs
-          }
-          if ($LASTEXITCODE -ne 0) {
-            throw "GitHub release publication failed."
-          }
+        run: ./scripts/publish-release.ps1

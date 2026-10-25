@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
@@ -30,7 +30,6 @@ test("CI stages only the exact executables and checksums before smoke can change
   assert.equal(run("record").status, 0);
   assert.deepEqual(readdirSync(files).sort(), [...names, "SHA256SUMS.txt"].sort());
   appendFileSync(join(output, names[0]), "smoke tampering");
-  assert.equal(run("verify").status, 0);
   for (const name of names) {
     const hash = createHash("sha256").update(readFileSync(join(files, name))).digest("hex");
     assert.ok(readFileSync(join(files, "SHA256SUMS.txt"), "ascii").includes(`${hash}  ${name}\n`));
@@ -48,7 +47,24 @@ test("record rejects every unexpected executable, including names outside the pr
 test("record rejects a missing release ZIP", (t) => {
   const { output, names, run } = candidate(t, true);
   rmSync(join(output, names[2]));
-  assert.notEqual(run("record").status, 0);
+  const result = run("record");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Unexpected candidate artifact set/);
+});
+
+test("record rejects a renamed artifact", (t) => {
+  const { output, names, run } = candidate(t, true);
+  renameSync(join(output, names[0]), join(output, "renamed.exe"));
+  const result = run("record");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Unexpected candidate artifact set/);
+});
+
+test("verify requires release mode", (t) => {
+  const { run } = candidate(t);
+  const result = run("verify");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /verify requires --release/);
 });
 
 test("release checksums use verified bytes and dotted GitHub download names", (t) => {
