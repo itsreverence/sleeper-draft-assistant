@@ -24,7 +24,7 @@ This is a direction document, not a promise or release schedule.
 
 - continue checking provider export changes; the supplied 2026 ROS header and all 404 player matches are now verified ([validation](research/week-2-ros-availability-2026.md))
 - keep the desktop/compact accessibility and keyboard-navigation browser checks passing; complete native Windows keyboard/scaling checks on the release candidate
-- keep upgrade, rollback, checksum, and provider-recovery checks in the Windows release smoke test
+- complete the [every-release Windows smoke](RELEASING.md#real-windows-smoke-about-10-minutes) and [once-before-stable pass](RELEASING.md#once-before-the-first-stable-release) on the beta.5 candidate; CI now covers clean installation, previous-release upgrade, installed redaction, clear/reset, occupied-port recovery, private data ACLs, uninstall retention, and portable startup
 - disclose unsigned artifacts and SmartScreen expectations; signing remains follow-up work when the project can sustain the required certificates and release process
 
 ## Candidate follow-up work
