@@ -56,6 +56,7 @@ jobs:
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run desktop:make -- -- --publish never
+        shell: bash
       - name: Record and stage release artifacts
         run: node scripts/candidate-artifacts.mjs record --release
       - name: Upload build artifacts and hash manifest
