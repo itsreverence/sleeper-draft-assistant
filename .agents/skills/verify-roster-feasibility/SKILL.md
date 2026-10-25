@@ -84,7 +84,7 @@ The process exits with code 0. Any `FAIL` line means behavior changed. Each line
 | P2 | `packages/engine/src/index.ts`: `buildDraftOptions`, `getMandatoryCompletionPositions`, plus the P1 slot count |
 | Reference | `SLOT_ELIGIBILITY` in the harness: Sleeper's rules, sourced above, not the app's table |
 
-**Sync commit:** `b93a1ae`, the commit at which the harness was last confirmed to describe the covered code. It was confirmed to catch these scratch breaks:
+**Sync commit:** `19a7552`, the commit at which the harness was last confirmed to describe the covered code. The changes since `b93a1ae` sit outside the covered functions. These scratch breaks were confirmed to fail it (the first again at `19a7552`):
 
 - `REC_FLEX` accepting RB in `STARTER_SLOT_POSITIONS` (P1 for every position, plus P2b)
 - filling flex slots greedily without reassigning earlier players in `countUnfilledStarterSlots` (P1 and P2)
