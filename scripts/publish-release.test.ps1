@@ -61,7 +61,7 @@ try {
   Write-Host "PASS a mismatch rejects the entire publication, including earlier missing assets."
 
   $global:publishTest.Calls.Clear()
-  [System.IO.File]::WriteAllText((Join-Path $files "SHA256SUMS.txt"), "existing bytes`n")
+  [System.IO.File]::WriteAllText((Join-Path $files "SHA256SUMS.txt"), "existing bytes$([Environment]::NewLine)")
   $global:publishTest.Assets = @(@{ name = "SHA256SUMS.txt"; apiUrl = "repos/example/repo/releases/assets/1" })
   & $publish -Tag "v1.2.3" -DryRun
   Assert-NoPublication
