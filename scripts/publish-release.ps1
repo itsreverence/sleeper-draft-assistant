@@ -43,6 +43,7 @@ if ($exists) {
   }
 }
 if ($DryRun) {
+  $global:LASTEXITCODE = 0
   Write-Host "Release publication dry run passed. No release or asset was changed."
   return
 }

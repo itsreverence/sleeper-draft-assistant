@@ -11,11 +11,12 @@ $name = "Sleeper Draft Assistant Setup 1.2.3.exe"
 @{ artifacts = @(@{ name = $name }) } | ConvertTo-Json -Depth 3 |
   Set-Content "$fixture/build/windows-candidate/candidate-hashes.json"
 
-$global:publishTest = @{ Calls = [System.Collections.Generic.List[string]]::new(); Assets = @() }
+$global:publishTest = @{ Calls = [System.Collections.Generic.List[string]]::new(); Assets = @(); Exists = $true }
 function gh {
   $global:publishTest.Calls.Add(($args -join "|"))
   $global:LASTEXITCODE = 0
   if ($args[0] -eq "release" -and $args[1] -eq "view") {
+    if (-not $global:publishTest.Exists) { $global:LASTEXITCODE = 1; return }
     return ConvertTo-Json -InputObject @{ assets = $global:publishTest.Assets } -Depth 4
   }
   if ($args[0] -eq "api") { return "existing bytes" }
@@ -67,6 +68,13 @@ try {
   Assert-NoPublication
   if (@($global:publishTest.Calls | Where-Object { $_ -like 'api|*' }).Count -ne 1) { throw "Missing digest did not download the existing asset." }
   Write-Host "PASS assets without API digests are downloaded and hashed."
+
+  $global:publishTest.Calls.Clear()
+  $global:publishTest.Exists = $false
+  & $publish -Tag "v1.2.3" -DryRun
+  Assert-NoPublication
+  if ($LASTEXITCODE -ne 0) { throw "A successful dry run retained the missing-release exit code." }
+  Write-Host "PASS missing-release dry runs return exit code zero."
 } finally {
   Set-Location $root
   Remove-Item -LiteralPath $fixture -Recurse -Force
