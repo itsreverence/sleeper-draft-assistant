@@ -84,3 +84,22 @@ it("reports file-read failure without retaining old files or exposing system err
   expect(screen.queryByText(/private filesystem/)).toBeNull();
   expect((screen.getByRole("button", { name: "Import QB" }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+it.each([
+  ["FantasyPros_K(4).csv", "K"],
+  ["FantasyPros_DST (2).csv", "DEF"],
+  ["FantasyPros_DEF.csv", "DEF"],
+  ["renamed.csv", "K"],
+])("uses the shared detector for %s", async (name, position) => {
+  const onImport = setup();
+  const csvText = position === "DEF"
+    ? "Player,Team,SACK,INT,FR,FF,TD,SAFETY,PA,YDS_AGN,FPTS\nExample Defense,DAL,3,1,1,1,0,0,20,300,8"
+    : "Player,Team,FG,FGA,XPT,FPTS\nExample Kicker,DAL,2,3,3,9";
+  await fireEvent.change(screen.getByLabelText("Projection CSV"), {
+    target: { files: [{ name, text: async () => csvText }] },
+  });
+  const label = position === "DEF" ? "DST" : position;
+  await screen.findByRole("button", { name: `Import ${label}` });
+  await fireEvent.click(screen.getByRole("button", { name: `Import ${label}` }));
+  expect(onImport).toHaveBeenCalledWith({ season: "2026", week: 2, files: [{ position, csvText }] });
+});
