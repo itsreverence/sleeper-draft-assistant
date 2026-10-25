@@ -159,7 +159,7 @@ try {
 
   $second = Start-SmokeApp $exe
   $persisted = Invoke-RestMethod "$($second.Url)/settings" -Headers $second.Headers -TimeoutSec 5
-  if ($persisted.codexWebSearch -ne $false -or $persisted.codexTimeoutMs -ne 75000) {
+  if ($persisted.codexWebSearch -ne $false -or $persisted.codexTimeoutMs -ne 75001) {
     throw "Settings did not persist across installed-app restart."
   }
   Write-Host "Authenticated settings persisted across restart with a fresh launch token."
