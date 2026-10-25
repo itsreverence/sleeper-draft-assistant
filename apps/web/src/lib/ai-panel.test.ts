@@ -43,6 +43,32 @@ describe("AI panel helpers", () => {
     expect(questions.some((question) => question.prompt.includes("Jahmyr Gibbs"))).toBe(false);
   });
 
+  it("shows the pass-on-QB question in the first three suggestions in a one-QB FLEX league", () => {
+    const questions = buildSuggestedQuestions(createState(), recommendation, true, false);
+
+    expect(questions.slice(0, 3).map((question) => question.label)).toEqual([
+      "Best target",
+      "Compare best options",
+      "Pass on QB?",
+    ]);
+  });
+
+  it("replaces the pass-on-QB question with RB/WR fit after the user drafts a QB", () => {
+    const stateWithQb = createState();
+    stateWithQb.teams = stateWithQb.teams.map((team) =>
+      team.id === stateWithQb.userTeamId ? { ...team, roster: ["qb-1"] } : team,
+    );
+
+    const questions = buildSuggestedQuestions(stateWithQb, recommendation, true, false);
+
+    expect(questions.map((question) => question.label)).not.toContain("Pass on QB?");
+    expect(questions.slice(0, 3).map((question) => question.label)).toEqual([
+      "Best target",
+      "Compare best options",
+      "Best RB/WR fit",
+    ]);
+  });
+
   it.each(["SUPER_FLEX", "SF"])("omits the pass-on-QB question in a %s league", (slot) => {
     const superflexState = createState();
     superflexState.settings.rosterSlots[slot] = 1;
@@ -50,6 +76,11 @@ describe("AI panel helpers", () => {
     const questions = buildSuggestedQuestions(superflexState, recommendation, true, false);
 
     expect(questions.map((question) => question.label)).not.toContain("Pass on QB?");
+    expect(questions.slice(0, 3).map((question) => question.label)).toEqual([
+      "Best target",
+      "Compare best options",
+      "Best RB/WR fit",
+    ]);
   });
 
   it("builds a complete, grouped context summary for the AI panel", () => {
