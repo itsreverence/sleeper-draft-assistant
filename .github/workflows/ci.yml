@@ -20,6 +20,7 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
+      - run: node --test scripts/candidate-artifacts.test.mjs
       - run: npm run check
       - run: npm test
       - run: npm run verify:roster-feasibility
@@ -52,9 +53,14 @@ jobs:
       - run: npm run build:assets -w @sleeper-draft-assistant/desktop
       - run: node node_modules/electron-builder/cli.js --projectDir apps/desktop --win nsis portable --publish never
       - name: Record artifact integrity before smoke
-        id: candidate-integrity
-        shell: pwsh
-        run: ./scripts/check-candidate-artifacts.ps1 -Record
+        run: node scripts/candidate-artifacts.mjs record
+      - name: Upload candidate before executing smoke binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-candidate
+          path: build/windows-candidate/files/
+          if-no-files-found: error
+          retention-days: 7
       - name: Smoke test packaged API and desktop startup
         shell: pwsh
         run: ./scripts/smoke-packaged-windows.ps1
@@ -64,23 +70,3 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SMOKE_BASELINE_TAG: ${{ vars.SMOKE_BASELINE_TAG }}
         run: ./scripts/smoke-installer-windows.ps1
-      - name: Verify artifact integrity after smoke
-        shell: pwsh
-        env:
-          SMOKE_CANDIDATE_HASHES: ${{ steps.candidate-integrity.outputs.hashes }}
-        run: ./scripts/check-candidate-artifacts.ps1
-      - name: Record candidate checksums
-        shell: pwsh
-        run: |
-          Get-ChildItem apps/desktop/out-builder -File -Filter "*.exe" |
-            Get-FileHash -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path -Leaf $_.Path)" } |
-            Set-Content -Encoding ascii apps/desktop/out-builder/SHA256SUMS.txt
-      - uses: actions/upload-artifact@v7
-        with:
-          name: windows-candidate
-          path: |
-            apps/desktop/out-builder/*.exe
-            apps/desktop/out-builder/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 7

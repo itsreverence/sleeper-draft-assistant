@@ -221,6 +221,7 @@ function Install-SmokeApp {
 function Get-PreviousInstaller {
   $override = $env:SMOKE_BASELINE_TAG
   if (-not [string]::IsNullOrWhiteSpace($override)) {
+    Write-Host "::warning::SMOKE_BASELINE_TAG override in use. Selected baseline $override."
     $releaseJson = & gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$([Uri]::EscapeDataString($override))"
     if ($LASTEXITCODE -ne 0) { throw "SMOKE_BASELINE_TAG '$override' was not found as a published release." }
     $previous = $releaseJson | ConvertFrom-Json
@@ -230,30 +231,32 @@ function Get-PreviousInstaller {
     if ($LASTEXITCODE -ne 0) { throw "Could not list published releases." }
     $published = @($releasesJson | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object { -not $_.draft })
     if ($published.Count -eq 0) {
-      Write-Host "UPGRADE SKIPPED: No published releases and no SMOKE_BASELINE_TAG. Clean candidate checks still run."
+      Write-Host "::warning::UPGRADE SKIPPED: No published releases and no SMOKE_BASELINE_TAG. Clean candidate checks still run."
       return $null
     }
     $baselines = @($published | ForEach-Object {
       $semanticVersion = $null
       if ([System.Management.Automation.SemanticVersion]::TryParse(($_.tag_name -replace '^v', ''), [ref]$semanticVersion)) {
-        if ($env:GITHUB_REF_TYPE -ne "tag" -or $semanticVersion -ne [System.Management.Automation.SemanticVersion]$version) {
+        if ($env:GITHUB_REF_TYPE -ne "tag" -or $semanticVersion -lt [System.Management.Automation.SemanticVersion]$version) {
           [pscustomobject]@{ Release = $_; Version = $semanticVersion }
         }
       }
     } | Sort-Object Version -Descending)
     if ($baselines.Count -eq 0) {
-      if ($env:GITHUB_REF_TYPE -eq "tag" -and @($published | Where-Object {
-        ($_.tag_name -replace '^v', '') -ne $version
-      }).Count -eq 0) {
-        Write-Host "UPGRADE SKIPPED: Only the tagged build version is published. Clean candidate checks still run."
+      if ($env:GITHUB_REF_TYPE -eq "tag") {
+        Write-Host "::warning::UPGRADE SKIPPED: No published semver release is older than $version. Clean candidate checks still run."
         return $null
       }
-      throw "No published semver baseline remains after excluding the tagged build version."
+      throw "No published release has a valid semantic version for the upgrade baseline."
     }
     $previous = $baselines[0].Release
   }
-  if ($env:GITHUB_REF_TYPE -eq "tag" -and ($previous.tag_name -replace '^v', '') -eq $version) {
-    throw "Upgrade baseline must differ from the tagged build version."
+  if ($env:GITHUB_REF_TYPE -eq "tag") {
+    $baselineVersion = $null
+    if (-not [System.Management.Automation.SemanticVersion]::TryParse(($previous.tag_name -replace '^v', ''), [ref]$baselineVersion) -or
+        $baselineVersion -ge [System.Management.Automation.SemanticVersion]$version) {
+      throw "Upgrade baseline must have a semantic version strictly lower than tagged build $version."
+    }
   }
   Write-Host "Selected upgrade baseline $($previous.tag_name). Candidate $version. Ref type $env:GITHUB_REF_TYPE."
   $installers = @($previous.assets | Where-Object { $_.name -match '^Sleeper[. ]Draft[. ]Assistant[. ]Setup[. ].+\.exe$' })

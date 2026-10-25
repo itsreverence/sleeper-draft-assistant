@@ -6,14 +6,16 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  windows-prerelease:
+  build:
+    permissions:
+      contents: read
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -43,67 +45,86 @@ jobs:
           }
 
       - run: npm ci
+      - run: node --test scripts/candidate-artifacts.test.mjs
       - run: npm run check
       - run: npm test
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
-      - run: npm run desktop:make
-      - name: Record artifact integrity before smoke
-        id: candidate-integrity
-        shell: pwsh
-        run: ./scripts/check-candidate-artifacts.ps1 -Record
+      - run: npm run desktop:make -- -- --publish never
+      - name: Record and stage release artifacts
+        run: node scripts/candidate-artifacts.mjs record --release
+      - name: Upload build artifacts and hash manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-release
+          path: build/windows-candidate/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unpacked application for smoke
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-unpacked
+          path: apps/desktop/out-builder/win-unpacked/
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-release
+          path: build/windows-candidate
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-unpacked
+          path: apps/desktop/out-builder/win-unpacked
       - name: Smoke test packaged API and desktop startup
         shell: pwsh
         run: ./scripts/smoke-packaged-windows.ps1
-
       - name: Smoke test installer upgrade, reset, redaction, and portable executable
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SMOKE_BASELINE_TAG: ${{ vars.SMOKE_BASELINE_TAG }}
-        run: ./scripts/smoke-installer-windows.ps1
+        run: ./scripts/smoke-installer-windows.ps1 -OutputDirectory build/windows-candidate/files
 
-      - name: Verify artifact integrity after smoke
-        shell: pwsh
-        env:
-          SMOKE_CANDIDATE_HASHES: ${{ steps.candidate-integrity.outputs.hashes }}
-        run: ./scripts/check-candidate-artifacts.ps1
-
-      - name: Create release checksums
-        shell: pwsh
-        run: |
-          $output = Resolve-Path "apps/desktop/out-builder"
-          $artifacts = Get-ChildItem $output -File |
-            Where-Object {
-              $_.Name -like "Sleeper Draft Assistant*" -and
-              ($_.Extension -eq ".exe" -or $_.Extension -eq ".zip")
-            } |
-            Sort-Object Name
-          if ($artifacts.Count -ne 3) {
-            throw "Expected installer, portable executable, and ZIP; found $($artifacts.Count) release artifacts."
-          }
-          $checksums = $artifacts | ForEach-Object {
-            $downloadName = $_.Name.Replace(" ", ".")
-            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $downloadName"
-          }
-          $checksums | Set-Content (Join-Path $output "SHA256SUMS.txt") -Encoding ascii
-
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-release
+          path: build/windows-candidate
+      - name: Verify build hashes and create release checksums
+        run: node scripts/candidate-artifacts.mjs verify --release
       - name: Publish GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $output = Resolve-Path "apps/desktop/out-builder"
-          $artifacts = @(
-            Get-ChildItem $output -File |
-              Where-Object {
-                $_.Name -like "Sleeper Draft Assistant*" -and
-                ($_.Extension -eq ".exe" -or $_.Extension -eq ".zip")
-              } |
-              Sort-Object Name
-          )
-          $artifacts += Get-Item (Join-Path $output "SHA256SUMS.txt")
-          $artifactPaths = $artifacts.FullName
+          $output = Resolve-Path "build/windows-candidate/files"
+          $manifest = Get-Content build/windows-candidate/candidate-hashes.json | ConvertFrom-Json
+          $artifactPaths = @($manifest.artifacts | ForEach-Object { Join-Path $output $_.name })
+          $artifactPaths += Join-Path $output "SHA256SUMS.txt"
           $isPrerelease = $env:GITHUB_REF_NAME.Contains("-").ToString().ToLowerInvariant()
           $notesPath = "docs/releases/$($env:GITHUB_REF_NAME.TrimStart('v')).md"
           $notesArgs = @()
