@@ -84,7 +84,7 @@ A maintainer may explicitly authorize a beta testing candidate before manual Win
 6. Create and push the matching tag, such as `v0.1.0-beta.5`, at that verified commit.
 7. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
 
-The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Published binaries come from the tagged release build of that same commit, rather than from CI's manual-smoke artifact. Separate build, smoke, and publish jobs use fresh runners. Publish downloads only the build job's artifacts and hash manifest, verifies the exact set, and creates `SHA256SUMS.txt` with GitHub's dotted download names. Do not replace an artifact manually without replacing its checksum. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
+The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Published binaries come from the tagged release build of that same commit, rather than from CI's manual-smoke artifact. Separate build, smoke, and publish jobs use fresh runners. Publish selects the build job's immutable artifact ID and downloads only its artifacts and hash manifest, verifies the exact set, and creates `SHA256SUMS.txt` with GitHub's dotted download names. Do not replace an artifact manually without replacing its checksum. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
 
 ## Once before the first stable release
 

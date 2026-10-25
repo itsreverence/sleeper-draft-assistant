@@ -15,6 +15,9 @@ concurrency:
 
 jobs:
   build:
+    outputs:
+      release-artifact-id: ${{ steps.release-artifacts.outputs.artifact-id }}
+      unpacked-artifact-id: ${{ steps.unpacked-artifacts.outputs.artifact-id }}
     permissions:
       contents: read
     runs-on: windows-latest
@@ -56,6 +59,7 @@ jobs:
       - name: Record and stage release artifacts
         run: node scripts/candidate-artifacts.mjs record --release
       - name: Upload build artifacts and hash manifest
+        id: release-artifacts
         uses: actions/upload-artifact@v7
         with:
           name: windows-release
@@ -63,6 +67,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Upload unpacked application for smoke
+        id: unpacked-artifacts
         uses: actions/upload-artifact@v7
         with:
           name: windows-unpacked
@@ -82,11 +87,13 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
-          name: windows-release
+          artifact-ids: ${{ needs.build.outputs.release-artifact-id }}
+          merge-multiple: true
           path: build/windows-candidate
       - uses: actions/download-artifact@v8
         with:
-          name: windows-unpacked
+          artifact-ids: ${{ needs.build.outputs.unpacked-artifact-id }}
+          merge-multiple: true
           path: apps/desktop/out-builder/win-unpacked
       - name: Smoke test packaged API and desktop startup
         shell: pwsh
@@ -114,7 +121,8 @@ jobs:
           node-version: 22.12.0
       - uses: actions/download-artifact@v8
         with:
-          name: windows-release
+          artifact-ids: ${{ needs.build.outputs.release-artifact-id }}
+          merge-multiple: true
           path: build/windows-candidate
       - name: Verify build hashes and create release checksums
         run: node scripts/candidate-artifacts.mjs verify --release
@@ -164,7 +172,8 @@ jobs:
           node-version: 22.12.0
       - uses: actions/download-artifact@v8
         with:
-          name: windows-release
+          artifact-ids: ${{ needs.build.outputs.release-artifact-id }}
+          merge-multiple: true
           path: build/windows-candidate
       - name: Verify build hashes and create release checksums
         run: node scripts/candidate-artifacts.mjs verify --release
