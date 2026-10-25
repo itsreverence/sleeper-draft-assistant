@@ -18,9 +18,9 @@ npm audit --omit=dev --audit-level=high
 
 Then:
 
-1. Confirm CI passes on Linux and the Windows packaged API/desktop startup smoke job succeeds. The desktop check waits for the local database and a smoke-only marker. The marker proves the renderer app mounted (`#app` has content) after the packaged page loaded. It does not verify every UI interaction.
-2. Run `npm run desktop:package` on Windows.
-3. Use a clean Windows user profile to verify launch, demo mode, Sleeper connection, import, settings, diagnostics, data permissions/ACL location, shutdown, relaunch, and uninstall.
+1. Confirm CI passes on Linux and the Windows package smoke job succeeds. Windows CI checks unpacked API authentication, silent per-user NSIS installation, default `%APPDATA%\Sleeper Draft Assistant` data placement, private data-directory and database ACLs, authenticated settings persistence across a clean restart, silent uninstall with user-data retention, and portable startup. ACL checks permit only the current user, SYSTEM, and Administrators. The release workflow repeats these checks before publishing. Renderer readiness means `#app` has content after the packaged page loads; UI interactions remain manual.
+2. Build or download Windows distributable artifacts from the intended commit for the manual checks.
+3. Use a clean Windows user profile in a real desktop session for the remaining manual checks. Verify demo mode, the connection against live Sleeper, import, settings, and diagnostics through the UI. Check SmartScreen and unsigned-download behavior using the downloaded release artifacts. CI does not prove these flows or a real desktop session.
 4. Confirm API binding/authentication with the smoke test in `WORKFLOW.md`.
 5. Inspect packaged contents for source maps, local paths, credentials, test data, ranking exports, and unneeded build files.
 6. Scan the release commit and reachable history with Gitleaks or an equivalent dedicated scanner.

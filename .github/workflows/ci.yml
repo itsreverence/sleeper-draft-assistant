@@ -49,7 +49,10 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
-      - run: npm run desktop:package
+      - run: npm run make -w @sleeper-draft-assistant/desktop -- --win nsis portable
       - name: Smoke test packaged API and desktop startup
         shell: pwsh
         run: ./scripts/smoke-packaged-windows.ps1
+      - name: Smoke test installer lifecycle and portable executable
+        shell: pwsh
+        run: ./scripts/smoke-installer-windows.ps1

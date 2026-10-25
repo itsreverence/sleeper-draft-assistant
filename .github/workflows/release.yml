@@ -50,6 +50,10 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke-packaged-windows.ps1
 
+      - name: Smoke test installer lifecycle and portable executable
+        shell: pwsh
+        run: ./scripts/smoke-installer-windows.ps1
+
       - name: Create release checksums
         shell: pwsh
         run: |
