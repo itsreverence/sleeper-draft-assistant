@@ -21,7 +21,7 @@ function Assert-PrivateAcl {
   $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
   Write-Host "ACL for $Path"
   Write-Host ($rules | Select-Object IdentityReference, FileSystemRights, AccessControlType, IsInherited, PropagationFlags |
-    Format-Table -AutoSize | Out-String)
+    Format-Table -AutoSize | Out-String -Width 240)
   $allowedSids = @(
     [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
     "S-1-5-18",
@@ -123,7 +123,10 @@ $environmentNames = @("PORT", "ELECTRON_RUN_AS_NODE", "SLEEPER_AI_API_TOKEN", "S
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) {
   $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
-  [Environment]::SetEnvironmentVariable($name, $null)
+  Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+}
+if ((Test-Path Env:ELECTRON_RUN_AS_NODE) -or (Test-Path Env:SLEEPER_AI_USER_DATA_DIR)) {
+  throw "Desktop smoke must not inherit Node mode or a user-data override."
 }
 $env:SLEEPER_AI_PACKAGE_SMOKE = "1"
 try {
@@ -187,6 +190,10 @@ try {
   Get-Process -Name "Sleeper Draft Assistant" -ErrorAction SilentlyContinue |
     Stop-Process -Force -ErrorAction SilentlyContinue
   foreach ($name in $environmentNames) {
-    [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name])
+    if ($null -eq $savedEnvironment[$name]) {
+      Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+    } else {
+      Set-Item "Env:$name" -Value $savedEnvironment[$name]
+    }
   }
 }
