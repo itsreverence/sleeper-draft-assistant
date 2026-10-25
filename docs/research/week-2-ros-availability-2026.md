@@ -26,6 +26,16 @@ An in-memory import of the actual attachment against the live public Sleeper pla
 
 Season and scoring still come from the user's import selection and league compatibility checks: the CSV header does not encode either. This validates the supplied export, not every possible FantasyPros table configuration or future format.
 
+## Second header layout — October 25
+
+A FantasyPros Overall ROS export downloaded on Windows on October 25 used shorter schedule labels:
+
+```text
+"RK","PLAYER NAME",TEAM,"POS","SOS","PLAYOFFS","ECR VS ADP"
+```
+
+An export of the same page downloaded the same morning on Linux still used the September header. This is consistent with the bundle reading the rendered table headers, which differ by page layout. The importer previously rejected the shorter labels. Classification now accepts either label for each schedule column, still requires `ECR VS ADP` and both schedule columns, and still rejects headers that also carry the draft `TIERS` / `BYE WEEK` signature. The row columns the importer reads (`RK`, `PLAYER NAME`, `TEAM`, `POS`) are unchanged.
+
 ## Method
 
-Only first-party sources were used. Search extraction of the ROS page omitted most dynamic content, so the public HTML and its linked JavaScript were inspected directly in memory. No player rankings, provider credentials, or user-specific league data were saved in the repository. No application code or persisted imports were changed.
+Only first-party sources were used. Search extraction of the ROS page omitted most dynamic content, so the public HTML and its linked JavaScript were inspected directly in memory. No player rankings, provider credentials, or user-specific league data were saved in the repository. The research itself changed no persisted imports; importer changes are described in the validation sections above.

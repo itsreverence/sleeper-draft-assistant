@@ -81,14 +81,41 @@ describe("FantasyPros season value ranking imports", () => {
     expect(gibbs?.rosRank).toBeUndefined();
   });
 
+  it("imports the compact ROS header layout end to end", () => {
+    const players = createMockDraftState(0).players;
+    const compactCsv = rosCsv.replace(
+      '"SOS SEASON","SOS PLAYOFFS","ECR VS. ADP"',
+      '"SOS","PLAYOFFS","ECR VS ADP"',
+    );
+    const storedImport = importFantasyProsSeasonValueRankings({
+      players,
+      season: "2025",
+      scoring: "PPR",
+      csvText: compactCsv,
+    });
+
+    expect(storedImport.summary).toMatchObject({ rankingType: "ros-ecr", rowsParsed: 2, matched: 2 });
+    expect(applySeasonValueRankingsToPlayers(players, storedImport)
+      .find((player) => player.name === "Josh Allen")).toMatchObject({ rosRank: 2, rosPositionRank: 1 });
+  });
+
   it("rejects an unrecognized rankings export", () => {
     expect(() => classifyFantasyProsSeasonValueCsv("RK,PLAYER NAME,TEAM,POS\n1,Player,SEA,WR1"))
       .toThrow(SeasonValueRankingImportError);
   });
 
   it.each([
+    '"RK","PLAYER NAME",TEAM,"POS","SOS SEASON","SOS PLAYOFFS","ECR VS. ADP"',
+    '"RK","PLAYER NAME",TEAM,"POS","SOS","PLAYOFFS","ECR VS ADP"',
+  ])("classifies both verified ROS header layouts: %s", (header) => {
+    expect(classifyFantasyProsSeasonValueCsv(header)).toBe("ros-ecr");
+  });
+
+  it.each([
     "RK,PLAYER NAME,TEAM,POS,BEST,WORST,AVG.,STD.DEV,ECR VS. ADP",
     "RK,PLAYER NAME,TEAM,POS,SOS SEASON,ECR VS. ADP",
+    "RK,PLAYER NAME,TEAM,POS,SOS,ECR VS ADP",
+    "RK,PLAYER NAME,TEAM,POS,SOS,PLAYOFFS,ECR VS ADP,TIERS,BYE WEEK",
     "RK,PLAYER NAME,TEAM,POS,SOS SEASON,SOS PLAYOFFS,ECR VS. ADP,TIERS,BYE WEEK",
   ])("rejects unverified or ambiguous headers: %s", (header) => {
     expect(() => classifyFantasyProsSeasonValueCsv(header)).toThrow(SeasonValueRankingImportError);

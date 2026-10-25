@@ -214,8 +214,12 @@ export function classifyFantasyProsSeasonValueCsv(csvText: string): SeasonValueR
   }
   const normalized = new Set(headers.map(normalizeHeader));
   const hasCore = ["rk", "playername", "team", "pos"].every((header) => normalized.has(header));
-  // Verified Overall ROS export; expert-disagreement columns are not required.
-  const hasRosSignature = ["sosseason", "sosplayoffs", "ecrvsadp"].every((header) => normalized.has(header));
+  // Verified Overall ROS exports; FantasyPros labels the schedule columns
+  // "SOS SEASON"/"SOS PLAYOFFS" or "SOS"/"PLAYOFFS" depending on the page layout.
+  // Expert-disagreement columns are not required.
+  const hasRosSignature = normalized.has("ecrvsadp")
+    && (normalized.has("sosseason") || normalized.has("sos"))
+    && (normalized.has("sosplayoffs") || normalized.has("playoffs"));
   const hasDraftSignature = ["tiers", "byeweek", "ecrvsadp"].every((header) => normalized.has(header));
 
   if (!hasCore || hasRosSignature === hasDraftSignature) {
