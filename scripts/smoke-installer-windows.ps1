@@ -151,6 +151,7 @@ function Assert-Redaction {
     $privatePathSegment, $seededSettings.codexBin, $guidanceText, $unmatchedName,
     $seedPlayer.id, $seedPlayer.name, "mock-draft", "team-3", $instructionId
   )
+  $privateValues += @((ConvertFrom-Json -InputObject $seededHistory).snapshots | ForEach-Object { $_.id })
   foreach ($route in @("/diagnostics", "/data/support-report")) {
     $response = Invoke-WebRequest "$($Launch.Url)$route" -Headers $Launch.Headers -TimeoutSec 10
     $body = $response.Content.Replace('\\', '\')
@@ -399,6 +400,7 @@ try {
   }
   Stop-SmokeApp $second
   $afterReset = Start-SmokeApp $exe
+  Assert-PrivateAcl $databasePath
   Assert-Settings (Invoke-AppApi $afterReset "/settings") $defaultSettings
   $inventory = Invoke-AppApi $afterReset "/data"
   foreach ($category in @("rankingImports", "seasonProjectionImports", "adpImports", "rosRankingImports",
