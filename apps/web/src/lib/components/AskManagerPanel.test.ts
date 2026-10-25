@@ -33,7 +33,11 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     expect(screen.getByText("Context ready")).toBeTruthy();
     expect(screen.queryByText("AI context")).toBeNull();
-    expect(screen.getByLabelText("Suggested questions").querySelectorAll("button")).toHaveLength(3);
+    expect(Array.from(screen.getByLabelText("Suggested questions").querySelectorAll("button"), (button) => button.textContent?.trim())).toEqual([
+      "Best target",
+      "Compare best options",
+      "Pass on QB?",
+    ]);
 
     const composer = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     expect(composer.tagName).toBe("INPUT");

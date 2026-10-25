@@ -124,12 +124,12 @@ export function buildSuggestedQuestions(
     { label: "Compare best options", prompt: "Search the available players and compare the best options." },
   ];
 
-  if (getFlexSlotCount(state) > 0) {
-    questions.push({ label: "Best RB/WR fit", prompt: "Which RB/WR fits this build best?" });
+  if (hasSingleQbFormat(state) && rosterNeeds.includes("QB")) {
+    questions.push({ label: "Pass on QB?", prompt: "Should I pass on QB in this format?" });
   }
 
-  if (hasSingleQbFormat(state)) {
-    questions.push({ label: "Pass on QB?", prompt: "Should I pass on QB in this format?" });
+  if (getFlexSlotCount(state) > 0) {
+    questions.push({ label: "Best RB/WR fit", prompt: "Which RB/WR fits this build best?" });
   }
 
   if (rosterNeeds.length > 0) {
