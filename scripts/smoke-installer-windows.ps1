@@ -369,7 +369,7 @@ try {
   $first = Start-SmokeApp $exe
   Assert-PrivateAcl (Join-Path $profileRoot "data")
   Assert-PrivateAcl $databasePath
-  Assert-SeededState $first
+  Assert-SeededState $first -ExpectedRank 18
   Write-Host "Upgrade preserved every setting, saved guidance, synthetic ranking value, and complete decision history through authenticated API reads."
   Assert-Redaction $first
 
