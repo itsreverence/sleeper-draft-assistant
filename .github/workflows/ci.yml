@@ -64,6 +64,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SMOKE_BASELINE_TAG: ${{ vars.SMOKE_BASELINE_TAG }}
         run: ./scripts/smoke-installer-windows.ps1
+      - name: Negative control tamper with the candidate after smoke
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          $portable = "apps/desktop/out-builder/Sleeper Draft Assistant $version.exe"
+          Add-Content -LiteralPath $portable -Value "Candidate artifact integrity negative control"
       - name: Verify artifact integrity after smoke
         shell: pwsh
         env:
