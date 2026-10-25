@@ -22,19 +22,47 @@ git diff --check
 Require Linux CI and the `windows-package-smoke` job to pass. The Windows job and the release workflow both run these checks before publication:
 
 - Unpacked API startup, unauthenticated health, authenticated diagnostics, and rejection without a capability token.
-- Download of the newest published release other than the version being built, including prereleases. Its NSIS installer must match its own `SHA256SUMS.txt` before execution. Release discovery and download need only `contents: read`.
-- Silent per-user installation of that release, offline seeding through its authenticated API, clean close, and installation of the candidate over it. Every settings field, saved strategy guidance, synthetic ranking value, and complete decision history must survive through API reads. The demo draft supplies synthetic data without Sleeper, FantasyPros, or Codex requests. Old-release readiness uses health, authenticated diagnostics, and the database because older builds lack the renderer-ready marker.
+- Candidate installer, portable executable, and any release ZIP hashes recorded before either smoke runs a binary. The workflows verify those hashes again immediately before creating checksums and uploading. Changed files or a changed artifact set fail the job.
+- Download of the highest semantic version among published, non-draft releases, including prereleases. PR and master CI use that release even when the candidate has the same package version. Tag pushes exclude the built version, including re-runs. The selected tag is logged. Its NSIS installer must match its own `SHA256SUMS.txt` before execution.
+- Release discovery and download require only read access, but the release job retains `contents: write` for publication. Its checkout disables persisted credentials. The installer script removes `GITHUB_TOKEN` and `GH_TOKEN` from its environment immediately after download and verification, before any installer or app runs.
+- A clean-profile candidate installation, launch, renderer/API readiness check, and clean close before the separate upgrade test. CI uninstalls this copy and removes only its disposable profile before installing the baseline.
+- Silent per-user installation of the baseline, offline seeding through its authenticated API, clean close, and installation of the candidate over it. Checks compare persisted settings, guidance IDs/text/timestamps, import counts/timestamps, ranking and projection/ADP values, and decision snapshot IDs/timestamps. Added JSON fields and key order do not affect these comparisons. The demo draft supplies synthetic data without Sleeper, FantasyPros, or Codex requests. Old-release readiness uses health, authenticated diagnostics, and the database because older builds lack the renderer-ready marker. Every close waits for that launched process's visible main window.
 - Candidate renderer mount, default `%APPDATA%\Sleeper Draft Assistant` data placement, IPv4 loopback binding, and API authentication. Private ACL checks on the data directory and database permit only the current user, SYSTEM, and Administrators. Hosted-runner ACLs do not prove every standard-user profile configuration.
-- Diagnostics and support-report redaction with populated private data. Checks exclude the launch capability, profile path, username, AppData path and literal `%APPDATA%`, configured executable path, seeded player and guidance identifiers, imported names, and guidance text. Safe settings metadata such as model and timeout remain reportable.
-- A saved-guidance category clear, relaunch, and proof that unrelated settings, imports, and history remain. A full reset followed by relaunch must restore defaults and empty every stored domain. The renderer must mount and settings must remain writable. This tests the API reset, not the renderer's typed-confirmation and preference cleanup flow.
+- Diagnostics and support-report redaction with populated private data. Checks exclude the launch capability, profile path, username, AppData path and literal `%APPDATA%`, configured executable path, seeded player, guidance, and snapshot identifiers, imported names, and guidance text. Leak checks normalize Windows, forward-slash, and JSON-escaped paths. The support report must retain the safe configured `timeoutMs` value of `75000`.
+- A saved-guidance category clear, relaunch, and proof that unrelated settings, imports, and history remain. Rankings, season projections, ADP, decision snapshots, and strategy instructions must each be populated before clear and reset. A full reset followed by relaunch must restore defaults and empty all five seeded categories. The renderer must mount and settings must remain writable. This tests the API reset, not the renderer's typed-confirmation and preference cleanup flow.
 - An occupied port with the actual native Retry/Exit dialog driven through Windows UI Automation. Retry must recover after releasing the disposable listener. Exit must stop all app processes while retaining the unrelated listener. No production dialog bypass is used.
 - Clean shutdown without owned API processes or listeners, silent uninstall with shortcut and HKCU-registration removal, unchanged database and retained profile marker, then portable renderer startup with retained settings.
+
+Set the optional repository Actions variable `SMOKE_BASELINE_TAG` only after reviewing the selected release. Both workflows pass it to the script. An override selects exactly that published tag and still verifies its installer against that release's own `SHA256SUMS.txt`. A missing tag fails clearly. On tag pushes, an override cannot select the built version. Without an override and without a published baseline, the script logs `UPGRADE SKIPPED` loudly and runs the candidate checks, so a first release can proceed. Keep the offline seed requests compatible with the previous release. If a future change breaks seeding, update the seed or review an explicit baseline override rather than silently picking an older release.
+
+The smoke does not assert reset coverage for ROS rankings, weekly projections, or draft plans. The first two require live Sleeper state through their authenticated import routes. Draft-plan persistence requires a real AI response and excludes the offline no-provider mode. Verify these categories with populated real data during the fuller desktop pass.
 
 The scripts require disposable hosted Windows runners. The installer script refuses to run without both `CI=true` and `RUNNER_OS=Windows`. A launch retries once if another process takes its reserved port. Renderer readiness means `#app` has content. It does not prove interactive UI flows.
 
 ### Real Windows smoke, about 10 minutes
 
-Use a real desktop session and a clean Windows user profile. Install the previous published version, then install the candidate over it. Keep a closed-app backup if you seed data first.
+Run this smoke **before tagging**, using the `windows-candidate` artifact from a passing CI run of the exact commit to be tagged. That artifact contains the installer, portable executable, and `SHA256SUMS.txt`, and expires after 7 days. If it expires or the commit changes, run CI again and repeat this smoke.
+
+Find the run in GitHub Actions, confirm its full commit SHA, and download **windows-candidate** from its artifacts. With GitHub CLI:
+
+```bash
+gh run list --workflow ci.yml --commit <full-commit-sha>
+gh run download <passing-run-id> --name windows-candidate --dir windows-candidate
+```
+
+In PowerShell, verify both executables against the downloaded manifest before running either:
+
+```powershell
+Get-Content windows-candidate/SHA256SUMS.txt | ForEach-Object {
+  $expected = $_.Substring(0, 64)
+  $file = Join-Path windows-candidate $_.Substring(66)
+  if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $expected) {
+    throw "Candidate checksum mismatch."
+  }
+}
+```
+
+Use a real desktop session and a clean Windows user profile. Install this candidate and keep a closed-app backup of any data you add. CI covers both the clean first run and the separate previous-release upgrade. This desktop pass checks the clean first run and the interactive flows below.
 
 1. Launch the installed candidate and confirm the connection screen is usable.
 2. Connect to live Sleeper and open your league or draft.
@@ -52,8 +80,9 @@ A maintainer may explicitly authorize a beta testing candidate before manual Win
 2. Scan the release commit and reachable history with Gitleaks or an equivalent dedicated scanner.
 3. Review screenshots and release notes for private information and third-party attribution.
 4. Confirm the package version is unused, then merge the release commit to `master`.
-5. Create and push the matching tag, such as `v0.1.0-beta.5`.
-6. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
+5. Wait for CI on the exact commit to be tagged and complete the real Windows smoke above using its `windows-candidate` artifact.
+6. Create and push the matching tag, such as `v0.1.0-beta.5`, at that verified commit.
+7. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
 
 The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Artifacts and checksums come from the same GitHub-hosted Windows job and tagged commit. Do not replace an artifact manually without replacing its checksum. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
 
@@ -66,6 +95,7 @@ Repeat this fuller real-desktop pass only after major shell, installer, or stora
 - Open a returned news citation in the default external browser. Check that unsafe destinations remain blocked.
 - Exercise Codex setup and recovery guidance after correcting a CLI/login failure.
 - Quit during an active AI question and during news research. Confirm only app-owned Codex and Sleeper descendants exit. Do not terminate unrelated sessions.
+- Populate ROS rankings, weekly projections, and a saved AI draft plan, then verify their category clears and full reset remove them across relaunch.
 - Exercise the renderer category-clear and typed full-reset controls. Confirm the connection screen returns, the remembered username is removed, and relaunch does not reload the old context. API CI does not verify Chromium preference cleanup or focus.
 - Restore a closed-app backup and roll back to its matching earlier installer. CI upgrade coverage does not prove backward schema compatibility or backup restoration.
 - Exercise interactive installer choices, uninstall/reinstall, and normal-user profile access. Hosted-runner silent installation and ACL snapshots do not replace this pass.

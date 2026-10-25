@@ -109,39 +109,65 @@ function Invoke-AppApi {
   Invoke-RestMethod @arguments
 }
 
+function Assert-Fields {
+  param($Actual, $Expected, [string[]]$Fields)
+  foreach ($field in $Fields) {
+    if ($Actual.$field -cne $Expected.$field) {
+      throw "Persisted field mismatch for $field. Private values omitted from log."
+    }
+  }
+}
+
 function Assert-Settings {
   param($Actual, $Expected)
-  foreach ($property in $Expected.PSObject.Properties) {
-    if ($Actual.($property.Name) -cne $property.Value) {
-      throw "Persisted settings mismatch for $($property.Name)."
-    }
+  Assert-Fields $Actual $Expected @("aiProvider", "codexBin", "codexModel", "codexServiceTier",
+    "codexWebSearch", "codexTimeoutMs", "automaticAiAudit", "aiSetupAcknowledged")
+}
+
+function Assert-SeededInventory {
+  param($Inventory)
+  foreach ($category in $seededCategories) {
+    if ($Inventory.$category -lt 1) { throw "Missing nonempty reset fixture for $category." }
   }
 }
 
 function Assert-SeededState {
   param($Launch, [int]$ExpectedRank = 17)
   Assert-Settings (Invoke-AppApi $Launch "/settings") $seededSettings
-  $guidance = Invoke-AppApi $Launch "/drafts/mock-draft/strategy-instructions"
-  if (($guidance.instructions | ConvertTo-Json -Depth 20 -Compress) -cne $seededGuidance) {
-    throw "Upgrade did not preserve saved strategy guidance."
-  }
+  $instructions = @((Invoke-AppApi $Launch "/drafts/mock-draft/strategy-instructions").instructions)
+  if ($instructions.Count -ne 1) { throw "Upgrade lost saved strategy guidance." }
+  Assert-Fields $instructions[0] $seededGuidance @("id", "text", "scope", "source", "createdAt", "createdAtPick")
   $payload = Invoke-AppApi $Launch "/drafts/mock/state"
-  if (($payload.rankingImportSummary | ConvertTo-Json -Depth 20 -Compress) -cne $seededImportSummary) {
-    throw "Upgrade did not preserve the import summary and unmatched name."
+  $summary = $payload.rankingImportSummary
+  Assert-Fields $summary $seededImportSummary @("source", "scoring", "rowsParsed", "matched", "appliedAt")
+  if (@($summary.unmatched).Count -ne 1 -or @($summary.ambiguous).Count -ne 0) {
+    throw "Upgrade changed import matching counts."
   }
-  $state = $payload.state
-  $player = @($state.players | Where-Object { $_.id -eq $seedPlayer.id })
+  Assert-Fields $summary.unmatched[0] $seededImportSummary.unmatched[0] @("row", "name", "team", "position")
+  $player = @($payload.state.players | Where-Object { $_.id -eq $seedPlayer.id })
   if ($player.Count -ne 1 -or $player[0].importedRank -ne $ExpectedRank) {
     throw "Upgrade did not preserve the seeded ranking value."
   }
-  $inventory = Invoke-AppApi $Launch "/data"
-  if ($inventory.rankingImports -ne 1 -or $inventory.strategyInstructions -ne 1 -or $inventory.decisionSnapshots -lt 1) {
-    throw "Upgrade lost seeded imports, guidance, or decision history."
-  }
+  $quarterback = @($payload.state.players | Where-Object { $_.id -eq $seedQuarterback.id })
+  Assert-Fields $quarterback[0] $seededQuarterbackValues @("id", "projectedPoints", "projectionSource", "adp", "realTimeAdp")
+  Assert-Fields $payload.seasonProjectionImportSummary $seededSeasonSummary @("season", "rowsParsed", "matched", "appliedAt")
+  Assert-Fields $payload.adpImportSummary $seededAdpSummary @("season", "rowsParsed", "matched", "appliedAt")
+  Assert-SeededInventory (Invoke-AppApi $Launch "/data")
   $history = Invoke-AppApi $Launch "/drafts/mock-draft/decisions"
-  if (($history | ConvertTo-Json -Depth 100 -Compress) -cne $seededHistory) {
-    throw "Upgrade did not preserve decision history."
+  if (@($history.snapshots).Count -ne @($seededHistory.snapshots).Count) {
+    throw "Upgrade changed the decision history count."
   }
+  foreach ($expected in $seededHistory.snapshots) {
+    $actual = @($history.snapshots | Where-Object { $_.id -eq $expected.id })
+    if ($actual.Count -ne 1) { throw "Upgrade lost a decision snapshot ID." }
+    Assert-Fields $actual[0] $expected @("id", "draftId", "createdAt", "trigger", "currentPick",
+      "picksMade", "userTeamId", "recommendedPlayerId", "headline", "confidence")
+  }
+}
+
+function Normalize-PrivateValue {
+  param([string]$Value)
+  $Value.Replace('\\', '\').Replace('\/', '/').Replace('\', '/')
 }
 
 function Assert-Redaction {
@@ -149,26 +175,39 @@ function Assert-Redaction {
   $privateValues = @(
     $Launch.Token, $profileRoot, $env:USERNAME, $env:APPDATA, "%APPDATA%",
     $privatePathSegment, $seededSettings.codexBin, $guidanceText, $unmatchedName,
-    $seedPlayer.id, $seedPlayer.name, "mock-draft", "team-3", $instructionId
+    $seedPlayer.id, $seedPlayer.name, $seedQuarterback.id, $seedQuarterback.name,
+    "mock-draft", "team-3", $instructionId
   )
-  $privateValues += @((ConvertFrom-Json -InputObject $seededHistory).snapshots | ForEach-Object { $_.id })
+  foreach ($snapshot in $seededHistory.snapshots) {
+    $privateValues += @($snapshot.id, $snapshot.draftId, $snapshot.draftName, $snapshot.userTeamId,
+      $snapshot.recommendedPlayerId, $snapshot.headline) + @($snapshot.candidatePlayerIds)
+    foreach ($candidate in $snapshot.context.topCandidates) {
+      $privateValues += @($candidate.playerId, $candidate.name)
+    }
+    foreach ($field in @("leagueId", "userRosterId", "userTeamName")) {
+      if (-not [string]::IsNullOrWhiteSpace($snapshot.$field)) { $privateValues += $snapshot.$field }
+    }
+  }
   foreach ($route in @("/diagnostics", "/data/support-report")) {
     $response = Invoke-WebRequest "$($Launch.Url)$route" -Headers $Launch.Headers -TimeoutSec 10
-    $body = $response.Content.Replace('\\', '\')
+    $body = Normalize-PrivateValue $response.Content
     $payload = $response.Content | ConvertFrom-Json
     $diagnostics = if ($route -eq "/diagnostics") { $payload } else { $payload.diagnostics }
     if (-not $diagnostics.ok -or -not $diagnostics.settings.codexBinConfigured -or
         $diagnostics.storage.rankingImportRecords -ne 1 -or $diagnostics.storage.decisionSnapshots -lt 1) {
       throw "Redaction fixture is missing configured private data."
     }
+    if ($route -eq "/data/support-report" -and $payload.provider.timeoutMs -ne 75000) {
+      throw "Support report omitted the safe configured timeoutMs of 75000."
+    }
     foreach ($value in $privateValues) {
       if ([string]::IsNullOrWhiteSpace($value)) { throw "Redaction fixture contains an empty private value." }
-      if ($body.Contains($value, [StringComparison]::OrdinalIgnoreCase)) {
+      if ($body.Contains((Normalize-PrivateValue $value), [StringComparison]::OrdinalIgnoreCase)) {
         throw "Installed response redaction failed for $route. Private value omitted from log."
       }
     }
   }
-  Write-Host "Installed diagnostics and support report omit token, profile, username, AppData, executable path, seeded names, identifiers, and guidance."
+  Write-Host "Installed diagnostics and support report omit all seeded private identifiers, names, paths, and text. Safe timeoutMs 75000 remains."
 }
 
 function Install-SmokeApp {
@@ -180,12 +219,43 @@ function Install-SmokeApp {
 }
 
 function Get-PreviousInstaller {
-  $releasesJson = & gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
-  if ($LASTEXITCODE -ne 0) { throw "Could not list published releases." }
-  $previous = @($releasesJson | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object {
-    -not $_.draft -and $_.tag_name -ne "v$version" -and $_.tag_name -ne $version
-  } | Sort-Object { [DateTimeOffset]$_.published_at } -Descending)[0]
-  if (-not $previous) { throw "No previous published release exists for upgrade verification." }
+  $override = $env:SMOKE_BASELINE_TAG
+  if (-not [string]::IsNullOrWhiteSpace($override)) {
+    $releaseJson = & gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$([Uri]::EscapeDataString($override))"
+    if ($LASTEXITCODE -ne 0) { throw "SMOKE_BASELINE_TAG '$override' was not found as a published release." }
+    $previous = $releaseJson | ConvertFrom-Json
+    if ($previous.draft) { throw "SMOKE_BASELINE_TAG must identify a published, non-draft release." }
+  } else {
+    $releasesJson = & gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
+    if ($LASTEXITCODE -ne 0) { throw "Could not list published releases." }
+    $published = @($releasesJson | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object { -not $_.draft })
+    if ($published.Count -eq 0) {
+      Write-Host "UPGRADE SKIPPED: No published releases and no SMOKE_BASELINE_TAG. Clean candidate checks still run."
+      return $null
+    }
+    $baselines = @($published | ForEach-Object {
+      $semanticVersion = $null
+      if ([System.Management.Automation.SemanticVersion]::TryParse(($_.tag_name -replace '^v', ''), [ref]$semanticVersion)) {
+        if ($env:GITHUB_REF_TYPE -ne "tag" -or $semanticVersion -ne [System.Management.Automation.SemanticVersion]$version) {
+          [pscustomobject]@{ Release = $_; Version = $semanticVersion }
+        }
+      }
+    } | Sort-Object Version -Descending)
+    if ($baselines.Count -eq 0) {
+      if ($env:GITHUB_REF_TYPE -eq "tag" -and @($published | Where-Object {
+        ($_.tag_name -replace '^v', '') -ne $version
+      }).Count -eq 0) {
+        Write-Host "UPGRADE SKIPPED: Only the tagged build version is published. Clean candidate checks still run."
+        return $null
+      }
+      throw "No published semver baseline remains after excluding the tagged build version."
+    }
+    $previous = $baselines[0].Release
+  }
+  if ($env:GITHUB_REF_TYPE -eq "tag" -and ($previous.tag_name -replace '^v', '') -eq $version) {
+    throw "Upgrade baseline must differ from the tagged build version."
+  }
+  Write-Host "Selected upgrade baseline $($previous.tag_name). Candidate $version. Ref type $env:GITHUB_REF_TYPE."
   $installers = @($previous.assets | Where-Object { $_.name -match '^Sleeper[. ]Draft[. ]Assistant[. ]Setup[. ].+\.exe$' })
   if ($installers.Count -ne 1) { throw "Previous release must have exactly one NSIS installer." }
   $download = Join-Path $smokeRoot "previous"
@@ -269,10 +339,13 @@ function Test-OccupiedPort {
 
 function Stop-SmokeApp {
   param($Launch)
-  $windows = @(Get-Process -Name "Sleeper Draft Assistant" -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowHandle -ne 0 })
-  if ($windows.Count -ne 1 -or -not $windows[0].CloseMainWindow()) {
-    throw "Could not close the app's main window cleanly."
+  Wait-Until {
+    $Launch.Process.Refresh()
+    if ($Launch.Process.HasExited) { throw "App exited before its visible main window was ready." }
+    $Launch.Process.MainWindowHandle -ne 0
+  } "launched process's visible main window" 60
+  if (-not $Launch.Process.CloseMainWindow()) {
+    throw "Could not close the launched app's main window cleanly."
   }
   Wait-Until {
     $Launch.Process.Refresh()
@@ -283,6 +356,17 @@ function Stop-SmokeApp {
   $Launch.Process.WaitForExit()
   if ($Launch.Process.ExitCode -ne 0) { throw "Desktop exited with $($Launch.Process.ExitCode) on close." }
   Write-Host "Window close returned exit code zero. No desktop, owned API process, or listener remains."
+}
+
+function Uninstall-SmokeApp {
+  Start-Process -FilePath $uninstaller -ArgumentList "/S /currentuser"
+  Wait-Until {
+    -not (Test-Path -LiteralPath $installDir) -and
+      @($shortcuts | Where-Object { Test-Path -LiteralPath $_ }).Count -eq 0 -and
+      @(Get-ItemProperty $uninstallKey | Where-Object {
+        $_.PSObject.Properties["DisplayName"] -and $_.DisplayName -like "Sleeper Draft Assistant*"
+      }).Count -eq 0
+  } "uninstall to remove installation, shortcuts, and registration" 90
 }
 
 if ($env:CI -ne "true" -or $env:RUNNER_OS -ne "Windows") {
@@ -324,9 +408,27 @@ if ((Test-Path Env:ELECTRON_RUN_AS_NODE) -or (Test-Path Env:SLEEPER_AI_USER_DATA
   throw "Desktop smoke must not inherit Node mode or a user-data override."
 }
 $env:SLEEPER_AI_PACKAGE_SMOKE = "1"
+$seededCategories = @("rankingImports", "seasonProjectionImports", "adpImports", "decisionSnapshots", "strategyInstructions")
 try {
-  Install-SmokeApp (Get-PreviousInstaller)
-  $old = Start-SmokeApp $exe -PreviousRelease
+  try {
+    $previousInstaller = Get-PreviousInstaller
+  } finally {
+    Remove-Item Env:GITHUB_TOKEN -ErrorAction SilentlyContinue
+    Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+  }
+  Install-SmokeApp $installer
+  $clean = Start-SmokeApp $exe
+  $cleanInventory = Invoke-AppApi $clean "/data"
+  foreach ($category in $seededCategories) {
+    if ($cleanInventory.$category -ne 0) { throw "Clean first run unexpectedly has data in $category." }
+  }
+  Stop-SmokeApp $clean
+  Uninstall-SmokeApp
+  Remove-Item -LiteralPath $profileRoot -Recurse -Force
+  Write-Host "Clean candidate install and first-run renderer/API readiness passed on a fresh default profile."
+
+  if ($previousInstaller) { Install-SmokeApp $previousInstaller } else { Install-SmokeApp $installer }
+  $old = Start-SmokeApp $exe -PreviousRelease:([bool]$previousInstaller)
   $privatePathSegment = "sda-private-codex-" + [guid]::NewGuid().ToString("N")
   $seededSettings = Invoke-AppApi $old "/settings" Put @{
     codexWebSearch = $false
@@ -337,9 +439,11 @@ try {
   }
   $guidanceText = "Private upgrade guidance " + [guid]::NewGuid().ToString("N")
   $guidance = Invoke-AppApi $old "/drafts/mock-draft/strategy-instructions" Post @{ text = $guidanceText; scope = "draft" }
-  $seededGuidance = $guidance.instructions | ConvertTo-Json -Depth 20 -Compress
+  $seededGuidance = @($guidance.instructions)[0]
   $instructionId = @($guidance.instructions)[0].id
-  $seedPlayer = (Invoke-AppApi $old "/drafts/mock/state").state.players[0]
+  $seedPlayers = (Invoke-AppApi $old "/drafts/mock/state").state.players
+  $seedPlayer = $seedPlayers[0]
+  $seedQuarterback = @($seedPlayers | Where-Object { $_.position -eq "QB" })[0]
   $unmatchedName = "Private unmatched " + [guid]::NewGuid().ToString("N")
   $imported = Invoke-AppApi $old "/drafts/mock-draft/rankings/import" Post @{
     source = "fantasypros"
@@ -349,11 +453,28 @@ try {
   if ($imported.summary.matched -ne 1 -or $imported.summary.unmatched[0].name -ne $unmatchedName) {
     throw "Synthetic ranking seed was not imported."
   }
-  $seededImportSummary = $imported.summary | ConvertTo-Json -Depth 20 -Compress
-  $seededHistory = Invoke-AppApi $old "/drafts/mock-draft/decisions" | ConvertTo-Json -Depth 100 -Compress
+  $seededImportSummary = $imported.summary
+  $season = Invoke-AppApi $old "/drafts/mock-draft/projections/season/import" Post @{
+    season = "2026"
+    files = @(@{
+      position = "QB"
+      csvText = "Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS`n$($seedQuarterback.name),$($seedQuarterback.team),500,330,4000,30,10,100,500,10,2,365"
+    })
+  }
+  $adp = Invoke-AppApi $old "/drafts/mock-draft/adp/import" Post @{
+    season = "2026"
+    csvText = "Rank,Player (Bye),POS,Sleeper,RTSports,AVG,Real-Time`n1,$($seedQuarterback.name)   $($seedQuarterback.team) (7),QB1,18,-,18.0,16"
+  }
+  if ($season.summary.matched -ne 1 -or $adp.summary.matched -ne 1) {
+    throw "Synthetic season projection or ADP seed was not imported."
+  }
+  $seededSeasonSummary = $season.summary
+  $seededAdpSummary = $adp.summary
+  $seededQuarterbackValues = @($adp.state.players | Where-Object { $_.id -eq $seedQuarterback.id })[0]
+  $seededHistory = Invoke-AppApi $old "/drafts/mock-draft/decisions"
   Assert-SeededState $old
   Stop-SmokeApp $old
-  Install-SmokeApp $installer
+  if ($previousInstaller) { Install-SmokeApp $installer }
   foreach ($path in @($exe, $uninstaller) + $shortcuts) {
     if (-not (Test-Path -LiteralPath $path)) { throw "Installation did not create $path." }
   }
@@ -371,9 +492,10 @@ try {
   Assert-PrivateAcl (Join-Path $profileRoot "data")
   Assert-PrivateAcl $databasePath
   Assert-SeededState $first
-  Write-Host "Upgrade preserved every setting, saved guidance, synthetic ranking value, and complete decision history through authenticated API reads."
+  Write-Host "Candidate preserved checked settings, guidance fields, synthetic rankings, season projections, ADP, and decision snapshot IDs and timestamps through authenticated API reads."
   Assert-Redaction $first
 
+  Assert-SeededInventory (Invoke-AppApi $first "/data")
   $cleared = Invoke-AppApi $first "/data/strategy-instructions" Delete
   if ($cleared.deleted -ne 1 -or $cleared.inventory.strategyInstructions -ne 0) {
     throw "Category clear did not remove saved guidance."
@@ -385,11 +507,13 @@ try {
   }
   Assert-Settings (Invoke-AppApi $second "/settings") $seededSettings
   $remaining = Invoke-AppApi $second "/data"
-  if ($remaining.rankingImports -ne 1 -or $remaining.decisionSnapshots -lt 1) {
-    throw "Category clear removed unrelated seeded data."
+  foreach ($category in @($seededCategories | Where-Object { $_ -ne "strategyInstructions" })) {
+    if ($remaining.$category -lt 1) { throw "Category clear removed unrelated $category." }
   }
   Write-Host "Category clear persisted across relaunch and retained unrelated settings, imports, and history."
   $null = Invoke-AppApi $second "/drafts/mock-draft/strategy-instructions" Post @{ text = $guidanceText; scope = "draft" }
+  Assert-SeededInventory (Invoke-AppApi $second "/data")
+  Write-Host "Reset fixtures are nonempty in rankings, season projections, ADP, decision snapshots, and strategy instructions."
   $reset = Invoke-AppApi $second "/data/reset" Post @{ confirmation = "DELETE ALL LOCAL DATA" }
   $defaultSettings = $reset.settings
   if (-not $defaultSettings.codexWebSearch -or $defaultSettings.codexTimeoutMs -ne 60000 -or
@@ -403,8 +527,7 @@ try {
   Assert-PrivateAcl $databasePath
   Assert-Settings (Invoke-AppApi $afterReset "/settings") $defaultSettings
   $inventory = Invoke-AppApi $afterReset "/data"
-  foreach ($category in @("rankingImports", "seasonProjectionImports", "adpImports", "rosRankingImports",
-      "weeklyProjectionImports", "decisionSnapshots", "draftPlans", "strategyInstructions")) {
+  foreach ($category in $seededCategories) {
     if ($inventory.$category -ne 0) { throw "Reset did not persist for $category." }
   }
   $resetState = (Invoke-AppApi $afterReset "/drafts/mock/state").state
@@ -414,19 +537,14 @@ try {
   }
   $null = Invoke-AppApi $afterReset "/settings" Put @{ codexWebSearch = $false; codexTimeoutMs = 75000 }
   Stop-SmokeApp $afterReset
-  Write-Host "Full reset persisted across relaunch. Renderer mounted, all data categories are empty, defaults returned, and settings remain writable."
+  Write-Host "Full reset persisted across relaunch. Renderer mounted, all five seeded data categories are empty, defaults returned, and settings remain writable."
   Test-OccupiedPort
   $retainedProfileMarker = Join-Path $profileRoot "installer-smoke-retained"
   Set-Content -LiteralPath $retainedProfileMarker -Value ([guid]::NewGuid().ToString("N"))
   $markerHash = (Get-FileHash -LiteralPath $retainedProfileMarker -Algorithm SHA256).Hash
   $databaseHash = (Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash
 
-  Start-Process -FilePath $uninstaller -ArgumentList "/S /currentuser"
-  Wait-Until {
-    -not (Test-Path -LiteralPath $installDir) -and
-      @($shortcuts | Where-Object { Test-Path -LiteralPath $_ }).Count -eq 0 -and
-      -not (Test-Path -LiteralPath $registration[0].PSPath)
-  } "uninstall to remove installation and shortcuts" 90
+  Uninstall-SmokeApp
   if (-not (Test-Path -LiteralPath $retainedProfileMarker) -or
       (Get-FileHash -LiteralPath $retainedProfileMarker -Algorithm SHA256).Hash -ne $markerHash -or
       (Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash -ne $databaseHash) {
