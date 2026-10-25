@@ -46,6 +46,8 @@ For manual removal of substantive records, close Sleeper Draft Assistant complet
 
 Before installing a newer beta, close the app and back up the entire `%APPDATA%\Sleeper Draft Assistant` directory. Install the new version over the existing per-user installation or replace the portable files.
 
+Windows CI verifies a checksum-checked upgrade from the newest published release other than the build version. It seeds synthetic imports, saved guidance, settings, and history through the installed API and checks that they survive. It also checks API clear/reset persistence and redaction. A real Windows desktop smoke still gates distribution; CI does not prove live Sleeper, native imports, Codex, SmartScreen, or backup restoration.
+
 Beta database changes may not be backward compatible. To roll back:
 
 1. close the current version;

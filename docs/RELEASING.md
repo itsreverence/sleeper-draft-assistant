@@ -4,7 +4,9 @@
 
 The project uses semantic versions with prerelease labels. The current public line is `0.1.0-beta.x`. Beta releases may contain breaking changes and are not automatically promoted to stable.
 
-## Release gates
+## Every release
+
+### Automated gates
 
 From a clean checkout of the intended commit:
 
@@ -14,23 +16,61 @@ npm run check
 npm test
 npm run build
 npm audit --omit=dev --audit-level=high
+git diff --check
 ```
 
-Then:
+Require Linux CI and the `windows-package-smoke` job to pass. The Windows job and the release workflow both run these checks before publication:
 
-1. Confirm CI passes on Linux and the Windows package smoke job succeeds. Windows CI checks unpacked API authentication, silent per-user NSIS installation, default `%APPDATA%\Sleeper Draft Assistant` data placement, private data-directory and database ACLs, authenticated settings persistence across a clean restart, silent uninstall with user-data retention, and portable startup. ACL checks permit only the current user, SYSTEM, and Administrators. The release workflow repeats these checks before publishing. Renderer readiness means `#app` has content after the packaged page loads; UI interactions remain manual.
-2. Build or download Windows distributable artifacts from the intended commit for the manual checks.
-3. Use a clean Windows user profile in a real desktop session for the remaining manual checks. Verify demo mode, the connection against live Sleeper, import, settings, and diagnostics through the UI. Check SmartScreen and unsigned-download behavior using the downloaded release artifacts. CI does not prove these flows or a real desktop session.
-4. Confirm API binding/authentication with the smoke test in `WORKFLOW.md`.
-5. Inspect packaged contents for source maps, local paths, credentials, test data, ranking exports, and unneeded build files.
-6. Scan the release commit and reachable history with Gitleaks or an equivalent dedicated scanner.
-7. Review screenshots and release notes for private information and third-party attribution.
-8. Build distributable targets with `npm run desktop:make`.
-9. Confirm the package version is unused, then merge the release commit to `master`.
-10. Create and push the matching tag, such as `v0.1.0-beta.1`.
-11. Confirm the tag-triggered release workflow publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`. Tags with a prerelease suffix publish as GitHub prereleases; stable version tags publish as regular releases.
+- Unpacked API startup, unauthenticated health, authenticated diagnostics, and rejection without a capability token.
+- Download of the newest published release other than the version being built, including prereleases. Its NSIS installer must match its own `SHA256SUMS.txt` before execution. Release discovery and download need only `contents: read`.
+- Silent per-user installation of that release, offline seeding through its authenticated API, clean close, and installation of the candidate over it. Every settings field, saved strategy guidance, synthetic ranking value, and complete decision history must survive through API reads. The demo draft supplies synthetic data without Sleeper, FantasyPros, or Codex requests. Old-release readiness uses health, authenticated diagnostics, and the database because older builds lack the renderer-ready marker.
+- Candidate renderer mount, default `%APPDATA%\Sleeper Draft Assistant` data placement, IPv4 loopback binding, and API authentication. Private ACL checks on the data directory and database permit only the current user, SYSTEM, and Administrators. Hosted-runner ACLs do not prove every standard-user profile configuration.
+- Diagnostics and support-report redaction with populated private data. Checks exclude the launch capability, profile path, username, AppData path and literal `%APPDATA%`, configured executable path, seeded player and guidance identifiers, imported names, and guidance text. Safe settings metadata such as model and timeout remain reportable.
+- A saved-guidance category clear, relaunch, and proof that unrelated settings, imports, and history remain. A full reset followed by relaunch must restore defaults and empty every stored domain. The renderer must mount and settings must remain writable. This tests the API reset, not the renderer's typed-confirmation and preference cleanup flow.
+- An occupied port with the actual native Retry/Exit dialog driven through Windows UI Automation. Retry must recover after releasing the disposable listener. Exit must stop all app processes while retaining the unrelated listener. No production dialog bypass is used.
+- Clean shutdown without owned API processes or listeners, silent uninstall with shortcut and HKCU-registration removal, unchanged database and retained profile marker, then portable renderer startup with retained settings.
 
-The release workflow rejects tags that do not exactly match the root package version. Artifacts and checksums are produced in the same GitHub-hosted Windows job from the tagged commit. Do not replace a published artifact manually without also replacing its checksum.
+The scripts require disposable hosted Windows runners. The installer script refuses to run without both `CI=true` and `RUNNER_OS=Windows`. A launch retries once if another process takes its reserved port. Renderer readiness means `#app` has content. It does not prove interactive UI flows.
+
+### Real Windows smoke, about 10 minutes
+
+Use a real desktop session and a clean Windows user profile. Install the previous published version, then install the candidate over it. Keep a closed-app backup if you seed data first.
+
+1. Launch the installed candidate and confirm the connection screen is usable.
+2. Connect to live Sleeper and open your league or draft.
+3. Import a user-owned FantasyPros file through the native file picker.
+4. Configure the local Codex CLI and ask one question. Check the response and its loading/error presentation.
+5. Record SmartScreen and unsigned-download behavior for the downloaded candidate, including whether a warning appeared.
+
+Do not claim Windows readiness based only on Linux packaging or CI. A real clean-profile Windows launch remains the final distribution gate.
+
+A maintainer may explicitly authorize a beta testing candidate before manual Windows sign-off so testers can download it. Such a candidate must remain a prerelease, pass the automated gates, and state in its release notes which manual checks are pending. This exception does not apply to stable releases.
+
+### Publish the verified commit
+
+1. Inspect packaged contents for source maps, local paths, credentials, test data, ranking exports, and unneeded build files.
+2. Scan the release commit and reachable history with Gitleaks or an equivalent dedicated scanner.
+3. Review screenshots and release notes for private information and third-party attribution.
+4. Confirm the package version is unused, then merge the release commit to `master`.
+5. Create and push the matching tag, such as `v0.1.0-beta.5`.
+6. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
+
+The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Artifacts and checksums come from the same GitHub-hosted Windows job and tagged commit. Do not replace an artifact manually without replacing its checksum. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
+
+## Once before the first stable release
+
+Repeat this fuller real-desktop pass only after major shell, installer, or storage changes. CI cannot prove native interaction, live-provider recovery, display behavior, or restoration of a real profile backup.
+
+- Exercise demo mode and keyboard navigation, Tab/Shift+Tab containment, Escape, opener focus restoration, and overlapping dialogs. Check display scaling and a short window.
+- Exercise native file selection, paste, and same-file reselection with user-owned exports.
+- Open a returned news citation in the default external browser. Check that unsafe destinations remain blocked.
+- Exercise Codex setup and recovery guidance after correcting a CLI/login failure.
+- Quit during an active AI question and during news research. Confirm only app-owned Codex and Sleeper descendants exit. Do not terminate unrelated sessions.
+- Exercise the renderer category-clear and typed full-reset controls. Confirm the connection screen returns, the remembered username is removed, and relaunch does not reload the old context. API CI does not verify Chromium preference cleanup or focus.
+- Restore a closed-app backup and roll back to its matching earlier installer. CI upgrade coverage does not prove backward schema compatibility or backup restoration.
+- Exercise interactive installer choices, uninstall/reinstall, and normal-user profile access. Hosted-runner silent installation and ACL snapshots do not replace this pass.
+
+Use [WORKFLOW.md](WORKFLOW.md) for detailed scenarios and [INSTALLING.md](INSTALLING.md) for backup and rollback steps. Record the candidate version, Windows version, and outcomes.
 
 ## Stable candidate handoff
 
@@ -56,7 +96,3 @@ State plainly:
 - the local Codex requirement for the normal assistant workflow and active-draft emergency board-only recovery;
 - local-data location/deletion guidance;
 - known limitations and rollback instructions.
-
-Do not claim Windows readiness based only on Linux packaging or CI. A real clean-profile Windows launch remains the final distribution gate.
-
-A maintainer may explicitly authorize a beta testing candidate before manual Windows sign-off so testers can download it. Such a candidate must remain a prerelease, pass the automated gates, and state in its release notes which manual checks are pending. This exception does not apply to stable releases.

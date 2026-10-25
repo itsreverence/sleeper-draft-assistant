@@ -50,8 +50,10 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke-packaged-windows.ps1
 
-      - name: Smoke test installer lifecycle and portable executable
+      - name: Smoke test installer upgrade, reset, redaction, and portable executable
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/smoke-installer-windows.ps1
 
       - name: Create release checksums
