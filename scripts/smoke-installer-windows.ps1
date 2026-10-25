@@ -217,13 +217,13 @@ function Test-OccupiedPort {
       Remove-Item -LiteralPath $rendererReadyPath -ErrorAction SilentlyContinue
       $process = Start-Process -FilePath $exe -PassThru
       $null = $process.Handle
-      $condition = [System.Windows.Automation.PropertyCondition]::new(
+      $processCondition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
       $script:recoveryButton = $null
       Wait-Until {
         if ($process.HasExited) { throw "Occupied-port launch exited before showing recovery." }
         $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
-          [System.Windows.Automation.TreeScope]::Children, $condition)
+          [System.Windows.Automation.TreeScope]::Children, $processCondition)
         foreach ($window in $windows) {
           $elements = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
             [System.Windows.Automation.Condition]::TrueCondition)
