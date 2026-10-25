@@ -162,7 +162,7 @@ function Assert-Redaction {
     }
     foreach ($value in $privateValues) {
       if ([string]::IsNullOrWhiteSpace($value)) { throw "Redaction fixture contains an empty private value." }
-      if ($body.Contains($value, [StringComparison]::OrdinalIgnoreCase)) {
+      if (-not $body.Contains($value, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Installed response redaction failed for $route. Private value omitted from log."
       }
     }
