@@ -38,4 +38,4 @@ An export of the same page downloaded the same morning on Linux still used the S
 
 ## Method
 
-Only first-party sources were used. Search extraction of the ROS page omitted most dynamic content, so the public HTML and its linked JavaScript were inspected directly in memory. No player rankings, provider credentials, or user-specific league data were saved in the repository. No application code or persisted imports were changed.
+Only first-party sources were used. Search extraction of the ROS page omitted most dynamic content, so the public HTML and its linked JavaScript were inspected directly in memory. No player rankings, provider credentials, or user-specific league data were saved in the repository. The research itself changed no persisted imports; importer changes are described in the validation sections above.

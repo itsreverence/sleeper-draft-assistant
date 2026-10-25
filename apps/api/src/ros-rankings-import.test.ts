@@ -81,6 +81,24 @@ describe("FantasyPros season value ranking imports", () => {
     expect(gibbs?.rosRank).toBeUndefined();
   });
 
+  it("imports the compact ROS header layout end to end", () => {
+    const players = createMockDraftState(0).players;
+    const compactCsv = rosCsv.replace(
+      '"SOS SEASON","SOS PLAYOFFS","ECR VS. ADP"',
+      '"SOS","PLAYOFFS","ECR VS ADP"',
+    );
+    const storedImport = importFantasyProsSeasonValueRankings({
+      players,
+      season: "2025",
+      scoring: "PPR",
+      csvText: compactCsv,
+    });
+
+    expect(storedImport.summary).toMatchObject({ rankingType: "ros-ecr", rowsParsed: 2, matched: 2 });
+    expect(applySeasonValueRankingsToPlayers(players, storedImport)
+      .find((player) => player.name === "Josh Allen")).toMatchObject({ rosRank: 2, rosPositionRank: 1 });
+  });
+
   it("rejects an unrecognized rankings export", () => {
     expect(() => classifyFantasyProsSeasonValueCsv("RK,PLAYER NAME,TEAM,POS\n1,Player,SEA,WR1"))
       .toThrow(SeasonValueRankingImportError);
