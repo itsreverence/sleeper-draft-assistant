@@ -6,18 +6,24 @@ export interface FantasyProsProjectionFile {
 }
 
 export function inferFantasyProsProjectionPosition({ name, csv }: FantasyProsProjectionFile): Position | null {
-  const token = /(?:^|[_\s-])(QB|RB|WR|TE|K|DST|DEF)(?=[_.\s(-]|$)/i.exec(name)?.[1]?.toUpperCase();
-  switch (token) {
-    case "QB":
-    case "RB":
-    case "WR":
-    case "TE":
-    case "K":
-      return token;
-    case "DST":
-    case "DEF":
-      return "DEF";
+  const positions = new Set<Position>();
+  for (const match of name.matchAll(/(?:^|[_\s-])(QB|RB|WR|TE|K|DST|DEF)(?=[_.\s(-]|$)/gi)) {
+    const token = match[1]?.toUpperCase();
+    switch (token) {
+      case "QB":
+      case "RB":
+      case "WR":
+      case "TE":
+      case "K":
+        positions.add(token);
+        break;
+      case "DST":
+      case "DEF":
+        positions.add("DEF");
+        break;
+    }
   }
+  if (positions.size === 1) return positions.values().next().value ?? null;
 
   const headers = parseHeader(csv);
   if (headers.includes("CMP") && headers.includes("INTS")) return "QB";

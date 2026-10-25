@@ -143,7 +143,7 @@
   }
 
   function isFlexFilename(filename: string) {
-    return /(?:^|[_\s-])(?:FLEX|FLX)(?:[_.\s-]|$)/i.test(filename);
+    return /(?:^|[_\s-])(?:FLEX|FLX)(?=[_.\s(-]|$)/i.test(filename);
   }
 
   function submitImport() {

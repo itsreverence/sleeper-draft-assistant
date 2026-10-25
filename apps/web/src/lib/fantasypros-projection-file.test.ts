@@ -65,6 +65,27 @@ describe("FantasyPros projection file position", () => {
     }
   });
 
+  it.each([
+    ["FantasyPros_QB_DST.csv", headers.DEF, "DEF"],
+    ["FantasyPros_TE_QB.csv", headers.QB, "QB"],
+  ])("uses the header when %s names distinct positions", (name, csv, position) => {
+    expect(inferFantasyProsProjectionPosition({ name, csv })).toBe(position);
+  });
+
+  it.each(["FantasyPros_QB_DST.csv", "FantasyPros_TE_QB.csv"])(
+    "returns null when %s names distinct positions and the header is undecidable",
+    (name) => {
+      expect(inferFantasyProsProjectionPosition({ name, csv: "Player,Team,FPTS" })).toBeNull();
+    },
+  );
+
+  it.each([
+    ["FantasyPros_DST_DEF.csv", "DEF"],
+    ["FantasyPros_QB_QB.csv", "QB"],
+  ])("trusts repeated tokens for the same position in %s", (name, position) => {
+    expect(inferFantasyProsProjectionPosition({ name, csv: headers.K })).toBe(position);
+  });
+
   it("preserves filename precedence over the header fallback", () => {
     expect(inferFantasyProsProjectionPosition({ name: "FantasyPros_QB.csv", csv: headers.K })).toBe("QB");
   });

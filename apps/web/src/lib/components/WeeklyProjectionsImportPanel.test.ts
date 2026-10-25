@@ -36,9 +36,14 @@ it("distinguishes unknown batch filenames from redundant FLEX exports", async ()
   expect(screen.getByRole("button", { name: "Import QB" })).toBeTruthy();
 });
 
-it.each(["FLEX", "FLX"])("does not import a lone %s export as QB", async (position) => {
+it.each([
+  "FantasyPros_FLEX.csv",
+  "FantasyPros_FLX.csv",
+  "FantasyPros_Fantasy_Football_Projections_FLEX(4).csv",
+  "FantasyPros_Fantasy_Football_Projections_FLX(4).csv",
+])("does not import a lone %s export as QB", async (name) => {
   setup();
-  await select(`FantasyPros_${position}.csv`);
+  await select(name);
   await screen.findByText(/Ignored/);
   expect((screen.getByRole("button", { name: "Import QB" }) as HTMLButtonElement).disabled).toBe(true);
 });
