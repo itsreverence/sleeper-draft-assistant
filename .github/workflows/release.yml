@@ -157,8 +157,14 @@ jobs:
           path: build/windows-candidate
       - name: Verify build hashes and create release checksums
         run: node scripts/candidate-artifacts.mjs verify --release
+      - name: Force an existing-asset hash mismatch for the negative control
+        shell: pwsh
+        run: |
+          $manifest = Get-Content build/windows-candidate/candidate-hashes.json | ConvertFrom-Json
+          $path = Join-Path "build/windows-candidate/files" $manifest.artifacts[0].name
+          [System.IO.File]::AppendAllText($path, "negative control")
       - name: Dry run GitHub release publication
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/publish-release.ps1 -Tag "rehearsal-$env:GITHUB_SHA" -DryRun
+        run: ./scripts/publish-release.ps1 -Tag "v0.1.0-beta.4" -DryRun
