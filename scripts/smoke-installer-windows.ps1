@@ -177,7 +177,7 @@ try {
       (Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash -ne $databaseHash) {
     throw "Uninstall removed profile data or changed the database."
   }
-  Write-Host "Uninstall removed install directory, both shortcuts, and HKCU registration. Profile and database were retained unchanged."
+  Write-Host "Uninstall removed install directory, both shortcuts, and HKCU registration. The profile marker and an unchanged database were retained."
 
   $portableLaunch = Start-SmokeApp $portable
   $portableSettings = Invoke-RestMethod "$($portableLaunch.Url)/settings" -Headers $portableLaunch.Headers -TimeoutSec 5
