@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AdpImportSummary, Position, RankingImportSummary, SeasonProjectionImportSummary } from "../types";
+  import { inferFantasyProsProjectionPosition } from "../fantasypros-projection-file";
   import { formatImportDate } from "../format";
   import { getImportFreshness } from "../freshness";
   import Icon from "./Icon.svelte";
@@ -94,7 +95,7 @@
     );
     const classified = loaded
       .map(({ file, csvText }) => {
-        const position = inferPosition(file.name, csvText);
+        const position = inferFantasyProsProjectionPosition({ name: file.name, csv: csvText });
         return position ? { position, csvText, name: file.name } : null;
       })
       .filter((file): file is { position: Position; csvText: string; name: string } => Boolean(file));
@@ -118,31 +119,11 @@
     input.value = "";
   }
 
-  function inferPosition(fileName: string, csvText: string): Position | null {
-    const upperName = fileName.toUpperCase();
-    for (const [token, position] of filePositionTokens) {
-      if (upperName.includes(token)) return position;
-    }
-    const header = csvText.split(/\r?\n/, 1)[0]?.toUpperCase() ?? "";
-    if (header.includes('"CMP"') && header.includes('"INTS"')) return "QB";
-    if (header.includes('"SACK"') && header.includes('"YDS_AGN"')) return "DEF";
-    if (header.includes('"FG"') && header.includes('"FGA"')) return "K";
-    return null;
-  }
-
   function toggleExpanded() {
     if (hasDraft) expanded = !expanded;
   }
 
   const projectionOrder: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
-  const filePositionTokens: Array<[string, Position]> = [
-    ["_DST", "DEF"],
-    ["_QB", "QB"],
-    ["_RB", "RB"],
-    ["_WR", "WR"],
-    ["_TE", "TE"],
-    ["_K.", "K"],
-  ];
 </script>
 
 <section class="panel data-panel" class:disabled-panel={!hasDraft} aria-label="Draft data setup">

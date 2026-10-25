@@ -68,6 +68,34 @@ describe("FantasyPros draft value imports", () => {
     });
   });
 
+  it("imports all six unquoted season exports with a BYE column", () => {
+    const state = withPprScoring(createMockDraftState(0));
+    state.players = [
+      player("qb", "Example Quarterback", "BUF", "QB"),
+      player("rb", "Example Runner", "DET", "RB"),
+      player("wr", "Example Receiver", "DET", "WR"),
+      player("te", "Example Tight End", "ARI", "TE"),
+      player("k", "Brandon Aubrey", "DAL", "K"),
+      player("def", "Denver Broncos", "DEN", "DEF"),
+    ];
+    const storedImport = importFantasyProsSeasonProjectionCsvs({
+      state, season: "2026", files: [
+        { position: "QB", csvText: "Player,Team,BYE,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nExample Quarterback,BUF,7,500,330,4000,30,10,100,500,10,2,365" },
+        { position: "RB", csvText: "Player,Team,BYE,ATT,YDS,TDS,REC,YDS,TDS,FL,FPTS\nExample Runner,DET,6,250,1000,10,50,500,5,1,288" },
+        { position: "WR", csvText: "Player,Team,BYE,REC,YDS,TDS,ATT,YDS,TDS,FL,FPTS\nExample Receiver,DET,6,100,1200,8,2,10,0,1,267" },
+        { position: "TE", csvText: "Player,Team,BYE,REC,YDS,TDS,FL,FPTS\nExample Tight End,ARI,8,80,900,6,1,204" },
+        { position: "K", csvText: "Player,Team,BYE,FG,FGA,XPT,FPTS\nBrandon Aubrey,DAL,14,34.8,39.5,47.0,151.4" },
+        { position: "DEF", csvText: "Player,Team,BYE,SACK,INT,FR,FF,TD,SAFETY,PA,YDS_AGN,FPTS\nDenver Broncos,DEN,12,50,15,10,20,5,1,300,5000,150" },
+      ],
+    });
+    expect(storedImport.summary).toMatchObject({
+      rowsParsed: 6, matched: 6, unmatched: [], ambiguous: [],
+      positions: ["QB", "RB", "WR", "TE", "K", "DEF"],
+    });
+    expect(storedImport.playersById.get("k")).toEqual({ points: 151.4, coverage: "provider_approximation" });
+    expect(storedImport.playersById.get("def")).toEqual({ points: 150, coverage: "provider_approximation" });
+  });
+
   it("imports Sleeper and Real-Time ADP as market signals", () => {
     const state = createMockDraftState(0);
     const storedImport = importFantasyProsAdpCsv({ state, season: "2026", csvText: adpCsv });

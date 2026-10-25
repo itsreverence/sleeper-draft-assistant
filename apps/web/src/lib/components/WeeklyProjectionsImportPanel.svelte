@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import Icon from "./Icon.svelte";
   import type { Position, WeeklyProjectionImportSummary } from "../types";
+  import { inferFantasyProsProjectionPosition } from "../fantasypros-projection-file";
   import { formatImportDate } from "../format";
   import { getImportFreshness, getOldestImportAppliedAt } from "../freshness";
 
@@ -105,11 +106,14 @@
     unknownFiles = [];
     csvText = "";
     try {
-      const parsedFiles = await Promise.all(files.map(async (file) => ({
-        name: file.name,
-        position: inferPositionFromFilename(file.name),
-        csvText: await file.text(),
-      })));
+      const parsedFiles = await Promise.all(files.map(async (file) => {
+        const csvText = await file.text();
+        return {
+          name: file.name,
+          position: inferFantasyProsProjectionPosition({ name: file.name, csv: csvText }),
+          csvText,
+        };
+      }));
       if (version !== fileReadVersion) return;
       ignoredFiles = parsedFiles.filter((file) => isFlexFilename(file.name)).map((file) => file.name);
       unknownFiles = files.length > 1
@@ -139,7 +143,7 @@
   }
 
   function isFlexFilename(filename: string) {
-    return /(?:^|[_\s-])(?:FLEX|FLX)(?:[_.\s-]|$)/i.test(filename);
+    return /(?:^|[_\s-])(?:FLEX|FLX)(?=[_.\s(-]|$)/i.test(filename);
   }
 
   function submitImport() {
@@ -155,15 +159,6 @@
     onClear({ season: season.trim(), week: Number(week) });
   }
 
-  function inferPositionFromFilename(filename: string): Position | null {
-    const normalized = filename.toUpperCase();
-    for (const candidate of ["QB", "RB", "WR", "TE", "K"] as Position[]) {
-      if (new RegExp(`(?:^|[_\\s-])${candidate}(?:[_.\\s-]|$)`).test(normalized)) {
-        return candidate;
-      }
-    }
-    return /(?:^|[_\s-])(?:DST|DEF)(?:[_.\s-]|$)/.test(normalized) ? "DEF" : null;
-  }
 </script>
 
 <article class="panel weekly-import-panel" class:disabled-panel={!hasTeam}>

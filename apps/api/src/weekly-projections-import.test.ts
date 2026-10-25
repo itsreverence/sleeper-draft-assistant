@@ -211,7 +211,7 @@ describe("FantasyPros weekly projection import", () => {
     });
   });
 
-  it("recognizes all six current FantasyPros position export shapes", () => {
+  it.each(["quoted", "unquoted"])("recognizes all six current FantasyPros position export shapes with %s headers", (format) => {
     const players = [
       player("qb", "Jalen Hurts", "PHI", "QB"),
       player("rb", "Bijan Robinson", "ATL", "RB"),
@@ -220,7 +220,11 @@ describe("FantasyPros weekly projection import", () => {
       player("k", "Cameron Dicker", "LAC", "K"),
       player("def", "Denver Broncos", "DEN", "DEF"),
     ];
-    const exports = [qbCsv, rbCsv, wrCsv, teCsv, kickerCsv, dstCsv];
+    const exports = [qbCsv, rbCsv, wrCsv, teCsv, kickerCsv, dstCsv].map((csv) => {
+      if (format === "quoted") return csv;
+      const newline = csv.indexOf("\n");
+      return csv.slice(0, newline).replaceAll('"', "") + csv.slice(newline);
+    });
 
     const imports = exports.map((csvText) => importFantasyProsWeeklyProjectionCsv({
       players,
