@@ -99,9 +99,11 @@ Run these against **0.1.0-beta.5**, not the old beta.4 installer:
    artifact and its logged ID/digest. Record the maintainer's confirmation in the
    [beta.5 release notes](0.1.0-beta.5.md#manual-checks).
 3. Complete the [once-before-stable pass](../RELEASING.md#once-before-the-first-stable-release).
-   It remains pending for beta.5. Use that list for the native interaction,
-   live-provider recovery, additional reset categories, shutdown, profile access,
-   and backup restore/rollback checks that CI does not prove.
+   Scaling, keyboard focus, active-request shutdown, backup restore, and
+   uninstall/reinstall already passed on beta.2/beta.3 and carry forward. The
+   remaining items are news retrieval with an external citation, quitting during
+   news research, file-picker reselection, demo and overlapping dialogs, renderer
+   clear/reset, the interactive installer, and rollback.
 4. Select the stable version and synchronize workspace versions and lockfile.
    Follow [publication checks](../RELEASING.md#publish-the-verified-commit) on that
    exact commit, including package inspection, history scanning, release-note and
