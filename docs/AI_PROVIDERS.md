@@ -19,7 +19,7 @@ The app verifies the provider by starting the configured Codex session. Selectin
 
 The executable setting accepts `codex`, `codex.exe`, `codex.cmd`, or a full path ending in one of those names. Arbitrary subprocess commands are rejected.
 
-On Windows, a bare `codex` or npm `codex.cmd` launcher is resolved to the installed npm Codex JavaScript entry point and an explicit `node.exe`. The backend does not enable shell execution. A configured Microsoft Store `codex.exe` path remains usable when Windows permits direct subprocess execution.
+On Windows, a bare `codex` or npm `codex.cmd` launcher is resolved to the installed npm Codex JavaScript entry point and an explicit `node.exe`. If `codex.cmd` is not on the app's PATH, which happens when Codex was installed after Windows sign-in and the app was started from Explorer, the backend also checks npm's default global launcher at `%APPDATA%\npm\codex.cmd`. Other install locations need the full path in Settings. The backend does not enable shell execution. A configured Microsoft Store `codex.exe` path remains usable when Windows permits direct subprocess execution.
 
 Development defaults are optional:
 
