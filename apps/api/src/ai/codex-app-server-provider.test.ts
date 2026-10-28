@@ -46,6 +46,16 @@ describe("Codex app-server executable resolution", () => {
     expect(fileExists).not.toHaveBeenCalledWith("C:\\AppData\\npm\\codex.cmd");
     expect(() => findCodexLaunchOnWindows({ findCommand: () => null, fileExists: () => false, appData: "C:\\AppData" }))
       .toThrow("Windows could not locate the Codex CLI");
+    expect(() => findCodexLaunchOnWindows({ findCommand: () => null, fileExists: () => true, appData: undefined }))
+      .toThrow("Windows could not locate the Codex CLI");
+  });
+
+  it("skips a non-npm default launcher and falls through to codex.exe", () => {
+    const findCommand = (command: string) => command === "codex.exe" ? "C:\\Codex\\codex.exe" : null;
+    const fileExists = (file: string) => file === "C:\\AppData\\npm\\codex.cmd";
+
+    expect(findCodexLaunchOnWindows({ findCommand, fileExists, appData: "C:\\AppData" }))
+      .toEqual({ command: "C:\\Codex\\codex.exe", args: [] });
   });
 
   it("keeps explicit executable paths and non-Windows commands unchanged", () => {

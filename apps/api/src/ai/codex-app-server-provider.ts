@@ -657,8 +657,8 @@ export function findCodexLaunchOnWindows(
     appData: process.env.APPDATA,
   },
 ): CodexLaunch {
-  // Apps started from Explorer keep the PATH from sign-in, so a Codex installed
-  // later with `npm install -g` is only found at npm's default global prefix.
+  // The app inherits Explorer's PATH, which can lack npm's per-user directory
+  // even when a terminal finds codex.cmd, so also check npm's default prefix.
   const cmdLauncher = lookup.findCommand("codex.cmd") ?? findDefaultNpmCodexLauncher(lookup);
   if (cmdLauncher) {
     return resolveNpmCodexLauncher(cmdLauncher, lookup);
@@ -675,8 +675,10 @@ function findDefaultNpmCodexLauncher(lookup: WindowsCodexLookup): string | null 
   if (!lookup.appData) {
     return null;
   }
-  const launcher = path.win32.join(lookup.appData, "npm", "codex.cmd");
-  return lookup.fileExists(launcher) ? launcher : null;
+  const npmDirectory = path.win32.join(lookup.appData, "npm");
+  const launcher = path.win32.join(npmDirectory, "codex.cmd");
+  const codexScript = path.win32.join(npmDirectory, "node_modules", "@openai", "codex", "bin", "codex.js");
+  return lookup.fileExists(launcher) && lookup.fileExists(codexScript) ? launcher : null;
 }
 
 function resolveNpmCodexLauncher(
