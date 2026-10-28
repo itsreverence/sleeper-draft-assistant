@@ -644,25 +644,55 @@ export function resolveCodexLaunch(
   return { command: codexBin, args: [] };
 }
 
-function findCodexLaunchOnWindows(): CodexLaunch {
-  const cmdLauncher = findFirstWindowsCommand("codex.cmd");
+export type WindowsCodexLookup = {
+  findCommand: (command: string) => string | null;
+  fileExists: (filePath: string) => boolean;
+  appData: string | undefined;
+};
+
+export function findCodexLaunchOnWindows(
+  lookup: WindowsCodexLookup = {
+    findCommand: findFirstWindowsCommand,
+    fileExists: existsSync,
+    appData: process.env.APPDATA,
+  },
+): CodexLaunch {
+  // The app inherits Explorer's PATH, which can lack npm's per-user directory
+  // even when a terminal finds codex.cmd, so also check npm's default prefix.
+  const cmdLauncher = lookup.findCommand("codex.cmd") ?? findDefaultNpmCodexLauncher(lookup);
   if (cmdLauncher) {
-    return resolveNpmCodexLauncher(cmdLauncher);
+    return resolveNpmCodexLauncher(cmdLauncher, lookup);
   }
 
-  const executable = findFirstWindowsCommand("codex.exe");
+  const executable = lookup.findCommand("codex.exe");
   if (executable) {
     return { command: executable, args: [] };
   }
   throw new Error("Windows could not locate the Codex CLI. Configure its full path in Settings.");
 }
 
-function resolveNpmCodexLauncher(cmdLauncher: string): CodexLaunch {
-  const codexScript = path.join(path.dirname(cmdLauncher), "node_modules", "@openai", "codex", "bin", "codex.js");
-  if (!existsSync(codexScript)) {
+function findDefaultNpmCodexLauncher(lookup: WindowsCodexLookup): string | null {
+  if (!lookup.appData) {
+    return null;
+  }
+  const npmDirectory = path.win32.join(lookup.appData, "npm");
+  const launcher = path.win32.join(npmDirectory, "codex.cmd");
+  const codexScript = path.win32.join(npmDirectory, "node_modules", "@openai", "codex", "bin", "codex.js");
+  return lookup.fileExists(launcher) && lookup.fileExists(codexScript) ? launcher : null;
+}
+
+function resolveNpmCodexLauncher(
+  cmdLauncher: string,
+  lookup: Pick<WindowsCodexLookup, "findCommand" | "fileExists"> = {
+    findCommand: findFirstWindowsCommand,
+    fileExists: existsSync,
+  },
+): CodexLaunch {
+  const codexScript = path.win32.join(path.win32.dirname(cmdLauncher), "node_modules", "@openai", "codex", "bin", "codex.js");
+  if (!lookup.fileExists(codexScript)) {
     throw new Error("The configured codex.cmd is not an npm Codex launcher. Configure codex.exe instead.");
   }
-  const nodeExecutable = findFirstWindowsCommand("node.exe");
+  const nodeExecutable = lookup.findCommand("node.exe");
   if (!nodeExecutable) {
     throw new Error("Windows could not locate node.exe required by the npm Codex launcher.");
   }

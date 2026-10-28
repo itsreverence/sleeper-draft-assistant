@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildDraftQuestionContext } from "./context";
 import type { AiTool } from "./types";
-import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
+import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, findCodexLaunchOnWindows, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -18,6 +18,44 @@ describe("Codex app-server executable resolution", () => {
     expect(resolveCodexLaunch("codex", "win32", findLaunch)).toEqual(launch);
     expect(resolveCodexLaunch("codex.cmd", "win32", findLaunch)).toEqual(launch);
     expect(findLaunch).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to npm's default global launcher when PATH lacks it", () => {
+    const appData = "C:\\Users\\desktop\\AppData\\Roaming";
+    const files = new Set([
+      `${appData}\\npm\\codex.cmd`,
+      `${appData}\\npm\\node_modules\\@openai\\codex\\bin\\codex.js`,
+    ]);
+    const findCommand = vi.fn((command: string) =>
+      command === "node.exe" ? "C:\\Program Files\\nodejs\\node.exe" : null);
+
+    expect(findCodexLaunchOnWindows({ findCommand, fileExists: (file) => files.has(file), appData })).toEqual({
+      command: "C:\\Program Files\\nodejs\\node.exe",
+      args: [`${appData}\\npm\\node_modules\\@openai\\codex\\bin\\codex.js`],
+    });
+  });
+
+  it("prefers PATH and reports a missing Codex when no launcher exists", () => {
+    const pathLauncher = "D:\\tools\\npm\\codex.cmd";
+    const fileExists = vi.fn((file: string) => file.startsWith("D:\\tools\\npm\\"));
+    const findCommand = (command: string) =>
+      command === "codex.cmd" ? pathLauncher : command === "node.exe" ? "C:\\node.exe" : null;
+
+    expect(findCodexLaunchOnWindows({ findCommand, fileExists, appData: "C:\\AppData" }).args)
+      .toEqual(["D:\\tools\\npm\\node_modules\\@openai\\codex\\bin\\codex.js"]);
+    expect(fileExists).not.toHaveBeenCalledWith("C:\\AppData\\npm\\codex.cmd");
+    expect(() => findCodexLaunchOnWindows({ findCommand: () => null, fileExists: () => false, appData: "C:\\AppData" }))
+      .toThrow("Windows could not locate the Codex CLI");
+    expect(() => findCodexLaunchOnWindows({ findCommand: () => null, fileExists: () => true, appData: undefined }))
+      .toThrow("Windows could not locate the Codex CLI");
+  });
+
+  it("skips a non-npm default launcher and falls through to codex.exe", () => {
+    const findCommand = (command: string) => command === "codex.exe" ? "C:\\Codex\\codex.exe" : null;
+    const fileExists = (file: string) => file === "C:\\AppData\\npm\\codex.cmd";
+
+    expect(findCodexLaunchOnWindows({ findCommand, fileExists, appData: "C:\\AppData" }))
+      .toEqual({ command: "C:\\Codex\\codex.exe", args: [] });
   });
 
   it("keeps explicit executable paths and non-Windows commands unchanged", () => {
