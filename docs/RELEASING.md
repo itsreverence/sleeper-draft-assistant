@@ -95,15 +95,21 @@ The release workflow builds distributables with `npm run desktop:make`. It rejec
 
 Repeat this fuller real-desktop pass only after major shell, installer, or storage changes. CI cannot prove native interaction, live-provider recovery, display behavior, or restoration of a real profile backup.
 
-- Exercise demo mode and keyboard navigation, Tab/Shift+Tab containment, Escape, opener focus restoration, and overlapping dialogs. Check display scaling and a short window.
+Already passed on real Windows 11 Pro. These carry forward until a major shell, installer, or storage change:
+
+- Display scaling at 100%, 125%, and 150% and a short window; Tab/Shift+Tab containment, Escape, and opener focus restoration (beta.3, [report summary](releases/beta.3-validation-followup.md)).
+- Quit during an active AI question with only app-owned processes exiting, and web-search setting persistence (beta.3).
+- Backup, reset, and restore; uninstall/reinstall with the silent installer; a basic AI question (beta.2, [report summary](releases/beta.2-validation-followup.md)).
+- Codex recovery guidance after correcting a CLI failure (beta.5 candidate smoke, recorded on [#57](https://github.com/itsreverence/sleeper-draft-assistant/pull/57)).
+
+Still required:
+
+- Get a successful news lookup with web search on, then open a returned citation in the default external browser. Check that unsafe destinations remain blocked.
+- Quit during news research. Confirm only app-owned Codex and Sleeper descendants exit. Do not terminate unrelated sessions.
 - Exercise native file selection, paste, and same-file reselection with user-owned exports.
-- Open a returned news citation in the default external browser. Check that unsafe destinations remain blocked.
-- Exercise Codex setup and recovery guidance after correcting a CLI/login failure.
-- Quit during an active AI question and during news research. Confirm only app-owned Codex and Sleeper descendants exit. Do not terminate unrelated sessions.
-- Populate ROS rankings, weekly projections, and a saved AI draft plan, then verify their category clears and full reset remove them across relaunch.
+- Open demo mode and overlapping dialogs with the keyboard.
 - Exercise the renderer category-clear and typed full-reset controls. Confirm the connection screen returns, the remembered username is removed, and relaunch does not reload the old context. API CI does not verify Chromium preference cleanup or focus.
-- Restore a closed-app backup and roll back to its matching earlier installer. CI upgrade coverage does not prove backward schema compatibility or backup restoration.
-- Exercise interactive installer choices, uninstall/reinstall, and normal-user profile access. Hosted-runner silent installation and ACL snapshots do not replace this pass.
+- Run the interactive installer wizard, then restore a closed-app backup and roll back to its matching earlier installer. CI upgrade coverage does not prove backward schema compatibility.
 
 Use [WORKFLOW.md](WORKFLOW.md) for detailed scenarios and [INSTALLING.md](INSTALLING.md) for backup and rollback steps. Record the candidate version, Windows version, and outcomes.
 
