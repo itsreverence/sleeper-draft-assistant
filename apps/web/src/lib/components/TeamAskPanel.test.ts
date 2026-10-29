@@ -70,7 +70,7 @@ describe("Team ask panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenCalledWith("What should I fix first?", []);
+      expect(onAsk).toHaveBeenCalledWith("What should I fix first?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
     });
     expect(await screen.findByText("Start your best running backs first.")).toBeTruthy();
   });
@@ -94,7 +94,7 @@ describe("Team ask panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenCalledWith("Who should I start this week?", []);
+      expect(onAsk).toHaveBeenCalledWith("Who should I start this week?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
     });
     expect(await screen.findByText("Keep the current starters.")).toBeTruthy();
   });
@@ -140,7 +140,7 @@ describe("Team ask panel", () => {
     await fireEvent.keyDown(textbox, { key: "Enter", ctrlKey: true });
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenCalledWith("Should I change my lineup?", []);
+      expect(onAsk).toHaveBeenCalledWith("Should I change my lineup?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
     });
   });
 
@@ -225,7 +225,7 @@ describe("Team ask panel", () => {
     const firstTextbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
     await fireEvent.input(firstTextbox, { target: { value: "Question A" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
-    await waitFor(() => expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", []));
+    await waitFor(() => expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) })));
 
     await view.rerender({
       teamState: secondTeam.state,
@@ -240,7 +240,7 @@ describe("Team ask panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", []);
+      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
       expect(screen.getByText("Question B")).toBeTruthy();
       expect(screen.queryByText("Question A")).toBeNull();
     });
@@ -289,7 +289,7 @@ describe("Team ask panel", () => {
     });
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenCalledWith("What does recent Sleeper activity say about my roster moves?", []);
+      expect(onAsk).toHaveBeenCalledWith("What does recent Sleeper activity say about my roster moves?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
     });
     expect(onPromptRequestHandled).toHaveBeenCalledWith(1);
     expect(await screen.findByText("Investigate the market move before changing your roster.")).toBeTruthy();

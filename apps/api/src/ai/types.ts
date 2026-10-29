@@ -222,15 +222,27 @@ export type AiDraftStrategy = {
   decision: AiDraftDecision;
 };
 
+export type AiPhase = "queued" | "thinking" | "news";
+export type AiRequestOptions = {
+  automatic?: boolean;
+  isCurrent?: () => boolean | Promise<boolean>;
+  onPhase?: (phase: AiPhase) => void;
+};
+export type AiTiming = { kind: "draft_strategy" | "draft_question" | "team_question"; queueMs: number; modelMs: number; toolMs: number; newsMs: number };
+
 export interface AiProvider {
+  timingDiagnostics?(): AiTiming[];
   newsDiagnostics?(): NewsLookupDiagnostic[];
   status(): AiProviderStatus;
   checkStatus?(): Promise<AiProviderStatus>;
-  strategizeDraft(context: DraftStrategyContext, tools?: AiTool[]): Promise<AiDraftStrategy>;
-  answerDraftQuestion(context: DraftQuestionContext, tools?: AiTool[]): Promise<AiAnswer>;
-  answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer>;
+  strategizeDraft(context: DraftStrategyContext, tools?: AiTool[], options?: AiRequestOptions): Promise<AiDraftStrategy>;
+  answerDraftQuestion(context: DraftQuestionContext, tools?: AiTool[], options?: AiRequestOptions): Promise<AiAnswer>;
+  answerTeamQuestion(context: TeamAiContext, options?: AiRequestOptions): Promise<AiAnswer>;
   close?(): void;
 }
 
 
 
+export class AiRequestSupersededError extends Error {
+  constructor() { super("AI request was superseded or cancelled. Request fresh advice."); }
+}

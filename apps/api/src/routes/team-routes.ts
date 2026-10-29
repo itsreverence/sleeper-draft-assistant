@@ -1,3 +1,4 @@
+import { aiRequestOptions } from "../ai/request-progress";
 import { buildTeamDataReadiness } from "@sleeper-draft-assistant/engine";
 import {
   SeasonValueRankingImportRequestSchema,
@@ -163,6 +164,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
           dataReadiness,
           selectedWeek,
         ),
+        aiRequestOptions(c),
       );
       localDataReset.assertCurrent(generation);
       return c.json({

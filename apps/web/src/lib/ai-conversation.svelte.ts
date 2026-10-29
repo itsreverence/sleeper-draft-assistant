@@ -1,3 +1,5 @@
+import { onDestroy } from "svelte";
+import type { AiRequestProgress } from "./api";
 import type { AiConversationMessage, DraftStrategyProposal } from "./types";
 
 export type AiConversationReply = {
@@ -15,7 +17,7 @@ export type AiConversationDisplayMessage = {
 };
 
 export function createAiConversation(options: {
-  ask: (question: string, history: AiConversationMessage[]) => Promise<AiConversationReply>;
+  ask: (question: string, history: AiConversationMessage[], progress: AiRequestProgress) => Promise<AiConversationReply>;
   loadingMessage: string;
   fallbackError: string;
 }) {
@@ -24,6 +26,7 @@ export function createAiConversation(options: {
   let isAsking = $state(false);
   let copied = $state(false);
   let lastQuestion = $state("");
+  let controller: AbortController | undefined;
   let identity = "";
   let requestSequence = 0;
   let activeRequestId = 0;
@@ -42,10 +45,13 @@ export function createAiConversation(options: {
   }
 
   function invalidateRequests() {
+    controller?.abort();
     requestSequence += 1;
     activeRequestId = 0;
     isAsking = false;
   }
+
+  onDestroy(invalidateRequests);
 
   function clear(invalidatePending = true) {
     if (invalidatePending) invalidateRequests();
@@ -80,8 +86,16 @@ export function createAiConversation(options: {
     const loading = createMessage("assistant", options.loadingMessage, "loading");
     messages = [...messages, createMessage("user", trimmed), loading];
 
+    controller = new AbortController();
     try {
-      const result = await options.ask(trimmed, conversationHistory);
+      const result = await options.ask(trimmed, conversationHistory, {
+        signal: controller.signal,
+        onPhase: (phase) => {
+          if (requestId !== activeRequestId || requestIdentity !== identity) return;
+          const content = phase === "queued" ? "Waiting for another AI request…" : phase === "news" ? "Checking news…" : "Thinking…";
+          messages = messages.map((message) => message.id === loading.id ? { ...message, content } : message);
+        },
+      });
       if (requestId !== activeRequestId || requestIdentity !== identity) return false;
       messages = messages.map((message) => message.id === loading.id
         ? {

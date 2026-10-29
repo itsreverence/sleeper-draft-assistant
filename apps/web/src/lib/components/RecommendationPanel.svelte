@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { AiRequestProgress } from "../api";
   import { draftStateRevision } from "@sleeper-draft-assistant/shared";
   import Icon from "./Icon.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
@@ -38,7 +39,7 @@
     shouldRequestAiStrategy?: boolean;
     strategyRequestKey?: string;
     onAskAboutCandidate?: (playerName: string, recommendedPlayerName: string) => void;
-    onRequestAiStrategy?: () => Promise<AiDraftStrategyPayload>;
+    onRequestAiStrategy?: (automatic?: boolean, progress?: AiRequestProgress) => Promise<AiDraftStrategyPayload>;
     strategyOpen?: boolean;
     onToggleStrategy?: () => void;
     draftState: DraftState;
@@ -68,6 +69,13 @@
   let lastAiStrategyKey = $state("");
   let completedBoardRevision = $state("");
   let aiStrategyRequestId = 0;
+  let strategyController: AbortController | undefined;
+  let explicitRefresh = false;
+  let phaseMessage = $state("Thinking…");
+  $effect(() => {
+    currentRequestKey;
+    return () => { strategyController?.abort(); };
+  });
   const boardRevision = $derived(draftStateRevision(draftState));
   const currentRequestKey = $derived(`${currentPick}:${strategyRequestKey}:${boardRevision}`);
   const currentAiStrategy = $derived(
@@ -134,6 +142,7 @@
       : "Elite faller";
   }
   function retryAiStrategy() {
+    explicitRefresh = true;
     aiStrategyError = "";
     lastAiStrategyKey = "";
   }
@@ -158,7 +167,13 @@
       const requestId = ++aiStrategyRequestId;
       isLoadingAiStrategy = true;
       aiStrategyError = "";
-      void onRequestAiStrategy()
+      strategyController?.abort();
+      strategyController = new AbortController();
+      const automatic = !explicitRefresh;
+      explicitRefresh = false;
+      void onRequestAiStrategy(automatic, { signal: strategyController.signal, onPhase: (phase) => {
+        if (requestId === aiStrategyRequestId && requestKey === currentRequestKey) phaseMessage = phase === "queued" ? "Waiting for another AI request…" : phase === "news" ? "Checking news…" : "Thinking…";
+      } })
         .then((payload) => {
           if (requestId === aiStrategyRequestId && requestKey === currentRequestKey && payload.pickNumber === currentPick) {
             aiStrategy = payload;
@@ -210,7 +225,7 @@
           {#if isLoadingAiStrategy}
             <div class="strategy-refresh-status">
               <span class="spinner"></span>
-              <strong>{isPreviousRecommendation ? "Reviewing latest board…" : "Updating recommendation…"}</strong>
+              <strong>{phaseMessage}</strong>
             </div>
           {/if}
           {#if aiStrategyError}
@@ -368,7 +383,7 @@
     <div class="ai-strategy-pending" aria-live="polite">
       <span class="spinner"></span>
       <div>
-        <strong>AI strategist is reviewing this board</strong>
+        <strong>{phaseMessage}</strong>
         <span>Codex can search the complete available-player pool while it evaluates the current roster and draft room.</span>
       </div>
     </div>

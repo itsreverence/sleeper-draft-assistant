@@ -42,6 +42,8 @@ export class AiProviderManager {
     this.settingsKey = "";
   }
 
+  timingDiagnostics() { return this.provider?.timingDiagnostics?.() ?? []; }
+
   newsDiagnostics() {
     // Reading a support report must not create a provider or launch Codex.
     return this.provider?.newsDiagnostics?.() ?? [];

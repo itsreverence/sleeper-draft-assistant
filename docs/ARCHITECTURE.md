@@ -113,3 +113,23 @@ Team Manager reads the tokenless, read-only `https://api.sleeper.app/schedule/nf
 The API caches successful results in memory per season for six hours and unavailable results for two minutes, coalescing concurrent requests. Nothing is persisted or sent to a new host. Closing the app or deleting all local app data discards the cache; an in-flight request cannot restore a cleared cache. On network or validation failure Team Manager remains usable, shows schedule coverage as unavailable, falls back to imported draft CSV bye weeks only for current recognized NFL teams, and otherwise reports unknown bye status. Demo mode uses synthetic local evidence and makes no schedule request.
 
 Schedule requests use a single 2.5-second attempt so an unavailable endpoint does not hold up Team Manager for long. Unknown bounded game-status strings become `unknown` without discarding the season. Free agents, teamless players and unrecognized teams have unknown bye status. Preseason and postseason views have no weekly schedule facts; an unknown phase requires an explicitly selected week.
+
+## AI request lifecycle
+
+The provider queue runs one main turn at a time, selecting user questions and
+explicit strategy retries before pending automatic refreshes. Refreshes coalesce
+by draft/team scope, retaining the highest caller priority. The queued phase is
+reported only when another operation holds the provider queue; preparation and
+freshness checks use thinking. A provider-neutral `AiRequestOptions` carries caller priority,
+a preflight freshness check, and phase notifications. Strategy preflight checks
+the normalized draft revision, reset generation, and caller cancellation before
+model execution; response validation remains authoritative afterward.
+
+Authenticated request-progress middleware stores only an opaque request handle,
+phase, and cancellation flag for the lifetime of the HTTP operation. The renderer
+polls status while waiting, cancels queued work when its context is invalidated,
+and keeps its existing response identity guards. Cancellation never interrupts
+an active turn. Settings changes and reset still close the provider and clear
+threads. Diagnostics reduce the latest 20 completed main operations to request
+kind and phase durations; no request handles or content reach either export.
+See [AI providers](AI_PROVIDERS.md#ai-scheduling-and-progress) for phase meanings.
