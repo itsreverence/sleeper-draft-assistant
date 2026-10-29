@@ -23,6 +23,7 @@ import {
   type AdpImportStore,
   type SeasonProjectionImportStore,
 } from "../draft-value-import";
+import { applyPlayerSchedule, applyTeamSchedule } from "../nfl-schedule";
 import { applyImportedPlayerValues, type RankingImportStore } from "../rankings-import";
 import {
   applySeasonValueRankingsToPlayers,
@@ -104,7 +105,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
       const seasonValueImport = getActiveSeasonValueImport(c, leagueId, state);
       const rankedState = applySeasonValueRankingsToTeamState(state, seasonValueImport);
-      const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
+      const projectedState = await withSchedule(c, applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport), selectedWeek);
       return c.json(toTeamPayload(
         projectedState,
         weekContext,
@@ -143,10 +144,13 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
       const seasonValueImport = getActiveSeasonValueImport(c, leagueId, state);
       const rankedState = applySeasonValueRankingsToTeamState(state, seasonValueImport);
-      const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
+      const projectedState = await withSchedule(c, applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport), selectedWeek);
       const rankedAvailablePlayers = applyTeamRankingImport(c, availablePlayers);
       const availableWithRos = applySeasonValueRankingsToPlayers(rankedAvailablePlayers, seasonValueImport);
-      const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport);
+      const schedule = state.league.season ? await sleeperClient.getNflSchedule(state.league.season) : null;
+      localDataReset.assertCurrent(generation);
+      const projectedAvailablePlayers = applyWeeklyProjectionsToPlayers(availableWithRos, activeWeeklyImport)
+        .map((player) => applyPlayerSchedule(player, schedule, state.league.season, projectedState.scheduleStatus?.week ?? null));
       const aiProvider = aiProviderManager.get(getSettingsStore().get());
       const dataReadiness = buildTeamDataReadiness(projectedState, weeklyImport?.summary ?? null);
       const aiAnswer = await aiProvider.answerTeamQuestion(
@@ -242,7 +246,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const selectedWeek = getWeek(c) ?? state.week ?? 1;
       const weeklyImport = getWeeklyProjectionImport(c, leagueId, state.league.season, selectedWeek);
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, weeklyImport, selectedWeek) ? weeklyImport : null;
-      const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
+      const projectedState = await withSchedule(c, applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport), selectedWeek);
 
       return c.json({
         summary: storedImport.summary,
@@ -335,7 +339,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const activeWeeklyImport = isWeeklyProjectionImportActive(state, storedImport, week) ? storedImport : null;
       const seasonValueImport = getActiveSeasonValueImport(c, leagueId, state);
       const rankedState = applySeasonValueRankingsToTeamState(state, seasonValueImport);
-      const projectedState = applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport);
+      const projectedState = await withSchedule(c, applyWeeklyProjectionsToTeamState(rankedState, activeWeeklyImport), week);
 
       return c.json({
         summary: storedImport!.summary,
@@ -369,6 +373,21 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       return handleRouteError(c, error);
     }
   });
+
+  async function withSchedule(c: Context, state: TeamManagerState, selectedWeek: number): Promise<TeamManagerState> {
+    const generation = localDataReset.captureGeneration();
+    const schedule = state.league.season ? await sleeperClient.getNflSchedule(state.league.season) : null;
+    localDataReset.assertCurrent(generation);
+    const weeklyPhase = state.seasonPhase === "regular" || (state.seasonPhase === "unknown" && getWeek(c) !== null);
+    const week = weeklyPhase && selectedWeek >= 1 && selectedWeek <= 18 ? selectedWeek : null;
+    const draftId = c.req.query("draftId");
+    const draftImport = draftId ? getRankingImportStore().get(draftId) : null;
+    const apply = (player: Player) => applyPlayerSchedule(
+      { ...player, byeWeek: player.byeWeek ?? draftImport?.playersById.get(player.id)?.byeWeek },
+      schedule, state.league.season, week,
+    );
+    return applyTeamSchedule(state, apply, schedule !== null, week);
+  }
 
   function getWeeklyProjectionImport(
     c: Context,

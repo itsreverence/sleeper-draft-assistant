@@ -138,3 +138,9 @@ Sleeper Draft Assistant is an independent project and is not affiliated with, en
 ## License
 
 [MIT](LICENSE)
+
+### Team Manager NFL schedule
+
+Team Manager reads Sleeper's public, tokenless NFL schedule to show selected-week BYE markers and opponents and supply Codex with schedule facts. This undocumented endpoint is cached only in local process memory for six hours on success or two minutes on failure. If unavailable, imported draft CSV byes are used only for current recognized NFL teams; other bye status remains unknown. See [Privacy](docs/PRIVACY.md) for network and deletion details.
+
+Schedule requests use a single 2.5-second attempt so an unavailable endpoint does not hold up Team Manager for long. Unknown bounded game-status strings become `unknown` without discarding the season. Free agents, teamless players and unrecognized teams have unknown bye status. Preseason and postseason views have no weekly schedule facts; an unknown phase requires an explicitly selected week.

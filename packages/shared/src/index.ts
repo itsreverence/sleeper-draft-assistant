@@ -45,6 +45,11 @@ export const PlayerSchema = z.object({
   importedRank: z.number().nullable().optional(),
   importedPositionRank: z.number().nullable().optional(),
   importedSource: z.string().nullable().optional(),
+  schedule: z.object({
+    season: z.string().nullable(), week: z.number().int().min(1).max(18).nullable(),
+    source: z.enum(["sleeper", "draft_import", "unknown"]), onBye: z.boolean().nullable(),
+    opponent: z.string().nullable(), homeAway: z.enum(["home", "away"]).nullable(), gameStatus: z.string().nullable(),
+  }).optional(),
   byeWeek: z.number().nullable().optional(),
   ecrVsAdp: z.number().nullable().optional(),
   seasonProjectedPoints: z.number().nullable().optional(),
@@ -510,6 +515,7 @@ export const SeasonPhaseSchema = z.enum(["preseason", "regular", "postseason", "
 export type SeasonPhase = z.infer<typeof SeasonPhaseSchema>;
 
 export const TeamManagerStateSchema = z.object({
+  scheduleStatus: z.object({ available: z.boolean(), week: z.number().nullable() }).optional(),
   league: z.object({
     id: z.string(),
     name: z.string(),

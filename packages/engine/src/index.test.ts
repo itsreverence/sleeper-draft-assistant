@@ -529,6 +529,19 @@ describe("full draft simulations", () => {
 });
 
 describe("team data readiness", () => {
+  it("excludes known byes from missing projection counts and reports unavailable schedule coverage", () => {
+    const state = createTeamManagerState();
+    const players = state.roster.starters.flatMap((slot) => slot.player ? [slot.player] : []);
+    players.slice(1).forEach((player) => Object.assign(player, weeklyProjectionFields(12)));
+    players[0]!.schedule = { season: "2026", week: 1, source: "draft_import", onBye: true, opponent: null, homeAway: null, gameStatus: null };
+    state.scheduleStatus = { available: false, week: 1 };
+    const readiness = buildTeamDataReadiness(state, weeklyImportSummary(["QB", "RB", "WR", "TE"]), Date.parse("2026-09-02T00:00:00.000Z"));
+    expect(readiness.eligibleRosterPlayers).toBe(3);
+    expect(readiness.projectedRosterPlayers).toBe(3);
+    expect(readiness.rosterProjectionCoverage).toBe(1);
+    expect(readiness.warnings.join(" ")).not.toContain("Roster projection coverage");
+    expect(readiness.warnings.join(" ")).toContain("NFL schedule unavailable");
+  });
   it("reports weekly evidence coverage without making a lineup recommendation", () => {
     const state = createTeamManagerState();
     for (const player of state.roster.starters.map((slot) => slot.player).filter((player): player is Player => Boolean(player))) {

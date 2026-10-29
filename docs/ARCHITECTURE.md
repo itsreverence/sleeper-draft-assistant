@@ -106,6 +106,14 @@ On Windows, npm launchers are resolved to their known `@openai/codex/bin/codex.j
 - Exact kicker and defense rescoring is unavailable when exports omit field-goal distance and points-allowed distributions.
 - The capability token is not an IPC replacement and does not defend against same-user malware.
 
+### Team Manager NFL schedule
+
+Team Manager reads the tokenless, read-only `https://api.sleeper.app/schedule/nfl/regular/<season>` endpoint. This undocumented Sleeper endpoint receives only the season, with no league or roster data. A strictly validated complete 272-game season provides selected-week byes, NFL opponents, home/away and game status, plus season bye weeks for roster and available-player evidence. Codex remains responsible for start/sit advice; a known bye scores zero and cannot be recommended as a starter. Bye players are excluded from weekly projection coverage.
+
+The API caches successful results in memory per season for six hours and unavailable results for two minutes, coalescing concurrent requests. Nothing is persisted or sent to a new host. Closing the app or deleting all local app data discards the cache; an in-flight request cannot restore a cleared cache. On network or validation failure Team Manager remains usable, shows schedule coverage as unavailable, falls back to imported draft CSV bye weeks only for current recognized NFL teams, and otherwise reports unknown bye status. Demo mode uses synthetic local evidence and makes no schedule request.
+
+Schedule requests use a single 2.5-second attempt so an unavailable endpoint does not hold up Team Manager for long. Unknown bounded game-status strings become `unknown` without discarding the season. Free agents, teamless players and unrecognized teams have unknown bye status. Preseason and postseason views have no weekly schedule facts; an unknown phase requires an explicitly selected week.
+
 ## AI request lifecycle
 
 The provider queue runs one main turn at a time, selecting user questions and

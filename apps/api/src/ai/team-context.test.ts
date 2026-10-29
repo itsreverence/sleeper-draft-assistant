@@ -7,6 +7,17 @@ import { NoopAiProvider } from "./noop-provider";
 import { normalizeSleeperAvailablePlayers } from "../sleeper";
 
 describe("team AI context", () => {
+  it("supplies selected-week bye facts and the zero-point starter rule for roster and waiver candidates", () => {
+    const state = createTeamState();
+    const byePlayer = { ...player("bye", "Synthetic Bye", "BUF", "QB"), byeWeek: 8,
+      schedule: { season: "2026", week: 8, source: "sleeper" as const, onBye: true, opponent: null, homeAway: null, gameStatus: null } };
+    state.roster.starters[0]!.player = byePlayer;
+    const context = buildTeamAiContext(state, "Who starts?", [], null, [byePlayer], null, null, 8);
+    expect(context.teamBrief.starterCandidates.join(" ")).toContain("BYE (zero points)");
+    expect(context.teamBrief.starterCandidates.join(" ")).toContain("season bye Week 8");
+    expect(context.availablePlayerEvidence[0]).toMatchObject({ byeWeek: 8, schedule: { onBye: true, week: 8 } });
+    expect(context.teamBrief.responseRules.join(" ")).toContain("must not be recommended as a starter");
+  });
   it("considers imported evidence beyond the first 160 Sleeper search results", () => {
     const players = Object.fromEntries(Array.from({ length: 200 }, (_, index) => {
       const id = `candidate-${index}`;

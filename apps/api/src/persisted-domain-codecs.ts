@@ -57,6 +57,7 @@ export const SerializedRosRankingImportSchema = z.object({
     worstRank: nullableNumber,
     averageRank: nullableNumber,
     standardDeviation: nullableNumber,
+    byeWeek: z.number().int().min(1).max(18).nullable().optional(),
   })),
 });
 export type SerializedRosRankingImport = z.infer<typeof SerializedRosRankingImportSchema>;

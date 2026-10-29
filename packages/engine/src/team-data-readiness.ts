@@ -25,7 +25,7 @@ export function buildTeamDataReadiness(
   weeklyProjectionSummary: WeeklyProjectionImportSummary | null,
   now = Date.now(),
 ): TeamDataReadiness {
-  const eligibleRosterPlayers = getUniqueActiveRosterPlayers(state);
+  const eligibleRosterPlayers = getUniqueActiveRosterPlayers(state).filter((player) => player.schedule?.onBye !== true);
   const relevantPositions = teamPositions.filter((position) =>
     (state.league.rosterSlots[position] ?? 0) > 0
       || eligibleRosterPlayers.some((player) => player.position === position),
@@ -39,12 +39,13 @@ export function buildTeamDataReadiness(
   ).length;
   const rosterProjectionCoverage = eligibleRosterPlayers.length > 0
     ? projectedRosterPlayers / eligibleRosterPlayers.length
-    : 0;
+    : 1;
   const importMatchRate = weeklyProjectionSummary && weeklyProjectionSummary.rowsParsed > 0
     ? weeklyProjectionSummary.matched / weeklyProjectionSummary.rowsParsed
     : null;
   const warnings: string[] = [];
-  const facts: string[] = [];
+  const facts: string[] = ["Players on bye are excluded from projection coverage."];
+  if (state.scheduleStatus?.available === false) warnings.push("NFL schedule unavailable; imported draft byes are used where known, otherwise bye status is unknown.");
   const importIsFresh = weeklyProjectionSummary ? isWeeklyProjectionSummaryFresh(weeklyProjectionSummary, now) : false;
 
   if (!weeklyProjectionSummary) {

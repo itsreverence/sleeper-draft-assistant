@@ -69,6 +69,8 @@ export type TeamAiContext = {
 };
 
 export type TeamAvailablePlayerEvidence = {
+  schedule: Player["schedule"] | null;
+  byeWeek: number | null;
   playerId: string;
   name: string;
   team: string;

@@ -103,6 +103,7 @@ function buildTeamBrief(
           : "Current season-value rankings are incomplete or absent; say so when long-term value matters.",
       "Use weekContext only for the selected Sleeper week's matchup, lineup, and score state; do not treat it as projections.",
       "For add/drop questions, verify that an add appears in availablePlayerEvidence and that a drop appears on the user's roster.",
+      "A player on bye in the selected week scores zero and must not be recommended as a starter for that week. Unknown bye status is not evidence that a player plays. Use season byeWeek for upcoming bye planning.",
       "For lineup questions, verify slot eligibility from teamState before recommending a change.",
       "Qualify confidence using dataReadinessFacts and dataWarnings.",
       "Keep the answer concise and action-oriented.",
@@ -156,6 +157,8 @@ function buildAvailablePlayerEvidence(players: Player[]): {
 
 function toAvailablePlayerEvidence(player: Player): TeamAvailablePlayerEvidence {
   return {
+    schedule: player.schedule ?? null,
+    byeWeek: player.byeWeek ?? null,
     playerId: player.id,
     name: player.name,
     team: player.team,
@@ -177,6 +180,9 @@ function formatPlayer(player: Player): string {
     ? player.riskTags.filter((tag) => !tag.toLowerCase().startsWith("injury:"))
     : player.riskTags;
   const signals = [
+    player.schedule?.onBye === true ? "BYE (zero points)" : null,
+    player.schedule?.opponent ? `${player.schedule.homeAway} vs ${player.schedule.opponent}, ${player.schedule.gameStatus}` : null,
+    player.byeWeek ? `season bye Week ${player.byeWeek}` : null,
     player.weeklyProjectedPoints !== null && player.weeklyProjectedPoints !== undefined
       ? `weekly ${player.weeklyProjectedPoints.toFixed(1)}`
       : null,
