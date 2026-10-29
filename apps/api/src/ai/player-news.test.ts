@@ -132,6 +132,31 @@ describe("bounded public player news", () => {
   });
 
   it.each([
+    "https://www.nfl.com/news/nfl-week-8-injury-report-2026-season",
+    "https://www.49ers.com/news/week-8-injury-report",
+    "https://www.raiders.com/news/roster-moves",
+    "https://www.espn.com/nfl/story/_/id/123/depth-charts",
+    "https://www.nbcsports.com/nfl/news/dated-report",
+    "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/news/dated-report",
+    "https://www.nbcsports.com/fantasy/football/player-news/2026-09-24/dated-report",
+  ])("admits dated articles alongside rolling route rejections: %s", async (url) => {
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "Report", sources: [{ title: "Report", url, reportedAt: "2026-09-24" }] }));
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "available", sources: [{ url }] });
+  });
+
+  it.each([
+    "https://www.nbcsports.com/nfl/a-j-brown/6477",
+    "https://www.nbcsports.com/nfl/a-j-brown/6477/news/",
+    "https://www.nbcsports.com/nfl/a-j-brown/6477/stats",
+    "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill",
+    "https://www.nfl.com/players/patrick-mahomes/",
+    "https://www.nfl.com/teams/kansas-city-chiefs/roster",
+    "https://www.nfl.com/teams/kansas-city-chiefs/depth-chart",
+    "https://www.nfl.com/teams/kansas-city-chiefs/injuries",
+    "https://www.espn.com/nfl/team/roster/_/name/kc",
+    "https://www.espn.com/nfl/team/depth/_/name/kc",
+    "https://www.espn.com/nfl/team/injuries/_/name/kc",
+    "https://www.espn.com/nfl/players",
     "https://amp.nfl.com/injuries/", "https://www.nfl.com/injuries/?team=min",
     "https://www.nfl.com/transactions/league/reserve-list/2026/10?after=cursor",
     "https://www.49ers.com/team/injury-report", "https://www.philadelphiaeagles.com/team/roster/",

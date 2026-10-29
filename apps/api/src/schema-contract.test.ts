@@ -72,6 +72,10 @@ describe("shared validation contracts", () => {
     }
   });
 
+  it.each(["sports.nbcsports.com", "profootballtalk.nbcsports.com", "other.nbcsports.com"])("rejects unapproved NBC subdomain %s", (host) => {
+    expect(NewsSourceSchema.safeParse({ title: "Report", url: `https://${host}/news/report`, reportedAt: "2026-09-24" }).success).toBe(false);
+  });
+
   it("keeps historical stored citations readable when current lookup rules reject listings", () => {
     expect(NewsSourceSchema.safeParse({ title: "Historical report", url: "https://amp.nfl.com/injuries/", reportedAt: "2026-10-29" }).success).toBe(true);
   });

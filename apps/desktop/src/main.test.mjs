@@ -204,6 +204,12 @@ describe("desktop main startup failures", () => {
       }
     }
   });
+  it.each(["sports.nbcsports.com", "profootballtalk.nbcsports.com", "other.nbcsports.com"])("rejects unapproved NBC subdomain %s", async (host) => {
+    const launched = launch({ occupiedPort: true });
+    await launched.completed;
+    expect(launched.isAllowedExternalUrl(`https://${host}/news/report`)).toBe(false);
+  });
+
   it("reports an incompatible occupied port before opening a window", async () => {
     const launched = launch({ occupiedPort: true });
     await launched.completed;

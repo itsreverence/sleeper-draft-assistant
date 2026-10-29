@@ -163,13 +163,18 @@ export function isUndatedNewsListing(value: string): boolean {
     if (!NEWS_SOURCE_HOSTS.includes(url.hostname)) return false;
     const path = decodeURIComponent(url.pathname).toLowerCase().replace(/\/+$/, "");
     if (["nfl.com", "www.nfl.com", "amp.nfl.com"].includes(url.hostname)) {
-      return /^\/(injuries|transactions)(\/|$)/.test(path);
+      return /^\/(injuries|transactions|players)(\/|$)/.test(path)
+        || /^\/teams\/[^/]+\/(roster|depth-chart|injuries)(\/|$)/.test(path);
     }
     if (["espn.com", "www.espn.com"].includes(url.hostname)) {
-      return /^\/nfl\/(player|injuries|depth|transactions)(\/|$)/.test(path);
+      return /^\/nfl\/(player|players|injuries|depth|transactions)(\/|$)/.test(path)
+        || /^\/nfl\/team\/(roster|depth|injuries)(\/|$)/.test(path);
     }
     if (url.hostname === "www.nbcsports.com") {
-      return /^\/nfl\/players?\//.test(path) || path === "/fantasy/football/player-news";
+      return /^\/nfl\/players?(\/|$)/.test(path)
+        || /^\/nfl\/[^/]+\/\d+(?:\/(?:news|stats))?$/.test(path)
+        || path === "/fantasy/football/player-news"
+        || /^\/nfl\/profootballtalk(?:\/rumor-mill)?$/.test(path);
     }
     return /^\/(?:team\/)?(?:injury-report|app-injury-report|roster|players-roster|depth-chart|transactions)(\/|$)/.test(path);
   } catch { return false; }
