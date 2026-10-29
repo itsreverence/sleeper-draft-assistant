@@ -61,6 +61,33 @@ describe("composed API response redaction", () => {
     }
   });
 
+  it("copies only news categories, counts and elapsed time into diagnostics and support reports", async () => {
+    const { createPlayerNewsTool } = await import("./ai/player-news");
+    const { AiProviderManager } = await import("./ai/provider-factory");
+    const { tool } = createPlayerNewsTool(
+      [{ playerId: "private-player", name: playerName, team: "BUF", position: "QB" }],
+      async () => JSON.stringify({ summary: "private-summary", sources: [
+        { title: "private-title", url: "https://www.nfl.com/injuries/?private-query", reportedAt: "2026-10-29" },
+        { title: "private-title", url: "https://private.invalid/private-path", reportedAt: null },
+      ] }),
+      (diagnostic) => { vi.spyOn(AiProviderManager.prototype, "newsDiagnostics").mockReturnValue([diagnostic]); },
+    );
+    await tool.execute({ playerId: "private-player", topic: "injury" });
+    for (const route of ["/diagnostics", "/data/support-report"]) {
+      const response = await app.request(route, { headers });
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      const parsed = JSON.parse(body);
+      expect((parsed.diagnostics ?? parsed).newsLookups).toEqual([{
+        outcome: "invalid_source", elapsedMs: expect.any(Number),
+        rejectedSources: { undated_listing: 1, rejected_host: 1 },
+      }]);
+      for (const value of [playerName, "private-player", "private-summary", "private-title", "private-query", "private.invalid", "private-path", capabilityToken, directory]) {
+        expect(body).not.toContain(value);
+      }
+    }
+  });
+
   it("omits imported names, league identifiers, the capability token and local paths from support-report HTTP text", async () => {
     const responses = new Map<string, unknown>([
       ["/v1/draft/redaction-draft", {

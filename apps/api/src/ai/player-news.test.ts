@@ -42,7 +42,7 @@ describe("bounded public player news", () => {
     const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url, reportedAt: "2026-09-24" }] }), record);
     expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "unavailable" });
     expect(news.sources).toEqual([]);
-    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_source", elapsedMs: 0 });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_source", elapsedMs: 0, rejectedSources: expect.any(Object) });
   });
 
   it.each([
@@ -60,7 +60,7 @@ describe("bounded public player news", () => {
     const result = await news.tool.execute({ playerId: "private-id", topic: "injury" });
     expect(result).toMatchObject({ status: "available", sources: [{ ...valid, checkedAt: "2026-09-24T12:00:00.000Z" }] });
     expect(news.sources).toEqual([{ ...valid, checkedAt: "2026-09-24T12:00:00.000Z" }]);
-    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "available", elapsedMs: 0 });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "available", elapsedMs: 0, rejectedSources: expect.any(Object) });
   });
 
   it("accepts the inclusive seven-day boundary and drops older sources", async () => {
@@ -78,12 +78,12 @@ describe("bounded public player news", () => {
     const result = await news.tool.execute({ playerId: "private-id", topic: "role" });
     expect(result).toMatchObject({ status: "unavailable" });
     expect(JSON.stringify(result)).not.toContain("private config");
-    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "provider_error", elapsedMs: 250 });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "provider_error", elapsedMs: 250, rejectedSources: expect.any(Object) });
   });
 
   it.each([
     ["not JSON", "invalid_json"],
-    [JSON.stringify({ summary: "No recent articles", sources: [] }), "no_recent_sources"],
+    [JSON.stringify({ summary: "No recent articles", sources: [] }), "no_sources_returned"],
     [JSON.stringify({ summary: "News", sources: [{ title: "Report", url: "https://evil.test/private", reportedAt: "2026-09-24" }] }), "invalid_source"],
     [JSON.stringify({ summary: "News", sources: [{ title: "Report", url: "https://nfl.com/news/report", reportedAt: null }] }), "invalid_date"],
     [JSON.stringify({ sources: [] }), "invalid_response"],
@@ -92,12 +92,58 @@ describe("bounded public player news", () => {
     const record = vi.fn();
     const news = createPlayerNewsTool(players, async () => raw, record);
     await news.tool.execute({ playerId: "private-id", topic: "injury" });
-    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome, elapsedMs: 0 });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome, elapsedMs: 0, rejectedSources: expect.any(Object) });
   });
 
   it.each([null, "2025-11-16", "2026-09-25", "2026-02-31"])("does not present an old, unknown, future, or invalid date as current: %s", async (reportedAt) => {
     const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url: "https://www.nfl.com/news/report", reportedAt }] }));
     expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "unavailable" });
     expect(news.sources).toHaveLength(0);
+  });
+  it.each([
+    [null, "missing_date"], [undefined, "missing_date"], ["yesterday", "malformed_date"],
+    ["2026-02-31", "malformed_date"], ["2026-09-25", "future_date"], ["2026-09-16", "stale_date"],
+  ])("counts date rejection %s without retaining source content", async (reportedAt, reason) => {
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "Private summary", sources: [
+      { title: "Private title", url: "https://nfl.com/news/private", reportedAt },
+    ] }), record);
+    await news.tool.execute({ playerId: "private-id", topic: "injury" });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_date", elapsedMs: 0, rejectedSources: { [reason]: 1 } });
+    expect(JSON.stringify(record.mock.calls)).not.toMatch(/private|Private|https/);
+  });
+
+  it("counts each rejected source once and retains a valid article", async () => {
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [
+      { title: "Listing", url: "https://amp.nfl.com/injuries/", reportedAt: "2026-09-24" },
+      { title: "Bad host", url: "https://www.49ers.com.evil.test/news/report", reportedAt: "2026-09-24" },
+      JSON.parse(response).sources[0],
+    ] }), record);
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "available" });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "available", elapsedMs: 0, rejectedSources: { undated_listing: 1, rejected_host: 1 } });
+  });
+
+  it("bounds invalid shape counts to the three-source limit", async () => {
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [null, 42, {}] }), record);
+    await news.tool.execute({ playerId: "private-id", topic: "injury" });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_source", elapsedMs: 0, rejectedSources: { invalid_source_shape: 3 } });
+  });
+
+  it.each([
+    "https://amp.nfl.com/injuries/", "https://www.nfl.com/injuries/?team=min",
+    "https://www.nfl.com/transactions/league/reserve-list/2026/10?after=cursor",
+    "https://www.49ers.com/team/injury-report", "https://www.philadelphiaeagles.com/team/roster/",
+    "https://www.seahawks.com/team/depth-chart", "https://www.49ers.com/roster", "https://www.49ers.com/team/players-roster/test-player/",
+    "https://www.philadelphiaeagles.com/team/app-injury-report/",
+    "https://www.49ers.com/team/transactions/2026", "https://www.49ers.com/team/%69njury-report",
+    "https://www.espn.com/nfl/player/_/id/123/test-player", "https://www.espn.com/nfl/player/gamelog/_/id/123",
+    "https://www.nbcsports.com/fantasy/football/player-news", "https://www.nbcsports.com/nfl/players/123/test",
+  ])("rejects rolling listing even with a plausible date: %s", async (url) => {
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [{ title: "Report", url, reportedAt: "2026-09-24" }] }), record);
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "unavailable" });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_source", elapsedMs: 0, rejectedSources: { undated_listing: 1 } });
   });
 });

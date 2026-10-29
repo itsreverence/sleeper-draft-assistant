@@ -124,7 +124,7 @@ export class CodexAppServerProvider implements AiProvider {
   }
 
   newsDiagnostics(): NewsLookupDiagnostic[] {
-    return this.recentNewsLookups.map((entry) => ({ ...entry }));
+    return this.recentNewsLookups.map((entry) => ({ ...entry, rejectedSources: { ...entry.rejectedSources } }));
   }
 
   async checkStatus(): Promise<AiProviderStatus> {

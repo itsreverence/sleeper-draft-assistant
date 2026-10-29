@@ -3,8 +3,14 @@ import type { AiDraftDecision, AiDraftPlan, DraftState, DraftStrategyInstruction
 export type AiProviderId = "noop" | "codex-app-server";
 
 export type NewsLookupOutcome = "available" | "provider_error" | "timeout" | "cancelled"
-  | "invalid_json" | "invalid_response" | "invalid_source" | "invalid_date" | "no_recent_sources";
-export type NewsLookupDiagnostic = { outcome: NewsLookupOutcome; elapsedMs: number };
+  | "invalid_json" | "invalid_response" | "invalid_source" | "invalid_date" | "no_sources_returned";
+export type NewsSourceRejection = "missing_date" | "malformed_date" | "future_date" | "stale_date"
+  | "rejected_host" | "undated_listing" | "invalid_source_shape";
+export type NewsLookupDiagnostic = {
+  outcome: NewsLookupOutcome;
+  elapsedMs: number;
+  rejectedSources: Partial<Record<NewsSourceRejection, number>>;
+};
 
 export type AiProviderStatus = {
   id: AiProviderId;

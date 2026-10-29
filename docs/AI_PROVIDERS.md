@@ -88,15 +88,50 @@ Codex may call `check_player_news` when injury, practice, or role reporting coul
 
 **Settings > AI > Web search** controls this capability and defaults on, including when upgrading older settings. Turning it off and saving immediately closes the old provider and active research clients, removes the news tool, and starts fresh draft/team conversations. Normal roster and imported-data analysis remains available. The setting persists locally; a full local-data reset restores the enabled default. Existing saved draft decisions/history are not deleted, but their news is not treated as current evidence when search is off.
 
-Each lookup uses a separate ephemeral Codex process/thread with live hosted search restricted to NFL.com and ESPN. Research applies the full built-in tool restrictions described above, uses a read-only sandbox and never requests approval. Live hosted search and the existing news-domain filter remain enabled. At most two lookups are allowed per answer. Each gets the smaller of 45 seconds and the configured main-turn timeout, including process startup. The main generation timer pauses while dynamic tools execute, including overlapping calls. A separate wall-clock deadline bounds the turn to the configured timeout plus two lookup budgets. With the default 60-second timeout, the turn can take at most 150 seconds; a turn without tool waits still times out after 60 seconds. Closing or failing the parent turn closes research clients. Unsupported search configuration, failed retrieval, missing citations, and invalid source links return a safe evidence gap so Codex can continue. Source structure and URL allowlisting do not prove that an article or claim is accurate.
+Each lookup uses a separate ephemeral Codex process/thread with live hosted search restricted to NFL.com, ESPN, all 32 official NFL team sites, and NBC Sports. Research applies the full built-in tool restrictions described above, uses a read-only sandbox and never requests approval. Live hosted search and the existing news-domain filter remain enabled. At most two lookups are allowed per answer. Each gets the smaller of 45 seconds and the configured main-turn timeout, including process startup. The main generation timer pauses while dynamic tools execute, including overlapping calls. A separate wall-clock deadline bounds the turn to the configured timeout plus two lookup budgets. With the default 60-second timeout, the turn can take at most 150 seconds; a turn without tool waits still times out after 60 seconds. Closing or failing the parent turn closes research clients. Unsupported search configuration, failed retrieval, missing citations, and invalid source links return a safe evidence gap so Codex can continue. Source structure and URL allowlisting do not prove that an article or claim is accurate.
 
-Copy diagnostics and support reports include the latest 20 lookup outcomes and elapsed milliseconds for the current provider session. Outcomes distinguish `available`, `timeout`, `cancelled`, `provider_error`, `invalid_json`, `invalid_response`, `invalid_source`, `invalid_date`, and `no_recent_sources`. An empty list means no lookup completed in that session; it does not prove search succeeded. Diagnostics retain no player identity, prompt, article, URL, or raw provider error and never launch Codex just to inspect the list.
+Copy diagnostics and support reports include the latest 20 lookup outcomes and elapsed milliseconds for the current provider session. Outcomes distinguish `available`, `timeout`, `cancelled`, `provider_error`, `invalid_json`, `invalid_response`, `invalid_source`, `invalid_date`, and `no_sources_returned`. An empty list means no lookup completed in that session; it does not prove search succeeded. Each entry also contains `rejectedSources`, counts by `missing_date`, `malformed_date`, `future_date`, `stale_date`, `rejected_host`, `undated_listing`, and `invalid_source_shape`. Each source receives its first failing reason; at most three sources are counted per lookup. Counts are retained even when another source succeeds. `no_sources_returned` replaces the former in-memory `no_recent_sources` category; there are no stored diagnostics to migrate. Returned diagnostic copies detach the nested counts. Diagnostics retain no player identity, prompt, article, URL, or raw provider error and never launch Codex just to inspect the list.
 
-Answers append the sources checked, report dates, and retrieval timestamps. Each source must pass the unchanged exact-host and URL checks and have a valid date within the preceding seven days, not a future or unknown date. Invalid sources are dropped individually. A lookup returns an evidence gap only when no valid recent dated source remains. An empty sources array records `no_recent_sources`; sources that all fail schema or URL validation record `invalid_source`; structurally valid sources with no acceptable date record `invalid_date`. The tool warns that summary claims outside the retained sources are unverified. This checks model-reported dates, not independent verification of article truth. Draft sources appear under **Why**. HTTPS links open externally only for the approved news hosts; in-app navigation remains blocked. News is advisory and cannot establish fantasy availability, override lineup validation, or replace rankings/projections. Old conversation reports must be rechecked before treating them as current. Current request UI shows the ordinary reviewing state; per-search streaming progress is not implemented.
+Answers append the sources checked, report dates, and retrieval timestamps. Each source must pass the unchanged exact-host and URL checks and have a valid article publication date within the preceding seven days, not a future or unknown date. The prompt requires the article’s own publication date, never crawl time, today’s date, a practice/game date, or a generic page-updated date. Rolling injury reports, rosters, depth charts, transaction lists and player profiles are not standalone citations: research must find a dated article or return no sources. Current lookups apply conservative URL-path checks to reject known rolling routes even with a plausible date: NFL `/injuries/` and `/transactions/`, ESPN `/nfl/player/` and listing routes, team `/team/injury-report`, `/roster`, `/depth-chart`, `/transactions` (also directly under `/`), and NBC player profiles and the player-news index. Historical saved citations remain decodable; the new path rule applies when admitting current research, so it does not invalidate stored draft history. Dated articles such as `/news/nfl-week-8-injury-report-2026-season` and NBC’s dated player-news articles remain eligible. Invalid sources are dropped individually. A lookup returns an evidence gap only when no valid recent dated source remains. An empty sources array records `no_sources_returned`; sources that all fail schema or URL validation record `invalid_source`; structurally valid sources with no acceptable date record `invalid_date`. The tool warns that summary claims outside the retained sources are unverified. This checks model-reported dates, not independent verification of article truth. Draft sources appear under **Why**. HTTPS links open externally only for the approved news hosts; in-app navigation remains blocked. News is advisory and cannot establish fantasy availability, override lineup validation, or replace rankings/projections. Old conversation reports must be rechecked before treating them as current. Current request UI shows the ordinary reviewing state; per-search streaming progress is not implemented.
 
 The research prompt uses the same exact host list as citation validation. Search domain filters may return other subdomains; the researcher must retrieve an approved-host article before citing it, never merely rewrite the returned URL.
 
-Approved source hosts are exactly `nfl.com`, `www.nfl.com`, `amp.nfl.com`, `espn.com`, and `www.espn.com`. The [NFL AMP news site](https://amp.nfl.com/news/) is included because live search returns its articles. This is not a wildcard subdomain allowance; credentials, non-HTTPS URLs, and nonstandard ports remain rejected in source validation and Electron's external-link handler.
+Approved source hosts are exactly `nfl.com`, `www.nfl.com`, `amp.nfl.com`, `espn.com`, `www.espn.com`, `www.nbcsports.com`, and these official team article hosts, verified against the [NFL team directory](https://www.nfl.com/teams/) and live HTTPS article retrieval on October 29, 2026:
+
+- `www.azcardinals.com`
+- `www.atlantafalcons.com`
+- `www.panthers.com`
+- `www.chicagobears.com`
+- `www.dallascowboys.com`
+- `www.detroitlions.com`
+- `www.packers.com`
+- `www.therams.com`
+- `www.vikings.com`
+- `www.neworleanssaints.com`
+- `www.giants.com`
+- `www.philadelphiaeagles.com`
+- `www.49ers.com`
+- `www.seahawks.com`
+- `www.buccaneers.com`
+- `www.commanders.com`
+- `www.baltimoreravens.com`
+- `www.buffalobills.com`
+- `www.bengals.com`
+- `www.clevelandbrowns.com`
+- `www.denverbroncos.com`
+- `www.houstontexans.com`
+- `www.colts.com`
+- `www.jaguars.com`
+- `www.chiefs.com`
+- `www.raiders.com`
+- `www.chargers.com`
+- `www.miamidolphins.com`
+- `www.patriots.com`
+- `www.newyorkjets.com`
+- `www.steelers.com`
+- `www.tennesseetitans.com`
+
+The Eagles article responses use `www.philadelphiaeagles.com` even though their canonical metadata currently points to the site homepage. Rotoworld redirects to NBC Sports, so no separate Rotoworld host is allowed. This is not a wildcard subdomain allowance; credentials, non-HTTPS URLs, and nonstandard ports remain rejected in source validation and Electron’s external-link handler.
 
 ## AI-first Team Manager
 

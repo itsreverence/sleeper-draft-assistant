@@ -4,6 +4,7 @@ import {
   AppSettingsUpdateSchema,
   DraftStrategyInstructionSchema,
   NewsSourceSchema,
+  NEWS_SOURCE_HOSTS,
   TeamManagerStateSchema,
 } from "@sleeper-draft-assistant/shared";
 
@@ -63,4 +64,24 @@ describe("shared validation contracts", () => {
     });
     expect(AiDraftDecisionSchema.safeParse({ ...decision, plan: {} }).success).toBe(false);
   });
+  it.each(NEWS_SOURCE_HOSTS)("accepts exact article host %s and rejects host impersonation", (host) => {
+    const source = { title: "Report", reportedAt: "2026-10-29" };
+    expect(NewsSourceSchema.safeParse({ ...source, url: `https://${host}/news/report` }).success).toBe(true);
+    for (const url of [`https://${host}.evil.test/news/report`, `https://arbitrary.${host}/news/report`, `http://${host}/news/report`, `https://user:secret@${host}/news/report`, `https://${host}:8080/news/report`]) {
+      expect(NewsSourceSchema.safeParse({ ...source, url }).success).toBe(false);
+    }
+  });
+
+  it("keeps historical stored citations readable when current lookup rules reject listings", () => {
+    expect(NewsSourceSchema.safeParse({ title: "Historical report", url: "https://amp.nfl.com/injuries/", reportedAt: "2026-10-29" }).success).toBe(true);
+  });
+
+  it.each([
+    "https://amp.nfl.com/news/nfl-week-8-injury-report-2026-season",
+    "https://www.49ers.com/news/injury-report", "https://www.espn.com/nfl/story/_/id/123/report",
+    "https://www.nbcsports.com/fantasy/football/player-news/2026-10-29/dated-report",
+  ])("preserves dated article routes: %s", (url) => {
+    expect(NewsSourceSchema.safeParse({ title: "Report", url, reportedAt: "2026-10-29" }).success).toBe(true);
+  });
+
 });

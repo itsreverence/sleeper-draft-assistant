@@ -4,6 +4,7 @@ import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDraftQuestionContext } from "./context";
+import { newsDomains } from "./player-news";
 import type { AiTool } from "./types";
 import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, findCodexLaunchOnWindows, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient, type CodexTurnOptions } from "./codex-app-server-provider";
 
@@ -307,13 +308,13 @@ describe("Codex app-server executable resolution", () => {
     expect(research.threadStartParams[0]?.config).toEqual({
       ...disabledFeatures,
       web_search: "live",
-      "tools.web_search.allowed_domains": ["nfl.com", "espn.com"],
+      "tools.web_search.allowed_domains": newsDomains,
     });
     expect(research.threadStartParams[0]).toMatchObject({ ephemeral: true, sandbox: "read-only", approvalPolicy: "never" });
     expect(result.answer).toContain("https://www.nfl.com/news/report");
     expect(research.closed).toBe(true);
     expect(main.closed).toBe(false);
-    expect(provider.newsDiagnostics()).toEqual([{ outcome: "available", elapsedMs: expect.any(Number) }]);
+    expect(provider.newsDiagnostics()).toEqual([{ outcome: "available", elapsedMs: expect.any(Number), rejectedSources: expect.any(Object) }]);
     provider.close();
   });
 
@@ -360,7 +361,7 @@ describe("Codex app-server executable resolution", () => {
     provider.close();
     await result;
     expect(research.closed).toBe(true);
-    expect(provider.newsDiagnostics()).toEqual([{ outcome: "cancelled", elapsedMs: expect.any(Number) }]);
+    expect(provider.newsDiagnostics()).toEqual([{ outcome: "cancelled", elapsedMs: expect.any(Number), rejectedSources: expect.any(Object) }]);
   });
 
   it("bounds client creation and closes a client that arrives after the lookup deadline", async () => {
@@ -381,7 +382,7 @@ describe("Codex app-server executable resolution", () => {
       await started.promise;
       await vi.advanceTimersByTimeAsync(1000);
       await expect(result).resolves.toMatchObject({ answer: "Evidence gap." });
-      expect(provider.newsDiagnostics()).toEqual([{ outcome: "timeout", elapsedMs: 1000 }]);
+      expect(provider.newsDiagnostics()).toEqual([{ outcome: "timeout", elapsedMs: 1000, rejectedSources: expect.any(Object) }]);
       created.resolve(research);
       await vi.advanceTimersByTimeAsync(0);
       expect(research.initializeCalls).toBe(0);
@@ -408,7 +409,7 @@ describe("Codex app-server executable resolution", () => {
     await result;
     expect(research.initializeCalls).toBe(0);
     expect(research.closed).toBe(true);
-    expect(provider.newsDiagnostics()).toEqual([{ outcome: "cancelled", elapsedMs: expect.any(Number) }]);
+    expect(provider.newsDiagnostics()).toEqual([{ outcome: "cancelled", elapsedMs: expect.any(Number), rejectedSources: expect.any(Object) }]);
   });
 
   it.each(["timeout", "cancelled"] as const)("records %s without retaining provider errors and closes research", async (outcome) => {
@@ -430,7 +431,7 @@ describe("Codex app-server executable resolution", () => {
       await vi.waitFor(() => expect(research.runTurn).toHaveBeenCalled(), { interval: 1 });
       if (outcome === "cancelled") provider.close();
       await answer;
-      expect(provider.newsDiagnostics()).toEqual([{ outcome, elapsedMs: expect.any(Number) }]);
+      expect(provider.newsDiagnostics()).toEqual([{ outcome, elapsedMs: expect.any(Number), rejectedSources: expect.any(Object) }]);
       expect(research.closed).toBe(true);
       expect(JSON.stringify(provider.newsDiagnostics())).not.toContain("private");
     } finally { provider.close(); }
@@ -445,7 +446,7 @@ describe("Codex app-server executable resolution", () => {
     };
     const factory = vi.fn(async () => {
       const research = new FakeCodexClient();
-      research.runTurn = async () => '{"summary":"No recent reporting","sources":[]}';
+      research.runTurn = async () => '{"summary":"Private summary","sources":[{"title":"Private title","url":"https://nfl.com/news/private","reportedAt":null}]}';
       return research;
     }).mockResolvedValueOnce(main);
     const provider = new CodexAppServerProvider({ clientFactory: factory });
@@ -454,7 +455,9 @@ describe("Codex app-server executable resolution", () => {
       const entries = provider.newsDiagnostics();
       expect(entries).toHaveLength(20);
       entries[0]!.outcome = "available";
-      expect(provider.newsDiagnostics()[0]!.outcome).toBe("no_recent_sources");
+      entries[0]!.rejectedSources.missing_date = 99;
+      expect(provider.newsDiagnostics()[0]).toMatchObject({ outcome: "invalid_date", rejectedSources: { missing_date: 1 } });
+      expect(JSON.stringify(provider.newsDiagnostics())).not.toMatch(/Private|https|private/);
     } finally { provider.close(); }
   });
 

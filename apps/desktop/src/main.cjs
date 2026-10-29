@@ -15,7 +15,41 @@ const userDataOverride = process.env.SLEEPER_AI_PACKAGE_SMOKE === "1"
   ? process.env.SLEEPER_AI_USER_DATA_DIR?.trim() || null
   : null;
 const expectedWebTitle = "Sleeper Draft Assistant";
-const allowedExternalHosts = new Set(["www.fantasypros.com", "nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"]);
+const allowedExternalHosts = new Set(["www.fantasypros.com", "nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com",
+  "www.azcardinals.com",
+  "www.atlantafalcons.com",
+  "www.panthers.com",
+  "www.chicagobears.com",
+  "www.dallascowboys.com",
+  "www.detroitlions.com",
+  "www.packers.com",
+  "www.therams.com",
+  "www.vikings.com",
+  "www.neworleanssaints.com",
+  "www.giants.com",
+  "www.philadelphiaeagles.com",
+  "www.49ers.com",
+  "www.seahawks.com",
+  "www.buccaneers.com",
+  "www.commanders.com",
+  "www.baltimoreravens.com",
+  "www.buffalobills.com",
+  "www.bengals.com",
+  "www.clevelandbrowns.com",
+  "www.denverbroncos.com",
+  "www.houstontexans.com",
+  "www.colts.com",
+  "www.jaguars.com",
+  "www.chiefs.com",
+  "www.raiders.com",
+  "www.chargers.com",
+  "www.miamidolphins.com",
+  "www.patriots.com",
+  "www.newyorkjets.com",
+  "www.steelers.com",
+  "www.tennesseetitans.com",
+  "www.nbcsports.com",
+]);
 
 let apiProcess = null;
 let webProcess = null;
