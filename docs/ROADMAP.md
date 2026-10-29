@@ -2,7 +2,7 @@
 
 This is a direction document, not a promise or release schedule.
 
-## Current release (0.1.0)
+## Current release (0.1.1)
 
 - Sleeper account, league, and draft discovery
 - live/completed draft-state views
@@ -19,6 +19,8 @@ This is a direction document, not a promise or release schedule.
 - draft sync age, bounded retry backoff, and last-valid-state messaging
 - recent recommendation-change review backed by persisted decision snapshots
 - age warnings for imported draft, rest-of-season, and weekly data
+- selected-week NFL bye and opponent facts in Team Manager
+- AI request priority over background refreshes, with phase progress
 
 ## Ongoing release gates
 
@@ -29,6 +31,7 @@ This is a direction document, not a promise or release schedule.
 
 ## Candidate follow-up work
 
+- show answers as they are written (streaming), keeping final validation before anything is saved
 - recheck import shapes and readiness thresholds as provider exports change
 - stronger AI-context validation and Team Manager interaction tests, including answers that must use returned tool values
 - limit news research threads to hosted web search when users have their own Codex MCP servers configured
