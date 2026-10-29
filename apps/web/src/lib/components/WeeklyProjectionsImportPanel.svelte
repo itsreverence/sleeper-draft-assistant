@@ -434,7 +434,7 @@
     border-right: 1px solid var(--border);
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 600;
     text-align: center;
   }
 
@@ -449,9 +449,8 @@
 
   .position-status small {
     color: inherit;
-    font-size: 8px;
-    font-weight: 800;
-    text-transform: uppercase;
+    font-size: var(--text-xs);
+    font-weight: 600;
   }
 
   .import-summary {
@@ -478,9 +477,9 @@
   .import-summary span {
     display: block;
     color: var(--text-muted);
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.05em;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -498,7 +497,7 @@
     cursor: pointer;
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     list-style: none;
   }
 
@@ -513,7 +512,7 @@
     font-size: var(--text-xs);
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .control-grid,
     .import-summary {
       grid-template-columns: repeat(2, minmax(0, 1fr));

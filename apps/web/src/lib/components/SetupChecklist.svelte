@@ -43,9 +43,9 @@
   .strip-label {
     flex-shrink: 0;
     color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -79,8 +79,8 @@
     border-radius: 999px;
     background: var(--surface-raised);
     color: var(--text-secondary);
-    font-size: 10px;
-    font-weight: 800;
+    font-size: var(--text-xs);
+    font-weight: 600;
   }
 
   .step-label {
@@ -125,7 +125,7 @@
     color: var(--danger);
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .setup-strip {
       align-items: flex-start;
       flex-direction: column;

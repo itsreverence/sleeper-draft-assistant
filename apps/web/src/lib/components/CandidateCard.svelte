@@ -131,7 +131,7 @@
     background: var(--surface-raised);
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
@@ -149,7 +149,7 @@
   }
 
   .candidate-copy h3 {
-    font-size: var(--text-md);
+    font-size: var(--text-lg);
     font-weight: 700;
   }
 
@@ -169,9 +169,9 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     padding: 3px 7px;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
     line-height: 1;
     text-transform: uppercase;
   }
@@ -182,10 +182,9 @@
     background: var(--surface-raised);
     padding: 3px 7px;
     color: var(--text-secondary);
-    font-size: 10px;
-    font-weight: 800;
+    font-size: var(--text-xs);
+    font-weight: 600;
     line-height: 1;
-    text-transform: uppercase;
   }
 
   .preference-pin {
@@ -223,7 +222,7 @@
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     padding: 7px 10px;
   }
 

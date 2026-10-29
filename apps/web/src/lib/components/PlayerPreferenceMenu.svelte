@@ -192,7 +192,7 @@
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .preference-trigger:hover,

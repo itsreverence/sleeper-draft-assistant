@@ -223,7 +223,7 @@
   .assistant-title { display: flex; align-items: center; gap: 9px; }
   .assistant-header h2 { font-size: var(--text-lg); line-height: 1.2; }
   .context-line, .copy-note { margin: 5px 0 0; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.45; }
-  .provider-state { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--text-secondary); font-size: var(--text-2xs); font-weight: 800; }
+  .provider-state { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 600; }
   .provider-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
   .provider-state.offline { color: var(--danger); }
   .provider-state.offline i { background: var(--danger); }
@@ -236,7 +236,7 @@
   .decision-prompt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 10px; background: var(--surface-sunken); color: var(--text-primary); cursor: pointer; text-align: left; transition: border-color var(--transition-fast), background var(--transition-fast); }
   .decision-prompt:hover:not(:disabled) { border-color: var(--accent-border); background: var(--accent-soft); }
   .decision-prompt:disabled { cursor: not-allowed; opacity: .55; }
-  .decision-prompt span { grid-column: 1; overflow: hidden; color: var(--text-muted); font-size: var(--text-2xs); font-weight: 850; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+  .decision-prompt span { grid-column: 1; overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
   .decision-prompt strong { grid-column: 1; overflow: hidden; font-size: var(--text-xs); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
   .decision-prompt b { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--accent); font-size: var(--text-base); }
   .conversation { display: grid; gap: 10px; max-height: 440px; overflow: auto; padding-right: 3px; }
@@ -251,7 +251,7 @@
     .decision-grid, .composer { grid-column: 1; }
     .provider-recovery { grid-column: 1; }
   }
-  @media (max-width: 620px) {
+  @media (max-width: 760px) {
     .composer { grid-template-columns: 1fr; }
     .decision-grid { grid-template-columns: 1fr; }
     .composer .btn { width: 100%; }

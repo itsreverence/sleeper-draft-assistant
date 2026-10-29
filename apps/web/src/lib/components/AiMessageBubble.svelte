@@ -144,7 +144,7 @@
     color: var(--accent);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .strategy-proposal button:disabled {
@@ -158,9 +158,8 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     padding: 0;
-    text-transform: uppercase;
   }
 
   .tiny-action:hover {

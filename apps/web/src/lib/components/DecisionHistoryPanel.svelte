@@ -87,7 +87,7 @@
     list-style: none;
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .history-disclosure > summary::-webkit-details-marker {
@@ -113,7 +113,7 @@
     border-radius: 999px;
     background: var(--surface-sunken);
     color: var(--text-secondary);
-    font-size: 10px;
+    font-size: var(--text-xs);
     font-variant-numeric: tabular-nums;
   }
 
@@ -207,7 +207,7 @@
     color: var(--warning);
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .history-content {
       width: min(330px, calc(100vw - 48px));
     }

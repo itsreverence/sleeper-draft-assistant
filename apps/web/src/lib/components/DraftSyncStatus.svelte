@@ -70,14 +70,12 @@
 
   .sync-label {
     color: var(--accent);
-    font-size: var(--text-2xs);
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: var(--text-xs);
+    font-weight: 600;
   }
   .sync-detail {
     color: var(--text-muted);
-    font-size: var(--text-2xs);
+    font-size: var(--text-xs);
     font-weight: 600;
   }
   .status-dot {

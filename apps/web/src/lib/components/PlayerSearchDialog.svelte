@@ -175,7 +175,7 @@
   .header-actions > span {
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .header-actions > button {
@@ -196,7 +196,7 @@
     align-items: center;
     gap: 9px;
     margin: 0 18px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-input);
     border-radius: var(--radius-md);
     background: var(--surface-sunken);
     padding: 0 12px;
@@ -234,7 +234,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .position-filter button.active {
@@ -311,7 +311,7 @@
     color: var(--text-muted);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .ask-player:hover {
@@ -325,7 +325,7 @@
     text-align: center;
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .player-dialog {
       top: auto;
       bottom: 0;

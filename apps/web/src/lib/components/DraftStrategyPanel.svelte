@@ -135,7 +135,7 @@
 
   .strategy-details > summary {
     cursor: pointer;
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .strategy-details[open] > summary {

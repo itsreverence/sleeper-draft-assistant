@@ -277,7 +277,7 @@
   .btn-danger {
     border-color: var(--danger-border);
     background: var(--danger-strong);
-    color: #fff;
+    color: var(--text-primary);
   }
 
   .btn-danger:hover:not(:disabled) {
@@ -308,7 +308,7 @@
     max-width: 320px;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 760px) {
     .section-heading {
       align-items: stretch;
       flex-direction: column;

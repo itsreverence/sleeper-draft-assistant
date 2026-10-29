@@ -130,7 +130,7 @@
     line-height: 1.5;
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .strategy-drawer {
       top: auto;
       bottom: 0;

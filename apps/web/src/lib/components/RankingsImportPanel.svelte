@@ -349,8 +349,8 @@
     border-radius: 50%;
     background: var(--surface-raised);
     color: var(--text-secondary) !important;
-    font-size: 11px !important;
-    font-weight: 800;
+    font-size: var(--text-xs) !important;
+    font-weight: 600;
   }
 
   .step.done {
@@ -361,9 +361,8 @@
   .source-status {
     margin-left: auto;
     color: var(--warning) !important;
-    font-size: 11px !important;
-    font-weight: 800;
-    text-transform: uppercase;
+    font-size: var(--text-xs) !important;
+    font-weight: 600;
   }
 
   .source-status.ready {
@@ -425,8 +424,8 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 800;
+    font-size: var(--text-xs);
+    font-weight: 600;
   }
 
   .source-warning {
@@ -442,7 +441,7 @@
     margin: 0;
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .section-header {
       align-items: flex-start;
     }
