@@ -39,7 +39,7 @@ The smoke does not assert reset coverage for ROS rankings, weekly projections, o
 
 The scripts require disposable hosted Windows runners. The installer script refuses to run without both `CI=true` and `RUNNER_OS=Windows`. A launch retries once if another process takes its reserved port. Renderer readiness means `#app` has content. It does not prove interactive UI flows.
 
-### Real Windows smoke, about 10 minutes
+### Real Windows smoke
 
 Run this smoke **before tagging**, using CI's pre-smoke `windows-candidate` artifact from a passing run of the exact commit to be tagged. That artifact contains the installer, portable executable, and `SHA256SUMS.txt`, and expires after 7 days. If it expires or the commit changes, run CI again and repeat this smoke.
 

@@ -223,6 +223,15 @@ export function classifyFantasyProsSeasonValueCsv(csvText: string): SeasonValueR
   const hasDraftSignature = ["tiers", "byeweek", "ecrvsadp"].every((header) => normalized.has(header));
 
   if (!hasCore || hasRosSignature === hasDraftSignature) {
+    const hasAdpSignature = normalized.has("rank")
+      && (normalized.has("player") || normalized.has("playerbye"))
+      && normalized.has("pos") && normalized.has("avg")
+      && ["sleeper", "rtsports", "espn", "yahoo"].some((header) => normalized.has(header));
+    if (hasAdpSignature) {
+      throw new SeasonValueRankingImportError(
+        "This looks like a FantasyPros ADP file. For season value rankings, choose the Overall ROS ECR export, or Overall Draft ECR until ROS is available, matching your league's scoring format.",
+      );
+    }
     throw new SeasonValueRankingImportError(
       "Choose a FantasyPros Overall draft ECR or Overall rest-of-season rankings CSV.",
     );
