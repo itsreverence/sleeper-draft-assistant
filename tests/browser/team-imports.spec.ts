@@ -1,3 +1,4 @@
+import { expectResponseTable, tableAnswer } from "./response-table";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { expectAccessible } from "./accessibility";
@@ -241,4 +242,17 @@ test("bye markers announce the selected week and remain visible at every viewpor
   await drawer.getByRole("button", { name: "Close team data" }).click();
   await expect(page.getByRole("img", { name: "On bye in Week 9", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "On bye in Week 9", exact: true })).toHaveText("BYE");
+});
+
+test("Team Manager answers contain wide Markdown tables inside the chat bubble", async ({ page }, testInfo) => {
+  await page.route("**/api/ai/status", route => route.fulfill({ json: {
+    id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available",
+  } }));
+  await page.route(/\/api\/leagues\/[^/]+\/team\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: tableAnswer } }));
+  await page.goto("/");
+  await connect(page, `browser-t${testInfo.project.name[0]}`);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole("textbox", { name: "Ask Codex about your team" }).fill("Show a table of lineup options.");
+  await page.getByRole("button", { name: "Ask Codex", exact: true }).click();
+  await expectResponseTable(page);
 });
