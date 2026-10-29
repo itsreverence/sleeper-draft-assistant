@@ -602,7 +602,7 @@ async function aiFetch(input: RequestInfo | URL, init: RequestInit, progress: Ai
     } catch { /* A failed status poll must not fail the answer. */ }
     if (!finished && !progress.signal?.aborted) timer = setTimeout(poll, 300);
   };
-  progress.onPhase?.("queued");
+  progress.onPhase?.("thinking");
   timer = setTimeout(poll, 100);
   try {
     if (progress.signal?.aborted) throw new Error("AI request was cancelled.");

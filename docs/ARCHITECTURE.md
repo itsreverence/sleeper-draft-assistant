@@ -110,7 +110,9 @@ On Windows, npm launchers are resolved to their known `@openai/codex/bin/codex.j
 
 The provider queue runs one main turn at a time, selecting user questions and
 explicit strategy retries before pending automatic refreshes. Refreshes coalesce
-by draft/team scope. A provider-neutral `AiRequestOptions` carries caller priority,
+by draft/team scope, retaining the highest caller priority. The queued phase is
+reported only when another operation holds the provider queue; preparation and
+freshness checks use thinking. A provider-neutral `AiRequestOptions` carries caller priority,
 a preflight freshness check, and phase notifications. Strategy preflight checks
 the normalized draft revision, reset generation, and caller cancellation before
 model execution; response validation remains authoritative afterward.

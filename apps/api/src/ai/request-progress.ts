@@ -10,7 +10,7 @@ export function registerAiProgress(app: Hono) {
     if (c.req.method !== "POST" || !key || !/^[a-f0-9-]{36}$/.test(key)
       || !/(\/ask|\/strategy|\/evaluate)$/.test(c.req.path)) return next();
     if (active.has(key) || active.size >= 128) return c.json({ error: "AI request cannot be registered." }, 409);
-    const state: { phase: AiPhase; cancelled: boolean } = { phase: "queued", cancelled: false };
+    const state: { phase: AiPhase; cancelled: boolean } = { phase: "thinking", cancelled: false };
     active.set(key, state);
     requests.set(c.req.raw, state);
     try { await next(); } finally { active.delete(key); requests.delete(c.req.raw); }

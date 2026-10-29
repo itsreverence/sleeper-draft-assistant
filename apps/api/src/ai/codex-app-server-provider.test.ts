@@ -819,6 +819,57 @@ describe("request scheduling", () => {
     provider.close();
   });
 
+  it("reports queued only while waiting behind another operation", async () => {
+    const client = new FakeCodexClient();
+    const started = deferred<void>();
+    const release = deferred<void>();
+    let calls = 0;
+    client.runTurn = async () => {
+      if (++calls === 1) { started.resolve(); await release.promise; }
+      return "Grounded answer.";
+    };
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: async () => client });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Fixture");
+    const firstPhases: string[] = [];
+    const waitingPhases: string[] = [];
+    try {
+      const first = provider.answerDraftQuestion(context, [], { onPhase: (phase) => firstPhases.push(phase) });
+      await started.promise;
+      expect(firstPhases).toEqual(["thinking"]);
+      const waiting = provider.answerDraftQuestion(context, [], { onPhase: (phase) => waitingPhases.push(phase) });
+      expect(waitingPhases).toEqual(["queued"]);
+      release.resolve();
+      await Promise.all([first, waiting]);
+      expect(waitingPhases).toEqual(["queued", "thinking"]);
+    } finally { release.resolve(); provider.close(); }
+  });
+
+  it("keeps user priority when a background refresh replaces a queued Retry", async () => {
+    const client = new FakeCodexClient();
+    const started = deferred<void>();
+    const release = deferred<void>();
+    const order: string[] = [];
+    client.runTurn = async (_id, prompt) => {
+      order.push(prompt.includes('"task": "draft_strategy"') ? "strategy" : "question");
+      if (order.length === 1) { started.resolve(); await release.promise; }
+      return "Grounded answer.";
+    };
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: async () => client });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Fixture");
+    const strategy = { ...context, task: "draft_strategy" as const, objective: "Fixture" };
+    try {
+      const first = provider.answerDraftQuestion(context);
+      await started.promise;
+      const retry = provider.strategizeDraft(strategy, [], { automatic: false }).catch((error: unknown) => error);
+      const latest = provider.strategizeDraft(strategy, [], { automatic: true }).catch(() => undefined);
+      const question = provider.answerDraftQuestion(context);
+      release.resolve();
+      await Promise.all([first, latest, question]);
+      expect(await retry).toBeInstanceOf(Error);
+      expect(order).toEqual(["question", "strategy", "question"]);
+    } finally { release.resolve(); provider.close(); }
+  });
+
   it("reports news progress and separates tool time from model time", async () => {
     let clock = 0;
     const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
@@ -833,7 +884,7 @@ describe("request scheduling", () => {
     const phases: string[] = [];
     try {
       await provider.answerDraftQuestion(buildDraftQuestionContext(createMockDraftState(0), "Private question"), [clockTestTool(async () => { clock = 50; return {}; })], { onPhase: (phase) => phases.push(phase) });
-      expect(phases).toEqual(["queued", "thinking", "news", "thinking"]);
+      expect(phases).toEqual(["thinking", "news", "thinking"]);
       expect(provider.timingDiagnostics()).toEqual([{ kind: "draft_question", queueMs: 0, modelMs: 40, toolMs: 30, newsMs: 30 }]);
     } finally { provider.close(); now.mockRestore(); }
   });

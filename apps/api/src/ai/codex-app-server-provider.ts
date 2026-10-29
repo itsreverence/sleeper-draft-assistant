@@ -218,12 +218,12 @@ export class CodexAppServerProvider implements AiProvider {
     options: AiRequestOptions = {},
   ) {
     const queuedAt = performance.now();
-    options.onPhase?.("queued");
+    if (this.running) options.onPhase?.("queued");
     return this.enqueue(async () => {
+      options.onPhase?.("thinking");
       if (options.isCurrent && !await options.isCurrent()) throw new AiRequestSupersededError();
       const timing: AiTiming = { kind, queueMs: performance.now() - queuedAt, modelMs: 0, toolMs: 0, newsMs: 0 };
       const startedAt = performance.now();
-      options.onPhase?.("thinking");
       if (this.closed) {
         throw new Error("Codex app-server provider is closed.");
       }
@@ -390,7 +390,12 @@ export class CodexAppServerProvider implements AiProvider {
     return new Promise<T>((resolve, reject) => {
       if (scope) {
         for (let i = this.operations.length - 1; i >= 0; i--) {
-          if (this.operations[i]?.scope === scope) this.operations.splice(i, 1)[0]?.skip();
+          const previous = this.operations[i];
+          if (previous?.scope === scope) {
+            priority ||= previous.priority;
+            this.operations.splice(i, 1);
+            previous.skip();
+          }
         }
       }
       this.operations.push({ priority, scope,

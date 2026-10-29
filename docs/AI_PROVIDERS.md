@@ -146,7 +146,8 @@ The renderer keeps the contextual Codex command bar and actual Sleeper roster pr
 Codex keeps one active main turn. User questions in either workspace and explicit
 strategy retries run before queued automatic strategy refreshes; an active turn is
 never preempted. Pending refreshes coalesce by draft/team scope, rejecting older
-callers with a safe 409 response. Before execution, strategy refreshes recheck the
+callers with a safe 409 response and keeping the highest priority among the
+coalesced requests. Before execution, strategy refreshes recheck the
 normalized draft revision, reset generation, and request cancellation. Existing
 response guards still reject stale results. Thread reuse and provider cleanup on
 settings changes, reset, and shutdown remain in place.
@@ -156,14 +157,16 @@ using an opaque random handle in `X-AI-Request`. Like every non-health route, st
 and `DELETE /ai/requests/:requestId` require the per-launch capability token.
 Status returns only `queued`, `thinking`, `news`, or null after cleanup; it never
 returns prompts, player names, queries, or answer text. The existing live regions
-announce “Waiting for another AI request…”, “Thinking…”, and “Checking news…”.
+announce “Thinking…” initially, “Waiting for another AI request…” only when the
+provider is waiting behind another operation, and “Checking news…” during news lookup.
 Context changes/unmount cancel queued work and stop polling without interrupting an
 already-running model turn or admitting its result into the new context.
 
 Copy diagnostics and support reports include `aiTimings`, the latest 20 completed
 main operations in this provider session. Entries contain only the request kind
 (`draft_strategy`, `draft_question`, `team_question`) and elapsed milliseconds:
-`queueMs` excludes the preflight freshness check, `modelMs` includes startup and
+`queueMs` includes queue wait and the preflight freshness check (a Sleeper fetch
+for strategy refreshes); `modelMs` includes startup and
 thread setup but excludes dynamic-tool wait, `toolMs` is the union of dynamic-tool
 intervals, and `newsMs` is the news-tool subset of that wait. These are wall-clock
 phase measurements, not model CPU time. Errors during turns are counted; skipped
