@@ -500,6 +500,82 @@ describe("Codex app-server executable resolution", () => {
     } finally { client.close(); vi.useRealTimers(); }
   });
 
+  it("fails only the turn whose turn/start returns a JSON-RPC error and clears its timers", async () => {
+    const fixture = String.raw`
+      const lines = require('node:readline').createInterface({ input: process.stdin });
+      const emit = message => process.stdout.write(JSON.stringify(message) + '\n');
+      let turns = 0;
+      lines.on('line', line => {
+        const message = JSON.parse(line);
+        if (message.method === 'turn/start' && ++turns === 1) {
+          emit({ id: message.id, error: { code: -32600, message: 'Fixture turn rejected' } });
+        } else if (message.id) {
+          emit({ id: message.id, result: {} });
+          if (message.method === 'turn/start') {
+            emit({ method: 'item/agentMessage/delta', params: { delta: 'Recovered turn' } });
+            emit({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+          }
+        }
+      });
+    `;
+    const client = attachCodexAppServerProcess(
+      spawn(process.execPath, ["-e", fixture], { stdio: ["pipe", "pipe", "pipe"] }),
+      1000,
+    );
+    await client.initialize();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      await expect(client.runTurn("thread", "Rejected fixture", [], { toolWaitMs: 2000 }))
+        .rejects.toThrow("Fixture turn rejected");
+      expect(vi.getTimerCount()).toBe(0);
+      expect(client.isClosed()).toBe(false);
+      await expect(client.runTurn("thread", "Recovery fixture")).resolves.toBe("Recovered turn");
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(client.isClosed()).toBe(false);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it("ignores a late turn/start error from a completed turn while another turn is active", async () => {
+    const fixture = String.raw`
+      const lines = require('node:readline').createInterface({ input: process.stdin });
+      const emit = message => process.stdout.write(JSON.stringify(message) + '\n');
+      const complete = text => {
+        emit({ method: 'item/agentMessage/delta', params: { delta: text } });
+        emit({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+      };
+      let firstTurnRequest;
+      lines.on('line', line => {
+        const message = JSON.parse(line);
+        if (message.method === 'turn/start' && firstTurnRequest === undefined) {
+          firstTurnRequest = message.id;
+          complete('First turn');
+        } else if (message.id) {
+          emit({ id: message.id, result: {} });
+          if (message.method === 'turn/start') {
+            emit({ id: firstTurnRequest, error: { code: -32600, message: 'Late stale rejection' } });
+          } else if (message.method === 'finish') complete('Second turn');
+        }
+      });
+    `;
+    const client = attachCodexAppServerProcess(
+      spawn(process.execPath, ["-e", fixture], { stdio: ["pipe", "pipe", "pipe"] }),
+      1000,
+    );
+    await client.initialize();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      await expect(client.runTurn("thread", "First fixture")).resolves.toBe("First turn");
+      const second = client.runTurn("thread", "Second fixture").catch((error: unknown) => error);
+      await client.request("barrier", {});
+      await vi.advanceTimersByTimeAsync(0);
+      await client.request("finish", {});
+      expect(await second).toBe("Second turn");
+      expect(vi.getTimerCount()).toBe(0);
+      expect(client.isClosed()).toBe(false);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
   it("allows two sequential research waits longer than the main timeout", async () => {
     const client = createToolProtocolClient(2);
     await client.initialize();
