@@ -29,7 +29,8 @@
       "src/main.cjs",
       "src/startup.cjs",
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "!dist/THIRD_PARTY_NOTICES.txt"
     ],
     "win": {
       "icon": "assets/icon.ico",
@@ -45,7 +46,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    }
+    },
+    "extraResources": [
+      {
+        "from": "dist/THIRD_PARTY_NOTICES.txt",
+        "to": "THIRD_PARTY_NOTICES.txt"
+      }
+    ],
+    "afterPack": "@sleeper-draft-assistant/desktop/after-pack.cjs"
   },
   "devDependencies": {
     "electron": "43.8.3",

@@ -28,6 +28,17 @@ Windows SmartScreen may warn that the publisher is unknown because beta builds a
 2. its SHA-256 checksum matches; and
 3. the release tag and notes are the version you intended to install.
 
+## Third-party notices
+
+The app includes `resources\THIRD_PARTY_NOTICES.txt` beside `resources\app.asar`.
+For a Setup installation, open the installation directory from the app shortcut's
+**Open file location** command, then open `resources`. For a ZIP, use the
+`resources` folder in the extracted directory. The portable EXE extracts this
+file with its other resources into its temporary application directory while
+running; use the ZIP from the same release for a persistent readable copy.
+Electron and Chromium notices ship separately as `LICENSE.electron.txt` and
+`LICENSES.chromium.html` beside the executable.
+
 ## Local data
 
 Installed and portable builds normally keep their database under:

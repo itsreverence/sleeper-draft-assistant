@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { build } from "esbuild";
+
+import { packagesFromInputs, generateNotices } from "./third-party-notices.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const desktopDist = path.join(repoRoot, "apps", "desktop", "dist");
@@ -22,7 +24,9 @@ execFileSync(process.execPath, [npmCli, "run", "build", "-w", "@sleeper-draft-as
   stdio: "inherit",
 });
 
-await build({
+const api = await build({
+  absWorkingDir: repoRoot,
+  metafile: true,
   banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
   entryPoints: [path.join(repoRoot, "apps", "api", "src", "index.ts")],
   outfile: path.join(desktopDist, "api-server.mjs"),
@@ -35,3 +39,16 @@ await build({
 });
 
 cpSync(webDist, desktopWebDist, { recursive: true });
+
+const provenance = path.join(repoRoot, "build", "third-party");
+mkdirSync(provenance, { recursive: true });
+const apiInputs = Object.values(api.metafile.outputs).flatMap((output) =>
+  Object.entries(output.inputs).filter(([, input]) => input.bytesInOutput > 0).map(([name]) => name));
+const webInputs = JSON.parse(readFileSync(path.join(provenance, "web-inputs.json"), "utf8"));
+const surfaces = {
+  "API bundle": packagesFromInputs(apiInputs, repoRoot),
+  "renderer and font assets": packagesFromInputs(webInputs, repoRoot),
+};
+writeFileSync(path.join(provenance, "api-metafile.json"), JSON.stringify(api.metafile, null, 2) + "\n");
+writeFileSync(path.join(provenance, "surfaces.json"), JSON.stringify(surfaces, null, 2) + "\n");
+writeFileSync(path.join(desktopDist, "THIRD_PARTY_NOTICES.txt"), generateNotices(surfaces, repoRoot));
