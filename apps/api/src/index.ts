@@ -1,3 +1,4 @@
+import { AiRequestSupersededError } from "./ai/types";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -27,6 +28,8 @@ import { registerSystemRoutes } from "./routes/system-routes";
 import { registerConnectionRoutes } from "./routes/connection-routes";
 import { createDraftRoutes } from "./routes/draft-routes";
 import { registerTeamRoutes } from "./routes/team-routes";
+
+import { registerAiProgress } from "./ai/request-progress";
 
 export const app = new Hono();
 const port = parseApiPort(process.env.PORT);
@@ -80,7 +83,7 @@ app.use(
   cors({
     origin: ["http://localhost:5173", "http://127.0.0.1:5173", "null"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Authorization", "Content-Type"],
+    allowHeaders: ["Authorization", "Content-Type", "X-AI-Request"],
   }),
 );
 
@@ -91,6 +94,8 @@ app.use(
       process.env.NODE_ENV === "test" && process.env.SLEEPER_AI_TEST_ENFORCE_AUTH !== "1",
   }),
 );
+
+registerAiProgress(app);
 
 app.get("/health", (c) => c.json(createHealthPayload()));
 
@@ -168,6 +173,7 @@ function createDiagnosticsPayload() {
   return {
     ...createHealthPayload(),
     diagnosticsVersion: 1,
+    aiTimings: aiProviderManager.timingDiagnostics(),
     newsLookups: aiProviderManager.newsDiagnostics(),
     settings: redactSettings(settingsStore.get()),
     storage: {
@@ -207,6 +213,7 @@ function logRouteError(c: Context, error: unknown) {
 }
 
 function handleRouteError(c: Context, error: unknown) {
+  if (error instanceof AiRequestSupersededError) return c.json({ error: error.message }, 409);
   logRouteError(c, error);
 
   if (error instanceof LocalDataResetError) {

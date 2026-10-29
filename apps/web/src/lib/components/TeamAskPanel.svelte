@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { AiRequestProgress } from "../api";
   import type { SuggestedQuestion } from "../ai-panel";
   import { createAiConversation } from "../ai-conversation.svelte";
   import { aiProviderAvailability, isAiProviderAvailable } from "../types";
@@ -26,7 +27,7 @@
     selectedSeason?: string | null;
     selectedWeek?: number | null;
     contextKey?: string;
-    onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<string>;
+    onAsk: (question: string, conversationHistory: AiConversationMessage[], progress?: AiRequestProgress) => Promise<string>;
     providerStatus?: AiProviderStatus | null;
     promptRequest?: { id: number; question: string } | null;
     onPromptRequestHandled?: (requestId: number) => void;
@@ -93,7 +94,7 @@
     ? `${teamState.league.id}:${teamState.userTeam.rosterId}:${selectedSeason ?? teamState.league.season}:${selectedWeek ?? weekContext?.week ?? teamState.week}`
     : "no-team");
   const conversation = createAiConversation({
-    ask: async (nextQuestion, history) => ({ answer: await onAsk(nextQuestion, history) }),
+    ask: async (nextQuestion, history, progress) => ({ answer: await onAsk(nextQuestion, history, progress) }),
     loadingMessage: "Reviewing your roster and current evidence...",
     fallbackError: "Codex could not answer because team context is unavailable.",
   });

@@ -789,3 +789,107 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+
+describe("request scheduling", () => {
+  it("runs questions before queued refreshes, coalesces by scope, and reuses the thread", async () => {
+    const client = new FakeCodexClient();
+    const started = deferred<void>();
+    const release = deferred<void>();
+    const order: string[] = [];
+    client.runTurn = async (_id, prompt) => {
+      const label = prompt.includes('"task": "draft_strategy"') ? "strategy" : "question";
+      order.push(label);
+      if (order.length === 1) { started.resolve(); await release.promise; }
+      return "Grounded answer.";
+    };
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: async () => client });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Fixture");
+    const strategy = { ...context, task: "draft_strategy" as const, objective: "Fixture" };
+    const first = provider.answerDraftQuestion(context);
+    await started.promise;
+    const replaced = provider.strategizeDraft(strategy, [], { automatic: true }).catch((error: unknown) => error);
+    const latest = provider.strategizeDraft(strategy, [], { automatic: true }).catch(() => undefined);
+    const question = provider.answerDraftQuestion(context);
+    release.resolve();
+    await Promise.all([first, latest, question]);
+    expect(await replaced).toBeInstanceOf(Error);
+    expect(order).toEqual(["question", "question", "strategy"]);
+    expect(client.threadStartCalls).toBe(1);
+    expect(provider.timingDiagnostics().map((entry) => entry.kind)).toEqual(["draft_question", "draft_question", "draft_strategy"]);
+    provider.close();
+  });
+
+  it("reports news progress and separates tool time from model time", async () => {
+    let clock = 0;
+    const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const client = new FakeCodexClient();
+    client.runTurn = async (_id, _prompt, tools = []) => {
+      clock = 20;
+      await tools[0]?.execute({});
+      clock = 70;
+      return "Grounded answer.";
+    };
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: async () => client });
+    const phases: string[] = [];
+    try {
+      await provider.answerDraftQuestion(buildDraftQuestionContext(createMockDraftState(0), "Private question"), [clockTestTool(async () => { clock = 50; return {}; })], { onPhase: (phase) => phases.push(phase) });
+      expect(phases).toEqual(["queued", "thinking", "news", "thinking"]);
+      expect(provider.timingDiagnostics()).toEqual([{ kind: "draft_question", queueMs: 0, modelMs: 40, toolMs: 30, newsMs: 30 }]);
+    } finally { provider.close(); now.mockRestore(); }
+  });
+
+  it("prioritizes an explicit refresh and retains only detached metadata for twenty turns", async () => {
+    const client = new FakeCodexClient();
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: async () => client });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Private fixture");
+    const started = deferred<void>();
+    const release = deferred<void>();
+    const order: string[] = [];
+    client.runTurn = async (_id, prompt) => {
+      order.push(prompt.includes('"task": "draft_strategy"') ? "strategy" : "question");
+      if (order.length === 1) { started.resolve(); await release.promise; }
+      return "Grounded answer.";
+    };
+    const first = provider.answerDraftQuestion(context);
+    await started.promise;
+    const background = provider.strategizeDraft({ ...context, draft: { ...context.draft, id: "other-scope" }, task: "draft_strategy", objective: "Fixture" }, [], { automatic: true }).catch(() => undefined);
+    const manual = provider.strategizeDraft({ ...context, task: "draft_strategy", objective: "Fixture" }, [], { automatic: false }).catch(() => undefined);
+    const question = provider.answerDraftQuestion(context);
+    release.resolve();
+    await Promise.all([first, background, manual, question]);
+    expect(order).toEqual(["question", "strategy", "question", "strategy"]);
+    for (let i = 0; i < 21; i++) await provider.answerDraftQuestion(context);
+    const timings = provider.timingDiagnostics();
+    expect(timings).toHaveLength(20);
+    expect(Object.keys(timings[0] ?? {}).sort()).toEqual(["kind", "modelMs", "newsMs", "queueMs", "toolMs"]);
+    timings[0]!.queueMs = -1;
+    expect(provider.timingDiagnostics()[0]?.queueMs).toBeGreaterThanOrEqual(0);
+    expect(JSON.stringify(timings)).not.toMatch(/Private|fixture|other-scope/);
+    provider.close();
+  });
+
+  it.each(["stale", "close", "failure"])("settles queued work after %s without stranding the queue", async (reason) => {
+    const client = new FakeCodexClient();
+    const started = deferred<void>();
+    const release = deferred<void>();
+    let calls = 0;
+    client.runTurn = async () => {
+      if (++calls === 1) { started.resolve(); await release.promise; }
+      if (reason === "failure" && calls === 1) throw new Error("Private upstream failure");
+      return "Grounded answer.";
+    };
+    const provider = new CodexAppServerProvider({ webSearch: false, clientFactory: async () => client });
+    const context = buildDraftQuestionContext(createMockDraftState(0), "Fixture");
+    const first = provider.answerDraftQuestion(context).catch(() => undefined);
+    await started.promise;
+    let current = true;
+    const queued = provider.answerDraftQuestion(context, [], { isCurrent: () => current }).catch((error: unknown) => error);
+    if (reason === "stale") current = false;
+    if (reason === "close") provider.close();
+    release.resolve();
+    await first;
+    if (reason !== "failure") { expect(await queued).toBeInstanceOf(Error); expect(calls).toBe(1); }
+    else { expect(await queued).toMatchObject({ answer: "Grounded answer." }); expect(calls).toBe(2); }
+    provider.close();
+  });
+});

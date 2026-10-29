@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { AiRequestProgress } from "../api";
   import { tick } from "svelte";
   import { createAiConversation } from "../ai-conversation.svelte";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
@@ -21,7 +22,7 @@
     promptRequest = null,
     onApplyStrategyProposal,
   }: {
-    onAsk: (question: string, conversationHistory: AiConversationMessage[]) => Promise<DraftAskResult>;
+    onAsk: (question: string, conversationHistory: AiConversationMessage[], progress?: AiRequestProgress) => Promise<DraftAskResult>;
     providerStatus?: AiProviderStatus | null;
     hasImportedRankings?: boolean;
     hasSeasonProjections?: boolean;
@@ -53,7 +54,7 @@
       : providerLabel,
   );
   const conversation = createAiConversation({
-    ask: (nextQuestion, history) => onAsk(nextQuestion, history),
+    ask: (nextQuestion, history, progress) => onAsk(nextQuestion, history, progress),
     loadingMessage: "Thinking through your draft context...",
     fallbackError: "The manager could not answer because the draft state is unavailable.",
   });

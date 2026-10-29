@@ -33,7 +33,7 @@ describe("Recommendation panel", () => {
     await view.rerender({ ...props, draftState: correctedState });
     await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(2));
     expect(screen.getByText(`Previous: ${strategy.decision.headline}`)).toBeTruthy();
-    expect(screen.getByText("Reviewing latest board…")).toBeTruthy();
+    expect(screen.getByText("Thinking…")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
 
     const latestState = { ...correctedState, status: "complete" as const };
@@ -81,12 +81,12 @@ describe("Recommendation panel", () => {
 
     await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Target Jahmyr Gibbs at 2.08 if available")).toBeTruthy();
-    expect(screen.getByText("Updating recommendation…")).toBeTruthy();
+    expect(screen.getByText("Thinking…")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
 
     second.resolve(createStrategy(state, 1));
     expect(await screen.findByText("Target A.J. Brown at 2.08 if available")).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText("Updating recommendation…")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Thinking…")).toBeNull());
     expect(screen.queryByText("Target Jahmyr Gibbs at 2.08 if available")).toBeNull();
   });
 
@@ -126,7 +126,7 @@ describe("Recommendation panel", () => {
     await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(2));
     expect(screen.getByText(`Previous: ${initialStrategy.decision.headline}`)).toBeTruthy();
     expect(screen.getByText("Previous recommendation")).toBeTruthy();
-    expect(screen.getByText("Reviewing latest board…")).toBeTruthy();
+    expect(screen.getByText("Thinking…")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
 
     const replacementStrategy = createStrategy(advancedState, 1);

@@ -1,3 +1,4 @@
+import { AiRequestSupersededError } from "./types";
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -5,7 +6,7 @@ import readline from "node:readline";
 
 import { AiDraftDecisionSchema, DEFAULT_CODEX_MODEL, DraftStrategyProposalSchema, type AiDraftDecision, type CodexServiceTier, type DraftStrategyProposal } from "@sleeper-draft-assistant/shared";
 
-import type { AiAnswer, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
+import type { AiAnswer, AiRequestOptions, AiTiming, AiDraftStrategy, AiProvider, AiProviderStatus, AiTool, AiToolDefinition, DraftQuestionContext, DraftStrategyContext, TeamAiContext } from "./types";
 import { buildDraftManagerPrompt, buildDraftStrategyPrompt, buildTeamManagerPrompt } from "./prompt";
 import { toAiProviderUnavailableError } from "./provider-errors";
 import { appendNewsSources, createPlayerNewsTool, NewsLookupError, newsDomains, PLAYER_NEWS_LOOKUP_LIMIT, type NewsPlayer } from "./player-news";
@@ -93,7 +94,11 @@ export class CodexAppServerProvider implements AiProvider {
   private client: CodexAppServerClient | null = null;
   private clientPromise: Promise<CodexAppServerClient> | null = null;
   private readonly threadIds = new Map<string, string>();
-  private operationQueue: Promise<void> = Promise.resolve();
+  private readonly operations: Array<{ priority: boolean; scope?: string; run(): Promise<void>; skip(): void }> = [];
+  private running = false;
+  private readonly recentTimings: AiTiming[] = [];
+
+  timingDiagnostics(): AiTiming[] { return this.recentTimings.map((entry) => ({ ...entry })); }
   private closed = false;
   private readonly newsClients = new Set<CodexAppServerClient>();
   private readonly cancelNewsLookups = new Set<() => void>();
@@ -136,15 +141,16 @@ export class CodexAppServerProvider implements AiProvider {
         this.markUnavailable(error, "startup");
       }
       return this.status();
-    });
+    }, false);
   }
 
-  async strategizeDraft(context: DraftStrategyContext, tools: AiTool[] = []): Promise<AiDraftStrategy> {
+  async strategizeDraft(context: DraftStrategyContext, tools: AiTool[] = [], options: AiRequestOptions = {}): Promise<AiDraftStrategy> {
     const result = await this.runPrompt(
       draftThreadScope(context),
       () => buildDraftStrategyPrompt(context),
       tools,
       context.playerEvidence,
+      context.task, options,
     );
     return {
       provider: this.status(),
@@ -152,7 +158,7 @@ export class CodexAppServerProvider implements AiProvider {
     };
   }
 
-  async answerDraftQuestion(context: DraftQuestionContext, tools: AiTool[] = []): Promise<AiAnswer> {
+  async answerDraftQuestion(context: DraftQuestionContext, tools: AiTool[] = [], options: AiRequestOptions = {}): Promise<AiAnswer> {
     const result = await this.runPrompt(
       draftThreadScope(context),
       (reusedThread) => buildDraftManagerPrompt(
@@ -160,6 +166,7 @@ export class CodexAppServerProvider implements AiProvider {
       ),
       tools,
       context.playerEvidence,
+      context.task, options,
     );
     const parsed = parseDraftQuestionAnswer(result.text);
     return {
@@ -169,7 +176,7 @@ export class CodexAppServerProvider implements AiProvider {
     };
   }
 
-  async answerTeamQuestion(context: TeamAiContext): Promise<AiAnswer> {
+  async answerTeamQuestion(context: TeamAiContext, options: AiRequestOptions = {}): Promise<AiAnswer> {
     const result = await this.runPrompt(
       teamThreadScope(context),
       (reusedThread) => buildTeamManagerPrompt(
@@ -181,6 +188,7 @@ export class CodexAppServerProvider implements AiProvider {
         ...[...context.teamState.roster.bench, ...context.teamState.roster.injuredReserve, ...context.teamState.roster.taxi].map((player) => ({ ...player, playerId: player.id })),
         ...context.availablePlayerEvidence,
       ],
+      context.task, options,
     );
     return {
       provider: this.status(),
@@ -190,6 +198,7 @@ export class CodexAppServerProvider implements AiProvider {
 
   close(): void {
     this.closed = true;
+    for (const operation of this.operations.splice(0)) operation.skip();
     this.closeNewsClients();
     this.client?.close();
     if (!this.client) {
@@ -205,8 +214,16 @@ export class CodexAppServerProvider implements AiProvider {
     buildPrompt: (reusedThread: boolean) => string,
     tools: AiTool[] = [],
     players: NewsPlayer[] = [],
+    kind: AiTiming["kind"] = "draft_question",
+    options: AiRequestOptions = {},
   ) {
+    const queuedAt = performance.now();
+    options.onPhase?.("queued");
     return this.enqueue(async () => {
+      if (options.isCurrent && !await options.isCurrent()) throw new AiRequestSupersededError();
+      const timing: AiTiming = { kind, queueMs: performance.now() - queuedAt, modelMs: 0, toolMs: 0, newsMs: 0 };
+      const startedAt = performance.now();
+      options.onPhase?.("thinking");
       if (this.closed) {
         throw new Error("Codex app-server provider is closed.");
       }
@@ -218,6 +235,7 @@ export class CodexAppServerProvider implements AiProvider {
       } catch (error) {
         throw this.markUnavailable(error, "startup");
       }
+      if (this.closed) throw new AiRequestSupersededError();
       let threadId = this.threadIds.get(scope) ?? null;
       const reusedThread = Boolean(threadId);
       let active = true;
@@ -225,7 +243,23 @@ export class CodexAppServerProvider implements AiProvider {
         this.recentNewsLookups.push(diagnostic);
         if (this.recentNewsLookups.length > 20) this.recentNewsLookups.shift();
       });
-      const turnTools = this.webSearch ? [...tools, news.tool] : tools;
+      let activeTools = 0;
+      let activeNews = 0;
+      let toolStart = 0;
+      let newsStart = 0;
+      const turnTools = (this.webSearch ? [...tools, news.tool] : tools).map((tool) => ({
+        ...tool,
+        execute: async (args: unknown) => {
+          const isNews = tool.definition.name === "check_player_news";
+          if (activeTools++ === 0) toolStart = performance.now();
+          if (isNews && activeNews++ === 0) { newsStart = performance.now(); options.onPhase?.("news"); }
+          try { return await tool.execute(args); }
+          finally {
+            if (--activeTools === 0) timing.toolMs += performance.now() - toolStart;
+            if (isNews && --activeNews === 0) { timing.newsMs += performance.now() - newsStart; options.onPhase?.("thinking"); }
+          }
+        },
+      }));
       try {
         if (!threadId) {
           const thread = await client.request<{ thread?: { id?: string } }>("thread/start", {
@@ -265,8 +299,13 @@ export class CodexAppServerProvider implements AiProvider {
       } finally {
         active = false;
         this.closeNewsClients();
+        timing.modelMs = Math.max(0, performance.now() - startedAt - timing.toolMs);
+        if (!this.closed) {
+          this.recentTimings.push(timing);
+          if (this.recentTimings.length > 20) this.recentTimings.shift();
+        }
       }
-    });
+    }, kind !== "draft_strategy" || !options.automatic, kind === "draft_strategy" ? scope : undefined);
   }
 
   private closeNewsClients() {
@@ -346,10 +385,32 @@ export class CodexAppServerProvider implements AiProvider {
     }
   }
 
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.operationQueue.then(operation, operation);
-    this.operationQueue = result.then(() => undefined, () => undefined);
-    return result;
+  private enqueue<T>(operation: () => Promise<T>, priority = true, scope?: string): Promise<T> {
+    if (this.closed) return Promise.reject(new Error("Codex app-server provider is closed."));
+    return new Promise<T>((resolve, reject) => {
+      if (scope) {
+        for (let i = this.operations.length - 1; i >= 0; i--) {
+          if (this.operations[i]?.scope === scope) this.operations.splice(i, 1)[0]?.skip();
+        }
+      }
+      this.operations.push({ priority, scope,
+        run: async () => { try { resolve(await operation()); } catch (error) { reject(error); } },
+        skip: () => reject(new AiRequestSupersededError()),
+      });
+      void this.drain();
+    });
+  }
+
+  private async drain() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      while (this.operations.length) {
+        const index = this.operations.findIndex((entry) => entry.priority);
+        const next = this.operations.splice(index < 0 ? 0 : index, 1)[0];
+        await next?.run();
+      }
+    } finally { this.running = false; }
   }
 
   private markAvailable(): void {

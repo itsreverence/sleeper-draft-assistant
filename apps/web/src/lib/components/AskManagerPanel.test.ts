@@ -1,11 +1,36 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AiRequestProgress } from "../api";
 import AskManagerPanel from "./AskManagerPanel.svelte";
 import { createAiProviderStatusFixture, createDraftPayloadFixture } from "../testing/draft-fixtures";
 import { createDeferred } from "../testing/deferred";
 
 describe("Ask manager panel", () => {
+  it("announces request phases and ignores progress after context changes", async () => {
+    const draft = createDraftPayloadFixture({ draftId: "phase-fixture", name: "Phase fixture" });
+    const reply = createDeferred<{ answer: string; strategyProposal: null }>();
+    let progress: AiRequestProgress | undefined;
+    const onAsk = vi.fn((_question: string, _history: unknown, options?: AiRequestProgress) => { progress = options; return reply.promise; });
+    const view = render(AskManagerPanel, {
+      onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "first",
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
+    await fireEvent.input(screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if."), { target: { value: "Fixture question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    for (const [phase, label] of [["queued", "Waiting for another AI request…"], ["thinking", "Thinking…"], ["news", "Checking news…"]] as const) {
+      progress?.onPhase?.(phase);
+      await waitFor(() => expect(screen.getByText(label)).toBeTruthy());
+    }
+    await view.rerender({ draftIdentity: "second" });
+    expect(progress?.signal?.aborted).toBe(true);
+    progress?.onPhase?.("news");
+    reply.resolve({ answer: "Old answer", strategyProposal: null });
+    await waitFor(() => expect(screen.queryByText("Checking news…")).toBeNull());
+    expect(screen.queryByText("Old answer")).toBeNull();
+  });
+
   it("uses a compact command bar before the first question and a bounded thread afterward", async () => {
     const draft = createDraftPayloadFixture({
       draftId: "draft-command-bar",
@@ -95,7 +120,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", []);
+      expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
       expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
     });
 
@@ -117,7 +142,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", []);
+      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
       expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
       expect(screen.getByText("Question B")).toBeTruthy();
       expect(screen.queryByText("Question A")).toBeNull();
@@ -179,7 +204,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", []);
+      expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
       expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
     });
 
@@ -201,7 +226,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
 
     await waitFor(() => {
-      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", []);
+      expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
       expect(screen.getByText("Question B")).toBeTruthy();
       expect(screen.queryByText("Question A")).toBeNull();
     });

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { app } from "./index";
 
 const expectedRoutes = [
+  "GET /ai/requests/:requestId",
+  "DELETE /ai/requests/:requestId",
   "GET /health",
   "GET /diagnostics",
   "GET /data",

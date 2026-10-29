@@ -444,12 +444,14 @@ export async function fetchAiDraftStrategyRequest(
   userRosterId: string | null,
   userPreferences: PlayerPreferenceSummary,
   recommendationPreferences: RecommendationPreferenceRequest,
+  automatic = false,
+  progress: AiRequestProgress = {},
 ): Promise<AiDraftStrategyPayload> {
-  const response = await apiFetch(buildDraftUrl(draftId, "strategy", userRosterId), {
+  const response = await aiFetch(buildDraftUrl(draftId, "strategy", userRosterId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userPreferences, recommendationPreferences }),
-  });
+    body: JSON.stringify({ userPreferences, recommendationPreferences, automatic }),
+  }, progress);
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "The AI strategist could not evaluate this board."));
   }
@@ -518,12 +520,13 @@ export async function askManagerRequest(
   conversationHistory: AiConversationMessage[] = [],
   userPreferences: PlayerPreferenceSummary = { pinned: [], faded: [], excluded: [] },
   recommendationPreferences: RecommendationPreferenceRequest = { pinnedPlayerIds: [], fadedPlayerIds: [], excludedPlayerIds: [] },
+  progress: AiRequestProgress = {},
 ): Promise<AskAnswerPayload> {
-  const response = await apiFetch(buildDraftUrl(draftId, "ask", userRosterId), {
+  const response = await aiFetch(buildDraftUrl(draftId, "ask", userRosterId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, conversationHistory, userPreferences, recommendationPreferences }),
-  });
+  }, progress);
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "The manager could not answer because the draft state is unavailable."));
@@ -555,6 +558,7 @@ export async function askTeamManagerRequest(
   conversationHistory: AiConversationMessage[] = [],
   season: string | null = null,
   week: number | null = null,
+  progress: AiRequestProgress = {},
 ): Promise<TeamAskAnswerPayload> {
   const query = new URLSearchParams();
   if (userRosterId) {
@@ -570,15 +574,44 @@ export async function askTeamManagerRequest(
     query.set("week", String(week));
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await apiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
+  const response = await aiFetch(`${apiBase}/leagues/${encodeURIComponent(leagueId)}/team/ask${suffix}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, conversationHistory }),
-  });
+  }, progress);
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "The manager could not answer because team context is unavailable."));
   }
 
   return (await response.json()) as TeamAskAnswerPayload;
+}
+
+export type AiRequestProgress = { onPhase?: (phase: "queued" | "thinking" | "news") => void; signal?: AbortSignal };
+async function aiFetch(input: RequestInfo | URL, init: RequestInit, progress: AiRequestProgress = {}) {
+  const key = crypto.randomUUID();
+  let finished = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const cancel = () => { void apiFetch(`${apiBase}/ai/requests/${key}`, { method: "DELETE" }).catch(() => undefined); };
+  progress.signal?.addEventListener("abort", cancel);
+  const poll = async () => {
+    try {
+      const response = await apiFetch(`${apiBase}/ai/requests/${key}`);
+      const payload = await response.json();
+      if (!finished && !progress.signal?.aborted && ["queued", "thinking", "news"].includes(payload.phase)) progress.onPhase?.(payload.phase);
+    } catch { /* A failed status poll must not fail the answer. */ }
+    if (!finished && !progress.signal?.aborted) timer = setTimeout(poll, 300);
+  };
+  progress.onPhase?.("queued");
+  timer = setTimeout(poll, 100);
+  try {
+    if (progress.signal?.aborted) throw new Error("AI request was cancelled.");
+    const headers = new Headers(init.headers);
+    headers.set("X-AI-Request", key);
+    return await apiFetch(input, { ...init, headers });
+  } finally {
+    finished = true;
+    clearTimeout(timer);
+    progress.signal?.removeEventListener("abort", cancel);
+  }
 }
