@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NewsSourceSchema } from "@sleeper-draft-assistant/shared";
 import { createPlayerNewsTool } from "./player-news";
 
 const players = [{ playerId: "private-id", name: "Test Player", team: "SEA", position: "RB" }];
@@ -17,6 +18,9 @@ describe("bounded public player news", () => {
     // Search domain filters may include subdomains that citation validation rejects.
     expect(lookup.mock.calls[0]?.[0]).toContain("exact HTTPS hosts: nfl.com, www.nfl.com, amp.nfl.com, espn.com, www.espn.com");
     expect(lookup.mock.calls[0]?.[0]).toContain("Do not rewrite a URL");
+    expect(lookup.mock.calls[0]?.[0]).toContain("Confirm reportedAt's year, month and day");
+    expect(lookup.mock.calls[0]?.[0]).toContain("not related-story, sidebar or page-level dates");
+    expect(lookup.mock.calls[0]?.[0]).toContain("If the year cannot be confirmed, use null");
     expect(news.sources[0]).toMatchObject({ reportedAt: "2026-09-24", checkedAt: expect.any(String) });
     await news.tool.execute(args);
     expect(await news.tool.execute(args)).toMatchObject({ status: "unavailable" });
@@ -124,6 +128,43 @@ describe("bounded public player news", () => {
     expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "available", elapsedMs: 0, rejectedSources: { undated_listing: 1, rejected_host: 1 } });
   });
 
+  it.each([
+    ["2025-09-24", "unavailable"], ["2026-09-22", "unavailable"],
+    ["2026-09-23", "available"], ["2026-09-24", "available"],
+    ["2026-09-25", "available"], ["2026-09-26", "unavailable"],
+  ])("checks full URL dates with inclusive one-day tolerance: %s", async (pathDate, status) => {
+    const record = vi.fn();
+    const source = { title: "Report", url: `https://www.nbcsports.com/fantasy/football/player-news/${pathDate}/report`, reportedAt: "2026-09-24" };
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [source] }), record);
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: status === "available" ? "available" : "invalid_date", elapsedMs: 0,
+      rejectedSources: status === "available" ? {} : { url_date_mismatch: 1 } });
+    // Historical records remain decodable even when current admission rejects them.
+    expect(NewsSourceSchema.safeParse(source).success).toBe(true);
+  });
+
+  it.each([
+    ["/2025/09/24/report", false], ["/2026/09/23/report", true],
+    ["/2026-02-31/report", true], ["/2026/02/31/report", true],
+    ["/2025/report", true], ["/news/2027-nfl-draft-order", true],
+    ["/news/2025-09-01-season-recap", true], ["/2026-09-240/report", true],
+  ])("uses valid full date path segments only: %s", async (path, accepted) => {
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [
+      { title: "Report", url: `https://www.nbcsports.com${path}`, reportedAt: "2026-09-24" },
+    ] }));
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: accepted ? "available" : "unavailable" });
+  });
+
+  it("drops a URL-date mismatch individually and records only its private count", async () => {
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [
+      { title: "Private", url: "https://www.nbcsports.com/fantasy/football/player-news/2025-09-24/private", reportedAt: "2026-09-24" },
+      JSON.parse(response).sources[0],
+    ] }), record);
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "available", sources: [{ url: "https://www.nfl.com/news/report" }] });
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "available", elapsedMs: 0, rejectedSources: { url_date_mismatch: 1 } });
+  });
+
   it("bounds invalid shape counts to the three-source limit", async () => {
     const record = vi.fn();
     const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "News", sources: [null, 42, {}] }), record);
@@ -132,6 +173,10 @@ describe("bounded public player news", () => {
   });
 
   it.each([
+    "https://www.chiefs.com/news/morning-report",
+    "https://www.nfl.com/news/2027-nfl-draft-order",
+    "https://www.49ers.com/news/morning-report-week-8",
+    "https://www.49ers.com/news/roster-news-week-8",
     "https://www.nfl.com/news/nfl-week-8-injury-report-2026-season",
     "https://www.49ers.com/news/week-8-injury-report",
     "https://www.raiders.com/news/roster-moves",
@@ -145,6 +190,16 @@ describe("bounded public player news", () => {
   });
 
   it.each([
+    "https://www.nbcsports.com/nfl/jadarian-price/0000019c-9ba5-d042-afbc-fff73fa40000/news",
+    "https://www.nbcsports.com/nfl/jadarian-price/0000019c-9ba5-d042-afbc-fff73fa40000",
+    "https://www.nbcsports.com/nfl/jadarian-price/0000019c-9ba5-d042-afbc-fff73fa40000/stats",
+    "https://www.nbcsports.com/treveyon-henderson/00000188-9cf1-da6b-abd8-fcfdb1770270/news",
+    "https://www.nbcsports.com/marvin-harrison-jr/00000188-9cf1-da6b-abd8-fcfdb1770270",
+    "https://www.nbcsports.com/nfl/profootballtalk/rumor-mill/kansas-city-chiefs",
+    "https://www.nfl.com/news/",
+    "https://www.chiefs.com/news/",
+    "https://www.49ers.com/news/morning-report",
+    "https://www.49ers.com/news/roster-news/",
     "https://www.nbcsports.com/nfl/a-j-brown/6477",
     "https://www.nbcsports.com/nfl/a-j-brown/6477/news/",
     "https://www.nbcsports.com/nfl/a-j-brown/6477/stats",
