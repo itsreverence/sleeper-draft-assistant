@@ -128,7 +128,7 @@
           {#if slot.player}
             <span class="player-name">
               <strong>{slot.player.name}</strong>
-              <small>{slot.player.team} · {slot.player.position}{#if formatPlayerSchedule(slot.player)} · {formatPlayerSchedule(slot.player)}{/if}</small>
+              <small>{slot.player.team} · {slot.player.position}{#if formatPlayerSchedule(slot.player)} · <span role={slot.player.schedule?.onBye ? "img" : undefined} aria-label={slot.player.schedule?.onBye ? `On bye in Week ${slot.player.schedule.week}` : undefined}>{formatPlayerSchedule(slot.player)}</span>{/if}</small>
             </span>
             {#if showProjections}<span class="projection">{formatWeeklyProjection(slot.player) ?? "Not matched"}</span>{/if}
             <span class:warning-status={Boolean(formatSleeperStatusSummary(slot.player))} class="player-status" title={formatSleeperStatusTitle(slot.player)}>{formatSleeperStatusSummary(slot.player) ?? "Clear"}</span>
@@ -148,7 +148,7 @@
           <div>
             {#each group.players as player}
               <small class:warning-status={Boolean(formatSleeperStatusSummary(player))} title={formatSleeperStatusTitle(player)}>
-                {player.name}<i>{player.position}</i>{#if formatPlayerSchedule(player)}<i>{formatPlayerSchedule(player)}</i>{/if}{#if showProjections}<i>{formatWeeklyProjection(player) ?? "Not matched"}</i>{/if}{#if formatSleeperStatusSummary(player)}<i>{formatSleeperStatusSummary(player)}</i>{/if}
+                {player.name}<i>{player.position}</i>{#if formatPlayerSchedule(player)}<i role={player.schedule?.onBye ? "img" : undefined} aria-label={player.schedule?.onBye ? `On bye in Week ${player.schedule.week}` : undefined}>{formatPlayerSchedule(player)}</i>{/if}{#if showProjections}<i>{formatWeeklyProjection(player) ?? "Not matched"}</i>{/if}{#if formatSleeperStatusSummary(player)}<i>{formatSleeperStatusSummary(player)}</i>{/if}
               </small>
             {/each}
           </div>

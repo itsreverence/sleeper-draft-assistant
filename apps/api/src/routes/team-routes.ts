@@ -376,7 +376,8 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
     const generation = localDataReset.captureGeneration();
     const schedule = state.league.season ? await sleeperClient.getNflSchedule(state.league.season) : null;
     localDataReset.assertCurrent(generation);
-    const week = state.seasonPhase !== "preseason" && selectedWeek >= 1 && selectedWeek <= 18 ? selectedWeek : null;
+    const weeklyPhase = state.seasonPhase === "regular" || (state.seasonPhase === "unknown" && getWeek(c) !== null);
+    const week = weeklyPhase && selectedWeek >= 1 && selectedWeek <= 18 ? selectedWeek : null;
     const draftId = c.req.query("draftId");
     const draftImport = draftId ? getRankingImportStore().get(draftId) : null;
     const apply = (player: Player) => applyPlayerSchedule(

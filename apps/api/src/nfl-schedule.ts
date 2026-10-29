@@ -2,8 +2,9 @@ import { z } from "zod";
 import type { Player, TeamManagerState } from "@sleeper-draft-assistant/shared";
 
 export const nflTeams = ["ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LAC", "LAR", "LV", "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"] as const;
+const GameStatusSchema = z.enum(["pre_game", "in_progress", "complete", "postponed", "canceled", "unknown"]);
 const GameSchema = z.object({
-  status: z.enum(["pre_game", "in_progress", "complete", "postponed", "canceled"]),
+  status: z.string().min(1).max(80).transform((status) => GameStatusSchema.safeParse(status).data ?? "unknown"),
   date: z.iso.date(),
   home: z.enum(nflTeams),
   away: z.enum(nflTeams),
@@ -32,7 +33,8 @@ export function applyPlayerSchedule(player: Player, schedule: NflSchedule | null
   const validWeek = week !== null && Number.isInteger(week) && week >= 1 && week <= 18;
   const games = schedule?.filter((game) => game.home === player.team || game.away === player.team);
   const knownTeam = games?.length === 17;
-  const importedBye = player.byeWeek && Number.isInteger(player.byeWeek) && player.byeWeek >= 1 && player.byeWeek <= 18 ? player.byeWeek : null;
+  const realTeam = nflTeams.some((team) => team === player.team);
+  const importedBye = schedule === null && realTeam && player.byeWeek && Number.isInteger(player.byeWeek) && player.byeWeek >= 1 && player.byeWeek <= 18 ? player.byeWeek : null;
   const byeWeek = knownTeam ? Array.from({ length: 18 }, (_, i) => i + 1).find((candidate) => !games.some((game) => game.week === candidate)) ?? null : importedBye;
   const game = knownTeam && validWeek ? games.find((candidate) => candidate.week === week) : null;
   const onBye = validWeek && byeWeek !== null ? byeWeek === week : null;

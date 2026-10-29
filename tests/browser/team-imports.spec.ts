@@ -229,3 +229,16 @@ test("connection, Team Manager, and import controls meet automated accessibility
   await expect(panels(page).drawer).toBeVisible();
   await expectAccessible(page);
 });
+
+
+test("bye markers announce the selected week and remain visible at every viewport", async ({ page }) => {
+  await page.goto("/");
+  await connect(page);
+  await page.getByRole("button", { name: "Manage team data" }).click();
+  const { drawer, weekly } = panels(page);
+  await weekly.getByLabel("Week", { exact: true }).fill("9");
+  await weekly.getByRole("button", { name: "Load selected week" }).click();
+  await drawer.getByRole("button", { name: "Close team data" }).click();
+  await expect(page.getByRole("img", { name: "On bye in Week 9", exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: "On bye in Week 9", exact: true })).toHaveText("BYE");
+});

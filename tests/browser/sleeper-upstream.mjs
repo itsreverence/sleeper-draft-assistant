@@ -1,3 +1,5 @@
+import { syntheticSchedule } from "../../apps/api/src/testing/schedule-fixture.ts";
+
 // Only the test-owned API process loads this upstream fixture. Application
 // normalization, authorization, parsers, routes and SQLite remain real.
 if (process.env.SDA_BROWSER_TEST !== "1") throw new Error("Browser fixture requires isolated runner");
@@ -9,6 +11,7 @@ globalThis.fetch = async (input) => {
   const path = url.pathname.replace(/^\/v1/, "");
   let data;
   if (path === "/state/nfl") data = { season: "2026", league_season: "2026", season_type: "regular", week: 2, display_week: 2 };
+  else if (path === "/schedule/nfl/regular/2026") data = syntheticSchedule;
   else if (path === "/players/nfl") data = { "fixture-qb": player };
   else if (/^\/players\/nfl\/trending\//.test(path)) data = [];
   else if (/^\/draft\/browser-[\w-]+$/.test(path)) {

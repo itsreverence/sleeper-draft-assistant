@@ -186,21 +186,27 @@ export class SleeperApiError extends Error {
 }
 
 export class SleeperClient {
-  private scheduleCache = new Map<string, { loadedAt: number; value: Promise<NflSchedule | null> }>();
+  private scheduleCache = new Map<string, { expiresAt: number; value: Promise<NflSchedule | null> }>();
 
   clearScheduleCache(): void { this.scheduleCache.clear(); }
 
   async getNflSchedule(season: string): Promise<NflSchedule | null> {
     if (!/^\d{4}$/.test(season)) return null;
     const cached = this.scheduleCache.get(season);
-    if (cached && Date.now() - cached.loadedAt < 6 * 60 * 60 * 1000) return cached.value;
-    const value = this.fetchJson<unknown>(`/schedule/nfl/regular/${season}`, this.baseUrl.replace(/\/v1$/, ""))
+    if (cached && Date.now() < cached.expiresAt) return cached.value;
+    const value = this.fetchJson<unknown>(`/schedule/nfl/regular/${season}`, this.baseUrl.replace(/\/v1$/, ""), { attempts: 1, timeoutMs: 2500 })
       .then((raw) => {
         const schedule = NflScheduleSchema.parse(raw);
         if (schedule.some((game) => game.date < `${season}-01-01` || game.date > `${Number(season) + 1}-02-28`)) return null;
         return schedule;
       }).catch(() => null);
-    this.scheduleCache.set(season, { loadedAt: Date.now(), value });
+    const entry = { expiresAt: Infinity, value };
+    this.scheduleCache.set(season, entry);
+    void value.then((schedule) => {
+      if (this.scheduleCache.get(season) === entry) {
+        entry.expiresAt = Date.now() + (schedule === null ? 2 * 60 * 1000 : 6 * 60 * 60 * 1000);
+      }
+    });
     return value;
   }
 
@@ -412,12 +418,12 @@ export class SleeperClient {
     return { league, rosters, users };
   }
 
-  private async fetchJson<T>(path: string, baseUrl = this.baseUrl): Promise<T> {
+  private async fetchJson<T>(path: string, baseUrl = this.baseUrl, { attempts = sleeperRequestAttempts, timeoutMs = sleeperRequestTimeoutMs } = {}): Promise<T> {
     let lastError: unknown;
 
-    for (let attempt = 1; attempt <= sleeperRequestAttempts; attempt += 1) {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), sleeperRequestTimeoutMs);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const response = await fetch(`${baseUrl}${path}`, {
@@ -430,7 +436,7 @@ export class SleeperClient {
 
         if (!response.ok) {
           const error = new SleeperApiError(`Sleeper API returned ${response.status} for ${path}.`, response.status);
-          if (!isRetryableSleeperStatus(response.status) || attempt === sleeperRequestAttempts) {
+          if (!isRetryableSleeperStatus(response.status) || attempt === attempts) {
             throw error;
           }
           lastError = error;
@@ -442,7 +448,7 @@ export class SleeperClient {
           throw error;
         }
         lastError = error;
-        if (attempt === sleeperRequestAttempts) {
+        if (attempt === attempts) {
           break;
         }
       } finally {

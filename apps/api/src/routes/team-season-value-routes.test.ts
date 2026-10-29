@@ -116,13 +116,14 @@ describe("Team Manager season value routes", () => {
       }]]),
     };
     let explicitImport: StoredSeasonValueRankingImport | null = null;
+    let currentState = structuredClone(state);
     const getNflSchedule = vi.fn().mockResolvedValue(null);
     const app = new Hono();
     registerTeamRoutes(app, {
       localDataReset: new LocalDataResetCoordinator({} as never),
       sleeperClient: {
         getNflSchedule,
-        getTeamManagerState: async () => structuredClone(state),
+        getTeamManagerState: async () => structuredClone(currentState),
         getTeamWeekContext: async () => null,
         getTeamActivitySummary: async () => null,
         getAvailablePlayers: async () => [],
@@ -162,6 +163,19 @@ describe("Team Manager season value routes", () => {
     const schedulePayload = await scheduleResponse.json();
     expect(schedulePayload.state.scheduleStatus).toEqual({ available: true, week: 9 });
     expect(schedulePayload.state.roster.starters[0].player).toMatchObject({ byeWeek: 9, schedule: { source: "sleeper", onBye: true, week: 9 } });
+    for (const phase of ["preseason", "postseason", "unknown"] as const) {
+      currentState = { ...state, seasonPhase: phase, week: null };
+      for (const query of ["", "&week=9"]) {
+        const response = await app.request(`/leagues/league-1/team?userRosterId=1&draftId=draft-1${query}`);
+        const payload = await response.json();
+        const pinnedUnknown = phase === "unknown" && query !== "";
+        expect(payload.state.scheduleStatus.week).toBe(pinnedUnknown ? 9 : null);
+        expect(payload.state.roster.starters[0].player.schedule).toMatchObject({
+          week: pinnedUnknown ? 9 : null, onBye: pinnedUnknown ? true : null, opponent: null, homeAway: null, gameStatus: null,
+        });
+      }
+    }
+    currentState = structuredClone(state);
     getNflSchedule.mockResolvedValue(null);
 
     const rosResponse = await importRankings(app, rosCsv);
