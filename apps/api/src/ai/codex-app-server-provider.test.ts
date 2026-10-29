@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildDraftQuestionContext } from "./context";
 import type { AiTool } from "./types";
-import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, findCodexLaunchOnWindows, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient } from "./codex-app-server-provider";
+import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, findCodexLaunchOnWindows, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient, type CodexTurnOptions } from "./codex-app-server-provider";
 
 describe("Codex app-server executable resolution", () => {
   it("uses codex.exe for bare Windows launcher names", () => {
@@ -271,6 +271,100 @@ describe("Codex app-server executable resolution", () => {
     provider.close();
   });
 
+  it.each([
+    [60_000, 45_000],
+    [10_000, 10_000],
+    [120_000, 45_000],
+  ])("derives lookup and answer budgets together for a %i ms main timeout", async (timeoutMs, lookupMs) => {
+    const main = new FakeCodexClient();
+    const research = new FakeCodexClient();
+    research.runTurn = async () => '{"summary":"No reporting","sources":[]}';
+    const context = buildDraftQuestionContext(createMockDraftState(0), "fixture");
+    main.runTurn = async (_thread, _prompt, tools = []) => {
+      await tools.find((tool) => tool.definition.name === "check_player_news")!.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" });
+      return "Evidence gap.";
+    };
+    const turn = vi.spyOn(main, "runTurn");
+    const factory = vi.fn().mockResolvedValueOnce(main).mockResolvedValueOnce(research);
+    const provider = new CodexAppServerProvider({ timeoutMs, clientFactory: factory });
+    try {
+      await provider.answerDraftQuestion(context);
+      expect(factory).toHaveBeenNthCalledWith(2, "codex", lookupMs);
+      expect(turn.mock.calls[0]?.[3]).toEqual({ toolWaitMs: 2 * lookupMs });
+      expect(research.closed).toBe(true);
+    } finally { provider.close(); }
+  });
+
+  it.each(["initialize", "thread/start"])("cancels and closes research during %s", async (phase) => {
+    const main = new FakeCodexClient();
+    const research = new FakeCodexClient();
+    const started = deferred<void>();
+    const blocked = deferred<never>();
+    if (phase === "initialize") research.initialize = () => { started.resolve(); return blocked.promise; };
+    else research.request = () => { started.resolve(); return blocked.promise; };
+    research.close = () => { research.closed = true; blocked.reject(Error("private provider error")); };
+    const context = buildDraftQuestionContext(createMockDraftState(0), "fixture");
+    main.runTurn = async (_thread, _prompt, tools = []) => {
+      await tools.find((tool) => tool.definition.name === "check_player_news")!.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" });
+      return "Evidence gap.";
+    };
+    const provider = new CodexAppServerProvider({ clientFactory: vi.fn().mockResolvedValueOnce(main).mockResolvedValueOnce(research) });
+    const result = provider.answerDraftQuestion(context);
+    await started.promise;
+    provider.close();
+    await result;
+    expect(research.closed).toBe(true);
+    expect(provider.newsDiagnostics()).toEqual([{ outcome: "cancelled", elapsedMs: expect.any(Number) }]);
+  });
+
+  it("bounds client creation and closes a client that arrives after the lookup deadline", async () => {
+    const main = new FakeCodexClient();
+    const research = new FakeCodexClient();
+    const created = deferred<CodexAppServerClient>();
+    const started = deferred<void>();
+    const context = buildDraftQuestionContext(createMockDraftState(0), "fixture");
+    main.runTurn = async (_thread, _prompt, tools = []) => {
+      await tools.find((tool) => tool.definition.name === "check_player_news")!.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" });
+      return "Evidence gap.";
+    };
+    const factory = vi.fn().mockResolvedValueOnce(main).mockImplementationOnce(() => { started.resolve(); return created.promise; });
+    const provider = new CodexAppServerProvider({ timeoutMs: 1000, clientFactory: factory });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      const result = provider.answerDraftQuestion(context);
+      await started.promise;
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(result).resolves.toMatchObject({ answer: "Evidence gap." });
+      expect(provider.newsDiagnostics()).toEqual([{ outcome: "timeout", elapsedMs: 1000 }]);
+      created.resolve(research);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(research.initializeCalls).toBe(0);
+      expect(research.closed).toBe(true);
+    } finally { provider.close(); vi.useRealTimers(); }
+  });
+
+  it("closes a late-created research client without initializing after cancellation", async () => {
+    const main = new FakeCodexClient();
+    const research = new FakeCodexClient();
+    const created = deferred<CodexAppServerClient>();
+    const started = deferred<void>();
+    const context = buildDraftQuestionContext(createMockDraftState(0), "fixture");
+    main.runTurn = async (_thread, _prompt, tools = []) => {
+      await tools.find((tool) => tool.definition.name === "check_player_news")!.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" });
+      return "Evidence gap.";
+    };
+    const factory = vi.fn().mockResolvedValueOnce(main).mockImplementationOnce(() => { started.resolve(); return created.promise; });
+    const provider = new CodexAppServerProvider({ clientFactory: factory });
+    const result = provider.answerDraftQuestion(context);
+    await started.promise;
+    provider.close();
+    created.resolve(research);
+    await result;
+    expect(research.initializeCalls).toBe(0);
+    expect(research.closed).toBe(true);
+    expect(provider.newsDiagnostics()).toEqual([{ outcome: "cancelled", elapsedMs: expect.any(Number) }]);
+  });
+
   it.each(["timeout", "cancelled"] as const)("records %s without retaining provider errors and closes research", async (outcome) => {
     const main = new FakeCodexClient();
     const research = new FakeCodexClient();
@@ -329,6 +423,7 @@ describe("Codex app-server executable resolution", () => {
     expect(runTurn.mock.calls[0]?.[1]).toContain("Web search is disabled");
     expect(runTurn.mock.calls[0]?.[1]).not.toContain("Old web report");
     expect(runTurn.mock.calls[0]?.[2]).toEqual([]);
+    expect(runTurn.mock.calls[0]?.[3]).toEqual({ toolWaitMs: 0 });
     expect(factory).toHaveBeenCalledTimes(1);
     provider.close();
   });
@@ -345,6 +440,116 @@ describe("Codex app-server executable resolution", () => {
     const assertion = expect(pending).rejects.toThrow("closed");
     client.close();
     await assertion;
+  });
+
+  it.each([false, true])("keeps the original timeout without tools even if turn/start acknowledgement is missing: %s", async (acknowledge) => {
+    const client = createToolProtocolClient(0, { acknowledge });
+    await client.initialize();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      const result = client.runTurn("thread", "fixture", [], { toolWaitMs: 2000 });
+      const assertion = expect(result).rejects.toThrow("timed out");
+      await vi.advanceTimersByTimeAsync(1000);
+      await assertion;
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it("allows two sequential research waits longer than the main timeout", async () => {
+    const client = createToolProtocolClient(2);
+    await client.initialize();
+    const waits = [deferred<void>(), deferred<void>()];
+    const starts = [deferred<void>(), deferred<void>()];
+    let calls = 0;
+    const tool = clockTestTool(async () => {
+      const index = calls++;
+      starts[index]!.resolve();
+      await waits[index]!.promise;
+      return { status: "unavailable" };
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      const result = client.runTurn("thread", "fixture", [tool], { toolWaitMs: 2000 });
+      for (let index = 0; index < 2; index++) {
+        await starts[index]!.promise;
+        await vi.advanceTimersByTimeAsync(900);
+        waits[index]!.resolve();
+      }
+      await expect(result).resolves.toBe("Finished");
+      expect(calls).toBe(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it("preserves only the unused generation time after research", async () => {
+    const client = createToolProtocolClient(1, { complete: false, autoStart: false });
+    await client.initialize();
+    const started = deferred<void>();
+    const wait = deferred<void>();
+    const tool = clockTestTool(async () => { started.resolve(); await wait.promise; return {}; });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      const result = client.runTurn("thread", "fixture", [tool], { toolWaitMs: 2000 });
+      const assertion = expect(result).rejects.toThrow("timed out");
+      const settled = vi.fn();
+      void result.then(settled, settled);
+      await client.request("barrier", {});
+      await vi.advanceTimersByTimeAsync(600);
+      await client.request("begin", {});
+      await started.promise;
+      await vi.advanceTimersByTimeAsync(1500);
+      wait.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(399);
+      expect(settled).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await assertion;
+      expect(settled).toHaveBeenCalledOnce();
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it("stays paused until overlapping research calls both return", async () => {
+    const client = createToolProtocolClient(2, { concurrent: true });
+    await client.initialize();
+    const waits = [deferred<void>(), deferred<void>()];
+    const started = deferred<void>();
+    let calls = 0;
+    const tool = clockTestTool(async () => {
+      const index = calls++;
+      if (calls === 2) started.resolve();
+      await waits[index]!.promise;
+      return {};
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      const result = client.runTurn("thread", "fixture", [tool], { toolWaitMs: 2000 });
+      await started.promise;
+      await vi.advanceTimersByTimeAsync(1200);
+      waits[0]!.resolve();
+      await vi.advanceTimersByTimeAsync(1100);
+      waits[1]!.resolve();
+      await expect(result).resolves.toBe("Finished");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.close(); vi.useRealTimers(); }
+  });
+
+  it.each(["timeout", "close"])("settles %s during research and ignores the late tool response", async (reason) => {
+    const client = createToolProtocolClient(1);
+    await client.initialize();
+    const started = deferred<void>();
+    const wait = deferred<void>();
+    const tool = clockTestTool(async () => { started.resolve(); await wait.promise; return {}; });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
+    try {
+      const result = client.runTurn("thread", "fixture", [tool], { toolWaitMs: 2000 });
+      const assertion = expect(result).rejects.toThrow(reason === "close" ? "closed" : "timed out");
+      await started.promise;
+      if (reason === "close") client.close();
+      else await vi.advanceTimersByTimeAsync(3000);
+      await assertion;
+      wait.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.close(); vi.useRealTimers(); }
   });
 
   it("drains large app-server stderr output without retaining diagnostics", async () => {
@@ -395,7 +600,7 @@ class FakeCodexClient implements CodexAppServerClient {
     return {} as T;
   }
 
-  async runTurn(threadId: string, prompt: string, _tools: AiTool[] = []): Promise<string> {
+  async runTurn(threadId: string, prompt: string, _tools: AiTool[] = [], _options?: CodexTurnOptions): Promise<string> {
     this.turnThreadIds.push(threadId);
     this.prompts.push(prompt);
     if (this.failNextTurn) {
@@ -412,4 +617,50 @@ class FakeCodexClient implements CodexAppServerClient {
   close(): void {
     this.closed = true;
   }
+}
+
+function clockTestTool(execute: AiTool["execute"]): AiTool {
+  return {
+    definition: { type: "function", name: "check_player_news", description: "Fixture", inputSchema: { type: "object" } },
+    execute,
+  };
+}
+
+function createToolProtocolClient(count: number, { concurrent = false, acknowledge = true, complete = true, autoStart = true } = {}) {
+  const fixture = String.raw`
+    const lines = require('node:readline').createInterface({ input: process.stdin });
+    let calls = 0, replies = 0;
+    const emit = message => process.stdout.write(JSON.stringify(message) + '\n');
+    const call = () => emit({ id: 'tool-' + ++calls, method: 'item/tool/call', params: { tool: 'check_player_news', arguments: {} } });
+    lines.on('line', line => {
+      const message = JSON.parse(line);
+      if (message.method === 'turn/start') {
+        if (${acknowledge}) emit({ id: message.id, result: {} });
+        if (${count} > 0 && ${autoStart}) {
+          call();
+          if (${concurrent}) while (calls < ${count}) call();
+        }
+      } else if (message.method && message.id) {
+        if (message.method === 'begin') call();
+        emit({ id: message.id, result: {} });
+      } else if (String(message.id).startsWith('tool-')) {
+        replies++;
+        if (replies === ${count} && ${complete}) {
+          emit({ method: 'item/agentMessage/delta', params: { delta: 'Finished' } });
+          emit({ method: 'turn/completed', params: { turn: { status: 'completed' } } });
+        } else if (calls < ${count} && !${concurrent}) call();
+      }
+    });
+  `;
+  return attachCodexAppServerProcess(spawn(process.execPath, ["-e", fixture], { stdio: ["pipe", "pipe", "pipe"] }), 1000);
+}
+
+function deferred<T>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => undefined;
+  let reject: (reason: unknown) => void = () => undefined;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
