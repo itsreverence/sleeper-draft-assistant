@@ -45,6 +45,30 @@ describe("bounded public player news", () => {
     expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "invalid_source", elapsedMs: 0 });
   });
 
+  it.each([
+    { title: "Undated", url: "https://nfl.com/news/undated", reportedAt: null },
+    { title: "Stale", url: "https://nfl.com/news/stale", reportedAt: "2026-09-16" },
+    { title: "Future", url: "https://nfl.com/news/future", reportedAt: "2026-09-25" },
+    { title: "Invalid day", url: "https://nfl.com/news/invalid", reportedAt: "2026-02-31" },
+    { title: "Malformed date", url: "https://nfl.com/news/malformed", reportedAt: "yesterday" },
+    { title: "Unsafe host", url: "https://evil.test/report", reportedAt: "2026-09-24" },
+    { title: "Malformed source" },
+  ])("keeps a verified source when another source is unusable: $title", async (unusable) => {
+    const valid = JSON.parse(response).sources[0];
+    const record = vi.fn();
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "Reporting is uncertain.", sources: [unusable, valid] }), record);
+    const result = await news.tool.execute({ playerId: "private-id", topic: "injury" });
+    expect(result).toMatchObject({ status: "available", sources: [{ ...valid, checkedAt: "2026-09-24T12:00:00.000Z" }] });
+    expect(news.sources).toEqual([{ ...valid, checkedAt: "2026-09-24T12:00:00.000Z" }]);
+    expect(record).toHaveBeenCalledExactlyOnceWith({ outcome: "available", elapsedMs: 0 });
+  });
+
+  it("accepts the inclusive seven-day boundary and drops older sources", async () => {
+    const valid = { title: "Last week", url: "https://espn.com/nfl/story", reportedAt: "2026-09-17" };
+    const news = createPlayerNewsTool(players, async () => JSON.stringify({ summary: "Report", sources: [valid, { ...valid, reportedAt: "2026-09-16" }] }));
+    expect(await news.tool.execute({ playerId: "private-id", topic: "injury" })).toMatchObject({ status: "available", sources: [{ ...valid, checkedAt: expect.any(String) }] });
+  });
+
   it("returns a safe gap instead of exposing provider errors", async () => {
     const record = vi.fn();
     const news = createPlayerNewsTool(players, async () => {
