@@ -2,8 +2,13 @@
 @import "@fontsource/inter/latin-500.css";
 @import "@fontsource/inter/latin-600.css";
 @import "@fontsource/inter/latin-700.css";
-@import "@fontsource/inter/latin-800.css";
 @import "./lib/theme.css";
+
+/*
+  Breakpoints. Custom properties cannot drive media queries, so these are literal:
+  compact 760px, phone 520px. The two-column collapse moves to 1100px in the layout
+  PRs; until then 920, 900 and 860 remain and styles.test.ts lists them as legacy.
+*/
 
 *,
 *::before,
@@ -86,8 +91,8 @@ a {
   margin: 0 0 4px;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.09em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -117,6 +122,7 @@ a {
   gap: 8px;
   margin-top: 3px;
   font-size: var(--text-lg);
+  font-weight: 600;
 }
 
 .field {
@@ -127,10 +133,8 @@ a {
 
 .field > span {
   color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .input,
@@ -138,7 +142,7 @@ input[type="text"],
 input[type="file"],
 textarea {
   width: 100%;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
   padding: 10px 12px;
@@ -153,7 +157,7 @@ textarea::placeholder {
 
 .input:hover,
 textarea:hover {
-  border-color: var(--border-strong);
+  border-color: var(--text-muted);
 }
 
 .input:focus-visible,
@@ -176,7 +180,7 @@ textarea {
   border-radius: var(--radius-md);
   padding: 10px 16px;
   font-size: var(--text-base);
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast),
@@ -239,10 +243,8 @@ textarea {
   background: var(--surface-raised);
   padding: 5px 11px;
   color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -330,7 +332,7 @@ textarea {
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

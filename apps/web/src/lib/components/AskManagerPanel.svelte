@@ -252,7 +252,7 @@
   }
 
   .ask-heading h2 {
-    font-size: var(--text-md);
+    font-size: var(--text-lg);
   }
 
   .ask-heading span {
@@ -297,7 +297,7 @@
     line-height: 1.5;
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .provider-empty {
       align-items: stretch;
       flex-direction: column;
@@ -351,7 +351,7 @@
     color: var(--warning);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .conversation {
@@ -384,7 +384,7 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-input);
     border-radius: var(--radius-md);
     background: var(--surface-sunken);
     padding: 5px 6px 5px 12px;
@@ -422,7 +422,7 @@
     color: var(--text-on-accent);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 850;
+    font-weight: 600;
   }
 
   .composer-send:disabled {
@@ -436,7 +436,7 @@
     gap: 7px;
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 750;
+    font-weight: 700;
   }
 
   .provider-readiness::before {
@@ -455,7 +455,7 @@
     background: var(--danger);
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .ask-toggle {
       align-items: flex-start;
       padding: var(--space-4);

@@ -435,7 +435,7 @@
 
   .panel-heading h2 {
     margin-top: 3px;
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
   }
 
   .decision-heading {
@@ -446,7 +446,8 @@
   .decision-heading > span {
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -472,7 +473,7 @@
     color: var(--accent);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     padding: 0;
     text-decoration: underline;
     text-underline-offset: 3px;
@@ -545,7 +546,7 @@
     color: var(--accent);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .previous-recommendation-label {
@@ -553,8 +554,7 @@
     border-radius: var(--radius-pill);
     padding: 4px 8px;
     color: var(--text-secondary);
-    font-weight: 800;
-    text-transform: uppercase;
+    font-weight: 600;
   }
 
   .ai-strategy.previous .decision-main > :not(.strategy-refresh-status, .strategy-refresh-error, .previous-recommendation-label),
@@ -572,7 +572,8 @@
     margin: 0 0 10px;
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -601,7 +602,7 @@
   .fallback-rank {
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .fallback-player {
@@ -651,7 +652,7 @@
     padding: 0;
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 750;
+    font-weight: 700;
   }
 
   .ai-strategy .turn-context::before {
@@ -668,8 +669,8 @@
   .ai-strategy .decision-summary {
     max-width: 72ch;
     color: var(--text-primary);
-    font-size: var(--text-md);
-    font-weight: 650;
+    font-size: var(--text-lg);
+    font-weight: 600;
     line-height: 1.55;
   }
 
@@ -691,7 +692,7 @@
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .decision-actions > button:hover {
@@ -745,7 +746,7 @@
 
   .strategy-glance strong {
     color: var(--text-secondary);
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .strategy-utilities {
@@ -765,7 +766,7 @@
     color: var(--accent);
     cursor: pointer;
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .strategy-utilities button:hover {
@@ -842,7 +843,7 @@
     }
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .panel-heading {
       flex-direction: column;
       gap: 8px;

@@ -8,43 +8,71 @@ colors:
   surface-sunken: "#0e1013"
   surface-hover: "#20242c"
   border: "#262b33"
-  border-strong: "#363c46"
+  border-strong: "#454c58"
+  border-input: "#626c7c"
   text-primary: "#f2f4f6"
   text-secondary: "#aab0ba"
-  text-muted: "#767e8a"
+  text-muted: "#929aa6"
   accent: "#34d399"
   accent-strong: "#10b981"
   info: "#8b9bf8"
   warning: "#f5b544"
   danger: "#f87171"
+  pos-qb: "#f5b544"
+  pos-rb: "#34d399"
+  pos-wr: "#38bdf8"
+  pos-te: "#a78bfa"
+  pos-k: "#f472b6"
+  pos-def: "#94a3b8"
+  board-head: "#181c22"
+  board-cell: "#101318"
+  board-user: "#14251f"
+  board-user-pick: "#17382d"
+  board-current: "#2a2112"
 typography:
   display:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "30px"
+    fontSize: "28px"
     fontWeight: 700
     lineHeight: 1.15
-    letterSpacing: "-0.01em"
+    letterSpacing: "-0.015em"
   headline:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "23px"
+    fontSize: "22px"
     fontWeight: 700
-    lineHeight: 1.3
+    lineHeight: 1.2
+    letterSpacing: "-0.01em"
   title:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "19px"
-    fontWeight: 700
+    fontSize: "18px"
+    fontWeight: 600
     lineHeight: 1.35
+  subtitle:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 600
+    lineHeight: 1.4
   body:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "14.5px"
+    fontSize: "14px"
     fontWeight: 400
+    lineHeight: 1.5
+  secondary:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.45
+  meta:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "12px"
+    fontWeight: 500
     lineHeight: 1.4
   label:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "11px"
-    fontWeight: 700
+    fontWeight: 600
     lineHeight: 1.3
-    letterSpacing: "0.05em"
+    letterSpacing: "0.06em"
 rounded:
   sm: "6px"
   md: "10px"
@@ -57,6 +85,8 @@ spacing:
   lg: "16px"
   xl: "20px"
   2xl: "24px"
+  3xl: "32px"
+  4xl: "40px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
@@ -124,11 +154,23 @@ The palette uses a near-black foundation with neutral charcoal surfaces and a sm
 - **Sunken Surface** (#0e1013): Inputs, board cells, and recessed content.
 - **Primary Text** (#f2f4f6): Headings and high-priority values.
 - **Secondary Text** (#aab0ba): Explanations and supporting content.
-- **Muted Text** (#767e8a): Labels, metadata, and low-priority status text.
+- **Muted Text** (#929aa6): Labels, metadata, and low-priority status text. This is the shipped value; 6.3:1 on the panel surface.
+- **Strong Border** (#454c58): Secondary buttons, pills, callouts, and scrollbars. Structural, not a contrast target.
+- **Input Border** (#626c7c): Field edges. At least 3:1 against the panel, raised, and sunken surfaces (WCAG 1.4.11).
+
+### Position
+
+Six `--pos-*` tokens (QB amber, RB green, WR sky, TE violet, K pink, DEF slate) drive the draft-board stripe and position chips, and nothing else.
+
+### Draft board
+
+`--board-head`, `--board-cell`, `--board-user`, `--board-user-pick`, and `--board-current` are the board-only surfaces for headers, cells, the user's column, the user's picks, and the cell on the clock.
 
 ### Named Rules
 
-**The Semantic Accent Rule.** Accent colors communicate state or action. Do not use them as decoration or apply them uniformly to every surface.
+**The Semantic Accent Rule.** Accent colors communicate state or action. Do not use them as decoration or apply them uniformly to every surface. Green only for actions and "ready"; numeric data is primary text; missing data is muted text with a reason; amber for anything that changes a lineup decision; red only for out, IR, and destructive actions.
+
+**The Token Rule.** Literal hex colors live only in `apps/web/src/lib/theme.css`. Component styles reference tokens; `apps/web/src/styles.test.ts` fails the build otherwise.
 
 ## Typography
 
@@ -140,11 +182,20 @@ The palette uses a near-black foundation with neutral charcoal surfaces and a sm
 
 ### Hierarchy
 
-- **Display** (700, 30px, 1.15): Product and connected-league headings.
-- **Headline** (700, 23px, 1.3): Primary workspace headings and prominent decisions.
-- **Title** (700, 19px, 1.35): Panel headings and important subsections.
-- **Body** (400, 14.5px, 1.4): Normal copy and explanations.
-- **Label** (700, 11px, 1.3, slight positive tracking): Eyebrows, metadata, and compact status labels.
+Tokens live in `theme.css`. Weights are 400, 500, 600, and 700 only; nothing heavier ships.
+
+| Token | Size / line | Weight | Use |
+|---|---|---|---|
+| `--text-xs` | 11px / 1.3 | 600, 0.06em, uppercase | Eyebrows and column heads only |
+| `--text-sm` | 12px / 1.4 | 500 (600 in chips and pills) | Metadata, chips, pills, legends, field labels |
+| `--text-md` | 13px / 1.45 | 400 | Secondary copy and table cells |
+| `--text-base` | 14px / 1.5 | 400 (600 in buttons) | Body, inputs, buttons |
+| `--text-lg` | 16px / 1.4 | 600 | Panel titles and player names in cards |
+| `--text-xl` | 18px / 1.35 | 600 | Drawer and dialog titles |
+| `--text-2xl` | 22px / 1.2 | 700, -0.01em | Page title in the top bar |
+| `--text-3xl` | 28px / 1.15 | 700, -0.015em | The decision headline only |
+
+The uppercase label style is reserved for section eyebrows and table column heads. Chips, pills, tags, status text, and buttons are sentence case. Use tabular numerals on pick numbers, projections, ranks, and counts.
 
 ### Named Rules
 
@@ -156,7 +207,9 @@ The application uses a centered responsive shell with a constrained content colu
 
 Draft pages use a wide board region with intentional horizontal scrolling when team count exceeds the available viewport. The board keeps the round column and team header legible while the page below provides AI guidance, roster context, strategy, and conversation. Mobile layouts stack working regions and keep horizontal board scrolling explicit with a visible hint.
 
-Spacing follows the 4px base scale with common steps of 8px, 12px, 16px, 20px, and 24px. Group related controls tightly and use a full divider or larger gap before a separate workflow.
+Spacing follows the 4px base scale: `--space-N` is 4N pixels, with tokens for 4, 8, 12, 16, 20, 24, 32, and 40. Panel padding is 20px on desktop and 16px at the compact breakpoint. List rows are 44px. Group related controls tightly and use a full divider or larger gap before a separate workflow.
+
+Breakpoints are literal in media queries because custom properties cannot drive them: compact at 760px and phone at 520px. The two-column collapse moves to 1100px with the layout work; until then 920px, 900px, and 860px remain and the style guard lists them as legacy.
 
 ## Elevation & Depth
 
@@ -188,7 +241,7 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 
 ### Chips
 
-- **Style:** Small pill with semantic border and soft tint.
+- **Style:** Small pill with semantic border and soft tint, 12px at weight 600, sentence case.
 - **State:** Use for confidence, setup readiness, warnings, AI provider state, and compact counts. Do not use long sentences inside chips.
 
 ### Cards / Containers
@@ -201,7 +254,7 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 
 ### Inputs / Fields
 
-- **Style:** Sunken surface, 1px strong border, 10px radius, 10px 12px padding.
+- **Style:** Sunken surface, 1px input border (`--border-input`), 10px radius, 10px 12px padding.
 - **Focus:** Green border and a restrained green focus ring.
 - **Error / Disabled:** Semantic red or amber callout for errors; disabled controls retain layout and use reduced opacity without losing their label.
 

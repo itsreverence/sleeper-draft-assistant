@@ -96,9 +96,9 @@
     display: block;
     color: var(--accent);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
   }
 
   h2 {
@@ -178,7 +178,7 @@
     color: var(--text-primary);
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 760px) {
     .preparation-actions {
       align-items: stretch;
       flex-direction: column;

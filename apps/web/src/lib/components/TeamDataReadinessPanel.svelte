@@ -121,9 +121,9 @@
 
   .coverage-row span {
     color: var(--text-muted);
-    font-size: var(--text-2xs);
-    font-weight: 900;
-    letter-spacing: 0.05em;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -162,7 +162,7 @@
     border-right: 1px solid var(--border);
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 600;
     text-align: center;
   }
 
@@ -177,8 +177,7 @@
 
   .position-list small {
     color: inherit;
-    font-size: 8px;
-    text-transform: uppercase;
+    font-size: var(--text-xs);
   }
 
   .context {
@@ -200,7 +199,7 @@
     line-height: 1.4;
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .position-list {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }

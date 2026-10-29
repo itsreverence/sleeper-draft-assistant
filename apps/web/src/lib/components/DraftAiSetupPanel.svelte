@@ -95,7 +95,8 @@
     margin-bottom: 4px;
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -115,7 +116,7 @@
     padding-top: var(--space-4);
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 760px) {
     .ai-setup-heading {
       grid-template-columns: auto minmax(0, 1fr);
     }

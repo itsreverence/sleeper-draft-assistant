@@ -299,7 +299,7 @@
   .draft-state {
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .known-draft.current .draft-state {
@@ -327,7 +327,7 @@
     flex-wrap: wrap;
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .switcher-drawer {
       top: auto;
       bottom: 0;

@@ -186,7 +186,7 @@
     opacity: 0;
     cursor: pointer;
   }
-  @media (max-width: 700px) {
+  @media (max-width: 760px) {
     .control-grid {
       grid-template-columns: 1fr;
     }

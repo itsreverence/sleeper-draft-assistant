@@ -80,7 +80,7 @@
   .activity-panel { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
   .activity-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; min-height: 44px; border: 0; padding: 9px 14px; background: transparent; color: var(--text-muted); cursor: pointer; text-align: left; transition: background var(--transition-fast); }
   .activity-summary:hover { background: var(--surface-raised); }
-  .activity-label, .activity-cue { display: inline-flex; gap: 7px; align-items: center; font-size: var(--text-xs); font-weight: 800; white-space: nowrap; }
+  .activity-label, .activity-cue { display: inline-flex; gap: 7px; align-items: center; font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
   .activity-label { color: var(--text-secondary); }
   .activity-label :global(svg) { color: var(--text-muted); }
   .activity-summary strong { overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -97,11 +97,11 @@
   .signal-grid { display: grid; gap: 10px; }
   .signal-grid:has(section:nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .signal-grid section { display: grid; gap: 7px; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 9px 10px; }
-  .signal-grid section > span { color: var(--text-muted); font-size: var(--text-2xs); font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+  .signal-grid section > span { color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
   .activity-row { display: flex; justify-content: space-between; gap: 10px; }
   .activity-row strong, .signal-grid section p { margin: 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.35; }
   .activity-row em { color: var(--text-muted); font-size: var(--text-xs); font-style: normal; white-space: nowrap; }
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .signal-grid:has(section:nth-child(2)) { grid-template-columns: 1fr; }
     .activity-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
     .activity-summary strong { grid-column: 1 / -1; grid-row: 2; }

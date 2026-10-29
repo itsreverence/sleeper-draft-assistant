@@ -187,7 +187,7 @@
     gap: var(--space-4);
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .data-drawer {
       top: auto;
       bottom: 0;

@@ -190,7 +190,7 @@
     padding: 9px 4px;
     color: var(--text-secondary);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .position-summary span + span {
@@ -263,10 +263,10 @@
     color: var(--text-primary);
     cursor: pointer;
     font-size: var(--text-sm);
-    font-weight: 800;
+    font-weight: 600;
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 520px) {
     .team-drawer {
       top: auto;
       bottom: 0;

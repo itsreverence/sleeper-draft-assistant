@@ -148,7 +148,8 @@
   .maintenance-label {
     color: var(--text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
   }
 
@@ -175,7 +176,7 @@
     font-size: var(--text-xs);
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 520px) {
     .settings-panel > .panel-heading {
       align-items: flex-start;
       flex-direction: column;
