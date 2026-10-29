@@ -53,3 +53,7 @@ Settings includes controls to clear all ranking imports, weekly projections, or 
 For manual removal of substantive records, close the app completely, locate Electron's per-user directory for **Sleeper Draft Assistant**, and delete its `data` directory. Delete the entire application-data directory if you also want to remove Chromium-backed convenience preferences. In development, delete repository `data/` or the directory assigned to `SLEEPER_AI_DATA_DIR`.
 
 Deletion is local and immediate; the app has no cloud account to erase. It cannot delete data held independently by Sleeper, FantasyPros, OpenAI, or other providers.
+
+### Team Manager NFL schedule
+
+Team Manager also contacts the tokenless, read-only `https://api.sleeper.app/schedule/nfl/regular/<season>` endpoint. Only the season is sent; the request contains no league, roster, imported rankings or credentials. The undocumented response is strictly validated and successful or unavailable results are cached per season for six hours in local process memory, with no new files or database records. Closing the app or **Delete all local app data** discards this cache, including pending cache entries. Schedule facts enter the normal Team Manager Codex context. If the endpoint fails, the app displays a generic unavailable note, uses imported draft byes where known and otherwise reports unknown bye status. Raw upstream errors are not logged or returned. Demo mode does not request a schedule.

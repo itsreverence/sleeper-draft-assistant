@@ -77,6 +77,7 @@ describe("FantasyPros season value ranking imports", () => {
       importedRank: 1,
       importedPositionRank: 1,
       importedSource: "FantasyPros draft ECR fallback",
+      byeWeek: 8,
     });
     expect(gibbs?.rosRank).toBeUndefined();
   });

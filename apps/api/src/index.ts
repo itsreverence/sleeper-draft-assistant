@@ -49,6 +49,7 @@ const localDataReset = new LocalDataResetCoordinator({
   database: appDatabase,
   getResetTargets: () => ({
     clearers: [
+      () => sleeperClient.clearScheduleCache(),
       () => rankingImportStore.clearAll(),
       () => seasonProjectionImportStore.clearAll(),
       () => adpImportStore.clearAll(),

@@ -36,7 +36,14 @@ export function formatImportDate(summary: { appliedAt: string }) {
   });
 }
 
+export function formatPlayerSchedule(player: Player): string | null {
+  const schedule = player.schedule;
+  if (schedule?.onBye === true) return "BYE";
+  return schedule?.opponent ? `${schedule.homeAway === "away" ? "@" : "vs"} ${schedule.opponent}` : null;
+}
+
 export function formatWeeklyProjection(player: Player | null | undefined) {
+  if (player?.schedule?.onBye === true) return "BYE · 0 pts";
   return player?.weeklyProjectedPoints === null || player?.weeklyProjectedPoints === undefined
     ? null
     : `${player.weeklyProjectedPoints.toFixed(1)} pts`;

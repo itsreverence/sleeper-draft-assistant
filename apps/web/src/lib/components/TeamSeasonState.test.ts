@@ -6,6 +6,23 @@ import MyTeamPanel from "./MyTeamPanel.svelte";
 import { createTeamPayloadFixture } from "../testing/draft-fixtures";
 
 describe("Team Manager season state", () => {
+  it("shows accessible bye markers without missing-projection text and a schedule failure note", () => {
+    const payload = createTeamPayloadFixture();
+    const player = payload.state.roster.starters[0]!.player!;
+    player.schedule = { season: "2026", week: 1, source: "draft_import", onBye: true, opponent: null, homeAway: null, gameStatus: null };
+    payload.state.scheduleStatus = { available: false, week: 1 };
+    render(MyTeamPanel, { state: payload.state, readiness: { ...payload.dataReadiness, projectedRosterPlayers: 1 } });
+    expect(screen.getAllByText(/BYE/)).toHaveLength(2);
+    expect(screen.queryByText("Not matched")).toBeNull();
+    expect(screen.getByText(/NFL schedule unavailable/)).toBeTruthy();
+  });
+
+  it("shows a selected-week NFL opponent", () => {
+    const payload = createTeamPayloadFixture();
+    payload.state.roster.starters[0]!.player!.schedule = { season: "2026", week: 1, source: "sleeper", onBye: false, opponent: "KC", homeAway: "away", gameStatus: "pre_game" };
+    render(MyTeamPanel, { state: payload.state });
+    expect(screen.getByText(/@ KC/)).toBeTruthy();
+  });
   it("labels a preseason roster without presenting a regular-season week", () => {
     const payload = createTeamPayloadFixture();
     render(MyTeamPanel, {

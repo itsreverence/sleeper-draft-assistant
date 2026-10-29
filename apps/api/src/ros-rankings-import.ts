@@ -28,6 +28,7 @@ export type SeasonValueRankingImportKey = {
 };
 
 type ImportedSeasonValueRanking = {
+  byeWeek?: number | null;
   rank: number;
   positionRank: number | null;
   bestRank: number | null;
@@ -42,6 +43,7 @@ export type StoredSeasonValueRankingImport = {
 };
 
 type SeasonValueRow = {
+  byeWeek: number | null;
   rowNumber: number;
   name: string;
   team: string | null;
@@ -165,6 +167,7 @@ export function importFantasyProsSeasonValueRankings(input: {
     const match = matchPlayer(row, input.players);
     if (match.kind === "matched") {
       playersById.set(match.player.id, {
+        byeWeek: row.byeWeek,
         rank: row.rank,
         positionRank: row.positionRank,
         bestRank: row.bestRank,
@@ -258,6 +261,7 @@ export function toDraftEcrFallbackImport(
       appliedAt: storedImport.summary.appliedAt,
     },
     playersById: new Map(Array.from(storedImport.playersById.entries()).map(([playerId, value]) => [playerId, {
+      byeWeek: value.byeWeek,
       rank: value.rank,
       positionRank: value.positionRank,
       bestRank: null,
@@ -324,6 +328,7 @@ export function applySeasonValueRankingToPlayer(
   if (storedImport.summary.rankingType === "draft-ecr-fallback") {
     return {
       ...player,
+      byeWeek: value.byeWeek ?? player.byeWeek,
       importedRank: value.rank,
       importedPositionRank: value.positionRank,
       importedSource: "FantasyPros draft ECR fallback",
@@ -387,6 +392,7 @@ function parseSeasonValueRows(csvText: string): SeasonValueRow[] {
         name: cleanText(cell(record, indexes, "playername")),
         team: nullableText(cell(record, indexes, "team")),
         position: parsedPosition.position,
+        byeWeek: numberFrom(cell(record, indexes, "byeweek")),
         rank: numberFrom(cell(record, indexes, "rk")),
         positionRank: parsedPosition.rank,
         bestRank: numberFrom(cell(record, indexes, "best")),

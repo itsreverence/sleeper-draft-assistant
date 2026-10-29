@@ -1,6 +1,7 @@
 import type { DraftPickOrder, DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
 import { STARTER_SLOT_POSITIONS } from "@sleeper-draft-assistant/shared/roster-slots";
 
+import { NflScheduleSchema, type NflSchedule } from "./nfl-schedule";
 import { assessFormatCompatibility } from "./format-compatibility";
 
 const sleeperApiBaseUrl = "https://api.sleeper.app/v1";
@@ -185,6 +186,24 @@ export class SleeperApiError extends Error {
 }
 
 export class SleeperClient {
+  private scheduleCache = new Map<string, { loadedAt: number; value: Promise<NflSchedule | null> }>();
+
+  clearScheduleCache(): void { this.scheduleCache.clear(); }
+
+  async getNflSchedule(season: string): Promise<NflSchedule | null> {
+    if (!/^\d{4}$/.test(season)) return null;
+    const cached = this.scheduleCache.get(season);
+    if (cached && Date.now() - cached.loadedAt < 6 * 60 * 60 * 1000) return cached.value;
+    const value = this.fetchJson<unknown>(`/schedule/nfl/regular/${season}`, this.baseUrl.replace(/\/v1$/, ""))
+      .then((raw) => {
+        const schedule = NflScheduleSchema.parse(raw);
+        if (schedule.some((game) => game.date < `${season}-01-01` || game.date > `${Number(season) + 1}-02-28`)) return null;
+        return schedule;
+      }).catch(() => null);
+    this.scheduleCache.set(season, { loadedAt: Date.now(), value });
+    return value;
+  }
+
   constructor(private readonly baseUrl = sleeperApiBaseUrl) {}
 
   async getUser(usernameOrUserId: string): Promise<SleeperUser> {
@@ -393,7 +412,7 @@ export class SleeperClient {
     return { league, rosters, users };
   }
 
-  private async fetchJson<T>(path: string): Promise<T> {
+  private async fetchJson<T>(path: string, baseUrl = this.baseUrl): Promise<T> {
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= sleeperRequestAttempts; attempt += 1) {
@@ -401,7 +420,7 @@ export class SleeperClient {
       const timeout = setTimeout(() => controller.abort(), sleeperRequestTimeoutMs);
 
       try {
-        const response = await fetch(`${this.baseUrl}${path}`, {
+        const response = await fetch(`${baseUrl}${path}`, {
           headers: {
             Accept: "application/json",
             "User-Agent": "sleeper-ai-team-manager-local",

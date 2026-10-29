@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { StoredRankingImport } from "../rankings-import";
 import type { StoredSeasonValueRankingImport } from "../ros-rankings-import";
+import { syntheticSchedule } from "../testing/schedule-fixture";
 import { registerTeamRoutes } from "./team-routes";
 import { LocalDataResetCoordinator, LocalDataResetError } from "../local-data-reset";
 
@@ -69,6 +70,7 @@ describe("Team Manager season value routes", () => {
     registerTeamRoutes(app, {
       localDataReset,
       sleeperClient: {
+        getNflSchedule: async () => null,
         getTeamManagerState: () => { markStarted(); return pendingState; },
         getTeamWeekContext: async () => null,
         getTeamActivitySummary: async () => null,
@@ -114,10 +116,12 @@ describe("Team Manager season value routes", () => {
       }]]),
     };
     let explicitImport: StoredSeasonValueRankingImport | null = null;
+    const getNflSchedule = vi.fn().mockResolvedValue(null);
     const app = new Hono();
     registerTeamRoutes(app, {
       localDataReset: new LocalDataResetCoordinator({} as never),
       sleeperClient: {
+        getNflSchedule,
         getTeamManagerState: async () => structuredClone(state),
         getTeamWeekContext: async () => null,
         getTeamActivitySummary: async () => null,
@@ -149,7 +153,16 @@ describe("Team Manager season value routes", () => {
       importedRank: 1,
       importedSource: "FantasyPros draft ECR fallback",
     });
+    const byeResponse = await app.request("/leagues/league-1/team?userRosterId=1&draftId=draft-1&week=8");
+    expect((await byeResponse.json()).state.roster.starters[0].player.schedule).toMatchObject({ onBye: true, source: "draft_import", week: 8 });
     expect(fallbackPayload.state.roster.starters[0].player.rosRank).toBeUndefined();
+
+    getNflSchedule.mockResolvedValue(syntheticSchedule);
+    const scheduleResponse = await app.request("/leagues/league-1/team?userRosterId=1&draftId=draft-1&week=9");
+    const schedulePayload = await scheduleResponse.json();
+    expect(schedulePayload.state.scheduleStatus).toEqual({ available: true, week: 9 });
+    expect(schedulePayload.state.roster.starters[0].player).toMatchObject({ byeWeek: 9, schedule: { source: "sleeper", onBye: true, week: 9 } });
+    getNflSchedule.mockResolvedValue(null);
 
     const rosResponse = await importRankings(app, rosCsv);
     expect(rosResponse.status).toBe(200);
