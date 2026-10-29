@@ -2,16 +2,16 @@
 
 Prepared October 4, 2026 on beta.4 source (`6694db7`) with the changes described
 here, which were later rebased onto the October dependency updates. This is preparation evidence, not a published release or
-Windows sign-off. The selected Windows testing candidate is `0.1.0-beta.5`.
-The remaining gates below now run against beta.5. Existing beta.4 downloads do
-not contain these fixes.
+Windows sign-off. The selected Windows testing candidate is `0.1.0-beta.6`.
+The remaining gates below now run against beta.6. Earlier downloads do not
+contain the news-lookup fix.
 
 ## Changes prepared
 
 - Research instructions now use the citation validator's exact approved host list.
   A source on another NFL/ESPN subdomain must be retrieved at an approved address
   before citation; guessing or rewriting URLs is forbidden. Validation, Electron
-  link restrictions, date checks, the two-lookup limit and 20-second deadline are
+  link restrictions, date checks, the two-lookup limit and 20-second deadline (later raised to 45 seconds in #63) were
   unchanged.
 - Electron updated from 43.0.0 to 43.8.3. The October 23 advisories prompted
   further Electron and Undici updates and a native Zod 4 migration. Hono, Vite
@@ -86,7 +86,7 @@ updates are expected behavior. Do not restore or compare an open SQLite database
 
 ## Remaining Windows and publication gates
 
-Run these against **0.1.0-beta.5**, not the old beta.4 installer:
+Run these against **0.1.0-beta.6**, not an earlier installer:
 
 1. Pass current Linux CI and Windows package smoke CI on the candidate. Windows
    CI now covers clean-profile installation, previous-release upgrade with seeded
@@ -94,15 +94,15 @@ Run these against **0.1.0-beta.5**, not the old beta.4 installer:
    relaunch, native occupied-port Retry/Exit, data placement/ACLs, uninstall
    retention, and portable startup. See [automated gates](../RELEASING.md#automated-gates)
    for exact coverage and limits.
-2. Complete the [every-release real Windows smoke](../RELEASING.md#real-windows-smoke-about-10-minutes)
+2. Complete the [every-release real Windows smoke](../RELEASING.md#real-windows-smoke)
    before tagging, using the exact commit's passing pre-smoke `windows-candidate`
    artifact and its logged ID/digest. Record the maintainer's confirmation in the
-   [beta.5 release notes](0.1.0-beta.5.md#manual-checks).
+   [beta.6 release notes](0.1.0-beta.6.md#manual-checks).
 3. Complete the [once-before-stable pass](../RELEASING.md#once-before-the-first-stable-release).
    Everything except news retrieval has passed on beta.2, beta.3, or beta.5 and
    carries forward; stacked app dialogs are not reachable in the current UI ([beta.5 report](beta.5-validation-followup.md)). A successful
    packaged news lookup with an external citation is still required after the
-   news-lookup fix ships in a testing build.
+   news-lookup fix ([#63](https://github.com/itsreverence/sleeper-draft-assistant/pull/63)), on beta.6.
 4. Select the stable version and synchronize workspace versions and lockfile.
    Follow [publication checks](../RELEASING.md#publish-the-verified-commit) on that
    exact commit, including package inspection, history scanning, release-note and
@@ -113,6 +113,6 @@ Do not claim Windows readiness based only on Linux packaging or CI. A real
 clean-profile Windows launch remains the final distribution gate.
 
 No new installer, stable tag, or GitHub release was published during the original
-readiness work above. Its historical Linux and browser results are not beta.5
+readiness work above. Its historical Linux and browser results are not beta.6
 Windows sign-off. Automated accessibility coverage does not replace the native
 Windows checks in RELEASING.md.
