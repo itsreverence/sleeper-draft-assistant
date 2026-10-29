@@ -1,3 +1,4 @@
+import { expectResponseTable, tableAnswer } from "./response-table";
 import { expect, test } from "@playwright/test";
 import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
 import { expectAccessible } from "./accessibility";
@@ -168,4 +169,15 @@ test("draft and its dialogs meet automated accessibility checks", async ({ page 
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
   }
+});
+
+test("draft answers contain wide Markdown tables inside the chat bubble", async ({ page }) => {
+  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), answer: tableAnswer, strategyProposal: null } });
+  });
+  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
+  await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Show a table of lineup options.");
+  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await expectResponseTable(page);
 });
