@@ -35,7 +35,7 @@ An earlier session on the same machine recorded one more 20 s timeout and four `
 - The 20-second research budget includes a cold `codex app-server` start.
 - One undated or stale source rejects an otherwise usable result.
 
-The fix is tracked separately. Opening a returned citation in the default browser, and confirming unsafe destinations stay blocked, remain untested because no citation came back.
+The fix is tracked in [#63](https://github.com/itsreverence/sleeper-draft-assistant/pull/63). Opening a returned citation in the default browser, and confirming unsafe destinations stay blocked, remain untested because no citation came back.
 
 ## Not applicable: two stacked app dialogs
 

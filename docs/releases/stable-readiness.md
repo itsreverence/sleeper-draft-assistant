@@ -100,7 +100,7 @@ Run these against **0.1.0-beta.5**, not the old beta.4 installer:
    [beta.5 release notes](0.1.0-beta.5.md#manual-checks).
 3. Complete the [once-before-stable pass](../RELEASING.md#once-before-the-first-stable-release).
    Everything except news retrieval has passed on beta.2, beta.3, or beta.5 and
-   carries forward ([beta.5 report](beta.5-validation-followup.md)). A successful
+   carries forward; stacked app dialogs are not reachable in the current UI ([beta.5 report](beta.5-validation-followup.md)). A successful
    packaged news lookup with an external citation is still required after the
    news-lookup fix ships in a testing build.
 4. Select the stable version and synchronize workspace versions and lockfile.
