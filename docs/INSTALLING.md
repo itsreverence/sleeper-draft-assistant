@@ -1,6 +1,6 @@
 # Installing on Windows
 
-Sleeper Draft Assistant is currently distributed as an unsigned Windows beta. Install only artifacts published from this repository's GitHub Releases page.
+Sleeper Draft Assistant is distributed as an unsigned Windows app. Install only artifacts published from this repository's GitHub Releases page.
 
 ## Choose an artifact
 
@@ -22,7 +22,7 @@ Compare the result with the corresponding entry in `SHA256SUMS.txt`. Do not run 
 
 ## Unsigned build warning
 
-Windows SmartScreen may warn that the publisher is unknown because beta builds are not code-signed. Continue only when:
+Windows SmartScreen may warn that the publisher is unknown because builds are not code-signed. Continue only when:
 
 1. the file came from this repository's Releases page;
 2. its SHA-256 checksum matches; and
@@ -55,11 +55,11 @@ For manual removal of substantive records, close Sleeper Draft Assistant complet
 
 ## Updating and rollback
 
-Before installing a newer beta, close the app and back up the entire `%APPDATA%\Sleeper Draft Assistant` directory. Install the new version over the existing per-user installation or replace the portable files.
+Before installing a newer version, close the app and back up the entire `%APPDATA%\Sleeper Draft Assistant` directory. Install the new version over the existing per-user installation or replace the portable files.
 
 Windows CI checks a clean candidate first run and a checksum-checked upgrade from the highest published semantic version, including prereleases. Tag builds exclude their own version. It seeds synthetic imports, saved guidance, settings, and history through the installed API and checks that they survive. It also checks redaction and API clear/reset persistence for seeded rankings, season projections, ADP, guidance, and decision snapshots. ROS rankings, weekly projections, and AI draft plans require the documented real-desktop reset pass. A real Windows desktop smoke still gates distribution; CI does not prove live Sleeper, native imports, Codex, SmartScreen, or backup restoration.
 
-Beta database changes may not be backward compatible. To roll back:
+Database changes between versions may not be backward compatible. To roll back:
 
 1. close the current version;
 2. restore the application-data backup created before the update; and
