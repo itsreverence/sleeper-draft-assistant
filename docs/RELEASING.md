@@ -50,7 +50,7 @@ gh run list --workflow ci.yml --commit <full-commit-sha>
 curl.exe -fL -H "Authorization: Bearer $(gh auth token)" -o candidate.zip https://api.github.com/repos/itsreverence/sleeper-draft-assistant/actions/artifacts/<logged-artifact-id>/zip
 ```
 
-Type `curl.exe`, not `curl`. Windows PowerShell 5.1 maps `curl` to `Invoke-WebRequest`.
+Type `curl.exe`, not `curl`. Windows PowerShell 5.1 maps `curl` to `Invoke-WebRequest`. On Linux or macOS, use `curl` with the same arguments.
 
 The logged `artifact-digest` hashes the uploaded ZIP bytes, not the individual executables. The default archived upload uses the [artifact toolkit's ZIP stream and SHA-256 hash](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/blob-upload.ts). In PowerShell, verify the downloaded archive against the digest from that pre-smoke log before extracting it:
 
