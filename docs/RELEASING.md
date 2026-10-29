@@ -101,15 +101,13 @@ Already passed on real Windows 11 Pro. These carry forward until a major shell, 
 - Quit during an active AI question with only app-owned processes exiting, and web-search setting persistence (beta.3).
 - Backup, reset, and restore; uninstall/reinstall with the silent installer; a basic AI question (beta.2, [report summary](releases/beta.2-validation-followup.md)).
 - Codex recovery guidance after correcting a CLI failure (beta.5 candidate smoke, recorded on [#57](https://github.com/itsreverence/sleeper-draft-assistant/pull/57)).
+- Quit during news research with only app-owned processes exiting; native file selection, paste, and same-file reselection; keyboard demo entry and dialog focus; renderer category clear and typed full reset; the interactive installer wizard; closed-app backup restore and rollback from beta.5 to beta.4 (beta.5, [report summary](releases/beta.5-validation-followup.md)).
 
 Still required:
 
-- Get a successful news lookup with web search on, then open a returned citation in the default external browser. Check that unsafe destinations remain blocked.
-- Quit during news research. Confirm only app-owned Codex and Sleeper descendants exit. Do not terminate unrelated sessions.
-- Exercise native file selection, paste, and same-file reselection with user-owned exports.
-- Open demo mode and overlapping dialogs with the keyboard.
-- Exercise the renderer category-clear and typed full-reset controls. Confirm the connection screen returns, the remembered username is removed, and relaunch does not reload the old context. API CI does not verify Chromium preference cleanup or focus.
-- Run the interactive installer wizard, then restore a closed-app backup and roll back to its matching earlier installer. CI upgrade coverage does not prove backward schema compatibility.
+- Get a successful news lookup with web search on, then open a returned citation in the default external browser. Check that unsafe destinations remain blocked. Beta.5 lookups timed out or were rejected, so this needs a build with the news-lookup fix.
+
+No current UI path stacks two app dialogs; `modal.test.ts` covers the shared stacking behavior. Check it natively if a future flow opens a dialog from inside another.
 
 Use [WORKFLOW.md](WORKFLOW.md) for detailed scenarios and [INSTALLING.md](INSTALLING.md) for backup and rollback steps. Record the candidate version, Windows version, and outcomes.
 
