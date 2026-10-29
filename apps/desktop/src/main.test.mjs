@@ -197,8 +197,19 @@ describe("desktop main startup failures", () => {
   it("opens every news host that citation validation accepts", async () => {
     const launched = launch({ occupiedPort: true });
     await launched.completed;
-    for (const host of NEWS_SOURCE_HOSTS) expect(launched.isAllowedExternalUrl(`https://${host}/news/report`)).toBe(true);
+    for (const host of NEWS_SOURCE_HOSTS) {
+      expect(launched.isAllowedExternalUrl(`https://${host}/news/report`)).toBe(true);
+      for (const url of [`https://${host}.evil.test/news`, `https://arbitrary.${host}/news`, `http://${host}/news`, `https://user:secret@${host}/news`, `https://${host}:8080/news`]) {
+        expect(launched.isAllowedExternalUrl(url)).toBe(false);
+      }
+    }
   });
+  it.each(["sports.nbcsports.com", "profootballtalk.nbcsports.com", "other.nbcsports.com"])("rejects unapproved NBC subdomain %s", async (host) => {
+    const launched = launch({ occupiedPort: true });
+    await launched.completed;
+    expect(launched.isAllowedExternalUrl(`https://${host}/news/report`)).toBe(false);
+  });
+
   it("reports an incompatible occupied port before opening a window", async () => {
     const launched = launch({ occupiedPort: true });
     await launched.completed;

@@ -6,12 +6,12 @@ import type { AiProvider } from "./types";
 
 describe("AiProviderManager", () => {
   it("reads diagnostics without creating a provider and drops them on close", () => {
-    const factory = vi.fn(() => ({ newsDiagnostics: () => [{ outcome: "timeout", elapsedMs: 20000 }] }) as AiProvider);
+    const factory = vi.fn(() => ({ newsDiagnostics: () => [{ outcome: "timeout", elapsedMs: 20000, rejectedSources: {} }] }) as AiProvider);
     const manager = new AiProviderManager(factory);
     expect(manager.newsDiagnostics()).toEqual([]);
     expect(factory).not.toHaveBeenCalled();
     manager.get(AppSettingsSchema.parse({}));
-    expect(manager.newsDiagnostics()).toEqual([{ outcome: "timeout", elapsedMs: 20000 }]);
+    expect(manager.newsDiagnostics()).toEqual([{ outcome: "timeout", elapsedMs: 20000, rejectedSources: {} }]);
     manager.close();
     expect(manager.newsDiagnostics()).toEqual([]);
   });

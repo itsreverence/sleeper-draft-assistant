@@ -1,13 +1,17 @@
 import { z } from "zod";
-import { NEWS_SOURCE_HOSTS, NewsSourceSchema, type NewsSource } from "@sleeper-draft-assistant/shared";
+import { NEWS_SOURCE_HOSTS, NewsSourceSchema, isNewsSourceUrl, isUndatedNewsListing, type NewsSource } from "@sleeper-draft-assistant/shared";
 import type { AiTool, NewsLookupDiagnostic, NewsLookupOutcome } from "./types";
 
 export type NewsPlayer = { playerId: string; name: string; team: string; position: string };
-export const newsDomains = ["nfl.com", "espn.com"];
+export const newsDomains = [...NEWS_SOURCE_HOSTS];
 export const PLAYER_NEWS_LOOKUP_LIMIT = 2;
 const requestSchema = z.strictObject({
   playerId: z.string().min(1),
   topic: z.enum(["injury", "practice", "role"]),
+});
+const sourceShape = NewsSourceSchema.omit({ url: true, reportedAt: true }).extend({
+  url: z.string().max(2000),
+  reportedAt: z.unknown().optional(),
 });
 const resultSchema = z.object({
   summary: z.string().min(1).max(1800),
@@ -45,6 +49,8 @@ export function createPlayerNewsTool(
       if (++calls > PLAYER_NEWS_LOOKUP_LIMIT) return { status: "unavailable", reason: "News lookup limit reached. Use existing evidence." };
       const checkedAt = new Date().toISOString();
       const startedAt = Date.now();
+      const rejectedSources: NewsLookupDiagnostic["rejectedSources"] = {};
+      const reject = (reason: keyof typeof rejectedSources) => { rejectedSources[reason] = (rejectedSources[reason] ?? 0) + 1; };
       let outcome: NewsLookupOutcome = "provider_error";
       try {
         // Deliberately omit IDs, the user's question, league state, and imported values.
@@ -54,6 +60,8 @@ export function createPlayerNewsTool(
           `As of ${checkedAt}, check ${args.topic} for this public player: ${JSON.stringify({ name: player.name, team: player.team, position: player.position })}.`,
           'Return JSON only: {"summary":"brief factual findings and uncertainty","sources":[{"title":"article title","url":"https URL","reportedAt":"YYYY-MM-DD or null if unknown"}]}.',
           `Cite only these exact HTTPS hosts: ${NEWS_SOURCE_HOSTS.join(", ")}. Other subdomains are not accepted, even if search returns them. URLs must have no credentials or nonstandard ports.`,
+          "reportedAt must be the article’s own publication date, verified on the retrieved article. Never use crawl time, the current date, a practice or game date, or a generic page-updated date. Rolling injury-report, roster, depth-chart, transaction-list and player-profile pages are not citable on their own. Find a dated article instead.",
+          "Before returning no sources, search dated articles: official team-site /news/ injury, practice and roster-move reports, NFL.com /news/, ESPN /nfl/story/, and NBC Sports or ProFootballTalk news articles on www.nbcsports.com. A dated per-game injury-report article is citable; a rolling report page is not.",
           "Use only sources actually retrieved during this lookup and published within the last seven days. If a result uses another host, retrieve and verify an approved-host article before citing it. Do not rewrite a URL or invent dates or links. If no usable recent dated reporting is found, return an empty sources array.",
         ].join("\n");
         const raw = await lookup(prompt);
@@ -66,23 +74,28 @@ export function createPlayerNewsTool(
         }
         const result = validated.data;
         if (!result.sources.length) {
-          outcome = "no_recent_sources";
+          outcome = "no_sources_returned";
           throw new Error("No recent sources.");
         }
         outcome = "invalid_source";
-        const validSources = result.sources.flatMap((source) => {
-          const parsed = NewsSourceSchema.safeParse(source);
-          return parsed.success ? [parsed.data] : [];
-        });
-        if (!validSources.length) throw new Error("No valid sources.");
-        outcome = "invalid_date";
         const today = Date.parse(checkedAt.slice(0, 10));
-        const recent = validSources.filter((source) => {
-          if (!source.reportedAt) return false;
-          const reported = Date.parse(source.reportedAt);
-          return Number.isFinite(reported) && new Date(reported).toISOString().slice(0, 10) === source.reportedAt
-            && reported <= today && today - reported <= 7 * 86400000;
+        let dateCandidates = 0;
+        const recent = result.sources.flatMap((source) => {
+          const shape = sourceShape.safeParse(source);
+          if (!shape.success) { reject("invalid_source_shape"); return []; }
+          if (!isNewsSourceUrl(shape.data.url)) { reject("rejected_host"); return []; }
+          if (isUndatedNewsListing(shape.data.url)) { reject("undated_listing"); return []; }
+          dateCandidates++;
+          const date = shape.data.reportedAt;
+          if (date === null || date === undefined || date === "") { reject("missing_date"); return []; }
+          if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { reject("malformed_date"); return []; }
+          const reported = Date.parse(date);
+          if (!Number.isFinite(reported) || new Date(reported).toISOString().slice(0, 10) !== date) { reject("malformed_date"); return []; }
+          if (reported > today) { reject("future_date"); return []; }
+          if (today - reported > 7 * 86400000) { reject("stale_date"); return []; }
+          return [NewsSourceSchema.parse({ ...shape.data, reportedAt: date })];
         });
+        outcome = dateCandidates ? "invalid_date" : "invalid_source";
         if (!recent.length) throw new Error("No verified recent reporting.");
         const dated = recent.map((source) => ({ ...source, checkedAt }));
         sources.push(...dated);
@@ -92,7 +105,7 @@ export function createPlayerNewsTool(
         if (error instanceof NewsLookupError) outcome = error.outcome;
         return { status: "unavailable", reason: "Current news could not be verified. Continue with supplied evidence and disclose the gap." };
       } finally {
-        record({ outcome, elapsedMs: Math.max(0, Date.now() - startedAt) });
+        record({ outcome, rejectedSources, elapsedMs: Math.max(0, Date.now() - startedAt) });
       }
     },
   };

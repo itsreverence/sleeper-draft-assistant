@@ -113,13 +113,70 @@ export const DraftStrategyInstructionSchema = DraftStrategyProposalSchema.extend
 });
 export type DraftStrategyInstruction = z.infer<typeof DraftStrategyInstructionSchema>;
 
-export const NEWS_SOURCE_HOSTS: readonly string[] = Object.freeze(["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com"]);
+export const NEWS_SOURCE_HOSTS: readonly string[] = Object.freeze(["nfl.com", "www.nfl.com", "amp.nfl.com", "espn.com", "www.espn.com",
+  "www.azcardinals.com",
+  "www.atlantafalcons.com",
+  "www.panthers.com",
+  "www.chicagobears.com",
+  "www.dallascowboys.com",
+  "www.detroitlions.com",
+  "www.packers.com",
+  "www.therams.com",
+  "www.vikings.com",
+  "www.neworleanssaints.com",
+  "www.giants.com",
+  "www.philadelphiaeagles.com",
+  "www.49ers.com",
+  "www.seahawks.com",
+  "www.buccaneers.com",
+  "www.commanders.com",
+  "www.baltimoreravens.com",
+  "www.buffalobills.com",
+  "www.bengals.com",
+  "www.clevelandbrowns.com",
+  "www.denverbroncos.com",
+  "www.houstontexans.com",
+  "www.colts.com",
+  "www.jaguars.com",
+  "www.chiefs.com",
+  "www.raiders.com",
+  "www.chargers.com",
+  "www.miamidolphins.com",
+  "www.patriots.com",
+  "www.newyorkjets.com",
+  "www.steelers.com",
+  "www.tennesseetitans.com",
+  "www.nbcsports.com",
+]);
 
 export function isNewsSourceUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === "https:" && !url.username && !url.password && !url.port
       && NEWS_SOURCE_HOSTS.includes(url.hostname);
+  } catch { return false; }
+}
+// Known rolling routes seen in research, not dated /news/ articles.
+export function isUndatedNewsListing(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (!NEWS_SOURCE_HOSTS.includes(url.hostname)) return false;
+    const path = decodeURIComponent(url.pathname).toLowerCase().replace(/\/+$/, "");
+    if (["nfl.com", "www.nfl.com", "amp.nfl.com"].includes(url.hostname)) {
+      return /^\/(injuries|transactions|players)(\/|$)/.test(path)
+        || /^\/teams\/[^/]+\/(roster|depth-chart|injuries)(\/|$)/.test(path);
+    }
+    if (["espn.com", "www.espn.com"].includes(url.hostname)) {
+      return /^\/nfl\/(player|players|injuries|depth|transactions)(\/|$)/.test(path)
+        || /^\/nfl\/team\/(roster|depth|injuries)(\/|$)/.test(path);
+    }
+    if (url.hostname === "www.nbcsports.com") {
+      return /^\/nfl\/players?(\/|$)/.test(path)
+        || /^\/nfl\/[^/]+\/\d+(?:\/(?:news|stats))?$/.test(path)
+        || path === "/fantasy/football/player-news"
+        || /^\/nfl\/profootballtalk(?:\/rumor-mill)?$/.test(path);
+    }
+    return /^\/(?:team\/)?(?:injury-report|app-injury-report|roster|players-roster|depth-chart|transactions)(\/|$)/.test(path);
   } catch { return false; }
 }
 export const NewsSourceSchema = z.object({
