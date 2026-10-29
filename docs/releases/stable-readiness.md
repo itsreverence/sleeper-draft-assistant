@@ -101,7 +101,8 @@ Status for **0.1.0**:
 3. **Partly done.** The version is now `0.1.0`. The
    [publication checks](../RELEASING.md#publish-the-verified-commit) ran on the
    release PR: package inspection, a history secrets scan, and release-note and
-   attribution review. Published-download checksums are verified after tagging.
+   attribution review. The attribution gap the review found is fixed by
+   bundle-derived third-party notices ([#68](https://github.com/itsreverence/sleeper-draft-assistant/pull/68)). Published-download checksums are verified after tagging.
 4. **Not yet done.** Complete the [every-release real Windows smoke](../RELEASING.md#real-windows-smoke)
    on the exact 0.1.0 commit's `windows-candidate` artifact before tagging, and
    record the result on the 0.1.0 release PR. The notes are in [0.1.0.md](0.1.0.md).
