@@ -4,13 +4,14 @@ import type { AiTool, NewsLookupDiagnostic, NewsLookupOutcome } from "./types";
 
 export type NewsPlayer = { playerId: string; name: string; team: string; position: string };
 export const newsDomains = ["nfl.com", "espn.com"];
+export const PLAYER_NEWS_LOOKUP_LIMIT = 2;
 const requestSchema = z.strictObject({
   playerId: z.string().min(1),
   topic: z.enum(["injury", "practice", "role"]),
 });
 const resultSchema = z.object({
   summary: z.string().min(1).max(1800),
-  sources: z.array(NewsSourceSchema).max(3),
+  sources: z.array(z.unknown()).max(3),
 });
 
 // Only app-owned categories cross the diagnostic boundary, never exception text.
@@ -41,7 +42,7 @@ export function createPlayerNewsTool(
       const args = requestSchema.parse(input);
       const player = byId.get(args.playerId);
       if (!player) throw new Error("Player is not in the current evidence snapshot.");
-      if (++calls > 2) return { status: "unavailable", reason: "News lookup limit reached. Use existing evidence." };
+      if (++calls > PLAYER_NEWS_LOOKUP_LIMIT) return { status: "unavailable", reason: "News lookup limit reached. Use existing evidence." };
       const checkedAt = new Date().toISOString();
       const startedAt = Date.now();
       let outcome: NewsLookupOutcome = "provider_error";
@@ -60,8 +61,7 @@ export function createPlayerNewsTool(
         const parsed: unknown = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
         const validated = resultSchema.safeParse(parsed);
         if (!validated.success) {
-          outcome = validated.error.issues.some((issue) => issue.path[0] === "sources" && typeof issue.path[1] === "number")
-            ? "invalid_source" : "invalid_response";
+          outcome = "invalid_response";
           throw new Error("Invalid news response.");
         }
         const result = validated.data;
@@ -69,18 +69,25 @@ export function createPlayerNewsTool(
           outcome = "no_recent_sources";
           throw new Error("No recent sources.");
         }
+        outcome = "invalid_source";
+        const validSources = result.sources.flatMap((source) => {
+          const parsed = NewsSourceSchema.safeParse(source);
+          return parsed.success ? [parsed.data] : [];
+        });
+        if (!validSources.length) throw new Error("No valid sources.");
         outcome = "invalid_date";
         const today = Date.parse(checkedAt.slice(0, 10));
-        if (!result.sources.every((source) => {
+        const recent = validSources.filter((source) => {
           if (!source.reportedAt) return false;
           const reported = Date.parse(source.reportedAt);
           return Number.isFinite(reported) && new Date(reported).toISOString().slice(0, 10) === source.reportedAt
             && reported <= today && today - reported <= 7 * 86400000;
-        })) throw new Error("No verified recent reporting.");
-        const dated = result.sources.map((source) => ({ ...source, checkedAt }));
+        });
+        if (!recent.length) throw new Error("No verified recent reporting.");
+        const dated = recent.map((source) => ({ ...source, checkedAt }));
         sources.push(...dated);
         outcome = "available";
-        return { status: "available", playerId: player.playerId, summary: result.summary, sources: dated, advisory: "Reporting supplements, but does not override, Sleeper roster and availability. Recheck time-sensitive claims." };
+        return { status: "available", playerId: player.playerId, summary: result.summary, sources: dated, advisory: "Only the listed sources passed validation. Treat any other summary claims as unverified. Reporting supplements, but does not override, Sleeper roster and availability. Recheck time-sensitive claims." };
       } catch (error) {
         if (error instanceof NewsLookupError) outcome = error.outcome;
         return { status: "unavailable", reason: "Current news could not be verified. Continue with supplied evidence and disclose the gap." };
