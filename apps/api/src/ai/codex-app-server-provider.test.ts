@@ -262,8 +262,54 @@ describe("Codex app-server executable resolution", () => {
     };
     const provider = new CodexAppServerProvider({ clientFactory: vi.fn().mockResolvedValueOnce(main).mockResolvedValueOnce(research) });
     const result = await provider.answerDraftQuestion(context);
-    expect(main.threadStartParams[0]).toMatchObject({ config: { web_search: "disabled" } });
-    expect(research.threadStartParams[0]).toMatchObject({ config: { web_search: "live" }, ephemeral: true, sandbox: "read-only" });
+    const disabledFeatures = {
+      "features.apps": false,
+      "features.plugins": false,
+      "features.remote_plugin": false,
+      "features.browser_use": false,
+      "features.browser_use_external": false,
+      "features.browser_use_full_cdp_access": false,
+      "features.browser_annotation_api": false,
+      "features.in_app_browser": false,
+      "features.computer_use": false,
+      "features.in_app_local_automation": false,
+      "features.shell_tool": false,
+      "features.unified_exec": false,
+      "features.unified_exec_tty": false,
+      "features.code_mode_host": false,
+      "features.multi_agent": false,
+      "features.image_generation": false,
+      "features.view_image": false,
+      "features.skill_search": false,
+      "features.skill_mcp_dependency_install": false,
+      "features.hooks": false,
+      "features.goals": false,
+      "features.worktrees": false,
+      "features.tool_suggest": false,
+      "features.sleep_tool": false,
+    };
+    expect(main.threadStartParams[0]?.config).toEqual({
+      "features.apps": false,
+      "features.plugins": false,
+      "features.remote_plugin": false,
+      "features.browser_use": false,
+      "features.browser_use_external": false,
+      "features.browser_use_full_cdp_access": false,
+      "features.browser_annotation_api": false,
+      "features.in_app_browser": false,
+      "features.computer_use": false,
+      "features.in_app_local_automation": false,
+      "features.shell_tool": false,
+      "features.unified_exec": false,
+      "features.unified_exec_tty": false,
+      web_search: "disabled",
+    });
+    expect(research.threadStartParams[0]?.config).toEqual({
+      ...disabledFeatures,
+      web_search: "live",
+      "tools.web_search.allowed_domains": ["nfl.com", "espn.com"],
+    });
+    expect(research.threadStartParams[0]).toMatchObject({ ephemeral: true, sandbox: "read-only", approvalPolicy: "never" });
     expect(result.answer).toContain("https://www.nfl.com/news/report");
     expect(research.closed).toBe(true);
     expect(main.closed).toBe(false);
