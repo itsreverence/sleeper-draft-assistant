@@ -105,6 +105,22 @@ describe("FantasyPros season value ranking imports", () => {
   });
 
   it.each([
+    '"Rank","Player","Team","Bye","POS","ESPN","Sleeper","CBS","NFL","RTSports","Fantrax","AVG"',
+    '"Rank","Player","Team","Bye","POS","ESPN","Sleeper","CBS","NFL","RTSports","Fantrax","AVG","Real-Time (?)"',
+    "Rank,Player (Bye),POS,Sleeper,RTSports,AVG,Real-Time",
+    "Rank,Player (Bye),POS,Yahoo,Sleeper,RTSports,AVG,Real-Time",
+  ])("identifies ADP exports and explains which season value export to choose: %s", (header) => {
+    expect(() => classifyFantasyProsSeasonValueCsv(header)).toThrow(
+      "This looks like a FantasyPros ADP file. For season value rankings, choose the Overall ROS ECR export, or Overall Draft ECR until ROS is available, matching your league's scoring format.",
+    );
+  });
+
+  it("keeps generic export guidance for an unrecognized non-ADP layout", () => {
+    expect(() => classifyFantasyProsSeasonValueCsv("Rank,Player,POS,AVG"))
+      .toThrow("Choose a FantasyPros Overall draft ECR or Overall rest-of-season rankings CSV.");
+  });
+
+  it.each([
     '"RK","PLAYER NAME",TEAM,"POS","SOS SEASON","SOS PLAYOFFS","ECR VS. ADP"',
     '"RK","PLAYER NAME",TEAM,"POS","SOS","PLAYOFFS","ECR VS ADP"',
   ])("classifies both verified ROS header layouts: %s", (header) => {

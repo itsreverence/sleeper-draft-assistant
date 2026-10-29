@@ -110,6 +110,12 @@ test("ROS file import survives reload, replaces, and clears through the real API
   await page.getByRole("button", { name: "Manage team data" }).click();
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
   const ros = drawer.locator("article").filter({ has: page.getByRole("heading", { name: "Season value rankings" }) });
+  await ros.getByLabel("Choose CSV").setInputFiles({
+    name: "synthetic-adp.csv", mimeType: "text/csv",
+    buffer: Buffer.from('"Rank","Player","Team","Bye","POS","Sleeper","RTSports","AVG","Real-Time (?)"'),
+  });
+  await ros.getByRole("button", { name: "Import season value rankings", exact: true }).click();
+  await expect(ros.getByText("This looks like a FantasyPros ADP file. For season value rankings, choose the Overall ROS ECR export, or Overall Draft ECR until ROS is available, matching your league's scoring format.", { exact: true })).toBeVisible();
   const csv = (rank: number) => `RK,PLAYER NAME,TEAM,POS,SOS SEASON,SOS PLAYOFFS,ECR VS. ADP\n${rank},Test Quarterback,BUF,QB1,3 out of 5 stars,3 out of 5 stars,0`;
   await ros.getByLabel("Choose CSV").setInputFiles({ name: "synthetic-ros.csv", mimeType: "text/csv", buffer: Buffer.from(csv(1)) });
   await ros.getByRole("button", { name: "Import season value rankings", exact: true }).click();

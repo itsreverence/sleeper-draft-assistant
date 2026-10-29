@@ -30,7 +30,7 @@ In player search, open a preference menu and press Escape. Only the menu should 
 
 Search for a broad term such as `a` with enough results to exceed the dialog height. Scroll over the result rows and confirm the final row is reachable while the header and filters stay visible. Repeat in a short/narrow window; the page behind the dialog should remain locked. Component tests do not measure browser layout, so this requires a real browser or packaged-app check.
 
-On the connection screen, expand **Paste a league URL** and confirm the username prerequisite is explained before submission. For weekly imports, test an unrecognized single filename (uses the selected position), an unrecognized filename in a batch (asks for a separate import), and a FLEX/FLX export (skipped as redundant). Selecting replacement files or pasting CSV must clear the previous import error; new server validation errors must still appear. Pasting replaces any selected files.
+On the connection screen, expand **Paste a league URL** and confirm the username prerequisite is explained before submission. For weekly imports, test an unrecognized single filename (uses the selected position), an unrecognized filename in a batch (asks for a separate import), and a FLEX/FLX export (skipped as redundant). For season value rankings, select an ADP CSV and verify the error identifies ADP and directs you to Overall ROS ECR or Overall Draft ECR. Replace it with a valid ECR export and verify the import succeeds. Selecting replacement files or pasting weekly CSV must clear the previous import error; new server validation errors must still appear. Pasting replaces any selected files.
 
 ```bash
 npm run check
@@ -95,7 +95,7 @@ Toggle **Web search** off in AI settings and save during a lookup. Verify the ol
 - **Windows package output is locked:** close all Sleeper Draft Assistant processes and retry.
 - **Draft room entry remains disabled:** import current scoring-specific ECR, season projections, and Overall ADP, then confirm the Codex provider is ready.
 - **League format warning:** standard, half-PPR, PPR, FLEX (including RB/WR and WR/TE flex), and superflex are supported. Custom scoring and TE premium require matching imports; IDP and auction advice is unsupported.
-- **Ranking import is rejected:** choose the FantasyPros ECR or ROS export matching the connected league's standard, half-PPR, or PPR scoring.
+- **Ranking import is rejected:** choose the FantasyPros ECR or ROS export matching the connected league's standard, half-PPR, or PPR scoring. Team Manager season value rankings identify an ADP export explicitly. Choose Overall ROS ECR, or Overall Draft ECR until ROS is available. Overall ADP belongs in draft preparation, not season value rankings.
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
 - **Team Manager needs two evidence categories:** use scoring-specific season value rankings for long-term value, then the six weekly projection files for current-week points. ROS ECR is preferred; matching draft ECR is a labeled fallback through Week 1 and prompts for replacement beginning in Week 2.
