@@ -21,6 +21,7 @@ git diff --check
 
 Require Linux CI and the `windows-package-smoke` job to pass. The Windows job and the release workflow both run these checks before publication:
 
+- Packaged `resources/THIRD_PARTY_NOTICES.txt` exists and matches the complete bundle-derived package inventory and installed license texts (electron-builder `afterPack`, before assembling all targets). The unpacked Windows smoke also checks its presence.
 - Unpacked API startup, unauthenticated health, authenticated diagnostics, and rejection without a capability token.
 - One exact candidate artifact set, defined in `scripts/candidate-artifacts.mjs`. Unexpected executables or ZIPs fail the build. CI records hashes and uploads the installer, portable executable, and checksums before either smoke runs a binary. The release build uploads its installer, portable executable, ZIP, and hash manifest before smoke runs on a fresh runner. A third runner verifies the build manifest before generating release checksums and publishing. Smoke uploads nothing consumed by publication.
 - Download of the highest semantic version among published, non-draft releases, including prereleases. PR and master CI use that release even when the candidate has the same package version. Tag pushes select only versions strictly lower than the built version, including re-runs and backports. The selected tag is logged. Its NSIS installer must match its own `SHA256SUMS.txt` before execution.
@@ -85,13 +86,32 @@ A maintainer may explicitly authorize a beta testing candidate before manual Win
 
 1. Inspect packaged contents for source maps, local paths, credentials, test data, ranking exports, and unneeded build files.
 2. Scan the release commit and reachable history with Gitleaks or an equivalent dedicated scanner.
-3. Review screenshots and release notes for private information and third-party attribution.
+3. Review screenshots and release notes for private information and third-party attribution (see the build inventory below).
 4. Confirm the package version is unused, then merge the release commit to `master`.
 5. Wait for CI on the exact commit to be tagged and complete the real Windows smoke above using its `windows-candidate` artifact.
 6. Create and push the matching tag, such as `v0.1.0-beta.5`, at that verified commit.
 7. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
 
 The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Published binaries come from the tagged release build of that same commit. The manual smoke uses CI's pre-smoke artifact. Separate build, smoke, and publish jobs use fresh runners. Publish selects the build job's immutable artifact ID and downloads only its artifacts and hash manifest, verifies the exact set, and creates `SHA256SUMS.txt` with GitHub's dotted download names. A rerun checks every existing release asset against its new SHA-256 before uploading anything. Matching assets keep their published bytes, and missing assets can be added. Any changed asset, including `SHA256SUMS.txt`, fails publication. Rebuilt binaries can differ, so publish changed bytes under a new version and tag instead of replacing existing assets. `scripts/publish-release.ps1 -Tag <tag> -DryRun` runs the same guard without changing a release. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
+
+### Third-party attribution inventory
+
+`npm run build:assets -w @sleeper-draft-assistant/desktop` generates
+`apps/desktop/dist/THIRD_PARTY_NOTICES.txt` from esbuild output inputs and Vite
+chunk/module and emitted-asset sources. Inspect `build/third-party/surfaces.json`
+for the per-bundle package inventory. The API metafile and renderer inputs are
+retained there for review, outside packaged assets.
+
+Copied fonts are included. sql.js currently uses its bundled asm.js implementation,
+with no separate WASM copy. The shell's verbatim CJS files use only local modules,
+Node built-ins, and Electron, whose notices ship separately. If adding a copied
+asset or shell dependency, include its source in the inventory.
+
+Missing license files or unapproved license identifiers fail the asset build.
+Full LICENSE/COPYING text, NOTICE files (including Apache notices), and AUTHORS
+files are included. License expressions require explicit review; do not bypass
+the allowlist. The inventory excludes dev-only tooling and packages eliminated
+from the bundles.
 
 ## Once before the first stable release
 

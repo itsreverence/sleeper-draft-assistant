@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { createLogger, type Plugin } from "vite";
 import { defineConfig } from "vitest/config";
@@ -30,7 +32,32 @@ const impeccableLiveDevCsp: Plugin = {
 export default defineConfig({
   base: "./",
   customLogger: logger,
-  plugins: [svelte(), impeccableLiveDevCsp],
+  plugins: [svelte(), impeccableLiveDevCsp, {
+    name: "shipped-package-inputs",
+    generateBundle(_options, bundle) {
+      const repoRoot = path.resolve(import.meta.dirname, "../..");
+      const inputs = new Set<string>();
+      for (const output of Object.values(bundle)) {
+        if (output.type === "chunk") {
+          for (const id of Object.keys(output.modules)) inputs.add(id);
+        } else {
+          // Vite retains original source filenames for emitted assets (including fonts).
+          for (const filename of output.originalFileNames) inputs.add(filename);
+        }
+      }
+      // CSS is extracted rather than represented in chunk.modules.
+      for (const id of this.getModuleIds()) {
+        if (/\.css(?:\?|$)/.test(id)) inputs.add(id);
+      }
+      const directory = path.join(repoRoot, "build", "third-party");
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(path.join(directory, "web-inputs.json"), JSON.stringify(
+        [...inputs].filter((id) => id.includes("node_modules/") || id.includes("node_modules\\"))
+          .map((id) => path.relative(repoRoot, id).split(path.sep).join("/")).sort(),
+        null, 2,
+      ) + "\n");
+    },
+  }],
   resolve: process.env.VITEST ? {
     conditions: ["browser"],
   } : undefined,

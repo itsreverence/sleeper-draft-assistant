@@ -41,6 +41,11 @@ if (-not (Test-Path $exe) -or -not (Test-Path $apiBundle)) {
   throw "Packaged executable or API bundle is missing."
 }
 
+$notices = Join-Path $output "resources/THIRD_PARTY_NOTICES.txt"
+if (-not (Test-Path -LiteralPath $notices) -or (Get-Item -LiteralPath $notices).Length -eq 0) {
+  throw "Packaged THIRD_PARTY_NOTICES.txt is missing or empty."
+}
+
 $apiPort = Get-FreeTcpPort
 
 $smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) (

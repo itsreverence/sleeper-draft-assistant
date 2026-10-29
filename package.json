@@ -11,7 +11,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present && tsc -p tests/browser/tsconfig.json",
-    "test": "npm run test --workspaces --if-present",
+    "test": "node --test scripts/third-party-notices.test.mjs && npm run test --workspaces --if-present",
     "desktop": "npm run start -w @sleeper-draft-assistant/desktop",
     "desktop:package": "npm run package -w @sleeper-draft-assistant/desktop",
     "desktop:make": "npm run make -w @sleeper-draft-assistant/desktop",
