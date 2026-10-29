@@ -105,3 +105,23 @@ On Windows, npm launchers are resolved to their known `@openai/codex/bin/codex.j
 - Custom scoring and TE-premium accuracy depends on importing values produced for the same format.
 - Exact kicker and defense rescoring is unavailable when exports omit field-goal distance and points-allowed distributions.
 - The capability token is not an IPC replacement and does not defend against same-user malware.
+
+## AI request lifecycle
+
+The provider queue runs one main turn at a time, selecting user questions and
+explicit strategy retries before pending automatic refreshes. Refreshes coalesce
+by draft/team scope, retaining the highest caller priority. The queued phase is
+reported only when another operation holds the provider queue; preparation and
+freshness checks use thinking. A provider-neutral `AiRequestOptions` carries caller priority,
+a preflight freshness check, and phase notifications. Strategy preflight checks
+the normalized draft revision, reset generation, and caller cancellation before
+model execution; response validation remains authoritative afterward.
+
+Authenticated request-progress middleware stores only an opaque request handle,
+phase, and cancellation flag for the lifetime of the HTTP operation. The renderer
+polls status while waiting, cancels queued work when its context is invalidated,
+and keeps its existing response identity guards. Cancellation never interrupts
+an active turn. Settings changes and reset still close the provider and clear
+threads. Diagnostics reduce the latest 20 completed main operations to request
+kind and phase durations; no request handles or content reach either export.
+See [AI providers](AI_PROVIDERS.md#ai-scheduling-and-progress) for phase meanings.

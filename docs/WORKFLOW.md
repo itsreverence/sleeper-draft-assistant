@@ -110,3 +110,31 @@ Toggle **Web search** off in AI settings and save during a lookup. Verify the ol
 - **Imported data is marked old:** replace the export with a current FantasyPros download before relying on time-sensitive draft, waiver, or lineup advice.
 - **Weekly projections are three days old:** Team Manager keeps the stored import visible for replacement but excludes it from roster, available-player, readiness, and Codex evidence until fresh files are imported.
 - **Team Manager is on the wrong week:** the default view follows Sleeper automatically. Loading a different week in Manage data intentionally pins that historical or future context; load the active week to resume following Sleeper.
+
+## AI queue and progress verification
+
+Queue tests cover question/manual-refresh priority, same-scope coalescing,
+stale skips, failed-turn recovery, provider close, and bounded detached timing
+metadata. Renderer tests cover phase announcements and context invalidation.
+The phase-status and cancellation routes are also covered by composed-route
+authentication tests. Browser tests retain their existing dialog and conversation
+journeys; no answer streaming is introduced.
+
+For an overlap regression, run `npx tsx scripts/measure-ai-queue.mts`. It asserts
+that a question arriving behind a queued automatic refresh runs next, waits for
+all three operations, and reports wall time and failure counts using a synthetic
+100 ms question / 300 ms refresh client. For comparison against master, extract
+its provider beside the current provider into an untracked temporary `.ts` file,
+pass that path as the script argument, then remove it. This isolates scheduling;
+it does not measure live Codex response latency. During a real news question,
+verify phase changes, switch context while queued, and inspect both diagnostic
+exports for metadata only. The API security smoke must cover the two new routes.
+
+For API security smoke, include `GET /ai/requests/<random-handle>` and
+`DELETE /ai/requests/<random-handle>`: both return 401 without the capability.
+An authenticated unknown status returns `{ "phase": null }`; cancellation is
+idempotent and returns no request information. While a real request waits,
+status must return only its phase enum. Copy diagnostics and the support report
+must contain only request kinds and `queueMs`, `modelMs`, `toolMs`, `newsMs` in
+`aiTimings`, never the request handle, question, player, or news query. A settings
+change/reset clears provider timing history just as it clears `newsLookups`.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { AiRequestProgress } from "./lib/api";
   import { onDestroy, onMount, tick } from "svelte";
   import { draftStateRevision } from "@sleeper-draft-assistant/shared";
 
@@ -1477,7 +1478,7 @@
     });
   }
 
-  async function askTeamManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<string> {
+  async function askTeamManager(question: string, conversationHistory: AiConversationMessage[] = [], progress?: AiRequestProgress): Promise<string> {
     if (!teamManagerState) {
       throw new Error("Open a Sleeper league before asking team questions.");
     }
@@ -1490,6 +1491,7 @@
       conversationHistory,
       teamProjectionSeason || null,
       teamProjectionWeek || null,
+      progress,
     );
     return payload.answer;
   }
@@ -1503,7 +1505,7 @@
       teamQuestionRequest = null;
     }
   }
-  async function askManager(question: string, conversationHistory: AiConversationMessage[] = []): Promise<DraftAskResult> {
+  async function askManager(question: string, conversationHistory: AiConversationMessage[] = [], progress?: AiRequestProgress): Promise<DraftAskResult> {
     const guard = currentDraftGuard();
     if (!guard) {
       throw new Error("Open a draft before asking draft questions.");
@@ -1520,8 +1522,10 @@
         conversationHistory,
         playerPreferenceSummary(),
         recommendationPreferenceRequest(),
+        progress,
       );
     } catch (error) {
+      if (!draftSession.isGuardCurrent(guard)) throw error;
       try {
         const nextProviderStatus = await fetchAiStatus();
         aiProviderStatus = nextProviderStatus;
@@ -1633,7 +1637,7 @@
     workspaceMode = "manage";
   }
 
-  async function requestAiDraftStrategy(): Promise<AiDraftStrategyPayload> {
+  async function requestAiDraftStrategy(automatic = true, progress?: AiRequestProgress): Promise<AiDraftStrategyPayload> {
     const draftId = activeDraftId;
     const guard = draftSession.captureGuard();
     const state = draftState;
@@ -1645,6 +1649,7 @@
       activeDraftTeamRef,
       playerPreferenceSummary(),
       recommendationPreferenceRequest(),
+      automatic, progress,
     );
     if (requestId === aiDraftStrategyRequestId && draftSession.isGuardCurrent(guard)
       && draftState && draftStateRevision(draftState) === revision) {

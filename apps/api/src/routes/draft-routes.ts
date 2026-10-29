@@ -1,3 +1,4 @@
+import { aiRequestOptions } from "../ai/request-progress";
 import {
   advanceMockDraftState,
   buildDraftOptionForPlayer,
@@ -347,10 +348,11 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         const state = await loadDraftState(draftId, getUserRosterId(c));
         const body = await c.req
           .json<{
+            automatic?: boolean;
             userPreferences?: { pinned?: string[]; faded?: string[]; excluded?: string[] };
             recommendationPreferences?: DraftRecommendationOptions["preferences"];
           }>()
-          .catch(() => ({ userPreferences: undefined, recommendationPreferences: undefined }));
+          .catch(() => ({ automatic: false, userPreferences: undefined, recommendationPreferences: undefined }));
         const recommendationPreferences = normalizeRecommendationPreferences(body.recommendationPreferences);
         const recommendation = buildDraftRecommendation(state, { preferences: recommendationPreferences });
         const snapshot = createDraftPlayerSnapshot(state, {
@@ -378,6 +380,16 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         const strategy = await provider.strategizeDraft(
           strategyContext,
           tools,
+          {
+            ...aiRequestOptions(c), automatic: body.automatic === true,
+            isCurrent: async () => {
+              if (!localDataReset.isCurrent(requestGeneration) || await aiRequestOptions(c).isCurrent?.() === false) return false;
+              const latest = await loadDraftState(draftId, getUserRosterId(c));
+              return localDataReset.isCurrent(requestGeneration)
+                && await aiRequestOptions(c).isCurrent?.() !== false
+                && draftStateRevision(latest) === draftStateRevision(state);
+            },
+          },
         );
         if (!localDataReset.isCurrent(requestGeneration)) {
           return c.json({ error: "Local data was reset while AI strategy was running. Request a fresh recommendation." }, 409);
@@ -497,6 +509,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         const aiAnswer = await aiProvider.answerDraftQuestion(
           buildDraftQuestionContext(state, question, conversationHistory, userPreferences, snapshot, [], strategyInstructions),
           createDraftStrategyTools(snapshot),
+          aiRequestOptions(c),
         );
         localDataReset.assertCurrent(generation);
         return c.json({
@@ -559,6 +572,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         const aiAnswer = await aiProvider.answerDraftQuestion(
           buildDraftQuestionContext(state, question, [], userPreferences, snapshot, [playerId], strategyInstructions),
           createDraftStrategyTools(snapshot),
+          aiRequestOptions(c),
         );
         const latestState = await loadDraftState(draftId, getUserRosterId(c));
         localDataReset.assertCurrent(generation);

@@ -88,6 +88,21 @@ describe("composed API response redaction", () => {
     }
   });
 
+  it("includes only phase timing metadata in both diagnostic exports", async () => {
+    const { AiProviderManager } = await import("./ai/provider-factory");
+    vi.spyOn(AiProviderManager.prototype, "timingDiagnostics").mockReturnValue([
+      { kind: "draft_question", queueMs: 10, modelMs: 20, toolMs: 30, newsMs: 25 },
+    ]);
+    for (const route of ["/diagnostics", "/data/support-report"]) {
+      const response = await app.request(route, { headers });
+      const payload = await response.json();
+      expect((payload.diagnostics ?? payload).aiTimings).toEqual([
+        { kind: "draft_question", queueMs: 10, modelMs: 20, toolMs: 30, newsMs: 25 },
+      ]);
+      expect(JSON.stringify(payload)).not.toMatch(/private-http|Private Ranking/);
+    }
+  });
+
   it("omits imported names, league identifiers, the capability token and local paths from support-report HTTP text", async () => {
     const responses = new Map<string, unknown>([
       ["/v1/draft/redaction-draft", {
