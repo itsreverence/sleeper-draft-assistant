@@ -43,12 +43,14 @@ The scripts require disposable hosted Windows runners. The installer script refu
 
 Run this smoke **before tagging**, using CI's pre-smoke `windows-candidate` artifact from a passing run of the exact commit to be tagged. That artifact contains the installer, portable executable, and `SHA256SUMS.txt`, and expires after 7 days. If it expires or the commit changes, run CI again and repeat this smoke.
 
-Find the run in GitHub Actions and confirm its full commit SHA. Open the Windows job's **Log candidate identity before executing smoke binaries** step. Copy its pre-smoke artifact ID and ZIP SHA-256 digest. Download that exact ID with the API, rather than selecting the artifact by name. Use Bash or PowerShell 7.4 or later to preserve binary output:
+Find the run in GitHub Actions and confirm its full commit SHA. Open the Windows job's **Log candidate identity before executing smoke binaries** step. Copy its pre-smoke artifact ID and ZIP SHA-256 digest. Download that exact ID with the API, rather than selecting the artifact by name. Let `curl.exe` write the file itself. Shell redirection such as `> candidate.zip` corrupts the ZIP in Windows PowerShell 5.1, which re-encodes binary output as UTF-16 text. The same command works in PowerShell and Bash:
 
-```bash
+```powershell
 gh run list --workflow ci.yml --commit <full-commit-sha>
-gh api repos/itsreverence/sleeper-draft-assistant/actions/artifacts/<logged-artifact-id>/zip > candidate.zip
+curl.exe -fL -H "Authorization: Bearer $(gh auth token)" -o candidate.zip https://api.github.com/repos/itsreverence/sleeper-draft-assistant/actions/artifacts/<logged-artifact-id>/zip
 ```
+
+Type `curl.exe`, not `curl`. Windows PowerShell 5.1 maps `curl` to `Invoke-WebRequest`.
 
 The logged `artifact-digest` hashes the uploaded ZIP bytes, not the individual executables. The default archived upload uses the [artifact toolkit's ZIP stream and SHA-256 hash](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/blob-upload.ts). In PowerShell, verify the downloaded archive against the digest from that pre-smoke log before extracting it:
 
