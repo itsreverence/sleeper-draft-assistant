@@ -3,7 +3,7 @@
 An unofficial, local-first fantasy football draft and team-management assistant for Sleeper.
 
 > [!WARNING]
-> This project is in beta. Validate every recommendation yourself, keep backups of anything important, and expect changes before the first stable release.
+> This is early, unofficial software. Validate every recommendation yourself and keep backups of anything important. Releases before 1.0 may still change stored data or behavior between versions.
 
 ![Sleeper Draft Assistant demo using synthetic data](docs/images/app-demo.png)
 
@@ -37,7 +37,7 @@ Sleeper is currently the only supported fantasy platform. Sleeper search rank is
 
 ## League format support
 
-| Format | Beta support |
+| Format | Support |
 | --- | --- |
 | Standard, half-PPR, and PPR redraft | Supported |
 | FLEX (including RB/WR and WR/TE flex) and superflex roster construction | Supported |
@@ -129,7 +129,7 @@ Useful docs:
 
 ## Status and support
 
-This is active beta software. Use [GitHub Issues](https://github.com/itsreverence/sleeper-draft-assistant/issues) for reproducible bugs and scoped feature requests. Do not post tokens, private league data, imported rankings, or unredacted diagnostics.
+This is actively developed early software. Use [GitHub Issues](https://github.com/itsreverence/sleeper-draft-assistant/issues) for reproducible bugs and scoped feature requests. Do not post tokens, private league data, imported rankings, or unredacted diagnostics.
 
 ## Unofficial project notice
 

@@ -2,7 +2,7 @@
 
 This is a direction document, not a promise or release schedule.
 
-## Current beta
+## Current release (0.1.0)
 
 - Sleeper account, league, and draft discovery
 - live/completed draft-state views
@@ -20,17 +20,18 @@ This is a direction document, not a promise or release schedule.
 - recent recommendation-change review backed by persisted decision snapshots
 - age warnings for imported draft, rest-of-season, and weekly data
 
-## Before stable
+## Ongoing release gates
 
-- continue checking provider export changes; the supplied 2026 ROS header and all 404 player matches are now verified ([validation](research/week-2-ros-availability-2026.md))
-- keep the desktop/compact accessibility and keyboard-navigation browser checks passing; complete native Windows keyboard/scaling checks on the release candidate
-- complete the [every-release Windows smoke](RELEASING.md#real-windows-smoke) and [once-before-stable pass](RELEASING.md#once-before-the-first-stable-release) on the beta.6 candidate (only a successful news lookup with an external citation remains from the once-before-stable pass); CI now covers clean installation, previous-release upgrade, installed redaction, clear/reset, occupied-port recovery, private data ACLs, uninstall retention, and portable startup
+- continue checking provider export changes; the supplied 2026 ROS header and all 404 player matches are verified ([validation](research/week-2-ros-availability-2026.md))
+- keep the desktop/compact accessibility and keyboard-navigation browser checks passing
+- run the [every-release Windows smoke](RELEASING.md#real-windows-smoke) on each candidate; repeat the [once-before-stable pass](RELEASING.md#once-before-the-first-stable-release) after major shell, installer, or storage changes
 - disclose unsigned artifacts and SmartScreen expectations; signing remains follow-up work when the project can sustain the required certificates and release process
 
 ## Candidate follow-up work
 
 - recheck import shapes and readiness thresholds as provider exports change
-- stronger AI-context validation and Team Manager interaction tests
+- stronger AI-context validation and Team Manager interaction tests, including answers that must use returned tool values
+- limit news research threads to hosted web search when users have their own Codex MCP servers configured
 - dedicated dynasty, keeper, auction, and IDP models if demand justifies their separate complexity
 
 ## Non-goals for now

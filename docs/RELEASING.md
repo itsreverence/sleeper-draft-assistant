@@ -2,7 +2,7 @@
 
 ## Versioning
 
-The project uses semantic versions with prerelease labels. The current public line is `0.1.0-beta.x`. Beta releases may contain breaking changes and are not automatically promoted to stable.
+The project uses semantic versions. `0.1.0` is the first stable release; earlier `0.1.0-beta.x` prereleases were testing builds. Prerelease tags such as `-beta.N` or `-rc.N` still publish as GitHub prereleases and are never promoted automatically. Before 1.0, a minor version bump may include breaking changes; state them in the release notes.
 
 ## Every release
 
@@ -89,7 +89,7 @@ A maintainer may explicitly authorize a beta testing candidate before manual Win
 3. Review screenshots and release notes for private information and third-party attribution (see the build inventory below).
 4. Confirm the package version is unused, then merge the release commit to `master`.
 5. Wait for CI on the exact commit to be tagged and complete the real Windows smoke above using its `windows-candidate` artifact.
-6. Create and push the matching tag, such as `v0.1.0-beta.5`, at that verified commit.
+6. Create and push the matching tag, such as `v0.1.0`, at that verified commit.
 7. Confirm the tag-triggered release workflow passes and publishes the installer, portable executable, ZIP, and `SHA256SUMS.txt`.
 
 The release workflow builds distributables with `npm run desktop:make`. It rejects tags that do not exactly match the root package version. Published binaries come from the tagged release build of that same commit. The manual smoke uses CI's pre-smoke artifact. Separate build, smoke, and publish jobs use fresh runners. Publish selects the build job's immutable artifact ID and downloads only its artifacts and hash manifest, verifies the exact set, and creates `SHA256SUMS.txt` with GitHub's dotted download names. A rerun checks every existing release asset against its new SHA-256 before uploading anything. Matching assets keep their published bytes, and missing assets can be added. Any changed asset, including `SHA256SUMS.txt`, fails publication. Rebuilt binaries can differ, so publish changed bytes under a new version and tag instead of replacing existing assets. `scripts/publish-release.ps1 -Tag <tag> -DryRun` runs the same guard without changing a release. Prerelease tags publish as GitHub prereleases. Stable tags publish as regular releases.
@@ -124,10 +124,7 @@ Already passed on real Windows 11 Pro. These carry forward until a major shell, 
 - Backup, reset, and restore; uninstall/reinstall with the silent installer; a basic AI question (beta.2, [report summary](releases/beta.2-validation-followup.md)).
 - Codex recovery guidance after correcting a CLI failure (beta.5 candidate smoke, recorded on [#57](https://github.com/itsreverence/sleeper-draft-assistant/pull/57)).
 - Quit during news research with only app-owned processes exiting; native file selection, paste, and same-file reselection; keyboard demo entry and dialog focus; renderer category clear and typed full reset; the interactive installer wizard; closed-app backup restore and rollback from beta.5 to beta.4 (beta.5, [report summary](releases/beta.5-validation-followup.md)).
-
-Still required:
-
-- Get a successful news lookup with web search on, then open a returned citation in the default external browser. Check that unsafe destinations remain blocked. Beta.5 lookups timed out or were rejected, so this needs a build with the news-lookup fix.
+- A successful packaged news lookup, whose dated citation opened in the default external browser (beta.6 smoke, recorded on [#65](https://github.com/itsreverence/sleeper-draft-assistant/pull/65)). Unsafe destinations stay blocked, as automated tests confirm.
 
 No current UI path stacks two app dialogs; `modal.test.ts` covers the shared stacking behavior. Check it natively if a future flow opens a dialog from inside another.
 
@@ -137,9 +134,10 @@ Use [WORKFLOW.md](WORKFLOW.md) for detailed scenarios and [INSTALLING.md](INSTAL
 
 Shared Linux verification and Windows distribution sign-off are separate. Use
 [the stable-readiness report](releases/stable-readiness.md) for current evidence
-and the remaining candidate checks. Keep prerelease versioning until Windows
-sign-off and the final release gates pass. Re-run gates on the exact release
-commit after the stable version change; older beta CI is not candidate evidence.
+and the remaining candidate checks. Ship stable only after a prerelease build passes
+Windows sign-off. Then change to the stable version, re-run the gates and the
+every-release smoke on that exact commit, and tag it. Older beta CI is not
+candidate evidence.
 
 The first stable release may remain unsigned, as long as installation guidance
 and release notes disclose that fact and SmartScreen expectations. Signing is
@@ -149,7 +147,7 @@ follow-up work, not a substitute for the Windows distribution gate.
 
 State plainly:
 
-- beta status and breaking-change risk;
+- release status (prerelease or stable) and breaking-change risk;
 - supported operating systems actually tested;
 - that artifacts are unsigned and may trigger SmartScreen;
 - Sleeper-only support and tokenless read-only behavior;

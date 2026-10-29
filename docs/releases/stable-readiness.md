@@ -1,10 +1,9 @@
 # Stable release readiness
 
 Prepared October 4, 2026 on beta.4 source (`6694db7`) with the changes described
-here, which were later rebased onto the October dependency updates. This is preparation evidence, not a published release or
-Windows sign-off. The selected Windows testing candidate is `0.1.0-beta.6`.
-The remaining gates below now run against beta.6. Earlier downloads do not
-contain the news-lookup fix.
+here, which were later rebased onto the October dependency updates. The stable candidate is `0.1.0`, and its code is unchanged from published
+`0.1.0-beta.6`. Beta.6 passed the every-release smoke and the final
+once-before-stable item ([smoke record](https://github.com/itsreverence/sleeper-draft-assistant/pull/65)).
 
 ## Changes prepared
 
@@ -86,33 +85,32 @@ updates are expected behavior. Do not restore or compare an open SQLite database
 
 ## Remaining Windows and publication gates
 
-Run these against **0.1.0-beta.6**, not an earlier installer:
+Status for **0.1.0**:
 
-1. Pass current Linux CI and Windows package smoke CI on the candidate. Windows
-   CI now covers clean-profile installation, previous-release upgrade with seeded
-   state preserved, installed redaction, guidance clear and full API reset across
-   relaunch, native occupied-port Retry/Exit, data placement/ACLs, uninstall
-   retention, and portable startup. See [automated gates](../RELEASING.md#automated-gates)
-   for exact coverage and limits.
-2. Complete the [every-release real Windows smoke](../RELEASING.md#real-windows-smoke)
-   before tagging, using the exact commit's passing pre-smoke `windows-candidate`
-   artifact and its logged ID/digest. Record the maintainer's confirmation in the
-   [beta.6 release notes](0.1.0-beta.6.md#manual-checks).
-3. Complete the [once-before-stable pass](../RELEASING.md#once-before-the-first-stable-release).
-   Everything except news retrieval has passed on beta.2, beta.3, or beta.5 and
-   carries forward; stacked app dialogs are not reachable in the current UI ([beta.5 report](beta.5-validation-followup.md)). A successful
-   packaged news lookup with an external citation is still required after the
-   news-lookup fix ([#63](https://github.com/itsreverence/sleeper-draft-assistant/pull/63)), on beta.6.
-4. Select the stable version and synchronize workspace versions and lockfile.
-   Follow [publication checks](../RELEASING.md#publish-the-verified-commit) on that
-   exact commit, including package inspection, history scanning, release-note and
-   attribution review, and published-download checksums. Keep supported-format
-   limits and unsigned SmartScreen disclosure. Signing remains follow-up work.
+1. **Done on beta.6:** Linux CI and Windows package-smoke CI. Windows CI covers
+   clean-profile installation, upgrade from the previous release with seeded
+   state preserved, installed redaction, guidance clear, full API reset across
+   relaunch, native occupied-port Retry/Exit, data placement and ACLs, uninstall
+   retention, and portable startup. See [automated gates](../RELEASING.md#automated-gates).
+   Re-run them on the exact 0.1.0 commit.
+2. **Done.** The [once-before-stable pass](../RELEASING.md#once-before-the-first-stable-release)
+   passed across beta.2, beta.3, beta.5 and beta.6. On beta.6, a packaged news
+   lookup returned a dated NFL.com citation, and the citation opened in the
+   external default browser. Stacked app dialogs are not reachable in the
+   current UI ([beta.5 report](beta.5-validation-followup.md)).
+3. **Partly done.** The version is now `0.1.0`. The
+   [publication checks](../RELEASING.md#publish-the-verified-commit) ran on the
+   release PR: package inspection, a history secrets scan, and release-note and
+   attribution review. The attribution gap the review found is fixed by
+   bundle-derived third-party notices ([#68](https://github.com/itsreverence/sleeper-draft-assistant/pull/68)). Published-download checksums are verified after tagging.
+4. **Not yet done.** Complete the [every-release real Windows smoke](../RELEASING.md#real-windows-smoke)
+   on the exact 0.1.0 commit's `windows-candidate` artifact before tagging, and
+   record the result on the 0.1.0 release PR. The notes are in [0.1.0.md](0.1.0.md).
 
 Do not claim Windows readiness based only on Linux packaging or CI. A real
 clean-profile Windows launch remains the final distribution gate.
 
 No new installer, stable tag, or GitHub release was published during the original
-readiness work above. Its historical Linux and browser results are not beta.6
+readiness work above. Its historical Linux and browser results are not
 Windows sign-off. Automated accessibility coverage does not replace the native
 Windows checks in RELEASING.md.
