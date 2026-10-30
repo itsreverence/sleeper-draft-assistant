@@ -529,6 +529,25 @@ describe("full draft simulations", () => {
 });
 
 describe("team data readiness", () => {
+  it.each([0, 1])("keeps an imported file with %i rows and no matches partial despite high aggregate coverage", (rowsParsed) => {
+    const state = createTeamManagerState();
+    state.league.rosterSlots.K = 1;
+    for (const slot of state.roster.starters) {
+      if (slot.player) Object.assign(slot.player, weeklyProjectionFields(12));
+    }
+    const summary = weeklyImportSummary(["QB", "RB", "WR", "TE"]);
+    summary.positions.push("K");
+    summary.positionResults.push({ position: "K", matched: 0, rowsParsed, unmatched: rowsParsed, ambiguous: 0, appliedAt: summary.appliedAt });
+    summary.rowsParsed += rowsParsed;
+    const readiness = buildTeamDataReadiness(state, summary, Date.parse("2026-09-02T00:00:00.000Z"));
+    expect(readiness.status).toBe("partial");
+    expect(readiness.confidence).toBe("medium");
+    expect(readiness.loadedPositions).toEqual(["QB", "RB", "WR", "TE"]);
+    expect(readiness.missingPositions).toEqual(["K"]);
+    expect(readiness.warnings).toContain(rowsParsed === 0 ? "K file has no rows." : "K file imported, but no players matched.");
+    expect(readiness.warnings.join(" ")).not.toContain("Missing projection files");
+  });
+
   it("excludes known byes from missing projection counts and reports unavailable schedule coverage", () => {
     const state = createTeamManagerState();
     const players = state.roster.starters.flatMap((slot) => slot.player ? [slot.player] : []);

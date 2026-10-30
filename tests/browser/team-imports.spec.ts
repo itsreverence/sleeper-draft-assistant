@@ -251,6 +251,12 @@ test("the roster table keeps its Player column usable and the page unscrolled at
     const payload = await response.json();
     const starter = payload.state.roster.starters[0].player;
     starter.name = "Unbrokenlongsyntheticplayernamewithoutanyspaces";
+    payload.state.roster.starters[0].slot = "IDP_FLEX";
+    starter.sleeperStatus = {
+      injuryStatus: "Questionable", practiceParticipation: "Limited",
+      rosterStatus: "Active", injuryStartDate: null, depthChartPosition: "QB",
+      depthChartOrder: 2, newsUpdatedAt: null,
+    };
     payload.state.roster.bench = [{ ...starter, id: "bench-player", sleeperId: "bench-player", name: "Synthetic Bench Player" }];
     await route.fulfill({ response, json: payload });
   });
@@ -266,6 +272,13 @@ test("the roster table keeps its Player column usable and the page unscrolled at
     expect(tableBox!.width).toBeLessThanOrEqual(panelBox!.width);
     const playerHeader = await table.getByRole("columnheader", { name: "Player", exact: true }).boundingBox();
     expect(playerHeader!.width).toBeGreaterThan(120);
+    const slot = table.getByRole("cell", { name: "IDP_FLEX", exact: true });
+    expect(await slot.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const details = table.getByText("Status details", { exact: false }).first();
+    await details.focus();
+    await page.keyboard.press("Enter");
+    await expect(table.getByText(/Sleeper status — injury: Questionable; practice: Limited; depth:/).first()).toBeVisible();
+    await page.keyboard.press("Enter");
   }
 });
 

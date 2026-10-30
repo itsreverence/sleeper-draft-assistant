@@ -6,6 +6,35 @@ import MyTeamPanel from "./MyTeamPanel.svelte";
 import { createTeamPayloadFixture } from "../testing/draft-fixtures";
 
 describe("Team Manager season state", () => {
+  it.each([0, 1])("keeps an imported zero-match file truthful in the footer and roster (%i rows)", (rowsParsed) => {
+    const payload = createTeamPayloadFixture();
+    const summary: WeeklyProjectionImportSummary = {
+      source: "fantasypros", season: "2026", week: 1, position: "QB", positions: ["QB"],
+      positionResults: [{ position: "QB", matched: 0, rowsParsed, unmatched: rowsParsed, ambiguous: 0, appliedAt: "2026-09-01T00:00:00.000Z" }],
+      matched: 0, rowsParsed, unmatched: [], ambiguous: [], appliedAt: "2026-09-01T00:00:00.000Z",
+    };
+    render(MyTeamPanel, {
+      state: payload.state, weeklySummary: summary, onManageData: () => {},
+      readiness: { ...payload.dataReadiness, status: "partial", confidence: "medium", loadedPositions: [], missingPositions: ["QB"], projectedRosterPlayers: 1 },
+    });
+    expect(screen.getByText("No match")).toBeTruthy();
+    expect(screen.queryByText("No QB file")).toBeNull();
+    expect(screen.getByText(/roster coverage/).parentElement?.textContent).toContain(rowsParsed === 0 ? "QB: no rows" : "QB: no matches");
+    expect(screen.getByRole("button", { name: "Import weekly projections" })).toBeTruthy();
+    expect(screen.queryByText(/QB loaded/)).toBeNull();
+  });
+
+  it.each([
+    ["SUPER_FLEX", "Superflex"],
+    ["WRRB_FLEX", "Wide receiver / running back flex"],
+    ["REC_FLEX", "Wide receiver / tight end flex"],
+  ])("expands the filled %s slot accessibly", (slot, title) => {
+    const payload = createTeamPayloadFixture();
+    payload.state.roster.starters[0]!.slot = slot;
+    render(MyTeamPanel, { state: payload.state });
+    expect(screen.getByRole("cell", { name: title }).getAttribute("title")).toBe(title);
+  });
+
   it("shows accessible bye markers without missing-projection text and a schedule failure note", () => {
     const payload = createTeamPayloadFixture();
     const player = payload.state.roster.starters[0]!.player!;
@@ -111,7 +140,7 @@ describe("Team Manager season state", () => {
 
     expect(screen.getByText("Medium confidence · 5/13 projected").classList.contains("pill-warning")).toBe(true);
     expect(screen.getByRole("meter", { name: "Roster projection coverage" }).getAttribute("aria-valuenow")).toBe("38");
-    expect(screen.getByText("38% roster coverage").parentElement?.textContent).toBe("38% roster coverage · QB, RB loaded · WR, DST missing");
+    expect(screen.getByText("38% roster coverage").parentElement?.textContent).toBe("38% roster coverage · QB, RB loaded · WR: missing · DST: missing");
     await fireEvent.click(screen.getByRole("button", { name: "Import weekly projections" }));
     expect(opened).toBe(true);
 

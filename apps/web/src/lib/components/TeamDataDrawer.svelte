@@ -73,7 +73,7 @@
   subtitle="Update the evidence the Assistant uses for weekly and season-value decisions."
   {onClose}
 >
-  <TeamDataReadinessPanel readiness={readiness} seasonPhase={teamState?.seasonPhase} {isLoading} />
+  <TeamDataReadinessPanel readiness={readiness} {weeklySummary} seasonPhase={teamState?.seasonPhase} {isLoading} />
   <RosRankingsImportPanel
     hasTeam={Boolean(teamState)}
     defaultSeason={defaultSeason}

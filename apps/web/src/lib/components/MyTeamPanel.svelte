@@ -17,6 +17,7 @@
     formatSleeperStatusTitle,
     formatWeeklyProjection,
     rosterStatus,
+    rosterSlotTitle,
   } from "../format";
   import Icon from "./Icon.svelte";
 
@@ -86,7 +87,10 @@
   const coverage = $derived(readiness && !isPreseason ? Math.round(readiness.rosterProjectionCoverage * 100) : null);
   const coverageDetail = $derived(readiness ? [
     ...(readiness.loadedPositions.length > 0 ? [`${positionList(readiness.loadedPositions)} loaded`] : []),
-    ...(readiness.missingPositions.length > 0 ? [`${positionList(readiness.missingPositions)} missing`] : []),
+    ...readiness.missingPositions.map((position) => {
+      const result = weeklySummary?.positionResults.find((item) => item.position === position);
+      return `${positionList([position])}: ${result?.matched === 0 ? result.rowsParsed === 0 ? "no rows" : "no matches" : "missing"}`;
+    }),
   ].join(" · ") : "");
   const scheduleUnavailable = $derived(state?.scheduleStatus?.available === false);
 
@@ -102,15 +106,21 @@
 {#snippet playerRow(slot: string, player: Player)}
   {@const status = rosterStatus(player)}
   <tr class="slot-row">
-    <td class="slot-label">{formatRosterSlot(slot)}</td>
+    <td class="slot-label" title={rosterSlotTitle(slot)} aria-label={rosterSlotTitle(slot)}>{formatRosterSlot(slot)}</td>
     <th scope="row">
-      <span class="player-name">
+      <div class="player-name">
         <span class={`pos-chip position-${player.position.toLowerCase()}`}>{player.position}</span>
-        <span class="player-identity">
+        <div class="player-identity">
           <strong>{player.name}</strong>
           <small class:danger={status?.tone === "danger"} data-status={status?.injury ? status.label : undefined}>{player.team}</small>
-        </span>
-      </span>
+          {#if formatSleeperStatusTitle(player)}
+            <details class="status-details">
+              <summary>Status details<span class="sr-only"> for {player.name}</span></summary>
+              <span>{formatSleeperStatusTitle(player)}</span>
+            </details>
+          {/if}
+        </div>
+      </div>
     </th>
     <td class="week-cell">
       {#if player.schedule?.onBye}
@@ -172,7 +182,7 @@
             {@render playerRow(slot.slot, slot.player)}
           {:else}
             <tr class="slot-row">
-              <td class="slot-label">{formatRosterSlot(slot.slot)}</td>
+              <td class="slot-label" title={rosterSlotTitle(slot.slot)} aria-label={rosterSlotTitle(slot.slot)}>{formatRosterSlot(slot.slot)}</td>
               <th class="open-slot" scope="row">
                 <span class="player-identity"><strong>Open starter slot {index + 1}</strong><small>{slot.eligiblePositions.join("/")}</small></span>
               </th>
@@ -242,7 +252,10 @@
   thead .projection { width: 104px; }
   thead .player-status { width: 28%; }
 
-  .slot-label { color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; }
+  .slot-label { overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .status-details { flex-basis: 100%; min-width: 0; font-size: var(--text-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+  .status-details summary { cursor: pointer; }
   .player-name { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
   .player-identity { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); align-items: baseline; min-width: 0; }
   .player-identity strong { min-width: 0; color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }

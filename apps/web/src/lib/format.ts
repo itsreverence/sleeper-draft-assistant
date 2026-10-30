@@ -79,6 +79,15 @@ const ROSTER_SLOT_LABELS: Readonly<Record<string, string>> = {
   SF: "SFLX",
 };
 
+export function rosterSlotTitle(slot: string) {
+  const titles: Readonly<Record<string, string>> = {
+    SUPER_FLEX: "Superflex", SF: "Superflex",
+    WRRB_FLEX: "Wide receiver / running back flex",
+    REC_FLEX: "Wide receiver / tight end flex",
+  };
+  return titles[slot] ?? slot;
+}
+
 export function formatRosterSlot(slot: string) {
   return ROSTER_SLOT_LABELS[slot] ?? slot;
 }

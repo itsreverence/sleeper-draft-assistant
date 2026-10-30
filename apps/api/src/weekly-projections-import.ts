@@ -522,6 +522,7 @@ function deserializeWeeklyProjectionImport(storedImport: SerializedWeeklyProject
   return {
     summary: {
       ...storedImport.summary,
+      position: positions.size === 1 ? Array.from(positions)[0] : null,
       positions: Array.from(positions).sort(comparePositions),
       positionResults,
     },
