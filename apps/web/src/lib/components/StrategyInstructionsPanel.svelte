@@ -63,7 +63,7 @@
   <div class="instructions-heading">
     <div>
       <h3>User guidance</h3>
-      <span>Preferences the AI should consider while building your roster.</span>
+      <span>Preferences the Assistant should consider while building your roster.</span>
     </div>
     <button class="add-instruction" type="button" disabled={busy} onclick={() => (editorOpen = !editorOpen)} aria-expanded={editorOpen}>
       <Icon name={editorOpen ? "close" : "plus"} size={13} />
@@ -78,7 +78,7 @@
           <div class="instruction-copy">
             <span class="scope-label">{instruction.scope === "next-pick" ? "Next pick" : "Rest of draft"}</span>
             <p>{instruction.text}</p>
-            {#if instruction.source === "ai-chat"}<small>Added from AI chat</small>{/if}
+            {#if instruction.source === "ai-chat"}<small>Added from Assistant chat</small>{/if}
           </div>
           <div class="instruction-actions">
             <button type="button" disabled={busy} onclick={() => edit(instruction)}>Edit</button>
@@ -90,7 +90,7 @@
       {/each}
     </ul>
   {:else if !editorOpen}
-    <p class="empty-guidance">No custom guidance. AI is currently reasoning from the board, roster, and player evidence only.</p>
+    <p class="empty-guidance">No custom guidance. The Assistant is currently reasoning from the board, roster, and player evidence only.</p>
   {/if}
 
   {#if editorOpen}

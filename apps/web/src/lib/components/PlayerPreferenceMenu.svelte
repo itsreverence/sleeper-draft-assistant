@@ -39,7 +39,7 @@
     {
       value: "pin",
       label: "Prioritize",
-      description: "Ask AI to consider this player first.",
+      description: "Ask the Assistant to consider this player first.",
     },
     {
       value: "fade",
@@ -49,7 +49,7 @@
     {
       value: "exclude",
       label: "Exclude",
-      description: "Remove from AI recommendations and search.",
+      description: "Remove from Assistant recommendations and search.",
     },
   ];
 

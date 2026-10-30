@@ -175,6 +175,6 @@ describe("composed API response redaction", () => {
     for (const privateValue of [privatePath, upstreamToken]) {
       expect(body).not.toContain(privateValue);
     }
-    expect(JSON.parse(body)).toEqual({ error: "Sleeper request failed." });
+    expect(JSON.parse(body)).toEqual({ error: "Could not reach Sleeper. Check your connection, then try again." });
   });
 });

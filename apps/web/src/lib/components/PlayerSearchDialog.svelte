@@ -101,11 +101,11 @@
                 <button
                   class="ask-player"
                   type="button"
-                  aria-label={`Ask AI about ${result.player.name}`}
+                  aria-label={`Ask Assistant about ${result.player.name}`}
                   onclick={() => askAboutPlayer(result.player.name)}
                 >
                   <Icon name="message" size={13} />
-                  Ask AI
+                  Ask Assistant
                 </button>
               {/if}
             </div>

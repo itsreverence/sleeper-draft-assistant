@@ -22,7 +22,7 @@
     { category: "ros-rankings", label: "Season value rankings", description: "FantasyPros ROS ECR or draft ECR fallback saved by league and season.", count: "rosRankingImports" },
     { category: "weekly-projections", label: "Weekly projections", description: "FantasyPros projection imports saved by league and week.", count: "weeklyProjectionImports" },
     { category: "decision-history", label: "Decision history", description: "Local recommendation snapshots used for review.", count: "decisionSnapshots" },
-    { category: "draft-plans", label: "AI draft plans", description: "Latest AI strategy remembered for each draft team.", count: "draftPlans" },
+    { category: "draft-plans", label: "Assistant draft plans", description: "Latest Assistant strategy remembered for each draft team.", count: "draftPlans" },
     { category: "strategy-instructions", label: "Draft instructions", description: "User-approved strategy guidance saved by draft team.", count: "strategyInstructions" },
   ];
 

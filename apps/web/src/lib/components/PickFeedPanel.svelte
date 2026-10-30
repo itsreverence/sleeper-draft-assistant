@@ -21,7 +21,7 @@
           <span>{pick.pickNo}</span>
           <div>
             <strong>{playerName(state, pick.playerId)}</strong>
-            <small>{teamName(state, pick.teamId)} - Round {pick.round}</small>
+            <small>{teamName(state, pick.teamId)} · Round {pick.round}</small>
           </div>
         </li>
       {/each}

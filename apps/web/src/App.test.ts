@@ -80,9 +80,9 @@ describe("App draft lifecycle", () => {
     const draftPayload = createDraftPayloadFixture({ draftId: "draft-1", name: "Completed Draft", leagueId: DEFAULT_LEAGUE_ID });
     draftPayload.state.status = "complete";
     draftLoad.resolve(draftPayload);
-    const textbox = await screen.findByRole("textbox", { name: "Ask Codex about your team" });
+    const textbox = await screen.findByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(textbox, { target: { value: "Review my roster" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(apiMock.askTeamManagerRequest).toHaveBeenCalledOnce());
     apiMock.teamPayload = {
       ...apiMock.teamPayload,
@@ -338,7 +338,7 @@ describe("App draft lifecycle", () => {
     await fireEvent.click(marketDisclosure);
     const marketPanel = marketDisclosure.closest("article");
     if (!marketPanel) throw new Error("Expected market activity panel");
-    await fireEvent.click(within(marketPanel).getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(within(marketPanel).getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(apiMock.askTeamManagerRequest).toHaveBeenCalledTimes(1));
 
     await fireEvent.click(screen.getByTitle("Switch league or draft"));
@@ -452,7 +452,7 @@ describe("App draft lifecycle", () => {
     await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
 
     apiMock.aiStatus = createUnavailableAiStatus();
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Open emergency board only" })).toBeTruthy();
@@ -1122,7 +1122,7 @@ describe("App draft lifecycle", () => {
     render(App);
 
     await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await fireEvent.click(screen.getByTitle("Switch league or draft"));
     await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);

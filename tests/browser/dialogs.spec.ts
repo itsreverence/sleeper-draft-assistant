@@ -1,4 +1,4 @@
-import { expectDistinctTableRegions, expectResponseTable, narrowAndWideTableAnswer, tableAnswer } from "./response-table";
+import { expectDistinctTableRegions, expectHeaderFits, expectResponseTable, longUnbrokenTitle, longWrappingTitle, narrowAndWideTableAnswer, tableAnswer } from "./response-table";
 import { expect, test } from "@playwright/test";
 import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
 import { expectAccessible } from "./accessibility";
@@ -143,7 +143,7 @@ test("draft questions preserve the plan while preference changes request fresh s
   });
   await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Compare my options without changing the plan.");
-  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
   await expect(page.getByText("Synthetic answer without a strategy change.")).toBeVisible();
   await page.getByRole("button", { name: "Draft plan", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Draft plan" }).getByText("Synthetic plan", { exact: true })).toBeVisible();
@@ -178,9 +178,37 @@ test("draft answers contain wide Markdown tables inside the chat bubble", async 
   });
   await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Show a table of lineup options.");
-  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
   await expectResponseTable(page);
 });
+
+test("a keyboard-activated suggestion chip hands focus to the draft composer", async ({ page }) => {
+  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), answer: "Synthetic answer.", strategyProposal: null } });
+  });
+  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
+  await page.getByLabel("Suggested questions").getByRole("button").first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Suggested questions")).toHaveCount(0);
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Ask about your draft");
+});
+
+for (const [label, title] of [["unbroken", longUnbrokenTitle], ["wrapping", longWrappingTitle]]) {
+  test(`a long ${label} draft title stays beside the settings button without page overflow`, async ({ page }) => {
+    await page.route(/\/api\/drafts\/[^/]+\/state(?:\?|$)/, async route => {
+      const payload = await (await route.fetch()).json() as DraftPayload;
+      payload.state.name = title;
+      await route.fulfill({ json: payload });
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Try a demo draft" }).click();
+    for (const width of [1280, 480, 320]) {
+      await page.setViewportSize({ width, height: 700 });
+      await expectHeaderFits(page, title);
+    }
+  });
+}
 
 test("several answer tables keep unique landmark names and only wide tables take focus", async ({ page }) => {
   await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, async route => {
@@ -190,9 +218,10 @@ test("several answer tables keep unique landmark names and only wide tables take
   await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   for (const [index, question] of ["Show lineup options.", "Show them again."].entries()) {
     await page.getByRole("textbox", { name: "Ask about your draft" }).fill(question);
-    await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+    await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
     await expect(page.getByText("Review your starters.", { exact: true })).toHaveCount(index + 1);
   }
   await expectDistinctTableRegions(page, 4);
+  await expect(page.getByRole("region", { name: "Response table 1 in answer 2", exact: true })).toBeVisible();
   await expectAccessible(page);
 });

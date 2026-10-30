@@ -73,9 +73,9 @@ export function buildCandidateDiscussionQuestion(
   recommendedPlayerName: string,
 ): string {
   if (playerName === recommendedPlayerName) {
-    return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} with my upcoming pick? Validate that choice against the strongest available contingencies.`;
+    return `The current Assistant strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} with my upcoming pick? Validate that choice against the strongest available contingencies.`;
   }
-  return `The current AI strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} instead? Compare both players with the strongest available contingencies. If ${playerName} should replace ${recommendedPlayerName}, propose that next-pick strategy change for my confirmation.`;
+  return `The current Assistant strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} instead? Compare both players with the strongest available contingencies. If ${playerName} should replace ${recommendedPlayerName}, propose that next-pick strategy change for my confirmation.`;
 }
 
 export function currentAiDraftStrategy(
@@ -179,8 +179,8 @@ export function buildAiPanelContextSummary(
   if (dataSources.length === 0) dataSources.push("Demo values");
 
   const note = usingPlaceholderRanks
-    ? "AI receives the current board, roster, and league settings, but player values are temporary Sleeper search ranks."
-    : "AI receives the current board, roster, league settings, and the imported player-value sources shown above.";
+    ? "The Assistant receives the current board, roster, and league settings, but player values are temporary Sleeper search ranks."
+    : "The Assistant receives the current board, roster, league settings, and the imported player-value sources shown above.";
 
   return {
     league: `${state.settings.scoring.toUpperCase()} · ${state.settings.teams} teams`,

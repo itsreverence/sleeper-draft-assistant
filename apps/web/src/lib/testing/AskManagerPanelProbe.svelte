@@ -65,7 +65,7 @@
 </script>
 
 <section aria-label="Ask manager probe">
-  <button type="button" onclick={askQuestion}>{isAsking ? "Asking AI" : "Ask AI"}</button>
+  <button type="button" onclick={askQuestion}>{isAsking ? "Asking Assistant" : "Ask Assistant"}</button>
   <output data-testid="ask-manager-recommendation">
     {recommendation?.headline ?? "No recommendation"}
   </output>

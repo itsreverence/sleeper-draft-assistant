@@ -90,7 +90,7 @@ export function buildTeamDataReadiness(
     status,
     confidence,
     headline: status === "ready"
-      ? "Weekly evidence is ready for Codex."
+      ? "Weekly evidence is ready for the Assistant."
       : status === "partial"
         ? "Weekly evidence has coverage gaps."
         : "Weekly evidence is limited.",

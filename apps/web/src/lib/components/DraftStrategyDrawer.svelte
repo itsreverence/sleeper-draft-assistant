@@ -50,7 +50,7 @@
   {:else}
     <div class="drawer-heading">
       <h2><Icon name="clipboard" size={17} /> Draft strategy</h2>
-      <p>Add guidance now. The next AI evaluation will use it with the current board and roster.</p>
+      <p>Add guidance now. The next Assistant evaluation will use it with the current board and roster.</p>
     </div>
   {/if}
   <StrategyInstructionsPanel

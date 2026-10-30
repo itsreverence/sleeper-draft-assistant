@@ -49,7 +49,7 @@ describe("Team activity panel", () => {
     render(TeamActivityPanel, { activitySummary: payload.activitySummary, onAsk });
 
     await fireEvent.click(screen.getByRole("button", { name: /Market activity/ }));
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     expect(onAsk).toHaveBeenCalledWith("What does recent Sleeper activity say about my roster moves?");
   });

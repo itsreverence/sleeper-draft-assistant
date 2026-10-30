@@ -4,6 +4,10 @@ Sleeper Draft Assistant separates provider evidence from the advice Codex derive
 
 ## Language
 
+**Assistant**:
+The name for the AI strategist in product copy. It runs on the user's local Codex CLI.
+_Avoid_: AI manager, AI call, and Codex in user-facing copy, except where the text names the external program the user installs, signs in to, or configures
+
 **Season value rankings**:
 Scoring-specific expert rankings used as long-horizon Team Manager evidence. The active source is either ROS ECR or, before ROS is available, draft ECR fallback.
 _Avoid_: ROS rankings when referring to both source types

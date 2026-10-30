@@ -15,7 +15,7 @@ The default no-provider mode makes no external AI request and does not show loca
 
 Player-news lookups send a separate Codex context containing only public player identity, topic, and time. They do not receive league identifiers, roster history, imported values, or the original user question. Hosted searches are handled by OpenAI and may retrieve external public pages. This can add latency and account usage. Source links and summaries may appear in chat and persisted draft decisions; no separate news database is created. Read-only sandboxing does not itself disable hosted search: ordinary threads explicitly disable it and isolated research threads enable it. Retrieved content remains untrusted.
 
-Web search defaults on and can be disabled in AI settings. Saving a change closes active provider/research sessions and resets chat context. Disabling it prevents further news lookups but does not delete sources already saved in draft decision history or erase data held by external providers.
+Web search defaults on and can be disabled in Assistant settings. Saving a change closes active provider/research sessions and resets chat context. Disabling it prevents further news lookups but does not delete sources already saved in draft decision history or erase data held by external providers.
 
 ## Local data
 

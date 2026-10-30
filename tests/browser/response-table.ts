@@ -5,6 +5,18 @@ export const tableAnswer = `Lineup options:\n\n| Player | Position | Projection 
 
 export const narrowAndWideTableAnswer = `| Slot | Pick |\n| --- | --- |\n| QB | 1 |\n\n${tableAnswer}`;
 
+export const longUnbrokenTitle = `Long${"Unbroken".repeat(12)}Title`;
+export const longWrappingTitle = "A very long synthetic league name that keeps going well past what fits on one line";
+
+export async function expectHeaderFits(page: Page, title: string) {
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toContainText(title);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  const gear = await page.getByTitle("Open settings").boundingBox();
+  const titleBox = await heading.boundingBox();
+  expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(gear!.x);
+}
+
 export async function expectResponseTable(page: Page) {
   const region = page.getByRole("region", { name: "Response table" });
   await expect(region.getByRole("table")).toBeVisible();

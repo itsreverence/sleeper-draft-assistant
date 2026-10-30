@@ -1,6 +1,37 @@
 import { describe, expect, it } from "vitest";
-import type { DraftState } from "./types";
-import { draftSlotForPick, draftTeamReference, formatDraftPick, formatSleeperStatusSummary, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
+import type { DraftState, Player, WeeklyProjectionImportSummary } from "./types";
+import { draftSlotForPick, draftTeamReference, formatConfidence, formatDraftPick, formatMissingProjection, formatSleeperStatusSummary, formatStatus, formatWeeklyProjection, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
+
+describe("status copy", () => {
+  it.each([
+    ["pre_draft", "Pre-draft"],
+    ["drafting", "Drafting"],
+    ["in_season", "In season"],
+    ["post_season", "Postseason"],
+    ["complete", "Complete"],
+    ["unknown", "Status unknown"],
+    ["some_new_state", "Some new state"],
+  ])("labels %s as %s", (status, label) => {
+    expect(formatStatus(status)).toBe(label);
+  });
+
+  it("sentence-cases confidence", () => {
+    expect(formatConfidence("low")).toBe("Low confidence");
+  });
+
+  it("says why a projection is missing", () => {
+    const player = { position: "WR" } as Player;
+    const summary = { positions: ["QB"] } as WeeklyProjectionImportSummary;
+    expect(formatMissingProjection(player, null)).toBe("No WR file");
+    expect(formatMissingProjection(player, summary)).toBe("No WR file");
+    expect(formatMissingProjection(player, { positions: ["WR"] } as WeeklyProjectionImportSummary)).toBe("No match");
+  });
+
+  it("keeps the pts suffix and shows zero on a bye", () => {
+    expect(formatWeeklyProjection({ weeklyProjectedPoints: 24.5 } as Player)).toBe("24.5 pts");
+    expect(formatWeeklyProjection({ schedule: { onBye: true } } as Player)).toBe("0 pts");
+  });
+});
 
 describe("draft team identity", () => {
   it("prefers the draft-specific slot over the league roster ID", () => {

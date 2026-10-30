@@ -138,6 +138,11 @@ export function createAiConversation(options: {
     return messages[index - 1]?.role === "user" ? messages[index - 1]!.content : "";
   }
 
+  function answerNumber(messageId: string): number {
+    const index = messages.findIndex((message) => message.id === messageId);
+    return messages.slice(0, index + 1).filter((message) => message.role === "assistant").length;
+  }
+
   async function copy(content: string) {
     try {
       await navigator.clipboard.writeText(content);
@@ -161,6 +166,7 @@ export function createAiConversation(options: {
     get isAsking() { return isAsking; },
     get copied() { return copied; },
     questionFor,
+    answerNumber,
     syncIdentity,
     submit,
     cancel,

@@ -8,7 +8,7 @@
     providerStatus,
     isSaving,
     error = "",
-    submitLabel = "Save AI settings",
+    submitLabel = "Save Assistant settings",
     requireCodex = false,
     onSave,
   }: {
@@ -61,7 +61,7 @@
     <span>Provider</span>
     <select class="input" bind:value={aiProvider}>
       {#if !requireCodex}
-        <option value="noop">Disable AI</option>
+        <option value="noop">Disable Assistant</option>
       {/if}
       <option value="codex-app-server">Codex (local)</option>
     </select>
@@ -102,9 +102,9 @@
       </span>
     </label>
     <p class="form-note">Terra is the balanced default. Luna uses fewer resources; Sol offers the most capability.</p>
-    <p class="form-note">Codex must be installed and signed in on this computer. The app keeps one local Codex session running and reuses conversations until you close it.</p>
+    <p class="form-note">The Assistant runs on your local Codex CLI. Codex must be installed and signed in on this computer. The app keeps one local Codex session running and reuses conversations until you close it.</p>
   {:else}
-    <p class="form-note">AI recommendations and assistant questions are disabled.</p>
+    <p class="form-note">Assistant recommendations and questions are disabled.</p>
   {/if}
 
   {#if providerStatus?.detail}

@@ -168,7 +168,7 @@
       </div>
       {#if rankingImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(rankingImportSummary.appliedAt, 14).stale}>
-          {rankingImportSummary.scoring ?? scoring} - imported {formatImportDate(rankingImportSummary)}
+          {rankingImportSummary.scoring ?? scoring} · imported {formatImportDate(rankingImportSummary)}
           ({getImportFreshness(rankingImportSummary.appliedAt, 14).label})
         </span>
       {/if}
@@ -205,7 +205,7 @@
       {/if}
       {#if seasonProjectionImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(seasonProjectionImportSummary.appliedAt, 14).stale}>
-          {seasonProjectionImportSummary.positions.join(", ")} - imported {formatImportDate(seasonProjectionImportSummary)}
+          {seasonProjectionImportSummary.positions.join(", ")} · imported {formatImportDate(seasonProjectionImportSummary)}
           ({getImportFreshness(seasonProjectionImportSummary.appliedAt, 14).label})
         </span>
       {/if}
@@ -241,7 +241,7 @@
       </div>
       {#if adpImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(adpImportSummary.appliedAt, 14).stale}>
-          Sleeper{adpImportSummary.includesRealTime ? " + Real-Time" : ""} - imported {formatImportDate(adpImportSummary)}
+          Sleeper{adpImportSummary.includesRealTime ? " + Real-Time" : ""} · imported {formatImportDate(adpImportSummary)}
           ({getImportFreshness(adpImportSummary.appliedAt, 14).label})
         </span>
       {/if}

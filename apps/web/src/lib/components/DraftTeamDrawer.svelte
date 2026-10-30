@@ -63,7 +63,7 @@
         <h2><Icon name="users" size={18} /> {team.name}</h2>
         {#if team.id === state.userTeamId}<span class="pill pill-ready">Your team</span>{/if}
       </div>
-      <p>{selections.length}/{state.settings.rounds} players drafted{nextScheduledPick ? ` - next scheduled at #${nextScheduledPick}` : ""}</p>
+      <p>{selections.length}/{state.settings.rounds} players drafted{nextScheduledPick ? ` · next scheduled at #${nextScheduledPick}` : ""}</p>
     </header>
 
     <div class="position-summary" aria-label="Roster position counts">
@@ -81,7 +81,7 @@
               <span>#{selection.pick.pickNo}</span>
               <div>
                 <strong>{selection.player.name}</strong>
-                <small>{selection.player.position} - {selection.player.team || "FA"}</small>
+                <small>{selection.player.position} · {selection.player.team || "FA"}</small>
               </div>
             </li>
           {/each}
@@ -94,7 +94,7 @@
     {#if onAsk && team.id !== state.userTeamId}
       <button class="ask-team" type="button" onclick={() => onAsk?.(team.id)}>
         <Icon name="message" size={14} />
-        Ask AI how this team affects my next pick
+        Ask Assistant how this team affects my next pick
       </button>
     {/if}
   {/if}

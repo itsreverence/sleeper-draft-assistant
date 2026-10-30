@@ -2,7 +2,7 @@
   import type { AiRequestPhase } from "../api";
 
   const labels: Record<AiRequestPhase, string> = {
-    queued: "Waiting for another AI request…",
+    queued: "Waiting for another Assistant request…",
     thinking: "Thinking…",
     news: "Checking news…",
   };

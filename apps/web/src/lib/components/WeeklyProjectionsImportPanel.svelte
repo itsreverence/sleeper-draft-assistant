@@ -185,7 +185,7 @@
     <p class="callout callout-warning">
       <Icon name="alert" size={15} />
       Imported data is for {summary.season} Week {summary.week}, but this team view is
-      connected to a {leagueSeason} Sleeper league. It is saved for reference but is not used by lineup, waiver, or AI advice.
+      connected to a {leagueSeason} Sleeper league. It is saved for reference but is not used by lineup, waiver, or Assistant advice.
     </p>
   {/if}
 

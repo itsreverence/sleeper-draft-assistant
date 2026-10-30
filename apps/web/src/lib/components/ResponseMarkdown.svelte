@@ -8,8 +8,7 @@
     | ({ type: "list" } & List)
     | { type: "table"; number: number; headers: string[]; alignments: Alignment[]; rows: string[][] };
 
-  let { content }: { content: string } = $props();
-  const answerId = $props.id();
+  let { content, answerNumber }: { content: string; answerNumber?: number } = $props();
 
   function tableCells(line: string): { cells: string[]; hasPipe: boolean } {
     const cells: string[] = [];
@@ -159,7 +158,7 @@
         {/each}
       </ul>
     {:else if block.type === "table"}
-      <div class="table-scroll" role="region" aria-label="Response table {block.number} in answer {answerId}" use:focusableWhenScrollable>
+      <div class="table-scroll" role="region" aria-label={answerNumber ? `Response table ${block.number} in answer ${answerNumber}` : `Response table ${block.number}`} use:focusableWhenScrollable>
         <table>
           <thead>
             <tr>

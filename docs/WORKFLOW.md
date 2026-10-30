@@ -85,7 +85,7 @@ For news lookup checks, ask about a public player's current injury or practice r
 
 After a news request, inspect `newsLookups` in **Copy diagnostics**. A completed lookup records a bounded outcome, source-rejection counts, and elapsed milliseconds, not raw errors or private context. A timeout is distinct from a response rejected for sources/dates. No entries means no completed lookup in this provider session, not a successful retrieval test. Changing provider settings or resetting discards these in-memory entries.
 
-Toggle **Web search** off in AI settings and save during a lookup. Verify the old request cannot repopulate chat, fresh questions still work from supplied evidence, and the setting stays off after relaunch. Turn it back on and verify fresh conversations can request news again. A full reset restores the enabled default.
+Toggle **Web search** off in Assistant settings and save during a lookup. Verify the old request cannot repopulate chat, fresh questions still work from supplied evidence, and the setting stays off after relaunch. Turn it back on and verify fresh conversations can request news again. A full reset restores the enabled default.
 
 - **Port already in use:** close the prior development or desktop process; the app intentionally refuses to attach to an API that cannot prove possession of its token.
 - **Web requests return 401:** use the root `npm run dev` launcher so renderer and API receive the same token.

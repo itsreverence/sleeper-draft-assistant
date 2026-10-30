@@ -109,7 +109,7 @@ describe("pipe tables", () => {
     expect(screen.getAllByRole("columnheader").map(node => node.textContent)).toEqual(["Player", "Points"]);
     expect(screen.getAllByRole("columnheader").every(node => node.getAttribute("scope") === "col")).toBe(true);
     expect(screen.getAllByRole("cell").map(node => node.textContent)).toEqual(["Test QB", "20"]);
-    expect(screen.getByRole("region", { name: /^Response table 1 in answer \S+$/ })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Response table 1" })).toBeTruthy();
   });
 
   it("applies delimiter alignment to headers and cells", () => {
@@ -188,13 +188,14 @@ describe("pipe tables", () => {
 
   it("names every table region uniquely within and across answers", () => {
     const content = "A | B\n--- | ---\na | b\n\nC | D\n--- | ---\nc | d";
-    render(ResponseMarkdown, { content });
-    render(ResponseMarkdown, { content });
-    const names = screen.getAllByRole("region").map(node => node.getAttribute("aria-label"));
-    expect(names).toHaveLength(4);
-    expect(new Set(names).size).toBe(4);
-    expect(names.map(name => name?.replace(/ in answer \S+$/, ""))).toEqual(["Response table 1", "Response table 2", "Response table 1", "Response table 2"]);
-    expect(names[0]?.replace(/^.* in answer /, "")).toBe(names[1]?.replace(/^.* in answer /, ""));
+    render(ResponseMarkdown, { content, answerNumber: 1 });
+    render(ResponseMarkdown, { content, answerNumber: 2 });
+    expect(screen.getAllByRole("region").map(node => node.getAttribute("aria-label"))).toEqual([
+      "Response table 1 in answer 1",
+      "Response table 2 in answer 1",
+      "Response table 1 in answer 2",
+      "Response table 2 in answer 2",
+    ]);
   });
 
   it("is a tab stop only while the table overflows its wrapper", () => {

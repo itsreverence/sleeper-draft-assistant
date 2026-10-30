@@ -22,10 +22,10 @@ const recommendation = createRecommendation();
 describe("AI panel helpers", () => {
   it("builds a candidate question for the shared draft conversation", () => {
     expect(buildCandidateDiscussionQuestion("Jahmyr Gibbs", "Jahmyr Gibbs")).toBe(
-      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Jahmyr Gibbs with my upcoming pick? Validate that choice against the strongest available contingencies.",
+      "The current Assistant strategy recommends Jahmyr Gibbs. Should I draft Jahmyr Gibbs with my upcoming pick? Validate that choice against the strongest available contingencies.",
     );
     expect(buildCandidateDiscussionQuestion("Ja'Marr Chase", "Jahmyr Gibbs")).toBe(
-      "The current AI strategy recommends Jahmyr Gibbs. Should I draft Ja'Marr Chase instead? Compare both players with the strongest available contingencies. If Ja'Marr Chase should replace Jahmyr Gibbs, propose that next-pick strategy change for my confirmation.",
+      "The current Assistant strategy recommends Jahmyr Gibbs. Should I draft Ja'Marr Chase instead? Compare both players with the strongest available contingencies. If Ja'Marr Chase should replace Jahmyr Gibbs, propose that next-pick strategy change for my confirmation.",
     );
   });
 
