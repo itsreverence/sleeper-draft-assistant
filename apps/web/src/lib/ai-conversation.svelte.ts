@@ -28,7 +28,6 @@ export function createAiConversation(options: {
   let messages: AiConversationDisplayMessage[] = $state([]);
   let isAsking = $state(false);
   let copied = $state(false);
-  let lastQuestion = $state("");
   let controller: AbortController | undefined;
   let identity = "";
   let requestSequence = 0;
@@ -60,7 +59,6 @@ export function createAiConversation(options: {
     if (invalidatePending) invalidateRequests();
     messages = [];
     question = "";
-    lastQuestion = "";
   }
 
   function syncIdentity(nextIdentity: string) {
@@ -87,7 +85,6 @@ export function createAiConversation(options: {
     const requestId = ++requestSequence;
     activeRequestId = requestId;
     isAsking = true;
-    lastQuestion = trimmed;
     question = "";
     const conversationHistory = history();
     const loading: AiConversationDisplayMessage = { ...createMessage("assistant", "", "loading"), phase: "thinking" };
@@ -136,6 +133,11 @@ export function createAiConversation(options: {
       : message);
   }
 
+  function questionFor(messageId: string): string {
+    const index = messages.findIndex((message) => message.id === messageId);
+    return messages[index - 1]?.role === "user" ? messages[index - 1]!.content : "";
+  }
+
   async function copy(content: string) {
     try {
       await navigator.clipboard.writeText(content);
@@ -158,7 +160,7 @@ export function createAiConversation(options: {
     get messages() { return messages; },
     get isAsking() { return isAsking; },
     get copied() { return copied; },
-    get lastQuestion() { return lastQuestion; },
+    questionFor,
     syncIdentity,
     submit,
     cancel,

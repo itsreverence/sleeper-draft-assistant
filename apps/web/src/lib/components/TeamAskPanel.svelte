@@ -202,7 +202,7 @@
   {:else}
     <div class="conversation" role="log" aria-label="Team conversation" aria-live="polite" use:followNewest={newest}>
       {#each conversation.messages as message (message.id)}
-        <AiMessageBubble message={message} onCopy={conversation.copy} onRetry={() => submit(conversation.lastQuestion)} />
+        <AiMessageBubble message={message} onCopy={conversation.copy} onRetry={() => submit(conversation.questionFor(message.id))} />
       {/each}
     </div>
     {#if conversation.copied}<p class="copy-note">Copied response.</p>{/if}

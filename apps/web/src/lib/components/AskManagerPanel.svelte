@@ -184,7 +184,7 @@
             <AiMessageBubble
               {message}
               onCopy={conversation.copy}
-              onRetry={() => submit(conversation.lastQuestion)}
+              onRetry={() => submit(conversation.questionFor(message.id))}
               onApplyStrategyProposal={(proposal) => applyStrategyProposal(message.id, proposal)}
             />
           {/each}

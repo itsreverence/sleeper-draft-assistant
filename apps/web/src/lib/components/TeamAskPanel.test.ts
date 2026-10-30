@@ -432,4 +432,30 @@ describe("Team ask panel follow-up history", () => {
       [{ role: "user", content: "Second question" }, { role: "assistant", content: "Second answer" }],
     ]);
   });
+
+  it("retries the question under the bubble, not the most recent one", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const pending = createDeferred<string>();
+    const onAsk = vi.fn(async (question: string) => question === "Question A" && onAsk.mock.calls.length === 1 ? pending.promise : `Answer to ${question}`);
+    render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", label: "Codex", configured: true }),
+      onAsk,
+    });
+    const ask = async (question: string) => {
+      await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: question } });
+      await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    };
+
+    await ask("Question A");
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await ask("Question B");
+    await screen.findByText("Answer to Question B");
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await screen.findByText("Answer to Question A");
+    expect(onAsk.mock.calls.map(([question]) => question)).toEqual(["Question A", "Question B", "Question A"]);
+  });
 });
