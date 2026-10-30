@@ -159,6 +159,17 @@ test("draft questions preserve the plan while preference changes request fresh s
   await expect.poll(() => refreshes).toBe(1);
 });
 
+test("a long unbroken drawer title wraps clear of the close button", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Application settings" });
+  const close = dialog.getByRole("button", { name: "Close settings" });
+  const heading = dialog.getByRole("heading", { level: 2 }).first();
+  await close.focus();
+  await heading.evaluate((node, title) => { node.textContent = title; }, "x".repeat(60));
+  await expect.poll(async () => (await heading.boundingBox())!.x + (await heading.boundingBox())!.width).toBeLessThanOrEqual((await close.boundingBox())!.x);
+});
+
 test("drawer body scrolls by keyboard under a fixed header", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: testInfo.project.use.viewport!.width, height: 420 });
   await page.getByRole("button", { name: "Open settings", exact: true }).click();

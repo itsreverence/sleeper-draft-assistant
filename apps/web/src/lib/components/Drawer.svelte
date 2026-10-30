@@ -106,6 +106,7 @@
     align-items: center;
     min-width: 0;
     font-size: var(--text-xl);
+    overflow-wrap: anywhere;
   }
 
   .drawer-subtitle {
