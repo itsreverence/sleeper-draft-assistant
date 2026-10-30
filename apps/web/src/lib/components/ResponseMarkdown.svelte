@@ -1,23 +1,16 @@
 ﻿<script lang="ts">
   import ResponseText from "./ResponseText.svelte";
   type Alignment = "left" | "center" | "right";
+  type List = { ordered: boolean; start: number; items: string[] };
   type MarkdownBlock =
     | { type: "heading"; text: string }
     | { type: "paragraph"; text: string }
-    | { type: "list"; items: string[] }
-    | { type: "table"; headers: string[]; alignments: Alignment[]; rows: string[][] };
+    | ({ type: "list" } & List)
+    | { type: "table"; number: number; headers: string[]; alignments: Alignment[]; rows: string[][] };
 
   let { content }: { content: string } = $props();
+  const answerId = $props.id();
 
-  function stripMarkdownNoise(value: string): string {
-    return value
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/__(.*?)__/g, "$1")
-      .replace(/`([^`]+)`/g, "$1")
-      .trim();
-  }
-
-  // Split before stripping inline markup so escaped pipes stay inside their cell.
   function tableCells(line: string): { cells: string[]; hasPipe: boolean } {
     const cells: string[] = [];
     let cell = "";
@@ -51,20 +44,26 @@
     const blocks: MarkdownBlock[] = [];
     const lines = value.replace(/\r\n/g, "\n").split("\n");
     let paragraph: string[] = [];
-    let listItems: string[] = [];
+    let list: List | null = null;
+    let tables = 0;
 
     function flushParagraph() {
       if (paragraph.length > 0) {
-        blocks.push({ type: "paragraph", text: stripMarkdownNoise(paragraph.join(" ")) });
+        blocks.push({ type: "paragraph", text: paragraph.join(" ") });
         paragraph = [];
       }
     }
 
     function flushList() {
-      if (listItems.length > 0) {
-        blocks.push({ type: "list", items: listItems.map(stripMarkdownNoise) });
-        listItems = [];
-      }
+      if (list) blocks.push({ type: "list", ...list });
+      list = null;
+    }
+
+    function pushItem(ordered: boolean, start: number, item: string) {
+      flushParagraph();
+      if (list && list.ordered !== ordered) flushList();
+      list ??= { ordered, start, items: [] };
+      list.items.push(item);
     }
 
     for (let index = 0; index < lines.length; index++) {
@@ -81,7 +80,7 @@
       const headers = headerCells.cells;
       const delimiter = delimiterCells.cells;
       if ((headerCells.hasPipe || delimiterCells.hasPipe) && headers.length > 0 && headers.length === delimiter.length
-        && delimiter.every(cell => /^:?-{3,}:?$/.test(cell))) {
+        && delimiter.every(cell => /^:?-+:?$/.test(cell))) {
         flushParagraph();
         flushList();
         const rows: string[][] = [];
@@ -90,13 +89,10 @@
           const nextLine = lines[index + 1].trim();
           if (!nextLine || /^(?:#{1,4}\s|[-*]\s|\d+\.\s)/.test(nextLine)) break;
           const { cells } = tableCells(nextLine);
-          rows.push(headers.map((_, column) => stripMarkdownNoise(cells[column] ?? "")));
+          rows.push(headers.map((_, column) => cells[column] ?? ""));
           index++;
         }
-        blocks.push({
-          type: "table", headers: headers.map(stripMarkdownNoise),
-          alignments: delimiter.map(tableAlignment), rows,
-        });
+        blocks.push({ type: "table", number: ++tables, headers, alignments: delimiter.map(tableAlignment), rows });
         continue;
       }
 
@@ -104,21 +100,19 @@
       if (heading) {
         flushParagraph();
         flushList();
-        blocks.push({ type: "heading", text: stripMarkdownNoise(heading[1] ?? "") });
+        blocks.push({ type: "heading", text: heading[1] ?? "" });
         continue;
       }
 
       const bullet = line.match(/^[-*]\s+(.+)$/);
       if (bullet) {
-        flushParagraph();
-        listItems.push(bullet[1] ?? "");
+        pushItem(false, 1, bullet[1] ?? "");
         continue;
       }
 
-      const numbered = line.match(/^\d+\.\s+(.+)$/);
+      const numbered = line.match(/^(\d+)\.\s+(.+)$/);
       if (numbered) {
-        flushParagraph();
-        listItems.push(numbered[1] ?? "");
+        pushItem(true, Number(numbered[1]), numbered[2] ?? "");
         continue;
       }
 
@@ -131,6 +125,20 @@
     return blocks;
   }
 
+  // Keyboard users need to scroll a wide table; a table that fits must not be an extra tab stop.
+  function focusableWhenScrollable(node: HTMLElement) {
+    const update = () => {
+      if (node.scrollWidth > node.clientWidth) node.setAttribute("tabindex", "0");
+      else node.removeAttribute("tabindex");
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    if (node.firstElementChild) observer.observe(node.firstElementChild);
+    return { destroy: () => observer.disconnect() };
+  }
+
   const blocks = $derived(parseMarkdown(content));
 </script>
 
@@ -138,6 +146,12 @@
   {#each blocks as block}
     {#if block.type === "heading"}
       <h3><ResponseText text={block.text} /></h3>
+    {:else if block.type === "list" && block.ordered}
+      <ol start={block.start}>
+        {#each block.items as item}
+          <li><ResponseText text={item} /></li>
+        {/each}
+      </ol>
     {:else if block.type === "list"}
       <ul>
         {#each block.items as item}
@@ -145,8 +159,7 @@
         {/each}
       </ul>
     {:else if block.type === "table"}
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to scroll wide tables.) -->
-      <div class="table-scroll" role="region" aria-label="Response table" tabindex="0">
+      <div class="table-scroll" role="region" aria-label="Response table {block.number} in answer {answerId}" use:focusableWhenScrollable>
         <table>
           <thead>
             <tr>
@@ -231,7 +244,8 @@
     line-height: 1.55;
   }
 
-  .response-markdown ul {
+  .response-markdown ul,
+  .response-markdown ol {
     display: grid;
     gap: 5px;
     margin: 0;
