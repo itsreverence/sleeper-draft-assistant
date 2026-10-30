@@ -294,4 +294,28 @@ describe("Team ask panel", () => {
     expect(onPromptRequestHandled).toHaveBeenCalledWith(1);
     expect(await screen.findByText("Investigate the market move before changing your roster.")).toBeTruthy();
   });
+
+  it("cancel returns the composer to idle and discards the late answer", async () => {
+    const answer = createDeferred<string>();
+    const onAsk = vi.fn(() => answer.promise);
+    render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk,
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    await waitFor(() => expect(onAsk).toHaveBeenCalledOnce());
+    expect(screen.getByText("Thinking…")).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Thinking…")).toBeNull();
+    expect(screen.getByText(/^Cancelled\./)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask Codex" })).toBeTruthy();
+
+    answer.resolve("Late answer");
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Follow-up" } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText("Late answer")).toBeNull();
+    expect(screen.getByText("Who should I start this week?")).toBeTruthy();
+  });
 });

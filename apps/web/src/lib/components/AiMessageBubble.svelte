@@ -21,6 +21,8 @@
   <div class="message-bubble status-{message.status ?? "complete"}">
     {#if message.status === "loading"}
       <div class="loading-line"><RequestPhase phase={message.phase} /></div>
+    {:else if message.status === "cancelled"}
+      <p class="cancelled-line">{message.content}</p>
     {:else if message.role === "assistant"}
       <ResponseMarkdown content={message.content} />
     {:else}
@@ -45,8 +47,10 @@
 
     {#if message.role === "assistant" && message.status !== "loading"}
       <div class="message-actions">
-        <button class="tiny-action" type="button" onclick={() => onCopy?.(message.content)}>Copy</button>
-        {#if message.status === "error"}
+        {#if message.status !== "cancelled"}
+          <button class="tiny-action" type="button" onclick={() => onCopy?.(message.content)}>Copy</button>
+        {/if}
+        {#if message.status === "error" || message.status === "cancelled"}
           <button class="tiny-action" type="button" onclick={() => onRetry?.()}>Retry</button>
         {/if}
       </div>
@@ -87,6 +91,15 @@
   .status-error {
     border-color: var(--danger-border);
     background: var(--danger-soft);
+  }
+
+  .status-cancelled {
+    border-style: dashed;
+    background: transparent;
+  }
+
+  .cancelled-line {
+    color: var(--text-muted);
   }
 
   .message-bubble p {

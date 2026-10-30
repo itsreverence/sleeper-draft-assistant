@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { AiRequestProgress } from "../api";
   import type { SuggestedQuestion } from "../ai-panel";
-  import { createAiConversation } from "../ai-conversation.svelte";
+  import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
   import { aiProviderAvailability, isAiProviderAvailable } from "../types";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
@@ -207,10 +207,13 @@
       placeholder={conversation.messages.length > 0 ? "Ask a follow-up…" : "Ask something else…"}
       disabled={!teamState || !providerReady}
     ></textarea>
-    <button class="btn btn-primary" type="button" aria-label="Ask Codex" disabled={conversation.isAsking || !conversation.question.trim() || !teamState || !providerReady} onclick={() => submit()}>
-      {#if conversation.isAsking}<span class="spinner"></span>{/if}
-      {conversation.isAsking ? "Reviewing" : conversation.messages.length > 0 ? "Ask Codex" : "Ask"}
-    </button>
+    {#if conversation.isAsking}
+      <button class="btn btn-secondary" type="button" title={CANCEL_REQUEST_HELP} onclick={conversation.cancel}>Cancel</button>
+    {:else}
+      <button class="btn btn-primary" type="button" aria-label="Ask Codex" disabled={!conversation.question.trim() || !teamState || !providerReady} onclick={() => submit()}>
+        {conversation.messages.length > 0 ? "Ask Codex" : "Ask"}
+      </button>
+    {/if}
   </div>{/if}
 </article>
 

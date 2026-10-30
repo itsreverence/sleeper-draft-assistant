@@ -10,3 +10,11 @@ it("copies the original Markdown after rendering a table", async () => {
   await fireEvent.click(screen.getByRole("button", { name: "Copy" }));
   expect(onCopy).toHaveBeenCalledExactlyOnceWith(content);
 });
+
+it("a cancelled message offers Retry but not Copy", async () => {
+  const onRetry = vi.fn();
+  render(AiMessageBubble, { message: { id: "cancelled", role: "assistant", status: "cancelled", content: "Cancelled." }, onRetry });
+  expect(screen.queryByRole("button", { name: "Copy" })).toBeNull();
+  await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(onRetry).toHaveBeenCalledOnce();
+});

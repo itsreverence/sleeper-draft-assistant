@@ -609,7 +609,7 @@ async function aiFetch(input: RequestInfo | URL, init: RequestInit, progress: Ai
     if (progress.signal?.aborted) throw new Error("AI request was cancelled.");
     const headers = new Headers(init.headers);
     headers.set("X-AI-Request", key);
-    return await apiFetch(input, { ...init, headers });
+    return await apiFetch(input, { ...init, headers, signal: progress.signal });
   } finally {
     finished = true;
     clearTimeout(timer);

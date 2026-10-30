@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { AiRequestProgress } from "../api";
   import { tick } from "svelte";
-  import { createAiConversation } from "../ai-conversation.svelte";
+  import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
   import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
@@ -195,16 +195,11 @@
                 ? "Ask a follow-up about this draft."
                 : "Ask who to draft, compare players, or test a what-if."}
             />
-            <button
-              class="composer-send"
-              aria-label={conversation.isAsking ? "Asking" : "Ask AI"}
-              type="button"
-              disabled={conversation.isAsking || !conversation.question.trim()}
-              onclick={() => submit()}
-            >
-              {#if conversation.isAsking}<span class="spinner"></span>{/if}
-              {conversation.isAsking ? "Asking" : "Send"}
-            </button>
+            {#if conversation.isAsking}
+              <button class="composer-send composer-cancel" type="button" title={CANCEL_REQUEST_HELP} onclick={conversation.cancel}>Cancel</button>
+            {:else}
+              <button class="composer-send" aria-label="Ask AI" type="button" disabled={!conversation.question.trim()} onclick={() => submit()}>Send</button>
+            {/if}
           </div>
         </div>
       </div>
@@ -427,6 +422,16 @@
   .composer-send:disabled {
     cursor: not-allowed;
     opacity: 0.45;
+  }
+
+  .composer-cancel {
+    border: 1px solid var(--border-strong);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+
+  .composer-cancel:hover {
+    background: var(--surface-hover);
   }
 
   .provider-readiness {

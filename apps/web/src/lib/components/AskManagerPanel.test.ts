@@ -121,7 +121,7 @@ describe("Ask manager panel", () => {
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
-      expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
     });
 
     await view.rerender({
@@ -143,7 +143,7 @@ describe("Ask manager panel", () => {
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
-      expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
       expect(screen.getByText("Question B")).toBeTruthy();
       expect(screen.queryByText("Question A")).toBeNull();
     });
@@ -151,7 +151,7 @@ describe("Ask manager panel", () => {
     firstAnswer.resolve({ answer: "Answer A", strategyProposal: null });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
       expect(screen.queryByText("Answer A")).toBeNull();
       expect(screen.getByText("Question B")).toBeTruthy();
     });
@@ -205,7 +205,7 @@ describe("Ask manager panel", () => {
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
-      expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
     });
 
     await view.rerender({
@@ -234,7 +234,7 @@ describe("Ask manager panel", () => {
     firstAnswer.resolve({ answer: "Answer A", strategyProposal: null });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Asking" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
       expect(screen.queryByText("Answer A")).toBeNull();
     });
 
@@ -245,5 +245,37 @@ describe("Ask manager panel", () => {
       expect(screen.getByText("Answer B")).toBeTruthy();
       expect(screen.queryByText("Answer A")).toBeNull();
     });
+  });
+
+  it("cancel returns the composer to idle and discards the late answer", async () => {
+    const draft = createDraftPayloadFixture({ draftId: "cancel-fixture", name: "Cancel fixture" });
+    const reply = createDeferred<{ answer: string; strategyProposal: null }>();
+    let progress: AiRequestProgress | undefined;
+    const onAsk = vi.fn((_question: string, _history: unknown, options?: AiRequestProgress) => { progress = options; return reply.promise; });
+    render(AskManagerPanel, {
+      onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "cancel",
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
+    const composer = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    await fireEvent.input(composer, { target: { value: "Cancelled question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    expect(screen.getByText("Thinking…")).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(progress?.signal?.aborted).toBe(true);
+    expect(screen.queryByText("Thinking…")).toBeNull();
+    expect(screen.getByText(/^Cancelled\./)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+
+    reply.resolve({ answer: "Late answer", strategyProposal: null });
+    await fireEvent.input(screen.getByPlaceholderText("Ask a follow-up about this draft."), { target: { value: "Next question" } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Ask AI" }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText("Late answer")).toBeNull();
+    expect(screen.getByText("Cancelled question")).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await waitFor(() => expect(onAsk).toHaveBeenLastCalledWith("Next question", [{ role: "user", content: "Cancelled question" }], expect.anything()));
   });
 });

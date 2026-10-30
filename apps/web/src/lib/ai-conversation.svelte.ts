@@ -11,11 +11,14 @@ export type AiConversationDisplayMessage = {
   id: string;
   role: AiConversationMessage["role"];
   content: string;
-  status: "loading" | "error" | "complete";
+  status: "loading" | "error" | "complete" | "cancelled";
   phase?: AiRequestPhase;
   strategyProposal?: DraftStrategyProposal | null;
   strategyProposalApplied?: boolean;
 };
+
+export const CANCEL_REQUEST_HELP = "Stop waiting for this answer. A turn that already started finishes on its own and its answer is discarded.";
+const CANCELLED_MESSAGE = "Cancelled. An answer that was already in progress finishes on its own and is discarded.";
 
 export function createAiConversation(options: {
   ask: (question: string, history: AiConversationMessage[], progress: AiRequestProgress) => Promise<AiConversationReply>;
@@ -67,7 +70,7 @@ export function createAiConversation(options: {
 
   function history(): AiConversationMessage[] {
     return messages
-      .filter((message) => message.status !== "loading" && message.content.trim())
+      .filter((message) => message.status === "complete" && message.content.trim())
       .map((message) => ({ role: message.role, content: message.content.trim() }))
       .slice(-8);
   }
@@ -118,6 +121,17 @@ export function createAiConversation(options: {
     }
   }
 
+  // The abort cancels queued server work and closes the request. A model turn
+  // that already started cannot be interrupted, so its late result is dropped by
+  // the request-id guard in submit.
+  function cancel() {
+    if (!isAsking) return;
+    invalidateRequests();
+    messages = messages.map((message) => message.status === "loading"
+      ? { ...message, content: CANCELLED_MESSAGE, status: "cancelled", phase: undefined }
+      : message);
+  }
+
   async function copy(content: string) {
     try {
       await navigator.clipboard.writeText(content);
@@ -143,6 +157,7 @@ export function createAiConversation(options: {
     get lastQuestion() { return lastQuestion; },
     syncIdentity,
     submit,
+    cancel,
     clear,
     copy,
     markStrategyProposalApplied,
