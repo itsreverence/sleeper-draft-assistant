@@ -2,6 +2,7 @@
   import type { AiRequestProgress } from "../api";
   import { tick } from "svelte";
   import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
+  import { followNewest } from "../thread-scroll";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
   import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
@@ -56,6 +57,10 @@
   const conversation = createAiConversation({
     ask: (nextQuestion, history, progress) => onAsk(nextQuestion, history, progress),
     fallbackError: "The manager could not answer because the draft state is unavailable.",
+  });
+  const newest = $derived.by(() => {
+    const last = conversation.messages.at(-1);
+    return last ? { id: last.id, status: last.status } : null;
   });
   const boardChanged = $derived(
     Boolean(conversation.messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
@@ -168,7 +173,7 @@
 
       <div class:has-conversation={conversation.messages.length > 0} class="chat-workspace">
         {#if conversation.messages.length > 0}
-        <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite">
+        <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite" use:followNewest={newest}>
           {#each conversation.messages as message (message.id)}
             <AiMessageBubble
               {message}
@@ -351,8 +356,10 @@
   .conversation {
     display: grid;
     gap: 10px;
-    max-height: 310px;
-    overflow: auto;
+    max-height: clamp(300px, 50vh, 600px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     padding: var(--space-4) var(--space-5);
   }
 

@@ -2,6 +2,7 @@
   import type { AiRequestProgress } from "../api";
   import type { SuggestedQuestion } from "../ai-panel";
   import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
+  import { followNewest } from "../thread-scroll";
   import { aiProviderAvailability, isAiProviderAvailable } from "../types";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
@@ -98,6 +99,11 @@
     fallbackError: "Codex could not answer because team context is unavailable.",
   });
 
+  const newest = $derived.by(() => {
+    const last = conversation.messages.at(-1);
+    return last ? { id: last.id, status: last.status } : null;
+  });
+
   $effect(() => conversation.syncIdentity(`${conversationIdentity}:${contextKey}`));
 
   $effect(() => {
@@ -188,7 +194,7 @@
       {/each}
     </div>
   {:else}
-    <div class="conversation" aria-live="polite">
+    <div class="conversation" role="log" aria-label="Team conversation" aria-live="polite" use:followNewest={newest}>
       {#each conversation.messages as message (message.id)}
         <AiMessageBubble message={message} onCopy={conversation.copy} onRetry={() => submit(conversation.lastQuestion)} />
       {/each}
@@ -241,7 +247,7 @@
   .decision-prompt span { grid-column: 1; overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
   .decision-prompt strong { grid-column: 1; overflow: hidden; font-size: var(--text-xs); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
   .decision-prompt b { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--accent); font-size: var(--text-base); }
-  .conversation { display: grid; gap: 10px; max-height: 440px; overflow: auto; padding-right: 3px; }
+  .conversation { display: grid; gap: 10px; max-height: clamp(320px, 60vh, 720px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 3px; }
   .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-column: 2; align-items: end; gap: 8px; }
   .has-conversation .composer { grid-column: 1; }
   .composer textarea { min-height: 40px; resize: none; }

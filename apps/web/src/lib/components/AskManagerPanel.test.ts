@@ -6,6 +6,17 @@ import AskManagerPanel from "./AskManagerPanel.svelte";
 import { createAiProviderStatusFixture, createDraftPayloadFixture } from "../testing/draft-fixtures";
 import { createDeferred } from "../testing/deferred";
 
+
+// jsdom has no layout. Stack the thread's rows 100px apart so the scroll
+// position the panel chooses is observable.
+function stubThreadGeometry() {
+  return vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const parent = this.parentElement;
+    if (this.getAttribute("role") === "log" || !parent || parent.getAttribute("role") !== "log") return { top: 0 } as DOMRect;
+    return { top: Array.from(parent.children).indexOf(this) * 100 - parent.scrollTop } as DOMRect;
+  });
+}
+
 describe("Ask manager panel", () => {
   it("announces request phases and ignores progress after context changes", async () => {
     const draft = createDraftPayloadFixture({ draftId: "phase-fixture", name: "Phase fixture" });
@@ -277,5 +288,32 @@ describe("Ask manager panel", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
     await waitFor(() => expect(onAsk).toHaveBeenLastCalledWith("Next question", [{ role: "user", content: "Cancelled question" }], expect.anything()));
+  });
+
+  it("scrolls the thread to the newest message as questions and answers arrive", async () => {
+    const geometry = stubThreadGeometry();
+    const draft = createDraftPayloadFixture({ draftId: "scroll-fixture", name: "Scroll fixture" });
+    const second = createDeferred<{ answer: string; strategyProposal: null }>();
+    const onAsk = vi.fn()
+      .mockResolvedValueOnce({ answer: "First answer", strategyProposal: null })
+      .mockReturnValueOnce(second.promise);
+    render(AskManagerPanel, {
+      onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "scroll",
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
+    await fireEvent.input(screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if."), { target: { value: "First question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    expect(await screen.findByText("First answer")).toBeTruthy();
+    const log = screen.getByRole("log", { name: "Draft conversation" });
+    expect(log.scrollTop).toBe(100);
+
+    await fireEvent.input(screen.getByPlaceholderText("Ask a follow-up about this draft."), { target: { value: "Second question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await waitFor(() => expect(log.scrollTop).toBe(300));
+    second.resolve({ answer: "Second answer", strategyProposal: null });
+    expect(await screen.findByText("Second answer")).toBeTruthy();
+    expect(log.scrollTop).toBe(300);
+    geometry.mockRestore();
   });
 });

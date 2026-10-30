@@ -5,6 +5,17 @@ import TeamAskPanel from "./TeamAskPanel.svelte";
 import { createAiProviderStatusFixture, createTeamPayloadFixture } from "../testing/draft-fixtures";
 import { createDeferred } from "../testing/deferred";
 
+
+// jsdom has no layout. Stack the thread's rows 100px apart so the scroll
+// position the panel chooses is observable.
+function stubThreadGeometry() {
+  return vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const parent = this.parentElement;
+    if (this.getAttribute("role") === "log" || !parent || parent.getAttribute("role") !== "log") return { top: 0 } as DOMRect;
+    return { top: Array.from(parent.children).indexOf(this) * 100 - parent.scrollTop } as DOMRect;
+  });
+}
+
 describe("Team ask panel", () => {
   it("drops an in-flight news answer when the search setting changes", async () => {
     const answer = createDeferred<string>();
@@ -317,5 +328,28 @@ describe("Team ask panel", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(false));
     expect(screen.queryByText("Late answer")).toBeNull();
     expect(screen.getByText("Who should I start this week?")).toBeTruthy();
+  });
+
+  it("scrolls the thread to the newest message as questions and answers arrive", async () => {
+    const geometry = stubThreadGeometry();
+    const second = createDeferred<string>();
+    const onAsk = vi.fn().mockResolvedValueOnce("First answer").mockReturnValueOnce(second.promise);
+    render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk,
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    expect(await screen.findByText("First answer")).toBeTruthy();
+    const log = screen.getByRole("log", { name: "Team conversation" });
+    expect(log.scrollTop).toBe(100);
+
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Second question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await waitFor(() => expect(log.scrollTop).toBe(300));
+    second.resolve("Second answer");
+    expect(await screen.findByText("Second answer")).toBeTruthy();
+    expect(log.scrollTop).toBe(300);
+    geometry.mockRestore();
   });
 });
