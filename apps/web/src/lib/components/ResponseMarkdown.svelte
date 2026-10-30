@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import { focusableWhenScrollable } from "../focusable-when-scrollable";
   import ResponseText from "./ResponseText.svelte";
   type Alignment = "left" | "center" | "right";
   type List = { ordered: boolean; start: number; items: string[] };
@@ -122,20 +123,6 @@
     flushParagraph();
     flushList();
     return blocks;
-  }
-
-  // Keyboard users need to scroll a wide table; a table that fits must not be an extra tab stop.
-  function focusableWhenScrollable(node: HTMLElement) {
-    const update = () => {
-      if (node.scrollWidth > node.clientWidth) node.setAttribute("tabindex", "0");
-      else node.removeAttribute("tabindex");
-    };
-    update();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    if (node.firstElementChild) observer.observe(node.firstElementChild);
-    return { destroy: () => observer.disconnect() };
   }
 
   const blocks = $derived(parseMarkdown(content));
