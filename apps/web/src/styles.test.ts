@@ -25,8 +25,8 @@ function* walk(dir: string): Generator<string> {
 
 function styleText(file: string): string {
   const text = readFileSync(file, "utf8");
-  if (file.endsWith(".css")) return text;
-  return [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((match) => match[1]).join("\n");
+  const css = file.endsWith(".css") ? text : [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((match) => match[1]).join("\n");
+  return css.replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 const sheets = [...walk(src)]
@@ -62,6 +62,8 @@ const token = (name: string) => {
 describe("renderer style guard", () => {
   it("uses only the four type-scale weights", () => {
     expect(offenders(/font-weight:\s*([^;]+);/g, (match) => SCALE_WEIGHTS.has(match[1].trim()))).toEqual([]);
+    const shorthandWeights = (value: string) => [...value.matchAll(/(?<![\w.-])(\d{3,4}|bold|bolder|lighter)(?![\w.%])/g)].map((match) => match[1]);
+    expect(offenders(/\bfont:\s*([^;]+);/g, (match) => shorthandWeights(match[1]).every((weight) => SCALE_WEIGHTS.has(weight)))).toEqual([]);
   });
 
   it("keeps literal colors in theme.css", () => {
@@ -70,10 +72,8 @@ describe("renderer style guard", () => {
   });
 
   it("uses the documented breakpoints", () => {
-    expect(offenders(/@media \(max-width:\s*(\d+)px\)/g, (match) => {
-      const width = Number(match[1]);
-      return BREAKPOINTS.has(width) || LEGACY_BREAKPOINTS.has(width);
-    })).toEqual([]);
+    const widths = (prelude: string) => [...prelude.matchAll(/\(\s*(?:max|min)-width\s*:\s*(\d+)px\s*\)/g)].map((match) => Number(match[1]));
+    expect(offenders(/@media([^{]*)\{/g, (match) => widths(match[1]).every((width) => BREAKPOINTS.has(width) || LEGACY_BREAKPOINTS.has(width)))).toEqual([]);
   });
 
   it("keeps text tokens at AA on every surface", () => {
