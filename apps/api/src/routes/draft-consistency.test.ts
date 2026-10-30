@@ -199,18 +199,43 @@ describe("draft request consistency", () => {
     }));
   });
 
-  it("rejects an AI strategy if a pick is replaced without advancing the pick number", async () => {
-    const f = fixture();
-    f.correct("first-player");
-    let release!: (value: unknown) => void;
+  it("returns an answer the board overtook for display without making it the plan of record", async () => {
+    const state = finalTightEndPick();
+    const f = fixture(state);
+    let release!: (value: AiDraftStrategy) => void;
     f.strategizeDraft.mockReturnValue(new Promise((resolve) => { release = resolve; }));
     const request = f.app.request("/drafts/live/strategy", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
     });
     await vi.waitFor(() => expect(f.strategizeDraft).toHaveBeenCalled());
-    f.correct("replacement-player");
-    release({});
-    expect((await request).status).toBe(409);
+    f.getDraftState.mockResolvedValue({
+      ...structuredClone(state),
+      currentPick: 4,
+      picks: [...state.picks, { pickNo: 3, round: 2, draftSlot: 2, teamId: "user", playerId: "recommended-te" }],
+    });
+    release(finalPickStrategy("recommended-te", ["alternative-te"]));
+    const response = await request;
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      pickNumber: 3,
+      decision: { basedOnPick: 3, recommendedPlayerId: "recommended-te" },
+      alternativeCandidates: [{ player: { id: "alternative-te" } }],
+    });
+    expect(f.record).not.toHaveBeenCalled();
+  });
+
+  it("still rejects an overtaken answer that does not match the board it was asked about", async () => {
+    const state = finalTightEndPick();
+    const f = fixture(state);
+    let release!: (value: AiDraftStrategy) => void;
+    f.strategizeDraft.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    const request = f.app.request("/drafts/live/strategy", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    await vi.waitFor(() => expect(f.strategizeDraft).toHaveBeenCalled());
+    f.getDraftState.mockResolvedValue({ ...structuredClone(state), currentPick: 4 });
+    release(finalPickStrategy("rostered-rb"));
+    expect((await request).status).toBe(502);
     expect(f.record).not.toHaveBeenCalled();
   });
 
