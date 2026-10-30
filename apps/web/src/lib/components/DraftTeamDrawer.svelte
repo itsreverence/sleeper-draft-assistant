@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { DraftState, Position } from "../types";
-  import { pickNumberForDraftSlot } from "../draft-board";
+  import { nextPickForTeam } from "../draft-board";
   import Drawer from "./Drawer.svelte";
   import Icon from "./Icon.svelte";
 
@@ -35,18 +35,7 @@
     }
     return counts;
   });
-  const nextScheduledPick = $derived.by(() => {
-    if (!team || state.status === "complete") {
-      return null;
-    }
-    for (let round = 1; round <= state.settings.rounds; round += 1) {
-      const pickNo = pickNumberForDraftSlot(round, team.draftSlot, state.settings.teams);
-      if (pickNo >= state.currentPick) {
-        return pickNo;
-      }
-    }
-    return null;
-  });
+  const nextScheduledPick = $derived(team ? nextPickForTeam(state, team.id) : null);
 
 </script>
 

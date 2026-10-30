@@ -884,7 +884,8 @@ export function normalizeSleeperDraftState(input: SleeperDraftStateInput): Draft
   const teamsCount = getTeamsCount(input);
   const rounds = getRounds(input, teamsCount);
   const teams = buildTeams(input, teamsCount);
-  const picks = buildPicks(input.picks, teams, teamsCount, input.rosters ?? []);
+  const roundOrder = getRoundOrder(input.draft);
+  const picks = buildPicks(input.picks, teams, teamsCount, input.rosters ?? [], roundOrder ?? snakeRoundOrder);
   const playerPool = buildPlayerPool(input.players, input.picks);
   const userTeamId = getUserTeamId(teams, input.userRosterId);
   const totalPicks = teamsCount * rounds;
@@ -900,7 +901,7 @@ export function normalizeSleeperDraftState(input: SleeperDraftStateInput): Draft
     teams: hydrateTeamRosters(teams, picks),
     players: playerPool,
     picks,
-    pickOrder: buildDraftPickOrder(input, teams, teamsCount, rounds, picks),
+    pickOrder: buildDraftPickOrder(input, roundOrder, teams, teamsCount, rounds, picks),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -1091,7 +1092,7 @@ function getRosterIdForSlot(input: SleeperDraftStateInput, slot: number): string
   return null;
 }
 
-function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number, rosters: SleeperRoster[]): Pick[] {
+function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number, rosters: SleeperRoster[], roundOrder: RoundOrder): Pick[] {
   const teamByRosterId = new Map<string, Team>();
   const teamBySlot = new Map<number, Team>();
   const teamByOwnerId = new Map<string, Team>();
@@ -1113,7 +1114,7 @@ function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number, 
     .map((pick, index) => {
       const pickNo = numberFrom(pick.pick_no) ?? index + 1;
       const round = numberFrom(pick.round) ?? Math.ceil(pickNo / teamsCount);
-      const draftSlot = numberFrom(pick.draft_slot) ?? getDraftSlotFromPickNo(pickNo, teamsCount);
+      const draftSlot = numberFrom(pick.draft_slot) ?? getDraftSlotFromPickNo(pickNo, teamsCount, roundOrder);
       const rosterId = pick.roster_id === undefined || pick.roster_id === null ? null : String(pick.roster_id);
       const pickedBy = pick.picked_by === undefined || pick.picked_by === null ? null : String(pick.picked_by);
       const team =
@@ -1135,12 +1136,14 @@ function buildPicks(rawPicks: SleeperPick[], teams: Team[], teamsCount: number, 
 
 function buildDraftPickOrder(
   input: SleeperDraftStateInput,
+  roundOrder: RoundOrder | null,
   teams: Team[],
   teamsCount: number,
   rounds: number,
   picks: Pick[],
 ): DraftPickOrder {
-  if (input.draft.type?.toLowerCase() === "auction") {
+  // Sleeper's reported slots outrank the modeled order: a disagreement means timing is unknown, not that the board is right.
+  if (!roundOrder || picks.some((pick) => !pick.isKeeper && pick.draftSlot !== getDraftSlotFromPickNo(pick.pickNo, teamsCount, roundOrder))) {
     return { source: "unsupported", entries: [] };
   }
 
@@ -1173,7 +1176,7 @@ function buildDraftPickOrder(
   const entries = Array.from({ length: totalPicks }, (_, index) => {
     const pickNo = index + 1;
     const round = Math.ceil(pickNo / teamsCount);
-    const draftSlot = getDraftSlotFromPickNo(pickNo, teamsCount);
+    const draftSlot = getDraftSlotFromPickNo(pickNo, teamsCount, roundOrder);
     const originalTeam = teamBySlot.get(draftSlot);
     const originalTeamId = originalTeam?.id ?? toSlotTeamId(draftSlot);
     const originalRosterId = originalTeamId.startsWith("roster-")
@@ -1197,10 +1200,30 @@ function buildDraftPickOrder(
   return { source: "sleeper", entries };
 }
 
-function getDraftSlotFromPickNo(pickNo: number, teamsCount: number): number {
+type RoundOrder = (round: number) => "forward" | "reverse";
+
+const snakeRoundOrder: RoundOrder = (round) => round % 2 === 1 ? "forward" : "reverse";
+
+// Null means the format has no modeled pick order. A missing type keeps the historical snake reading.
+function getRoundOrder(draft: SleeperDraft): RoundOrder | null {
+  const type = draft.type?.trim().toLowerCase() || "snake";
+  if (type === "linear") {
+    return () => "forward";
+  }
+  if (type !== "snake") {
+    return null;
+  }
+  // A reversal round repeats the previous round's direction, then the snake continues from there.
+  const reversalRound = numberFrom(draft.settings?.reversal_round) ?? 0;
+  return reversalRound > 1
+    ? (round) => (round % 2 === 1) === (round < reversalRound) ? "forward" : "reverse"
+    : snakeRoundOrder;
+}
+
+function getDraftSlotFromPickNo(pickNo: number, teamsCount: number, roundOrder: RoundOrder): number {
   const round = Math.ceil(pickNo / teamsCount);
   const pickInRound = ((pickNo - 1) % teamsCount) + 1;
-  return round % 2 === 1 ? pickInRound : teamsCount + 1 - pickInRound;
+  return roundOrder(round) === "forward" ? pickInRound : teamsCount + 1 - pickInRound;
 }
 
 function hydrateTeamRosters(teams: Team[], picks: Pick[]): Team[] {

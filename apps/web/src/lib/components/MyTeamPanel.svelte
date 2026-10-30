@@ -157,7 +157,7 @@
             class:pill-neutral={readiness.confidence === "low"}
           >{formatConfidence(readiness.confidence)} · {readiness.projectedRosterPlayers}/{readiness.eligibleRosterPlayers} projected</span>
         {/if}
-        <button class="pill pill-neutral manage-data" type="button" aria-label="Manage team data" title={dataTitle} disabled={!onManageData} onclick={() => onManageData?.()}>Manage data<Icon name="chevron-right" size={13} /></button>
+        <button class="pill pill-neutral manage-data" type="button" title={dataTitle} disabled={!onManageData} onclick={() => onManageData?.()}>Manage team data<Icon name="chevron-right" size={13} /></button>
       </div>
     {/if}
   </header>

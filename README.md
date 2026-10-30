@@ -18,14 +18,14 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Imports user-downloaded FantasyPros season value rankings and weekly projection CSVs for team-management analysis. Draft ECR remains a labeled fallback until ROS ECR is available.
 - Stops weekly projection evidence from reaching Codex after the three-day freshness window and follows Sleeper automatically when the active fantasy week advances.
 - Gives Codex the live roster, inferred availability, weekly projections, ROS ECR or labeled draft ECR fallback, Sleeper injury/practice/depth-chart status, matchup state, and league activity as separate evidence for team-management advice.
-- Keeps Team Manager focused on the Codex command bar and live Sleeper roster. The top bar carries the week, matchup, and scoring; the roster table shows each player's week, projection, and status with data readiness in its header and footer; imports stay in **Manage data**.
+- Keeps Team Manager focused on the Codex command bar and live Sleeper roster. The top bar carries the week, matchup, and scoring; the roster table shows each player's week, projection, and status with data readiness in its header and footer; imports stay in **Manage team data**.
 - Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Runs Codex locally through the supported app-server integration.
 - Lets Codex check public NFL.com, ESPN, official team-site and NBC Sports injury, practice, or role reporting when useful, with dated source links and bounded lookups. News supplements Sleeper state and imported values.
 - Keeps one local Codex process and one temporary thread per draft or team while the app is running. Follow-up questions keep their context without the UI resending earlier messages.
 - Uses Codex as the primary draft strategist near your turn. It reasons from neutral draft evidence and can search the full read-only available-player snapshot.
-- Labels recommendations as contingent targets until your team is on the clock, shows the exact wait and snake-turn pairing, and separates elite fallers from turn-range contingencies.
+- Labels recommendations as contingent targets until your team is on the clock, shows the exact wait and turn pairing, and separates elite fallers from turn-range contingencies.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
 - Lets users add next-pick or rest-of-draft guidance, and lets AI chat propose guidance that is persisted only after explicit user confirmation.

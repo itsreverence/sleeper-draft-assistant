@@ -414,12 +414,15 @@ function findNextUserPick(state: DraftPlayerSnapshot["state"]): number | null {
   const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot;
   if (!userSlot) return null;
   if (state.pickOrder?.source === "unsupported") return null;
+  if (state.pickOrder?.entries.length) {
+    const entries = state.pickOrder.entries;
+    const onTheClock = entries.find((entry) => entry.pickNo === state.currentPick)?.teamId === state.userTeamId;
+    const start = onTheClock ? state.currentPick + 1 : state.currentPick;
+    return entries.find((entry) => entry.pickNo >= start && entry.teamId === state.userTeamId)?.pickNo ?? null;
+  }
   const currentSlot = draftSlotForPick(state.currentPick, state.settings.teams);
   const start = currentSlot === userSlot ? state.currentPick + 1 : state.currentPick;
   const totalPicks = state.settings.teams * state.settings.rounds;
-  if (state.pickOrder?.entries.length) {
-    return state.pickOrder.entries.find((entry) => entry.pickNo >= start && entry.teamId === state.userTeamId)?.pickNo ?? null;
-  }
   for (let pickNo = start; pickNo <= totalPicks; pickNo += 1) {
     if (draftSlotForPick(pickNo, state.settings.teams) === userSlot) return pickNo;
   }

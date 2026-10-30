@@ -6,6 +6,33 @@ import { buildDraftQuestionContext, buildDraftStrategyContext } from "./context"
 import { NoopAiProvider } from "./noop-provider";
 
 describe("AI provider context", () => {
+  it("reports linear turn timing from the normalized pick order", () => {
+    const state = createMockDraftState(0);
+    const teams = state.teams.length;
+    const userSlot = state.teams.find((team) => team.id === state.userTeamId)!.draftSlot;
+    const entries = Array.from({ length: teams * 3 }, (_, index) => {
+      const draftSlot = (index % teams) + 1;
+      const teamId = state.teams.find((team) => team.draftSlot === draftSlot)!.id;
+      return { pickNo: index + 1, round: Math.floor(index / teams) + 1, draftSlot, teamId, originalTeamId: teamId, isTraded: false };
+    });
+    const currentPick = teams + userSlot - 1;
+    const context = buildDraftQuestionContext(
+      { ...state, status: "drafting", currentPick, pickOrder: { source: "sleeper", entries } },
+      "When do I pick?",
+      [],
+      { pinned: [], faded: [], excluded: [] },
+    );
+
+    expect(context.draft).toMatchObject({
+      nextUserPick: currentPick + 1,
+      picksUntilNextUserPick: 1,
+      followingUserPick: currentPick + 1 + teams,
+      picksBetweenUserTurns: teams - 1,
+      pickOrderSource: "sleeper",
+      pickOrderNote: null,
+    });
+  });
+
   it("builds a neutral draft question packet from draft state", () => {
     const state = createMockDraftState(3);
     const focusPlayer = state.players.find((player) => !state.picks.some((pick) => pick.playerId === player.id));

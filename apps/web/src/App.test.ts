@@ -148,6 +148,7 @@ describe("App draft lifecycle", () => {
 
   it("returns to the connection screen after deleting local data without reloading the page", async () => {
     window.localStorage.setItem("sleeperUsername", "remembered-user");
+    window.localStorage.setItem("workspaceMode:league-1", "manage");
     render(App);
 
     const username = await screen.findByLabelText("Sleeper username");
@@ -164,6 +165,7 @@ describe("App draft lifecycle", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Application settings" })).toBeNull());
     expect((screen.getByLabelText("Sleeper username") as HTMLInputElement).value).toBe("");
     expect(window.localStorage.getItem("sleeperUsername")).toBeNull();
+    expect(window.localStorage.getItem("workspaceMode:league-1")).toBeNull();
   });
 
   it("one activation commits state/storage/one EventSource", async () => {

@@ -117,7 +117,7 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Lineup Choose starters" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenCalledWith("Who should I start this week?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -191,7 +191,7 @@ describe("Team ask panel", () => {
     expect(screen.getByText("The Assistant is disabled")).toBeTruthy();
     expect(screen.getByTitle("Assistant disabled")).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: "Ask Assistant about your team" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Who should I start this week?" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Lineup Choose starters" })).toBeNull();
     expect(onAsk).not.toHaveBeenCalled();
   });
 
@@ -329,7 +329,7 @@ describe("Team ask panel", () => {
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       onAsk,
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Lineup Choose starters" }));
     await waitFor(() => expect(onAsk).toHaveBeenCalledOnce());
     expect(screen.getByText("Thinking…")).toBeTruthy();
 
@@ -354,7 +354,7 @@ describe("Team ask panel", () => {
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       onAsk,
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Lineup Choose starters" }));
     expect(await screen.findByText("First answer")).toBeTruthy();
     const log = screen.getByRole("log", { name: "Team conversation" });
     expect(log.scrollTop).toBe(100);
