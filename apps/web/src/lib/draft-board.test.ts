@@ -190,7 +190,7 @@ describe("draft board", () => {
 
   describe("pick strip", () => {
     const drafting = (currentPick: number) => {
-      const state = createMockDraftState(8);
+      const state = createMockDraftState(currentPick - 1);
       return { ...state, status: "drafting" as const, currentPick };
     };
 

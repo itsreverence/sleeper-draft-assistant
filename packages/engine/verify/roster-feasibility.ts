@@ -59,16 +59,16 @@ function makePlayer(id: string, position: Position): Player {
 
 function makeState(slots: Slots, counts: Counts): DraftState {
   const roster = POSITIONS.flatMap((position) => rostered[position].slice(0, counts[position]));
-  const currentPick = roster.length + 1;
+  const currentPick = 1;
   return {
     id: "verify", name: "verify", status: "drafting", currentPick, userTeamId: USER,
-    settings: { teams: 1, rounds: roster.length + MAX_REMAINING, scoring: "PPR", rosterSlots: { ...slots, BN: 1 } },
+    settings: { teams: 1, rounds: roster.length + MAX_REMAINING + 1, scoring: "PPR", rosterSlots: { ...slots, BN: 1 } },
     teams: [
       { id: USER, name: USER, draftSlot: 1, roster: roster.map((player) => player.id) },
       { id: OTHER, name: OTHER, draftSlot: 2, roster: [] },
     ],
     players: [...roster, ...candidates],
-    picks: roster.map((player, index) => ({ pickNo: index + 1, round: index + 1, draftSlot: 1, teamId: USER, playerId: player.id })),
+    picks: roster.map((player, index) => ({ pickNo: MAX_REMAINING + 2 + index, round: MAX_REMAINING + 2 + index, isKeeper: true, draftSlot: 1, teamId: USER, playerId: player.id })),
     pickOrder: { source: "sleeper", entries: [] },
     updatedAt: "2026-10-22T00:00:00.000Z",
   };
@@ -80,7 +80,9 @@ function setRemainingPicks(state: DraftState, remaining: number) {
   const entry = (offset: number, teamId: string) => ({
     pickNo: state.currentPick + offset, round: state.currentPick + offset, draftSlot: teamId === USER ? 1 : 2, teamId, originalTeamId: teamId, isTraded: false,
   });
-  state.pickOrder!.entries = [...Array.from({ length: remaining }, (_, index) => entry(index, USER)), entry(remaining, OTHER)];
+  state.pickOrder!.entries = [...Array.from({ length: remaining }, (_, index) => entry(index, USER)), entry(remaining, OTHER), ...state.picks.map((pick) => ({
+    pickNo: pick.pickNo, round: pick.round, draftSlot: 1, teamId: USER, originalTeamId: USER, isTraded: false,
+  }))];
 }
 
 function* range(max: number): Generator<number> { for (let n = 0; n <= max; n += 1) yield n; }

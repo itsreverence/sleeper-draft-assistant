@@ -1,3 +1,4 @@
+import { firstUnmadePick } from "@sleeper-draft-assistant/shared/draft-timing";
 import type { DraftPickOrder, DraftSettings, DraftState, Pick, Player, Position, Team, TeamActivitySummary, TeamManagerState, TeamWeekContext, TeamWeekPlayer } from "@sleeper-draft-assistant/shared";
 import { STARTER_SLOT_POSITIONS } from "@sleeper-draft-assistant/shared/roster-slots";
 
@@ -895,7 +896,7 @@ export function normalizeSleeperDraftState(input: SleeperDraftStateInput): Draft
     leagueId: input.draft.league_id ?? input.league?.league_id ?? null,
     name: buildDraftName(input),
     status: normalizeDraftStatus(input.draft.status, picks.length, totalPicks),
-    currentPick: Math.min(picks.length + 1, totalPicks || picks.length + 1),
+    currentPick: firstUnmadePick(picks, totalPicks),
     userTeamId,
     settings: buildDraftSettings(input, teamsCount, rounds),
     teams: hydrateTeamRosters(teams, picks),
@@ -917,7 +918,7 @@ function getTeamsCount(input: SleeperDraftStateInput): number {
 function getRounds(input: SleeperDraftStateInput, teamsCount: number): number {
   const settings = input.draft.settings ?? {};
   const rosterSlots = input.league?.roster_positions?.length;
-  return numberFrom(settings.rounds) ?? rosterSlots ?? Math.max(1, Math.ceil(input.picks.length / teamsCount));
+  return numberFrom(settings.rounds) ?? rosterSlots ?? Math.max(1, Math.ceil(Math.max(input.picks.length, ...input.picks.map((pick) => pick.pick_no ?? 0)) / teamsCount));
 }
 
 function buildDraftName(input: SleeperDraftStateInput): string {

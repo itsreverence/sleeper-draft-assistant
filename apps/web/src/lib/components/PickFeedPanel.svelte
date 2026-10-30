@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { recentDraftPicks } from "@sleeper-draft-assistant/shared/draft-timing";
   import Icon from "./Icon.svelte";
   import PositionChip from "./PositionChip.svelte";
   import type { DraftState } from "../types";
@@ -7,7 +8,7 @@
   let { state, limit = 8 }: { state: DraftState; limit?: number } = $props();
 
   const positionById = $derived(new Map(state.players.map((player) => [player.id, player.position])));
-  const recentPicks = $derived([...state.picks].reverse().slice(0, limit));
+  const recentPicks = $derived(recentDraftPicks(state, limit));
 </script>
 
 <article class="panel">

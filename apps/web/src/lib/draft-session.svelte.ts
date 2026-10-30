@@ -230,7 +230,7 @@ export function createDraftSession({
     });
 
     source.addEventListener("pick", (event) => {
-      handlePayloadEvent(event, (payload) => `Pick ${payload.state.currentPick - 1} recorded`);
+      handlePayloadEvent(event, () => "Draft picks updated");
     });
 
     source.addEventListener("heartbeat", (event) => {

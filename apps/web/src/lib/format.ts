@@ -1,3 +1,4 @@
+import { countUnmadePicks, remainingTeamPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared/player-status";
 import type { ConnectDraft, DraftOption, DraftState, Player, TeamManagerState, TeamWeekContext, WeeklyProjectionImportSummary } from "./types";
 
@@ -192,7 +193,7 @@ export function picksUntilUserTurn(state: DraftState | null): number | null {
   if (!state || nextPick === undefined) {
     return null;
   }
-  return nextPick - state.currentPick;
+  return countUnmadePicks(state, state.currentPick, nextPick);
 }
 
 export function upcomingUserPicks(state: DraftState | null, limit = 2): number[] {
@@ -200,21 +201,7 @@ export function upcomingUserPicks(state: DraftState | null, limit = 2): number[]
   if (!state || !userTeam || state.status === "complete" || limit <= 0 || state.pickOrder?.source === "unsupported") {
     return [];
   }
-  if (state.pickOrder?.entries.length) {
-    return state.pickOrder.entries
-      .filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId)
-      .slice(0, limit)
-      .map((entry) => entry.pickNo);
-  }
-
-  const picks: number[] = [];
-  const totalPicks = state.settings.teams * state.settings.rounds;
-  for (let pickNo = state.currentPick; pickNo <= totalPicks && picks.length < limit; pickNo += 1) {
-    if (draftSlotForPick(pickNo, state.settings.teams) === userTeam.draftSlot) {
-      picks.push(pickNo);
-    }
-  }
-  return picks;
+  return remainingTeamPicks(state, state.userTeamId).slice(0, limit);
 }
 
 export function formatDraftPick(pickNo: number, teamCount: number): string {
