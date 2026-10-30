@@ -1,3 +1,4 @@
+import { countUnmadePicks, remainingTeamPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import { z } from "zod";
 
 import { getAvailablePlayers } from "@sleeper-draft-assistant/engine";
@@ -27,7 +28,7 @@ export type DraftPlayerSnapshot = {
   basedOnPick: number;
   players: Player[];
   allPlayers: Player[];
-  state: Pick<DraftState, "currentPick" | "settings" | "teams" | "picks" | "pickOrder" | "userTeamId">;
+  state: Pick<DraftState, "status" | "currentPick" | "settings" | "teams" | "picks" | "pickOrder" | "userTeamId">;
   draftedPlayerIds: Set<string>;
   preferences: {
     pinned: Set<string>;
@@ -53,6 +54,7 @@ export function createDraftPlayerSnapshot(
     players: getAvailablePlayers(state).map((player) => structuredClone(player)),
     allPlayers: state.players.map((player) => structuredClone(player)),
     state: {
+      status: state.status,
       currentPick: state.currentPick,
       settings: structuredClone(state.settings),
       teams: structuredClone(state.teams),
@@ -228,7 +230,7 @@ export function createDraftStrategyTools(snapshot: DraftPlayerSnapshot): AiTool[
           pickOrderSource: getPickOrderSource(snapshot.state),
           pickOrderNote: getPickOrderNote(snapshot.state),
           userNextPick,
-          picksUntilNextUserTurn: userNextPick === null ? null : userNextPick - snapshot.basedOnPick,
+          picksUntilNextUserTurn: userNextPick === null ? null : countUnmadePicks(snapshot.state, snapshot.basedOnPick, userNextPick),
           teamsSelectingBeforeNextTurn: teamsBeforeNextTurn,
           markets: input.positions.map((position) => {
             const players = playersByPosition.get(position) ?? [];
@@ -411,22 +413,8 @@ function groupByTier(players: Player[]): Array<{ tier: number | null; players: P
 }
 
 function findNextUserPick(state: DraftPlayerSnapshot["state"]): number | null {
-  const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot;
-  if (!userSlot) return null;
-  if (state.pickOrder?.source === "unsupported") return null;
-  if (state.pickOrder?.entries.length) {
-    const entries = state.pickOrder.entries;
-    const onTheClock = entries.find((entry) => entry.pickNo === state.currentPick)?.teamId === state.userTeamId;
-    const start = onTheClock ? state.currentPick + 1 : state.currentPick;
-    return entries.find((entry) => entry.pickNo >= start && entry.teamId === state.userTeamId)?.pickNo ?? null;
-  }
-  const currentSlot = draftSlotForPick(state.currentPick, state.settings.teams);
-  const start = currentSlot === userSlot ? state.currentPick + 1 : state.currentPick;
-  const totalPicks = state.settings.teams * state.settings.rounds;
-  for (let pickNo = start; pickNo <= totalPicks; pickNo += 1) {
-    if (draftSlotForPick(pickNo, state.settings.teams) === userSlot) return pickNo;
-  }
-  return null;
+  const picks = remainingTeamPicks(state, state.userTeamId);
+  return picks.find((pickNo) => pickNo > state.currentPick) ?? null;
 }
 
 function getTeamsBeforeNextTurn(
@@ -441,6 +429,7 @@ function getTeamsBeforeNextTurn(
   const playersById = new Map(players.map((player) => [player.id, player]));
   const selected = new Map<string, { team: string; draftSlot: number; positionCounts: Record<Position, number> }>();
   for (let pickNo = state.currentPick; pickNo < nextUserPick; pickNo += 1) {
+    if (state.picks.some((pick) => pick.pickNo === pickNo)) continue;
     const orderEntry = pickOrderByNumber.get(pickNo);
     const team = orderEntry
       ? teamsById.get(orderEntry.teamId)

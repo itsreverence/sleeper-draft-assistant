@@ -67,6 +67,7 @@ The process exits with code 0. Any `FAIL` line means behavior changed. Each line
 - **Why the bounds are small:** combining the flex types gives up to four flex slots with overlapping eligibility, which is where matching can go wrong. K and DEF are handled identically, so K slots and rostered K stay at 0. A pass covers these bounds, not every league size.
 - **Players are assumed available:** P1 assumes any position can be drafted later. The check does not model positional scarcity in the player pool.
 - **P1 policy:** while the lineup can still be completed, a pick is accepted exactly when it stays completable. Once it can't (shortfall greater than picks left), only picks that shrink the shortfall are accepted (`index.ts`, the return in `isDraftChoiceRosterFeasible`). P2 is checked only while the lineup is completable and at least one pick remains.
+- **Keeper allocations:** rostered players occupy future, filled user-owned keeper entries. These must not add remaining selections. The current pick is the first unmade slot; the existing roster counts already include these players.
 - **Remaining picks:** these come from Sleeper `pickOrder` entries only. The normal-snake fallback in `countRemainingUserPicks` is not covered.
 - **Not covered:**
   - `getRosterFit` labels
@@ -83,6 +84,8 @@ The process exits with code 0. Any `FAIL` line means behavior changed. Each line
 | P1 | `packages/engine/src/index.ts`: `isDraftChoiceRosterFeasible`, `getHardRequiredStarterGapCount`, `countRemainingUserPicks` (Sleeper-order branch), `countRosterPositions`; `packages/shared/src/roster-slots.ts`: `STARTER_SLOT_POSITIONS`, `countUnfilledStarterSlots`; consumer `apps/api/src/routes/draft-routes.ts` (strategy route validation) |
 | P2 | `packages/engine/src/index.ts`: `buildDraftOptions`, `getMandatoryCompletionPositions`, plus the P1 slot count |
 | Reference | `SLOT_ELIGIBILITY` in the harness: Sleeper's rules, sourced above, not the app's table |
+
+**Keeper-count update:** the keeper-current-pick change moves rostered allocations into future keeper entries in the harness. Reverting the engine's filled-entry exclusion must fail P1/P2; confirm the squash commit on master in a follow-up.
 
 **Sync commit:** `19a7552`, the commit at which the harness was last confirmed to describe the covered code. The changes since `b93a1ae` sit outside the covered functions. These scratch breaks were confirmed to fail it (the first again at `19a7552`):
 

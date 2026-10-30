@@ -1,3 +1,5 @@
+import { keeperCases, keeperInput } from "../../../../tests/fixtures/keeper-drafts";
+import { normalizeSleeperDraftState } from "../sleeper";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockDraftState } from "@sleeper-draft-assistant/engine";
@@ -129,6 +131,37 @@ function finalPickStrategy(recommendedPlayerId: string, alternativePlayerIds: st
 afterEach(() => vi.useRealTimers());
 
 describe("draft request consistency", () => {
+  it.each([1, 3])("validates basedOnPick %s against the first unmade pick with keepers", async (basedOnPick) => {
+    const state = normalizeSleeperDraftState(keeperInput(keeperCases[0]!));
+    const f = fixture(state);
+    const strategy = finalPickStrategy("p40");
+    strategy.decision.basedOnPick = basedOnPick;
+    strategy.decision.plan.updatedAtPick = basedOnPick;
+    f.strategizeDraft.mockResolvedValue(strategy);
+    const response = await f.app.request("/drafts/live/strategy", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(basedOnPick === 1 ? 200 : 502);
+    if (basedOnPick === 1) expect(await response.json()).toMatchObject({ pickNumber: 1, decision: { basedOnPick: 1 } });
+    else expect(f.record).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("a future owned keeper does not add a selection (Sleeper order: %s)", async (hasOrder) => {
+    const state = finalTightEndPick();
+    state.players.push({ ...state.players[0]!, id: "keeper-qb", sleeperId: "keeper-qb", position: "QB" });
+    state.teams[1]!.roster.push("keeper-qb");
+    state.picks.push({ pickNo: 4, round: 2, draftSlot: 1, teamId: "user", playerId: "keeper-qb", isKeeper: true });
+    state.pickOrder!.entries[1]!.teamId = "user";
+    if (!hasOrder) delete state.pickOrder;
+    const f = fixture(state);
+    f.strategizeDraft.mockResolvedValue(finalPickStrategy("available-rb"));
+    const response = await f.app.request("/drafts/live/strategy", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    expect(response.status).toBe(502);
+    expect(f.record).not.toHaveBeenCalled();
+  });
+
   it("rejects an available RB recommendation when the final pick must fill an empty TE slot", async () => {
     const f = fixture(finalTightEndPick());
     f.strategizeDraft.mockResolvedValue(finalPickStrategy("available-rb"));

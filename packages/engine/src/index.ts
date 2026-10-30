@@ -411,7 +411,7 @@ function getMandatoryCompletionPositions(
 
 function countRemainingUserPicks(state: DraftState): number {
   if (state.pickOrder?.source === "sleeper" && state.pickOrder.entries.length > 0) {
-    return state.pickOrder.entries.filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId).length;
+    return state.pickOrder.entries.filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId && !state.picks.some((pick) => pick.pickNo === entry.pickNo)).length;
   }
   const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot ?? 1;
   const totalPicks = state.settings.teams * state.settings.rounds;
@@ -420,7 +420,7 @@ function countRemainingUserPicks(state: DraftState): number {
     const round = Math.ceil(pickNo / state.settings.teams);
     const pickInRound = ((pickNo - 1) % state.settings.teams) + 1;
     const draftSlot = round % 2 === 1 ? pickInRound : state.settings.teams + 1 - pickInRound;
-    if (draftSlot === userSlot) {
+    if (draftSlot === userSlot && !state.picks.some((pick) => pick.pickNo === pickNo)) {
       remaining += 1;
     }
   }

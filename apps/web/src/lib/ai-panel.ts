@@ -1,3 +1,4 @@
+import { countUnmadePicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import type {
   AiProviderStatus,
   AiDraftStrategyPayload,
@@ -37,7 +38,7 @@ export function recommendationTurnPresentation(
   if (nextUserPick === null) {
     return { headline: onClockHeadline, timing: null, contingent: false, nextUserPick };
   }
-  const picksUntilTurn = nextUserPick - state.currentPick;
+  const picksUntilTurn = countUnmadePicks(state, state.currentPick, nextUserPick);
   const nextLabel = formatDraftPick(nextUserPick, state.settings.teams);
   if (state.status === "pre_draft" && picksUntilTurn === 0) {
     return {
@@ -58,9 +59,9 @@ export function recommendationTurnPresentation(
   const waitLabel = `${picksUntilTurn} pick${picksUntilTurn === 1 ? "" : "s"} away`;
   const followingTiming = followingUserPick === null
     ? ""
-    : followingUserPick - nextUserPick - 1 === 0
+    : countUnmadePicks(state, nextUserPick + 1, followingUserPick) === 0
       ? ` · Back-to-back: ${nextLabel} / ${formatDraftPick(followingUserPick, state.settings.teams)}`
-      : ` · ${followingUserPick - nextUserPick - 1} between your picks`;
+      : ` · ${countUnmadePicks(state, nextUserPick + 1, followingUserPick)} between your picks`;
   return {
     headline: `Target ${playerName} at ${nextLabel} if available`,
     timing: `${waitLabel}${followingTiming}`,

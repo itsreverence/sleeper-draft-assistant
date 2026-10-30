@@ -1,3 +1,4 @@
+import { countUnmadePicks, remainingTeamPicks, recentDraftPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import type { AiDraftPlan, DraftState, DraftStrategyInstruction, Player, Position } from "@sleeper-draft-assistant/shared";
 import { countUnfilledStarterSlots, withoutSuperFlexSlots } from "@sleeper-draft-assistant/shared/roster-slots";
 
@@ -19,8 +20,8 @@ export function buildDraftStrategyContext(
   }
   const positionCounts = countRosterPositions(userTeam, playersById);
   const openDirectStarterSlots = getOpenDirectStarterSlots(state, positionCounts);
-  const [nextUserPick = null, followingUserPick = null] = findUpcomingUserPicks(state, 2);
-  const recentPicks = [...state.picks].reverse().slice(0, 12);
+  const [nextUserPick = null, followingUserPick = null] = remainingTeamPicks(state, state.userTeamId).slice(0, 2);
+  const recentPicks = recentDraftPicks(state, 12);
   const availablePlayers = snapshot.players.filter((player) => !snapshot.preferences.excluded.has(player.id));
   const groupedPlayerEvidence = buildGroupedPlayerEvidence(snapshot, openDirectStarterSlots);
 
@@ -45,14 +46,14 @@ export function buildDraftStrategyContext(
       status: state.status,
       currentPick: state.currentPick,
       nextUserPick,
-      picksUntilNextUserPick: nextUserPick === null ? null : nextUserPick - state.currentPick,
+      picksUntilNextUserPick: nextUserPick === null ? null : countUnmadePicks(state, state.currentPick, nextUserPick),
       followingUserPick,
       picksBetweenUserTurns: nextUserPick === null || followingUserPick === null
         ? null
-        : followingUserPick - nextUserPick - 1,
+        : countUnmadePicks(state, nextUserPick + 1, followingUserPick),
       pickOrderSource: getPickOrderSource(state),
       pickOrderNote: getPickOrderNote(state),
-      remainingUserSelections: countUserPicksFrom(state, state.currentPick),
+      remainingUserSelections: remainingTeamPicks(state, state.userTeamId).length,
       updatedAt: state.updatedAt,
     },
     settings: state.settings,
@@ -158,47 +159,6 @@ function getOpenFlexSlots(state: DraftState, counts: Record<Position, number>): 
   return countUnfilledStarterSlots(withoutSuperFlexSlots(state.settings.rosterSlots), counts) - directGaps;
 }
 
-function findUpcomingUserPicks(state: DraftState, limit: number): number[] {
-  const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot;
-  if (!userSlot) {
-    return [];
-  }
-  if (state.pickOrder?.source === "unsupported") {
-    return [];
-  }
-  if (state.pickOrder?.entries.length) {
-    return state.pickOrder.entries
-      .filter((entry) => entry.pickNo >= state.currentPick && entry.teamId === state.userTeamId)
-      .slice(0, limit)
-      .map((entry) => entry.pickNo);
-  }
-  const picks: number[] = [];
-  const totalPicks = state.settings.teams * state.settings.rounds;
-  for (let pickNo = state.currentPick; pickNo <= totalPicks && picks.length < limit; pickNo += 1) {
-    if (draftSlotForPick(pickNo, state.settings.teams) === userSlot) {
-      picks.push(pickNo);
-    }
-  }
-  return picks;
-}
-
-function countUserPicksFrom(state: DraftState, fromPick: number): number {
-  if (state.pickOrder?.source === "sleeper" && state.pickOrder.entries.length > 0) {
-    return state.pickOrder.entries.filter((entry) => entry.pickNo >= fromPick && entry.teamId === state.userTeamId).length;
-  }
-  const userSlot = state.teams.find((team) => team.id === state.userTeamId)?.draftSlot;
-  if (!userSlot) {
-    return 0;
-  }
-  let count = 0;
-  for (let pickNo = fromPick; pickNo <= state.settings.teams * state.settings.rounds; pickNo += 1) {
-    if (draftSlotForPick(pickNo, state.settings.teams) === userSlot) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
 function draftSlotForPick(pickNo: number, teams: number): number {
   const round = Math.ceil(pickNo / teams);
   const pickInRound = ((pickNo - 1) % teams) + 1;
@@ -239,6 +199,7 @@ function getTeamsSelectingBeforeNextTurn(
   const pickOrderByNumber = new Map((state.pickOrder?.entries ?? []).map((entry) => [entry.pickNo, entry]));
   const selected = new Map<string, DraftStrategyContext["board"]["teamsSelectingBeforeNextTurn"][number]>();
   for (let pickNo = state.currentPick; pickNo < nextUserPick; pickNo += 1) {
+    if (state.picks.some((pick) => pick.pickNo === pickNo)) continue;
     const orderEntry = pickOrderByNumber.get(pickNo);
     const team = orderEntry
       ? teamsById.get(orderEntry.teamId)

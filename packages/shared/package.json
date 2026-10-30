@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./draft-timing": "./src/draft-timing.ts",
     "./player-status": "./src/player-status.ts",
     "./roster-slots": "./src/roster-slots.ts"
   },

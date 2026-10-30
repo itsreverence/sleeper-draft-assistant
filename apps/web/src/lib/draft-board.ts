@@ -1,3 +1,4 @@
+import { remainingTeamPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import type { DraftState, Pick, Player, Position, Team } from "@sleeper-draft-assistant/shared";
 import { countUnfilledStarterSlots, STARTER_SLOT_POSITIONS } from "@sleeper-draft-assistant/shared/roster-slots";
 
@@ -48,20 +49,7 @@ export function roundDirection(state: DraftState, round: number): RoundDirection
 }
 
 export function nextPickForTeam(state: DraftState, teamId: string): number | null {
-  if (state.status === "complete" || state.pickOrder?.source === "unsupported") {
-    return null;
-  }
-  if (state.pickOrder?.entries.length) {
-    return state.pickOrder.entries.find((entry) => entry.pickNo >= state.currentPick && entry.teamId === teamId)?.pickNo ?? null;
-  }
-  const team = state.teams.find((candidate) => candidate.id === teamId);
-  if (!team) {
-    return null;
-  }
-  const pickNo = range(1, state.settings.rounds)
-    .map((round) => pickNumberForDraftSlot(round, team.draftSlot, state.settings.teams))
-    .find((candidate) => candidate >= state.currentPick);
-  return pickNo ?? null;
+  return remainingTeamPicks(state, teamId)[0] ?? null;
 }
 
 export function currentPickAnnouncement(state: DraftState): string {
