@@ -1,8 +1,9 @@
 <script lang="ts">
-  import type { AiRequestProgress } from "../api";
+  import type { AiRequestPhase, AiRequestProgress } from "../api";
   import { draftStateRevision } from "@sleeper-draft-assistant/shared";
   import Icon from "./Icon.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
+  import RequestPhase from "./RequestPhase.svelte";
   import { currentAiDraftStrategy, recommendationTurnPresentation } from "../ai-panel";
   import { formatDraftPick, rosterFitLabel, sourceLabel } from "../format";
   import type { AiDraftStrategyPayload, DraftOption, DraftState, PlayerPreferenceLevel, PlayerPreferences } from "../types";
@@ -71,7 +72,7 @@
   let aiStrategyRequestId = 0;
   let strategyController: AbortController | undefined;
   let explicitRefresh = false;
-  let phaseMessage = $state("Thinking…");
+  let phase: AiRequestPhase = $state("thinking");
   $effect(() => {
     currentRequestKey;
     return () => { strategyController?.abort(); };
@@ -171,8 +172,8 @@
       strategyController = new AbortController();
       const automatic = !explicitRefresh;
       explicitRefresh = false;
-      void onRequestAiStrategy(automatic, { signal: strategyController.signal, onPhase: (phase) => {
-        if (requestId === aiStrategyRequestId && requestKey === currentRequestKey) phaseMessage = phase === "queued" ? "Waiting for another AI request…" : phase === "news" ? "Checking news…" : "Thinking…";
+      void onRequestAiStrategy(automatic, { signal: strategyController.signal, onPhase: (nextPhase) => {
+        if (requestId === aiStrategyRequestId && requestKey === currentRequestKey) phase = nextPhase;
       } })
         .then((payload) => {
           if (requestId === aiStrategyRequestId && requestKey === currentRequestKey && payload.pickNumber === currentPick) {
@@ -223,10 +224,7 @@
             <span class="previous-recommendation-label">Previous recommendation</span>
           {/if}
           {#if isLoadingAiStrategy}
-            <div class="strategy-refresh-status">
-              <span class="spinner"></span>
-              <strong>{phaseMessage}</strong>
-            </div>
+            <div class="strategy-refresh-status"><RequestPhase {phase} /></div>
           {/if}
           {#if aiStrategyError}
             <div class="strategy-refresh-error">
@@ -381,11 +379,8 @@
     </div>
   {:else if isLoadingAiStrategy}
     <div class="ai-strategy-pending" aria-live="polite">
-      <span class="spinner"></span>
-      <div>
-        <strong>{phaseMessage}</strong>
-        <span>Codex can search the complete available-player pool while it evaluates the current roster and draft room.</span>
-      </div>
+      <strong><RequestPhase {phase} /></strong>
+      <span>Codex can search the complete available-player pool while it evaluates the current roster and draft room.</span>
     </div>
   {:else if aiStrategyEnabled && aiStrategyError}
     <div class="callout callout-warning" aria-live="polite">
@@ -479,8 +474,7 @@
     text-underline-offset: 3px;
   }
 
-  .empty-state > div,
-  .ai-strategy-pending > div {
+  .empty-state > div {
     display: grid;
     gap: 3px;
   }
@@ -629,16 +623,11 @@
 
   .ai-strategy-pending {
     display: grid;
-    gap: 9px;
+    gap: 6px;
     border: 1px solid var(--accent-border);
     border-radius: var(--radius-md);
     background: var(--accent-soft);
     padding: 14px;
-  }
-
-  .ai-strategy-pending {
-    grid-template-columns: auto 1fr;
-    align-items: center;
   }
 
   .ai-strategy p {

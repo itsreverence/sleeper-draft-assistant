@@ -55,7 +55,6 @@
   );
   const conversation = createAiConversation({
     ask: (nextQuestion, history, progress) => onAsk(nextQuestion, history, progress),
-    loadingMessage: "Thinking through your draft context...",
     fallbackError: "The manager could not answer because the draft state is unavailable.",
   });
   const boardChanged = $derived(

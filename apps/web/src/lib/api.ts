@@ -587,7 +587,8 @@ export async function askTeamManagerRequest(
   return (await response.json()) as TeamAskAnswerPayload;
 }
 
-export type AiRequestProgress = { onPhase?: (phase: "queued" | "thinking" | "news") => void; signal?: AbortSignal };
+export type AiRequestPhase = "queued" | "thinking" | "news";
+export type AiRequestProgress = { onPhase?: (phase: AiRequestPhase) => void; signal?: AbortSignal };
 async function aiFetch(input: RequestInfo | URL, init: RequestInit, progress: AiRequestProgress = {}) {
   const key = crypto.randomUUID();
   let finished = false;

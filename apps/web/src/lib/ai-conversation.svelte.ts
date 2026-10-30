@@ -1,5 +1,5 @@
 import { onDestroy } from "svelte";
-import type { AiRequestProgress } from "./api";
+import type { AiRequestPhase, AiRequestProgress } from "./api";
 import type { AiConversationMessage, DraftStrategyProposal } from "./types";
 
 export type AiConversationReply = {
@@ -12,13 +12,13 @@ export type AiConversationDisplayMessage = {
   role: AiConversationMessage["role"];
   content: string;
   status: "loading" | "error" | "complete";
+  phase?: AiRequestPhase;
   strategyProposal?: DraftStrategyProposal | null;
   strategyProposalApplied?: boolean;
 };
 
 export function createAiConversation(options: {
   ask: (question: string, history: AiConversationMessage[], progress: AiRequestProgress) => Promise<AiConversationReply>;
-  loadingMessage: string;
   fallbackError: string;
 }) {
   let question = $state("");
@@ -83,7 +83,7 @@ export function createAiConversation(options: {
     lastQuestion = trimmed;
     question = "";
     const conversationHistory = history();
-    const loading = createMessage("assistant", options.loadingMessage, "loading");
+    const loading: AiConversationDisplayMessage = { ...createMessage("assistant", "", "loading"), phase: "thinking" };
     messages = [...messages, createMessage("user", trimmed), loading];
 
     controller = new AbortController();
@@ -92,8 +92,7 @@ export function createAiConversation(options: {
         signal: controller.signal,
         onPhase: (phase) => {
           if (requestId !== activeRequestId || requestIdentity !== identity) return;
-          const content = phase === "queued" ? "Waiting for another AI request…" : phase === "news" ? "Checking news…" : "Thinking…";
-          messages = messages.map((message) => message.id === loading.id ? { ...message, content } : message);
+          messages = messages.map((message) => message.id === loading.id ? { ...message, phase } : message);
         },
       });
       if (requestId !== activeRequestId || requestIdentity !== identity) return false;
@@ -102,6 +101,7 @@ export function createAiConversation(options: {
             ...message,
             content: result.answer,
             status: "complete",
+            phase: undefined,
             strategyProposal: result.strategyProposal ?? null,
           }
         : message);
@@ -110,7 +110,7 @@ export function createAiConversation(options: {
       if (requestId !== activeRequestId || requestIdentity !== identity) return false;
       const content = error instanceof Error ? error.message : options.fallbackError;
       messages = messages.map((message) => message.id === loading.id
-        ? { ...message, content, status: "error" }
+        ? { ...message, content, status: "error", phase: undefined }
         : message);
       return false;
     } finally {

@@ -95,7 +95,6 @@
     : "no-team");
   const conversation = createAiConversation({
     ask: async (nextQuestion, history, progress) => ({ answer: await onAsk(nextQuestion, history, progress) }),
-    loadingMessage: "Reviewing your roster and current evidence...",
     fallbackError: "Codex could not answer because team context is unavailable.",
   });
 

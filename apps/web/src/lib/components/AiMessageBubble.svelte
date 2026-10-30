@@ -1,6 +1,7 @@
 ﻿<script lang="ts">
   import type { AiConversationDisplayMessage } from "../ai-conversation.svelte";
   import type { DraftStrategyProposal } from "../types";
+  import RequestPhase from "./RequestPhase.svelte";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
 
   let {
@@ -19,10 +20,7 @@
 <div class="message-row role-{message.role}">
   <div class="message-bubble status-{message.status ?? "complete"}">
     {#if message.status === "loading"}
-      <div class="loading-line">
-        <span class="spinner"></span>
-        <span>{message.content}</span>
-      </div>
+      <div class="loading-line"><RequestPhase phase={message.phase} /></div>
     {:else if message.role === "assistant"}
       <ResponseMarkdown content={message.content} />
     {:else}
@@ -97,9 +95,6 @@
   }
 
   .loading-line {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
     color: var(--text-secondary);
     font-size: var(--text-sm);
   }
