@@ -40,7 +40,6 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Try a demo draft" }).click();
   await expect(page.getByRole("button", { name: "Find player", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
 });
 
 async function ask(page: Page, question: string) {
@@ -112,7 +111,7 @@ test("cancel returns the composer to idle and the late answer never appears", as
   await expect(page.getByText("Thinking…")).toHaveCount(0);
   await expect(page.getByText(/^Cancelled\./)).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ask Assistant", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toHaveCount(0);
   await expectAccessible(page);
   release();
   await page.waitForTimeout(500);

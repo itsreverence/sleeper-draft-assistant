@@ -26,7 +26,6 @@ describe("Ask manager panel", () => {
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "first",
     });
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     const chip = screen.getByLabelText("Suggested questions").querySelector("button")!;
     chip.focus();
     await fireEvent.click(chip);
@@ -43,8 +42,7 @@ describe("Ask manager panel", () => {
       onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "first",
     });
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-    await fireEvent.input(screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if."), { target: { value: "Fixture question" } });
+    await fireEvent.input(screen.getByPlaceholderText("Ask about this draft…"), { target: { value: "Fixture question" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     for (const [phase, label] of [["queued", "Waiting for another Assistant request…"], ["thinking", "Thinking…"], ["news", "Checking news…"]] as const) {
       progress?.onPhase?.(phase);
@@ -81,17 +79,13 @@ describe("Ask manager panel", () => {
       draftIdentity: `${draft.state.id}:slot-3`,
       recommendation: draft.recommendation,
     });
-
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-    expect(screen.getByText("Context ready")).toBeTruthy();
-    expect(screen.queryByText("AI context")).toBeNull();
     expect(Array.from(screen.getByLabelText("Suggested questions").querySelectorAll("button"), (button) => button.textContent?.trim())).toEqual([
       "Best target",
       "Compare best options",
       "Pass on QB?",
     ]);
 
-    const composer = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    const composer = screen.getByPlaceholderText("Ask about this draft…");
     expect(composer.tagName).toBe("INPUT");
     await fireEvent.input(composer, { target: { value: "Compare the top options" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
@@ -140,9 +134,7 @@ describe("Ask manager panel", () => {
       draftIdentity: "draft-1:slot-3",
       recommendation: firstDraft.recommendation,
     });
-
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-    const textbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    const textbox = screen.getByPlaceholderText("Ask about this draft…");
     await fireEvent.input(textbox, { target: { value: "Question A" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
@@ -164,7 +156,7 @@ describe("Ask manager panel", () => {
       recommendation: secondDraft.recommendation,
     });
 
-    const secondTextbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    const secondTextbox = screen.getByPlaceholderText("Ask about this draft…");
     await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
@@ -224,9 +216,7 @@ describe("Ask manager panel", () => {
       draftIdentity: "draft-1:slot-3",
       recommendation: draft.recommendation,
     });
-
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-    const textbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    const textbox = screen.getByPlaceholderText("Ask about this draft…");
     await fireEvent.input(textbox, { target: { value: "Question A" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
@@ -248,7 +238,7 @@ describe("Ask manager panel", () => {
       recommendation: draft.recommendation,
     });
 
-    const secondTextbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    const secondTextbox = screen.getByPlaceholderText("Ask about this draft…");
     await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
@@ -283,8 +273,7 @@ describe("Ask manager panel", () => {
       onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "cancel",
     });
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-    const composer = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+    const composer = screen.getByPlaceholderText("Ask about this draft…");
     await fireEvent.input(composer, { target: { value: "Cancelled question" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     expect(screen.getByText("Thinking…")).toBeTruthy();
@@ -317,8 +306,7 @@ describe("Ask manager panel", () => {
       onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "scroll",
     });
-    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-    await fireEvent.input(screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if."), { target: { value: "First question" } });
+    await fireEvent.input(screen.getByPlaceholderText("Ask about this draft…"), { target: { value: "First question" } });
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     expect(await screen.findByText("First answer")).toBeTruthy();
     const log = screen.getByRole("log", { name: "Draft conversation" });
@@ -340,8 +328,7 @@ async function openComposer(onAsk: (question: string, history: import("../types"
     onAsk, providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
     draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "composer",
   });
-  await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
-  const input = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
+  const input = screen.getByPlaceholderText("Ask about this draft…");
   await fireEvent.input(input, { target: { value: "Composer question" } });
   return input;
 }

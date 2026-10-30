@@ -32,10 +32,10 @@ const teamColumn = (round: ReturnType<typeof roundRow>, slot: number) => round.g
 
 test("a traded pick on the clock names its owner on the board and the strip", async ({ page }) => {
   await openEmergencyBoard(page, "browser-board-traded");
-  await expect(strip(page)).toContainText("You are on the clock");
+  await expect(strip(page).getByRole("heading")).toHaveText("On the clock");
   await expect(strip(page)).toContainText("Pick 3.01");
   const cell = teamColumn(roundRow(page, 3), 1);
-  await expect(cell).toContainText("On the clock");
+  await expect(cell).toContainText("Now");
   await expect(cell).toContainText("Team 2");
   await expect(cell).toContainText("Traded");
   await expect(cell).not.toContainText("Team 1");
@@ -47,24 +47,22 @@ test("a traded pick on the clock names its owner on the board and the strip", as
 
 test("a linear draft keeps every round left to right and counts linear turns", async ({ page }) => {
   await openEmergencyBoard(page, "browser-board-linear");
-  await expect(strip(page)).toContainText("Pick 2.03");
+  await expect(strip(page)).toContainText("Now 2.03");
   await expect(strip(page)).toContainText("3 picks away");
-  await expect(strip(page)).toContainText("Next turn 3.02");
-  await expect(strip(page)).toContainText("left to right");
+  await expect(strip(page)).toContainText("Your pick 3.02");
   await page.getByRole("button", { name: "Show full draft board" }).click();
   await expect(page.getByTitle(/^Round \d+: left to right$/)).toHaveCount(4);
   const cell = teamColumn(roundRow(page, 2), 3);
   await expect(cell).toContainText("2.03");
-  await expect(cell).toContainText("On the clock");
+  await expect(cell).toContainText("Now");
 });
 
 test("a third-round reversal runs rounds two and three the same way", async ({ page }) => {
   await openEmergencyBoard(page, "browser-board-reversal");
-  await expect(strip(page)).toContainText("Pick 3.01");
-  await expect(strip(page)).toContainText("right to left");
+  await expect(strip(page)).toContainText("Now 3.01");
   await expect(page.getByTitle("Round 3: right to left")).toBeVisible();
   await expect(page.getByTitle("Round 4: left to right")).toBeVisible();
-  await expect(teamColumn(roundRow(page, 3), 4)).toContainText("On the clock");
+  await expect(teamColumn(roundRow(page, 3), 4)).toContainText("Now");
 });
 
 test("the pre-draft board puts no pick on the clock", async ({ page }) => {
@@ -76,10 +74,11 @@ test("the pre-draft board puts no pick on the clock", async ({ page }) => {
     await route.fulfill({ json: { ...payload, rankingImportSummary: summary, seasonProjectionImportSummary: summary, adpImportSummary: summary } });
   });
   await loadDraft(page, "browser-board-pre");
-  await expect(table(page)).toBeVisible();
   await expect(strip(page)).toContainText("Draft not started");
+  await page.getByRole("button", { name: "Board", exact: true }).click();
+  await expect(table(page)).toBeVisible();
   await expect(teamColumn(roundRow(page, 1), 1)).toContainText("Team 1");
-  await expect(table(page).getByText("On the clock")).toHaveCount(0);
+  await expect(table(page).getByText("Now", { exact: true })).toHaveCount(0);
 });
 
 test("the board reads round, team, pick and player as a table under axe", async ({ page }) => {

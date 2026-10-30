@@ -1,7 +1,6 @@
 import { countUnmadePicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import type {
   AiProviderStatus,
-  AiDraftStrategyPayload,
   DraftOption,
   DraftRecommendation,
   DraftState,
@@ -91,13 +90,6 @@ export function buildCandidateDiscussionQuestion(
     return `The current Assistant strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} with my upcoming pick? Validate that choice against the strongest available contingencies.`;
   }
   return `The current Assistant strategy recommends ${recommendedPlayerName}. Should I draft ${playerName} instead? Compare both players with the strongest available contingencies. If ${playerName} should replace ${recommendedPlayerName}, propose that next-pick strategy change for my confirmation.`;
-}
-
-export function currentAiDraftStrategy(
-  strategy: AiDraftStrategyPayload | null,
-  currentPick: number,
-): AiDraftStrategyPayload | null {
-  return strategy?.pickNumber === currentPick ? strategy : null;
 }
 
 const AUTOMATIC_ANALYSIS_PICKS = 2;

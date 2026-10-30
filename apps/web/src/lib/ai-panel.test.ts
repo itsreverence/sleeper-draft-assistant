@@ -11,7 +11,6 @@ import {
   buildCandidateDiscussionQuestion,
   buildPlayerDiscussionQuestion,
   buildSuggestedQuestions,
-  currentAiDraftStrategy,
   recommendationTurnPresentation,
   shouldRequestAiDraftStrategy,
 } from "./ai-panel";
@@ -132,7 +131,7 @@ describe("AI panel helpers", () => {
     expect(summary.starters).not.toContain("IR");
   });
 
-  it("requests AI-first strategy near the turn and rejects stale results", () => {
+  it("requests AI-first strategy near the turn", () => {
     const draftingState = { ...state, status: "drafting" as const };
     const providerStatus: AiProviderStatus = {
       id: "codex-app-server",
@@ -144,36 +143,6 @@ describe("AI panel helpers", () => {
     expect(shouldRequestAiDraftStrategy(draftingState, providerStatus, 3)).toBe(false);
     expect(shouldRequestAiDraftStrategy({ ...draftingState, status: "pre_draft" }, providerStatus, null)).toBe(true);
     expect(shouldRequestAiDraftStrategy({ ...draftingState, status: "complete" }, providerStatus, 0)).toBe(false);
-
-    const strategy = {
-      provider: providerStatus,
-      pickNumber: 12,
-      decision: {
-        basedOnPick: 12,
-        recommendedPlayerId: "rb-1",
-        alternativePlayerIds: [],
-        verdict: "strong" as const,
-        confidence: "high" as const,
-        headline: "Take Gibbs",
-        summary: "Best fit.",
-        reasons: ["Fills RB"],
-        risks: [],
-        plan: {
-          updatedAtPick: 12,
-          approach: "Build an RB/WR foundation.",
-          currentPickFocus: ["RB" as const],
-          nextTurnPriorities: ["WR" as const],
-          positionsThatCanWait: ["QB" as const],
-          rosterGoals: ["Add a starting receiver."],
-          watchItems: ["Monitor the WR tier."],
-          changeSummary: "Initial plan created.",
-        },
-      },
-      recommendedCandidate: recommendation.candidates[0]!,
-      alternativeCandidates: [],
-    };
-    expect(currentAiDraftStrategy(strategy, 12)).toBe(strategy);
-    expect(currentAiDraftStrategy(strategy, 13)).toBeNull();
   });
 
   it("frames an early recommendation as a contingent snake-turn target", () => {

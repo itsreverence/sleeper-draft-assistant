@@ -7,14 +7,13 @@ test.beforeEach(async ({ page }) => {
   // No third-party requests from the browser, even if a future UI adds one.
   await page.route("**/*", (route) => new URL(route.request().url()).origin === "http://127.0.0.1:15173"
     ? route.continue() : route.abort());
-  // Search is exposed only after an AI strategy exists. Control that external
-  // boundary, not the dialog behavior under test; the API itself remains noop.
+  // Control the provider boundary, not the dialog behavior under test; the API itself remains noop.
   const provider = { id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available" } as const;
   await page.route("**/api/ai/status", route => route.fulfill({ json: provider }));
   await page.route(/\/api\/drafts\/[^/]+\/state(?:\?|$)/, async route => {
     const response = await route.fetch();
     const payload = await response.json() as DraftPayload;
-    // Put the synthetic user on the clock so search is available immediately.
+    // Put the synthetic user on the clock so the room opens on its shortlist.
     payload.state.userTeamId = payload.state.teams.find(team => team.draftSlot === payload.state.currentPick)!.id;
     await route.fulfill({ json: payload });
   });
@@ -106,10 +105,10 @@ test("search scrolls to the last result without losing its header or scrolling t
 
 // Browser focus/geometry proof for each distinct modal entry point; the modal
 // unit suite owns synthetic event edge cases, not actual keyboard navigation.
-test("draft plan, roster, and switcher contain keyboard focus and restore their openers", async ({ page }) => {
+test("draft plan, picks and roster, and switcher contain keyboard focus and restore their openers", async ({ page }) => {
   const cases = [
-    { opener: page.getByRole("button", { name: "Draft plan", exact: true }), name: "Draft plan" },
-    { opener: page.getByTitle(/^View .* roster$/).first(), name: / roster$/ },
+    { opener: page.getByRole("button", { name: "Plan", exact: true }), name: "Draft plan" },
+    { opener: page.getByRole("button", { name: "Picks and roster" }), name: "Picks and roster" },
     { opener: page.getByTitle("Switch league or draft", { exact: true }), name: "Switch league or draft" },
   ];
   for (const { opener, name } of cases) {
@@ -141,11 +140,10 @@ test("draft questions preserve the plan while preference changes request fresh s
     const response = await route.fetch();
     await route.fulfill({ json: { ...await response.json(), answer: "Synthetic answer without a strategy change.", strategyProposal: null } });
   });
-  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
-  await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Compare my options without changing the plan.");
+  await page.getByPlaceholder("Ask about this pick…").fill("Compare my options without changing the plan.");
   await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
   await expect(page.getByText("Synthetic answer without a strategy change.")).toBeVisible();
-  await page.getByRole("button", { name: "Draft plan", exact: true }).click();
+  await page.getByRole("button", { name: "Plan", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Draft plan" }).getByText("Synthetic plan", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   expect(refreshes).toBe(0);
@@ -209,9 +207,8 @@ test("drawer motion is removed for reduced-motion users", async ({ page }) => {
 });
 
 test("draft and its dialogs meet automated accessibility checks", async ({ page }) => {
-  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   await expectAccessible(page);
-  for (const name of ["Open settings", "Find player", "Draft plan"]) {
+  for (const name of ["Open settings", "Find player", "Plan", "Picks and roster"]) {
     await page.getByRole("button", { name, exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expectAccessible(page);
@@ -225,15 +222,14 @@ test("draft answers contain wide Markdown tables inside the chat bubble", async 
     const response = await route.fetch();
     await route.fulfill({ json: { ...await response.json(), answer: tableAnswer, strategyProposal: null } });
   });
-  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
-  await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Show a table of lineup options.");
+  await page.getByPlaceholder("Ask about this pick…").fill("Show a table of lineup options.");
   await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
   await expectResponseTable(page);
 });
 
 test("a keyboard-activated suggestion chip hands focus to the draft composer", async ({ page }) => {
   await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
-  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
+  await page.getByRole("textbox", { name: "Ask about your draft" }).focus();
   await page.getByLabel("Suggested questions").getByRole("button").first().focus();
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Suggested questions")).toHaveCount(0);
@@ -262,7 +258,6 @@ test("several answer tables keep unique landmark names and only wide tables take
     const response = await route.fetch();
     await route.fulfill({ json: { ...await response.json(), answer: narrowAndWideTableAnswer, strategyProposal: null } });
   });
-  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   for (const [index, question] of ["Show lineup options.", "Show them again."].entries()) {
     await page.getByRole("textbox", { name: "Ask about your draft" }).fill(question);
     await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();

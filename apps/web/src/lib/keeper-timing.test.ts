@@ -22,7 +22,7 @@ describe("keeper board and turn presentation", () => {
     expect(currentDraftRound(state)).toBe(Math.ceil(test.current / 12));
     const cells = buildDraftBoardRows(state, [1, 2, 3]).flatMap((row) => row.cells);
     expect(cells.filter((cell) => cell.isCurrent).map((cell) => cell.pickNo)).toEqual(test.next === null ? [] : [test.current]);
-    const label = test.next === null ? "Draft complete" : test.away === 0 ? "You are on the clock" : `${test.away} picks away`;
+    const label = test.next === null ? "Draft complete" : test.away === 0 ? "On the clock" : `${test.away} picks away`;
     expect(pickStripSummary(state).label).toBe(label);
     const presentation = recommendationTurnPresentation(state, "Synthetic Target", "Draft Synthetic Target");
     if (test.away && test.away > 0) expect(presentation.timing).toContain(`${test.away} picks away`);
