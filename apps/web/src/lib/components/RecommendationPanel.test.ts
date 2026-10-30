@@ -140,7 +140,6 @@ describe("Recommendation panel", () => {
   it("shows contingencies as a compact fallback order without an expansion step", async () => {
     const state = createMockDraftState(8);
     const strategy = createStrategy(state, 0);
-    const onOpenPlayerSearch = vi.fn();
 
     render(RecommendationPanel, {
       draftState: state,
@@ -150,10 +149,9 @@ describe("Recommendation panel", () => {
       shouldRequestAiStrategy: true,
       strategyRequestKey: "fallback-layout",
       onRequestAiStrategy: async () => strategy,
-      onOpenPlayerSearch,
     });
 
-    expect(await screen.findByRole("heading", { name: "If unavailable" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: `If ${strategy.recommendedCandidate.player.name} is gone` })).toBeTruthy();
     const fallbackOrder = screen.getByLabelText("Fallback order");
     expect(Array.from(fallbackOrder.querySelectorAll(".fallback-rank")).map((rank) => rank.textContent)).toEqual(["1", "2", "3"]);
     expect(screen.getByText("9 picks away · High confidence · 4 between your picks")).toBeTruthy();
@@ -161,9 +159,33 @@ describe("Recommendation panel", () => {
       expect(screen.getByText(candidate.player.name)).toBeTruthy();
     }
     expect(screen.queryByRole("button", { name: `${strategy.alternativeCandidates.length} contingencies` })).toBeNull();
-    const findPlayer = screen.getByRole("button", { name: "Find player" });
-    await findPlayer.click();
-    expect(onOpenPlayerSearch).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the placeholder warning under the headline with and without a recommendation", async () => {
+    const state = createMockDraftState(8);
+    const pending = createDeferred<AiDraftStrategyPayload>();
+    render(RecommendationPanel, {
+      draftState: state, currentPick: state.currentPick, aiEnabled: true, aiStrategyEnabled: true, shouldRequestAiStrategy: true,
+      strategyRequestKey: "placeholder", showPlaceholderWarning: true, onRequestAiStrategy: () => pending.promise,
+    });
+    expect(screen.getByText("Player value data is incomplete.")).toBeTruthy();
+    pending.resolve(createStrategy(state, 0));
+    expect(await screen.findByText("Target Jahmyr Gibbs at 2.08 if available")).toBeTruthy();
+    expect(screen.getByText("Player value data is incomplete.")).toBeTruthy();
+  });
+
+  it("shows only payload facts on the player card and never a score", async () => {
+    const state = createMockDraftState(8);
+    const strategy = createStrategy(state, 0);
+    const { player } = strategy.recommendedCandidate;
+    const placeholder = { ...player, projectionSource: "sleeper_search_rank" as const, importedRank: null, adpSource: null, seasonProjectedPoints: null };
+    render(RecommendationPanel, {
+      draftState: state, currentPick: state.currentPick, aiEnabled: true, aiStrategyEnabled: true, shouldRequestAiStrategy: true,
+      strategyRequestKey: "card", onRequestAiStrategy: async () => ({ ...strategy, recommendedCandidate: { ...strategy.recommendedCandidate, player: placeholder } }),
+    });
+    await screen.findByRole("heading", { name: /^Target Jahmyr Gibbs/ });
+    const facts = Array.from(document.querySelectorAll(".player-facts li"), (item) => item.textContent?.trim());
+    expect(facts).toEqual([player.team, "Fills a need"]);
   });
 
   it("keeps the prior call as non-interactive context when a refresh fails", async () => {

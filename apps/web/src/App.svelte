@@ -10,6 +10,8 @@
   import SettingsDrawer from "./lib/components/SettingsDrawer.svelte";
   import DraftSwitcherDrawer from "./lib/components/DraftSwitcherDrawer.svelte";
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
+  import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
+  import PickStrip from "./lib/components/PickStrip.svelte";
   import DraftTeamDrawer from "./lib/components/DraftTeamDrawer.svelte";
   import PlayerSearchDialog from "./lib/components/PlayerSearchDialog.svelte";
   import RecommendationPanel from "./lib/components/RecommendationPanel.svelte";
@@ -1798,6 +1800,7 @@
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
   const showTeamWorkspace = $derived(Boolean(draftState) && workspaceMode !== "draft");
+  const showDraftRoom = $derived(Boolean(draftState) && workspaceMode === "draft" && !draftPreparationOpen);
   const isPreconnect = $derived(!connectPayload && !draftState);
   const hasStartedConnecting = $derived(!isPreconnect);
   const showSetupChecklist = $derived(
@@ -1832,6 +1835,11 @@
         : `${draftDataSignalCount}/3 sources ready`,
   );
   const draftPhase = $derived(getDraftPhase(draftState));
+  // A strategy that went stale when the board moved still counts: the panel keeps showing it as the previous recommendation.
+  const showDraftTools = $derived.by(() => {
+    const resolved = resolvedAiDraftStrategy;
+    return draftPhase !== "complete" && !emergencyBoardMode && codexProviderReady && resolved?.draftId === activeDraftId;
+  });
   const weeklyProjectionDefaultSeason = $derived.by(() => {
     const state = teamManagerState as TeamManagerState | null;
     return teamProjectionSeason || state?.league.season || seasonInput.trim() || "";
@@ -1903,6 +1911,16 @@
   />
 {/if}
 
+{#snippet draftSyncStatus()}
+  <DraftSyncStatus
+    lastSuccessfulAt={draftLastSuccessfulAt}
+    consecutiveFailures={draftConsecutiveFailures}
+    nextRetryMs={draftNextRetryMs}
+    reconnecting={draftReconnecting}
+    onReconnect={reconnectDraftEvents}
+  />
+{/snippet}
+
 {#snippet teamRefreshStatus()}
   <TeamRefreshStatus
     lastCheckedAt={teamLastCheckedAt}
@@ -1927,13 +1945,13 @@
     showStatus={hasStartedConnecting && !draftState && !switchingDraft}
     showChangeDraft={Boolean(draftState)}
     centered={isPreconnect || switchingDraft}
-    compact={workspaceMode === "manage"}
+    compact={showDraftRoom || workspaceMode === "manage"}
     subtitle={showTeamWorkspace && teamManagerState ? formatTeamContext(teamManagerState, teamWeekContext, teamProjectionWeek || null) : null}
     draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
     onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
     onOpenSettings={toggleSettings}
-    meta={showTeamWorkspace ? teamRefreshStatus : undefined}
+    meta={showTeamWorkspace ? teamRefreshStatus : showDraftRoom ? draftSyncStatus : undefined}
   />
 
   {#if draftSwitcherOpen && draftState}
@@ -2058,93 +2076,20 @@
       />
 
       {#if workspaceMode === "draft"}
-        <DraftRoomPanel
-          state={draftState}
-          draftLastSuccessfulAt={draftLastSuccessfulAt}
-          draftConsecutiveFailures={draftConsecutiveFailures}
-          draftNextRetryMs={draftNextRetryMs}
-          draftReconnecting={draftReconnecting}
-          onReconnectDraft={reconnectDraftEvents}
-          onSelectTeam={(teamId) => {
-            draftStrategyOpen = false;
-            selectedDraftTeamId = teamId;
-          }}
-        />
-        <section class="dashboard-grid draft-grid" class:single-column={!draftValuesIncomplete && !emergencyBoardMode}>
-          <div class="primary-column">
-            {#if draftPhase === "complete"}
-              <article class="panel phase-note">
-                <h2>Draft is over</h2>
-                <p>The completed board and roster stay here for review. Team Manager remains the primary workspace for lineups, waivers, and weekly decisions.</p>
-                {#if manageAvailable}
-                  <button
-                    class="btn btn-primary"
-                    type="button"
-                    onclick={openTeamManager}
-                  >
-                    Back to team manager
-                  </button>
-                {/if}
-              </article>
-            {/if}
-            {#if draftPhase !== "complete"}
-              {#if emergencyBoardMode}
-                <article class="panel phase-note">
-                  <h2>Emergency board-only mode</h2>
-                  <p>Live pick tracking remains available. Assistant recommendations and draft questions stay disabled until all required data and the Assistant are ready.</p>
-                  <button class="btn btn-secondary" type="button" onclick={openDraftPreparation}>
-                    Finish draft setup
-                  </button>
-                </article>
-              {:else}
-                <RecommendationPanel
-                  draftState={draftState}
-                  currentPick={draftState.currentPick}
-                  aiEnabled={codexProviderReady}
-                  aiStrategyEnabled={aiDraftStrategyEnabled}
-                  shouldRequestAiStrategy={shouldRequestAiStrategy}
-                  strategyRequestKey={`${activeDraftId}:${appSettings?.codexWebSearch}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
-                  onRequestAiStrategy={requestAiDraftStrategy}
-                  onAskAboutCandidate={askAboutCandidate}
-                  playerPreferences={playerPreferences}
-                  showPlaceholderWarning={draftValuesIncomplete}
-                  onSetPreference={setPlayerPreference}
-                  onClearPreferences={clearPlayerPreferences}
-                  onOpenRankings={openDraftPreparation}
-                  onOpenSettings={openSettings}
-                  onOpenPlayerSearch={() => {
-                    draftStrategyOpen = false;
-                    selectedDraftTeamId = null;
-                    playerSearchOpen = true;
-                  }}
-                  strategyOpen={draftStrategyOpen}
-                  onToggleStrategy={() => {
-                    selectedDraftTeamId = null;
-                    draftStrategyOpen = !draftStrategyOpen;
-                  }}
-                />
-                <AskManagerPanel
-                  onAsk={askManager}
-                  onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
-                  promptRequest={draftQuestionRequest}
-                  onOpenSettings={openSettings}
-                  providerStatus={conversationalProviderStatus}
-                  {hasImportedRankings}
-                  {hasSeasonProjections}
-                  {hasImportedAdp}
-                  showPlaceholderWarning={draftValuesIncomplete}
-                  {draftState}
-                  draftIdentity={`${activeDraftIdentity}:${appSettings?.codexWebSearch}`}
-                  {recommendation}
-                />
-              {/if}
-            {:else}
-              <RosterPanel state={draftState} />
-              <PickFeedPanel state={draftState} />
-            {/if}
-          </div>
-          {#if draftValuesIncomplete || emergencyBoardMode}
-            <div class="side-column">
+        {#snippet draftBoard(state: DraftState)}
+          <DraftRoomPanel
+            {state}
+            onSelectTeam={(teamId) => {
+              draftStrategyOpen = false;
+              selectedDraftTeamId = teamId;
+            }}
+          />
+        {/snippet}
+        {#snippet draftSidePanels(state: DraftState)}
+          <aside class="side-column" class:row={draftPhase === "complete" || emergencyBoardMode} aria-label="Recent picks and your roster">
+            <PickFeedPanel {state} limit={draftPhase === "complete" ? 8 : 4} />
+            <RosterPanel {state} playersOpen={draftPhase === "complete"} />
+            {#if draftValuesIncomplete || emergencyBoardMode}
               <DraftDataStatus
                 hasRankings={hasImportedRankings}
                 {rankingsStale}
@@ -2153,9 +2098,86 @@
                 emergencyMode={emergencyBoardMode}
                 onOpen={openDraftPreparation}
               />
+            {/if}
+          </aside>
+        {/snippet}
+        <div class="draft-room-layout">
+          <PickStrip
+            state={draftState}
+            strategyOpen={draftStrategyOpen}
+            onOpenPlayerSearch={showDraftTools ? () => {
+              draftStrategyOpen = false;
+              selectedDraftTeamId = null;
+              playerSearchOpen = true;
+            } : undefined}
+            onToggleStrategy={showDraftTools ? () => {
+              selectedDraftTeamId = null;
+              draftStrategyOpen = !draftStrategyOpen;
+            } : undefined}
+          />
+          {#if draftPhase === "complete"}
+            <article class="panel phase-note">
+              <h2>Draft is over</h2>
+              <p>The completed board and roster stay here for review. Team Manager remains the primary workspace for lineups, waivers, and weekly decisions.</p>
+              {#if manageAvailable}
+                <button
+                  class="btn btn-primary"
+                  type="button"
+                  onclick={openTeamManager}
+                >
+                  Back to team manager
+                </button>
+              {/if}
+            </article>
+            {@render draftBoard(draftState)}
+            {@render draftSidePanels(draftState)}
+          {:else if emergencyBoardMode}
+            <article class="panel phase-note">
+              <h2>Emergency board-only mode</h2>
+              <p>Live pick tracking remains available. Assistant recommendations and draft questions stay disabled until all required data and the Assistant are ready.</p>
+              <button class="btn btn-secondary" type="button" onclick={openDraftPreparation}>
+                Finish draft setup
+              </button>
+            </article>
+            {@render draftBoard(draftState)}
+            {@render draftSidePanels(draftState)}
+          {:else}
+            <div class="decision-grid">
+              <RecommendationPanel
+                draftState={draftState}
+                currentPick={draftState.currentPick}
+                aiEnabled={codexProviderReady}
+                aiStrategyEnabled={aiDraftStrategyEnabled}
+                shouldRequestAiStrategy={shouldRequestAiStrategy}
+                strategyRequestKey={`${activeDraftId}:${appSettings?.codexWebSearch}:${JSON.stringify(playerPreferences)}:${JSON.stringify(strategyInstructions)}`}
+                onRequestAiStrategy={requestAiDraftStrategy}
+                onAskAboutCandidate={askAboutCandidate}
+                playerPreferences={playerPreferences}
+                showPlaceholderWarning={draftValuesIncomplete}
+                onSetPreference={setPlayerPreference}
+                onClearPreferences={clearPlayerPreferences}
+                onOpenRankings={openDraftPreparation}
+                onOpenSettings={openSettings}
+              />
+              {@render draftSidePanels(draftState)}
             </div>
+            {@render draftBoard(draftState)}
+            <AskManagerPanel
+              onAsk={askManager}
+              onApplyStrategyProposal={(proposal) => addStrategyInstruction(proposal, "ai-chat")}
+              promptRequest={draftQuestionRequest}
+              onOpenSettings={openSettings}
+              providerStatus={conversationalProviderStatus}
+              {hasImportedRankings}
+              {hasSeasonProjections}
+              {hasImportedAdp}
+              showPlaceholderWarning={draftValuesIncomplete}
+              {draftState}
+              draftIdentity={`${activeDraftIdentity}:${appSettings?.codexWebSearch}`}
+              {recommendation}
+            />
           {/if}
-        </section>
+        </div>
         {#if draftStrategyOpen}
           <DraftStrategyDrawer
             strategy={visibleAiDraftStrategy}
@@ -2273,7 +2295,6 @@
   }
 
   .app-shell > *,
-  .primary-column,
   .side-column {
     min-width: 0;
   }
@@ -2302,24 +2323,31 @@
     margin-top: var(--space-5);
   }
 
-  .dashboard-grid {
+  .draft-room-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
-    align-items: start;
-    gap: var(--space-5);
-    margin-top: var(--space-5);
-  }
-
-  .draft-grid.single-column {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    min-width: 0;
   }
 
-  .primary-column,
+  .decision-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(300px, 5fr);
+    align-items: start;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
   .side-column {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-5);
+    gap: var(--space-4);
     align-content: start;
+  }
+
+  .side-column.row {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    align-items: start;
   }
 
   .phase-note {
@@ -2341,10 +2369,15 @@
     justify-self: start;
   }
 
-  @media (max-width: 920px) {
-    .dashboard-grid {
-      grid-template-columns: 1fr;
+  @media (max-width: 1100px) {
+    .decision-grid {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
+  @media (max-width: 760px) {
+    .side-column.row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 </style>

@@ -5,26 +5,14 @@
     visibleDraftRounds,
     type DraftBoardView,
   } from "../draft-board";
-  import { isUserOnTheClock, picksUntilUserTurn } from "../format";
   import Icon from "./Icon.svelte";
-  import DraftSyncStatus from "./DraftSyncStatus.svelte";
 
   let {
     state: draftState,
     onSelectTeam,
-    draftLastSuccessfulAt = null,
-    draftConsecutiveFailures = 0,
-    draftNextRetryMs = 0,
-    draftReconnecting = false,
-    onReconnectDraft,
   }: {
     state: DraftState;
     onSelectTeam?: (teamId: string) => void;
-    draftLastSuccessfulAt?: number | null;
-    draftConsecutiveFailures?: number;
-    draftNextRetryMs?: number;
-    draftReconnecting?: boolean;
-    onReconnectDraft?: () => void;
   } = $props();
 
   let view: DraftBoardView = $state("live");
@@ -33,17 +21,6 @@
   const teams = $derived([...draftState.teams].sort((a, b) => a.draftSlot - b.draftSlot));
   const visibleRounds = $derived(visibleDraftRounds(draftState, view));
   const rows = $derived(buildDraftBoardRows(draftState, visibleRounds));
-  const picksAway = $derived(picksUntilUserTurn(draftState));
-  const onTheClock = $derived(isUserOnTheClock(draftState));
-  const syncDegraded = $derived(draftConsecutiveFailures > 0 || draftReconnecting);
-  const contextLabel = $derived.by(() => {
-    if (draftState.status === "complete") return "Draft complete";
-    if (draftState.status === "pre_draft") return null;
-    if (onTheClock) return "Your turn";
-    if (picksAway === null) return "Pick timing unknown";
-    if (picksAway === 1) return "1 pick away";
-    return `${picksAway} picks away`;
-  });
   $effect(() => {
     draftState.currentPick;
     view;
@@ -76,19 +53,26 @@
   }
 </script>
 
-<section class="draft-room" aria-label="Draft room">
-  {#if contextLabel || syncDegraded}
-    <header class="room-header" aria-label="Draft state">
-      <div class="room-meta">
-        {#if contextLabel}
-          <span class="context-state" class:on-clock={onTheClock}>{contextLabel}</span>
-        {/if}
-        {#if syncDegraded}
-          <DraftSyncStatus lastSuccessfulAt={draftLastSuccessfulAt} consecutiveFailures={draftConsecutiveFailures} nextRetryMs={draftNextRetryMs} reconnecting={draftReconnecting} onReconnect={onReconnectDraft} />
-        {/if}
-      </div>
-    </header>
-  {/if}
+<section class="draft-room" aria-label="Draft board">
+  <header class="room-legend">
+    <h2>Board · {view === "live" ? "live view" : "full view"}</h2>
+    <div class="legend-group">
+      <span><i class="legend-user"></i>Your picks</span>
+      <span><i class="legend-current"></i>On the clock</span>
+      <span><i class="legend-traded"></i>Traded pick</span>
+      <button
+        class="view-action"
+        type="button"
+        aria-pressed={view === "full"}
+        aria-label={view === "live" ? "Show full draft board" : "Return to live draft view"}
+        title={view === "live" ? "Show full draft board" : "Return to live draft view"}
+        onclick={() => (view = view === "live" ? "full" : "live")}
+      >
+        <Icon name={view === "live" ? "expand" : "collapse"} size={14} />
+        <span>{view === "live" ? "Full board" : "Live view"}</span>
+      </button>
+    </div>
+  </header>
 
   <div class="board-scroller" bind:this={boardScroller}>
     <div class="board" style={`--team-count:${draftState.settings.teams}`}>
@@ -150,32 +134,11 @@
     </div>
   </div>
 
-  <footer class="room-legend">
-    <div class="legend-group">
-      <span><i class="legend-user"></i>Your picks</span>
-      <span><i class="legend-current"></i>On the clock</span>
-      <span><i class="legend-traded"></i>Traded pick</span>
-    </div>
-    <div class="footer-actions">
-      <button
-        class="view-action"
-        type="button"
-        aria-pressed={view === "full"}
-        aria-label={view === "live" ? "Show full draft board" : "Return to live draft view"}
-        title={view === "live" ? "Show full draft board" : "Return to live draft view"}
-        onclick={() => (view = view === "live" ? "full" : "live")}
-      >
-        <Icon name={view === "live" ? "expand" : "collapse"} size={14} />
-        <span>{view === "live" ? "Full board" : "Live view"}</span>
-      </button>
-    </div>
-  </footer>
 </section>
 
 <style>
   .draft-room {
     min-width: 0;
-    margin-top: var(--space-5);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: var(--surface);
@@ -183,43 +146,11 @@
     overflow: hidden;
   }
 
-  .room-header {
-    display: flex;
-    justify-content: flex-start;
-    padding: 10px 20px 0;
-  }
-
-  .room-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px 12px;
-    min-width: 0;
-  }
-
-  .context-state {
-    flex: 0 0 auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
-    background: var(--surface-sunken);
-    padding: 5px 8px;
-    color: var(--text-secondary);
-    font-weight: 700;
-  }
-
-  .context-state.on-clock {
-    border-color: var(--warning-border);
-    background: var(--warning-soft);
-    color: var(--warning);
-  }
-
   .board-scroller {
     min-width: 0;
     overflow-x: auto;
     overflow-y: visible;
     overscroll-behavior-x: contain;
-    border-bottom: 1px solid var(--border);
     background: var(--surface-sunken);
   }
 
@@ -234,7 +165,7 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    min-height: 58px;
+    min-height: 44px;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border-strong);
     background: var(--board-head);
@@ -257,7 +188,7 @@
     grid-template-columns: 20px minmax(0, 1fr);
     column-gap: 6px;
     align-content: center;
-    padding: 9px 10px;
+    padding: 6px 10px;
     border-top: 0;
     border-left: 0;
     border-radius: 0;
@@ -314,7 +245,7 @@
     display: grid;
     align-content: center;
     justify-items: center;
-    min-height: 96px;
+    min-height: 72px;
     border-right: 1px solid var(--border-strong);
     border-bottom: 1px solid var(--border);
     background: var(--board-head);
@@ -358,13 +289,13 @@
   .pick-cell {
     position: relative;
     display: grid;
-    grid-template-rows: auto minmax(30px, auto) auto;
+    grid-template-rows: auto minmax(20px, auto) auto;
     align-content: start;
     min-width: 0;
-    min-height: 96px;
+    min-height: 72px;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
-    padding: 8px 9px;
+    padding: 6px 9px;
     background: var(--board-cell);
     overflow: hidden;
   }
@@ -483,23 +414,24 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 12px 20px;
+    gap: var(--space-2) var(--space-5);
     align-items: center;
-    padding: 11px 20px;
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-3) var(--space-5);
     color: var(--text-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
-  .legend-group,
-  .footer-actions {
-    display: inline-flex;
+  .room-legend h2 {
+    color: var(--text-primary);
+    font-size: var(--text-lg);
+  }
+
+  .legend-group {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-  }
-
-  .legend-group { gap: 14px; }
-  .footer-actions {
-    justify-content: flex-end;
-    gap: 10px 16px;
+    gap: var(--space-2) 14px;
   }
 
   .legend-group span {
@@ -545,26 +477,8 @@
   }
 
   @media (max-width: 760px) {
-    .room-header {
-      padding: 10px 16px 0;
-    }
-
-    .room-meta {
-      justify-content: flex-start;
-    }
-
     .room-legend {
-      padding-inline: 16px;
-    }
-
-    .legend-group,
-    .footer-actions {
-      width: 100%;
-      margin-left: 0;
-    }
-
-    .footer-actions {
-      justify-content: flex-end;
+      padding-inline: var(--space-4);
     }
   }
 </style>

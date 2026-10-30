@@ -401,6 +401,9 @@ describe("App draft lifecycle", () => {
     expect(await screen.findByText("Emergency board-only mode")).toBeTruthy();
     expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
     expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Find player" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Draft plan" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Draft board" })).toBeTruthy();
   });
 
   it.each([

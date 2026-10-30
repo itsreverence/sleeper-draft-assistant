@@ -265,7 +265,7 @@
   .composer textarea { min-height: 40px; resize: none; }
   .has-conversation .composer textarea { min-height: 76px; resize: vertical; }
   .composer .btn { min-height: 40px; padding-inline: 16px; }
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
     .team-ask-panel { grid-template-columns: 1fr; }
     .assistant-header { grid-column: 1; grid-row: auto; }
     .decision-grid, .composer { grid-column: 1; }

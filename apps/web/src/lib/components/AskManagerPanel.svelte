@@ -75,6 +75,7 @@
 
   function submit(overrideQuestion?: string) {
     if (!providerReady) return;
+    expanded = true;
     conversationPick = draftState?.currentPick ?? null;
     void conversation.submit(overrideQuestion);
   }
@@ -133,36 +134,30 @@
   });
 </script>
 
-<article class="panel ask-panel" bind:this={panelElement}>
+<article class="panel ask-panel" class:expanded bind:this={panelElement}>
   <button class="ask-toggle" type="button" aria-label="Ask about this draft" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
-    <div class="ask-heading">
-      <Icon name="message" size={17} />
-      <div>
-        <h2>Ask Assistant</h2>
-        <span>Compare picks or test a scenario</span>
-      </div>
-    </div>
-    <div class="ask-status">
+    <Icon name="message" size={17} />
+    <span class="ask-heading">
+      <h2>Ask Assistant</h2>
       <span class:offline={!providerReady} class="provider-readiness" title={providerContextTitle}>
         {providerReady ? "Context ready" : providerLabel}
       </span>
-      <Icon name="chevron-right" size={14} />
-    </div>
+    </span>
+    <Icon name="chevron-right" size={14} />
   </button>
 
   {#if expanded}
-    <div class="ask-content">
-      {#if !providerReady}
-        <div class="provider-empty">
-          <div>
-            <strong>Set up the Assistant to ask draft questions</strong>
-            <span>Imported rankings and projections will be supplied as grounding evidence once the Assistant is set up.</span>
-          </div>
-          {#if onOpenSettings}
-            <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open Assistant settings</button>
-          {/if}
+    {#if !providerReady}
+      <div class="provider-empty">
+        <div>
+          <strong>Set up the Assistant to ask draft questions</strong>
+          <span>Imported rankings and projections will be supplied as grounding evidence once the Assistant is set up.</span>
         </div>
-      {:else}
+        {#if onOpenSettings}
+          <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open Assistant settings</button>
+        {/if}
+      </div>
+    {:else}
       {#if showPlaceholderWarning}
         <p class="callout callout-warning compact-callout">
           Player values are using Sleeper search ranks until rankings are imported.
@@ -179,8 +174,7 @@
         </div>
       {/if}
 
-      <div class:has-conversation={conversation.messages.length > 0} class="chat-workspace">
-        {#if conversation.messages.length > 0}
+      {#if conversation.messages.length > 0}
         <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite" use:followNewest={newest}>
           {#each conversation.messages as message (message.id)}
             <AiMessageBubble
@@ -195,52 +189,62 @@
         {#if conversation.copied}
           <p class="copy-note">Copied response.</p>
         {/if}
-        {/if}
-        <div class="command-bar">
-          {#if conversation.messages.length === 0}
-            <SuggestedQuestions questions={suggestedQuestions.slice(0, 3)} disabled={conversation.isAsking} onChoose={chooseSuggestion} />
-          {/if}
-          <div class="composer">
-            <input
-              bind:this={composerElement}
-              aria-label="Ask about your draft"
-              bind:value={conversation.question}
-              onkeydown={handleKeydown}
-              placeholder={conversation.messages.length > 0
-                ? "Ask a follow-up about this draft."
-                : "Ask who to draft, compare players, or test a what-if."}
-            />
-            <button bind:this={sendButton} class="composer-send" class:composer-cancel={conversation.isAsking}
-              aria-label={conversation.isAsking ? "Cancel" : "Ask Assistant"} type="button"
-              title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
-              disabled={!conversation.isAsking && !conversation.question.trim()}
-              onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
-            >{conversation.isAsking ? "Cancel" : "Ask"}</button>
-          </div>
-        </div>
+      {/if}
+    {/if}
+  {/if}
+
+  {#if providerReady}
+    <div class="command-bar">
+      <div class="composer">
+        <input
+          bind:this={composerElement}
+          aria-label="Ask about your draft"
+          bind:value={conversation.question}
+          onkeydown={handleKeydown}
+          placeholder={conversation.messages.length > 0
+            ? "Ask a follow-up about this draft."
+            : "Ask who to draft, compare players, or test a what-if."}
+        />
+        <button bind:this={sendButton} class="composer-send" class:composer-cancel={conversation.isAsking}
+          aria-label={conversation.isAsking ? "Cancel" : "Ask Assistant"} type="button"
+          title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
+          disabled={!conversation.isAsking && !conversation.question.trim()}
+          onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
+        >{conversation.isAsking ? "Cancel" : "Ask"}</button>
       </div>
+      {#if conversation.messages.length === 0}
+        <SuggestedQuestions questions={suggestedQuestions.slice(0, 3)} disabled={conversation.isAsking} onChoose={chooseSuggestion} />
       {/if}
     </div>
   {/if}
 </article>
 
 <style>
+  /* DOM order stays toggle, thread, composer so the composer never remounts and focus survives expanding. */
   .ask-panel {
     display: grid;
-    gap: 0;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
     padding: 0;
     overflow: hidden;
   }
 
+  .ask-panel > :global(*) {
+    min-width: 0;
+  }
+
+  .ask-panel.expanded {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .ask-toggle {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-4);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
     align-items: center;
-    width: 100%;
     border: 0;
     background: transparent;
-    padding: var(--space-4) var(--space-5);
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
     color: inherit;
     cursor: pointer;
     text-align: left;
@@ -250,42 +254,31 @@
     background: var(--surface-raised);
   }
 
-  .ask-heading,
-  .ask-status {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .ask-heading > :global(.icon) {
+  .ask-toggle > :global(.icon:first-child) {
     color: var(--info);
   }
 
-  .ask-heading h2 {
-    font-size: var(--text-lg);
-  }
-
-  .ask-heading span {
-    display: block;
-    margin-top: 2px;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-  }
-
-  .ask-status > :global(.icon) {
+  .ask-toggle > :global(.icon:last-child) {
     color: var(--text-muted);
     transition: transform var(--transition-base);
   }
 
-  .ask-toggle[aria-expanded="true"] .ask-status > :global(.icon) {
+  .ask-toggle[aria-expanded="true"] > :global(.icon:last-child) {
     transform: rotate(90deg);
   }
 
-  .ask-content {
+  .ask-heading {
     display: grid;
-    gap: 0;
-    border-top: 1px solid var(--border);
-    padding: 0;
+    gap: 2px;
+  }
+
+  .ask-heading h2 {
+    font-size: var(--text-lg);
+    white-space: nowrap;
+  }
+
+  .ask-panel.expanded .ask-toggle {
+    border-bottom: 1px solid var(--border);
   }
 
   .provider-empty {
@@ -374,20 +367,20 @@
     padding: var(--space-4) var(--space-5);
   }
 
-  .chat-workspace,
   .command-bar {
     display: grid;
-  }
-
-  .command-bar {
-    grid-template-columns: auto minmax(300px, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
-    padding: 14px var(--space-5) var(--space-4);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5) var(--space-3) var(--space-2);
   }
 
-  .has-conversation .command-bar {
-    grid-template-columns: 1fr;
+  .expanded .command-bar {
+    padding-left: var(--space-5);
+  }
+
+  .expanded .conversation + .command-bar,
+  .expanded .copy-note + .command-bar {
     border-top: 1px solid var(--border);
   }
 
@@ -477,18 +470,25 @@
     background: var(--danger);
   }
 
+  @media (max-width: 1100px) {
+    .ask-panel {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .command-bar {
+      grid-template-columns: minmax(0, 1fr);
+      padding-left: var(--space-5);
+      padding-top: 0;
+    }
+
+    .expanded .command-bar {
+      padding-top: var(--space-3);
+    }
+  }
+
   @media (max-width: 520px) {
     .ask-toggle {
-      align-items: flex-start;
-      padding: var(--space-4);
-    }
-
-    .ask-status .provider-readiness {
-      display: none;
-    }
-
-    .ask-content {
-      padding: 0;
+      padding: var(--space-3) var(--space-4);
     }
 
     .board-change-note {
@@ -496,9 +496,9 @@
       flex-direction: column;
     }
 
-    .command-bar {
-      grid-template-columns: 1fr;
-      padding: var(--space-4);
+    .command-bar,
+    .expanded .command-bar {
+      padding-inline: var(--space-4);
     }
 
     .conversation {

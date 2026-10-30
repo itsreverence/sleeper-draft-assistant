@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PositionChip from "./PositionChip.svelte";
   import type {
     Player,
     SeasonValueRankingImportSummary,
@@ -109,7 +110,7 @@
     <td class="slot-label" title={rosterSlotTitle(slot)} aria-label={rosterSlotTitle(slot)}>{formatRosterSlot(slot)}</td>
     <th scope="row">
       <div class="player-name">
-        <span class={`pos-chip position-${player.position.toLowerCase()}`}>{player.position}</span>
+        <PositionChip position={player.position} />
         <div class="player-identity">
           <strong>{player.name}</strong>
           <small class:danger={status?.tone === "danger"} data-status={status?.injury ? status.label : undefined}>{player.team}</small>
@@ -262,13 +263,6 @@
   .player-identity small { color: var(--text-muted); font-size: var(--text-sm); }
   .open-slot strong { color: var(--text-secondary); font-weight: 500; }
 
-  .pos-chip { display: inline-grid; flex-shrink: 0; place-items: center; width: 34px; height: 24px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--position-color) 18%, transparent); color: var(--position-color); font-size: var(--text-xs); font-weight: 600; }
-  .position-qb { --position-color: var(--pos-qb); }
-  .position-rb { --position-color: var(--pos-rb); }
-  .position-wr { --position-color: var(--pos-wr); }
-  .position-te { --position-color: var(--pos-te); }
-  .position-k { --position-color: var(--pos-k); }
-  .position-def { --position-color: var(--pos-def); }
 
   .week-cell { color: var(--text-secondary); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
   .bye-chip { display: inline-block; border: 1px solid var(--warning-border); border-radius: var(--radius-sm); background: var(--warning-soft); color: var(--warning); font-size: var(--text-sm); font-weight: 600; line-height: 1.4; padding: 0 var(--space-2); }
