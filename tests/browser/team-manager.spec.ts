@@ -45,6 +45,19 @@ test("attention items state their count and each moves focus to the right place"
   await expect(dataItem).toBeFocused();
 });
 
+test("closing the drawer after an import resolves its item returns focus to Manage data", async ({ page }) => {
+  await open(page, "needs-look");
+  await page.getByRole("button", { name: "WR projections missing" }).click();
+  const drawer = page.getByRole("dialog", { name: "Manage team data" });
+  await drawer.getByText("Paste CSV instead", { exact: true }).click();
+  await drawer.getByLabel("CSV for the selected position").fill("Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,15");
+  await drawer.getByRole("button", { name: "Import QB", exact: true }).click();
+  await expect(page.getByRole("button", { name: "WR projections missing" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(page.getByRole("button", { name: "Manage data", exact: true })).toBeFocused();
+});
+
 test("nothing to report shows one quiet line with a truthful fact", async ({ page }) => {
   await open(page, "all-clear");
   await expect(page.getByRole("heading", { name: "Lineup looks set" })).toBeVisible();

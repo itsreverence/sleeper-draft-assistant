@@ -167,6 +167,7 @@
   let teamDataOpen = $state(false);
   let teamDataSection: TeamDataSection = $state("readiness");
   let teamAskPanel = $state<TeamAskPanel>();
+  let manageDataButton = $state<HTMLButtonElement>();
   let appSettings: AppSettings | null = $state(null);
   let aiProviderStatus: AiProviderStatus | null = $state(null);
   let settingsError = $state("");
@@ -1541,6 +1542,13 @@
     teamDataOpen = true;
   }
 
+  // An import can resolve the attention item that opened the drawer, which leaves the modal no opener to return to.
+  async function closeTeamData() {
+    teamDataOpen = false;
+    await tick();
+    if (document.activeElement === document.body) manageDataButton?.focus();
+  }
+
   function acknowledgeTeamQuestionRequest(requestId: number) {
     if (teamQuestionRequest?.id === requestId) {
       teamQuestionRequest = null;
@@ -2022,7 +2030,7 @@
       error={teamRefreshError}
       onRefresh={() => refreshTeamManagerIfEligible(true)}
     />
-    <button class="btn btn-secondary manage-data" type="button" aria-haspopup="dialog" disabled={!teamManagerState} onclick={() => openTeamData()}>Manage data</button>
+    <button bind:this={manageDataButton} class="btn btn-secondary manage-data" type="button" aria-haspopup="dialog" disabled={!teamManagerState} onclick={() => openTeamData()}>Manage data</button>
   </div>
 {/snippet}
 
@@ -2391,7 +2399,7 @@
             onLoadWeek={loadWeeklyProjectionContext}
             onClearWeekly={clearWeeklyProjections}
             onOpenWeekly={openFantasyProsWeeklyProjections}
-            onClose={() => (teamDataOpen = false)}
+            onClose={closeTeamData}
           />
         {/if}
       {/if}
