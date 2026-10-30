@@ -70,7 +70,7 @@
   import { createDraftSession, type DraftSessionGuard } from "./lib/draft-session.svelte";
   import { buildFantasyProsWeeklyProjectionUrl } from "./lib/fantasypros";
   import { getImportFreshness } from "./lib/freshness";
-  import { shouldOpenDraftPreparation } from "./lib/draft-preparation";
+  import { nextDraftPreparationStep, shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
   import { conversationalAiProviderStatus, isAiProviderAvailable } from "./lib/types";
   import type {
@@ -1692,6 +1692,13 @@
   });
   const hasSeasonProjections = $derived(Boolean(seasonProjectionImportSummary));
   const hasImportedAdp = $derived(Boolean(adpImportSummary));
+  const preparationStep = $derived(nextDraftPreparationStep({
+    hasRankings: hasImportedRankings,
+    rankingsStale,
+    hasProjections: hasSeasonProjections,
+    hasAdp: hasImportedAdp,
+    aiConfigured: codexProviderReady,
+  }));
   const draftDataSignalCount = $derived(
     Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
   );
@@ -1722,6 +1729,18 @@
         : null),
   );
 
+  const yourTeamLabel = $derived(
+    userTeam
+      ? `${userTeam.name}${userDraftSlot ? ` · Slot ${userDraftSlot}` : ""}`
+      : userDraftSlot
+        ? `Draft slot ${userDraftSlot}`
+        : selectedLeague?.userRosterId
+          ? `Roster ${selectedLeague.userRosterId}`
+          : draftState
+            ? "Unmatched"
+            : "Pending",
+  );
+
   const readinessItems: ReadinessItem[] = $derived.by(() => [
     {
       label: "Sleeper account",
@@ -1743,15 +1762,7 @@
     },
     {
       label: "Your team",
-      value: userTeam
-        ? `${userTeam.name}${userDraftSlot ? ` · Slot ${userDraftSlot}` : ""}`
-        : userDraftSlot
-          ? `Draft slot ${userDraftSlot}`
-        : selectedLeague?.userRosterId
-          ? `Roster ${selectedLeague.userRosterId}`
-          : draftState
-            ? "Unmatched"
-            : "Pending",
+      value: yourTeamLabel,
       detail: userTeam && activeUserRosterId
         ? `Matched to Sleeper roster ${activeUserRosterId}`
         : userTeam
@@ -1803,9 +1814,7 @@
   const showDraftRoom = $derived(Boolean(draftState) && workspaceMode === "draft" && !draftPreparationOpen);
   const isPreconnect = $derived(!connectPayload && !draftState);
   const hasStartedConnecting = $derived(!isPreconnect);
-  const showSetupChecklist = $derived(
-    !switchingDraft && hasStartedConnecting && (!draftState || connectExpanded || (draftPreparationOpen && workspaceMode === "draft")),
-  );
+  const showSetupChecklist = $derived(!switchingDraft && hasStartedConnecting && !draftState);
   const draftSwitcherOptions = $derived.by(() => {
     const options = connectPayload?.leagues.flatMap((league) =>
       league.drafts.map((draft) => ({
@@ -2024,6 +2033,7 @@
             draftName={draftState.name}
             scoring={normalizeDraftScoring(draftState.settings.scoring)}
             season={draftDataDefaultSeason}
+            teamLabel={yourTeamLabel}
             hasRankings={hasImportedRankings}
             {rankingsStale}
             hasProjections={hasSeasonProjections}
@@ -2059,12 +2069,14 @@
             onOpenSeasonProjections={openFantasyProsSeasonProjections}
             onOpenAdp={openFantasyProsAdp}
             expanded={true}
+            primaryStep={preparationStep}
           />
           <DraftAiSetupPanel
             settings={appSettings}
             providerStatus={aiProviderStatus}
             isSaving={isSavingSettings}
             error={settingsError}
+            primary={preparationStep === "assistant"}
             onSave={saveSettings}
           />
         </div>

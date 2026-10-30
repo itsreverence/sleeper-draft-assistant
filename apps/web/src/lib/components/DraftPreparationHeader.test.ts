@@ -7,6 +7,7 @@ const baseProps = {
   draftName: "Fixture Draft",
   scoring: "PPR",
   season: "2026",
+  teamLabel: "Fixture Team · Slot 3",
   hasRankings: true,
   rankingsStale: false,
   hasProjections: true,

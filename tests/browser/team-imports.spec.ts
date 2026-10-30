@@ -52,6 +52,35 @@ test("pasting weekly CSV clears the native file selection and allows reselecting
   expect((await (await imported).json()).state.roster.starters[0].player.weeklyProjectedPoints).toBe(15);
 });
 
+test("the styled file control opens the native chooser from the keyboard and shows focus", async ({ page }) => {
+  await page.goto("/");
+  await connect(page);
+  await page.getByRole("button", { name: "Manage team data" }).click();
+  const { drawer, weekly } = panels(page);
+  const picker = weekly.getByLabel("Projection CSV", { exact: true });
+  const control = weekly.locator("label.file-button");
+  await weekly.getByRole("button", { name: "Open FantasyPros" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(picker).toBeFocused();
+  await expect(control).toHaveCSS("outline-style", "solid");
+  await expect(control).toHaveCSS("outline-width", "2px");
+  for (const key of ["Enter", "Space"]) {
+    const opened = page.waitForEvent("filechooser");
+    await page.keyboard.press(key);
+    const chooser = await opened;
+    expect(chooser.isMultiple()).toBe(true);
+    const name = `synthetic-${key}-a-long-unbroken-filename-that-must-wrap-inside-the-drawer-QB.csv`;
+    await chooser.setFiles({ name, mimeType: "text/csv", buffer: Buffer.from(weeklyCsv(15)) });
+    await expect(weekly.getByText(name)).toBeVisible();
+    await expect(picker).toBeFocused();
+    const body = drawer.getByRole("region", { name: "Manage team data content" });
+    expect(await body.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
+  const clicked = page.waitForEvent("filechooser");
+  await control.click();
+  await (await clicked).setFiles([]);
+});
+
 test("a delayed import response cannot resurrect reset data or replace a newly connected team", async ({ page }) => {
   await page.goto("/");
   const oldLeague = await connect(page);

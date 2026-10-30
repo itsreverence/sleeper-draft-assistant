@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { nextDraftPreparationStep } from "../draft-preparation";
+
   let {
     draftName,
     scoring,
     season,
+    teamLabel,
     hasRankings,
     rankingsStale = false,
     hasProjections,
@@ -15,6 +18,7 @@
     draftName: string;
     scoring: string;
     season: string;
+    teamLabel: string;
     hasRankings: boolean;
     rankingsStale?: boolean;
     hasProjections: boolean;
@@ -45,7 +49,7 @@
   ]);
 
   const fullyReady = $derived(
-    hasRankings && !rankingsStale && hasProjections && hasAdp && aiConfigured,
+    nextDraftPreparationStep({ hasRankings, rankingsStale, hasProjections, hasAdp, aiConfigured }) === null,
   );
 
   const helperText = $derived.by(() => {
@@ -61,7 +65,10 @@
 <section class="panel preparation-header" aria-labelledby="draft-preparation-title">
   <span class="section-label">Draft preparation</span>
   <h2 id="draft-preparation-title">Ground the Assistant before entering the draft room</h2>
-  <p class="meta-line">{draftName} · {scoring} · {season} season · {loadedCount}/3 sources ready</p>
+  <div class="meta">
+    <p>{draftName} · {scoring} · {season} season · {loadedCount}/3 sources ready</p>
+    <p title={`Your team: ${teamLabel}`}>Your team: {teamLabel}</p>
+  </div>
 
   <div class="chip-row" aria-label="Draft data readiness">
     {#each chips as chip}
@@ -107,8 +114,9 @@
     line-height: 1.25;
   }
 
-  .meta-line {
-    margin: 0;
+  .meta {
+    display: grid;
+    gap: var(--space-1);
     color: var(--text-muted);
     font-size: var(--text-xs);
   }

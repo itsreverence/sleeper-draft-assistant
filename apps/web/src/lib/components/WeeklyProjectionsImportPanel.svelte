@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import FileInput from "./FileInput.svelte";
   import Icon from "./Icon.svelte";
   import type { Position, WeeklyProjectionImportSummary } from "../types";
   import { inferFantasyProsProjectionPosition } from "../fantasypros-projection-file";
@@ -230,10 +231,15 @@
     {/if}
   </div>
 
-  <label class="field">
-    <span>Projection CSV</span>
-    <input class="input" type="file" accept=".csv,text/csv" multiple bind:this={fileInput} disabled={!hasTeam || isImporting || isClearing} onchange={readProjectionFiles} />
-  </label>
+  <FileInput
+    bind:input={fileInput}
+    caption="Projection CSV"
+    label="Choose CSV files"
+    selection={selectedFiles.length > 0 ? undefined : csvText.trim() ? "Using pasted CSV" : "No files selected"}
+    multiple
+    disabled={!hasTeam || isImporting || isClearing}
+    onchange={readProjectionFiles}
+  />
   {#if selectedFiles.length > 0}
     <div class="selected-files">
       {#each selectedFiles as file}
@@ -414,6 +420,7 @@
     gap: 7px;
     color: var(--text-secondary);
     font-size: var(--text-xs);
+    overflow-wrap: anywhere;
   }
 
   .selected-files strong {
@@ -422,6 +429,7 @@
 
   .muted-file-note {
     margin: 0;
+    overflow-wrap: anywhere;
     color: var(--text-muted);
     font-size: var(--text-xs);
     line-height: 1.4;

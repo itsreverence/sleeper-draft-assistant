@@ -8,12 +8,14 @@
     providerStatus,
     isSaving,
     error,
+    primary,
     onSave,
   }: {
     settings: AppSettings | null;
     providerStatus: AiProviderStatus | null;
     isSaving: boolean;
     error: string;
+    primary: boolean;
     onSave: (settings: AppSettings) => void;
   } = $props();
 
@@ -53,6 +55,7 @@
         {error}
         submitLabel={aiReady ? "Save Assistant settings" : "Confirm Codex settings"}
         requireCodex={true}
+        {primary}
         {onSave}
       />
     </div>

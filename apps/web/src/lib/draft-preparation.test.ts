@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldOpenDraftPreparation } from "./draft-preparation";
+import { nextDraftPreparationStep, shouldOpenDraftPreparation } from "./draft-preparation";
+
+describe("next draft preparation step", () => {
+  const ready = { hasRankings: true, rankingsStale: false, hasProjections: true, hasAdp: true, aiConfigured: true };
+
+  it("walks the screen in order and ends at the draft room", () => {
+    expect(nextDraftPreparationStep({ hasRankings: false, rankingsStale: false, hasProjections: false, hasAdp: false, aiConfigured: false })).toBe("rankings");
+    expect(nextDraftPreparationStep({ ...ready, hasProjections: false, hasAdp: false, aiConfigured: false })).toBe("projections");
+    expect(nextDraftPreparationStep({ ...ready, hasAdp: false, aiConfigured: false })).toBe("adp");
+    expect(nextDraftPreparationStep({ ...ready, aiConfigured: false })).toBe("assistant");
+    expect(nextDraftPreparationStep(ready)).toBeNull();
+  });
+
+  it("sends stale rankings back to the rankings import", () => {
+    expect(nextDraftPreparationStep({ ...ready, rankingsStale: true })).toBe("rankings");
+  });
+});
 
 describe("draft preparation", () => {
   const now = new Date("2026-08-20T12:00:00.000Z").getTime();

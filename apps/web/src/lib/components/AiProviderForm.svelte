@@ -10,6 +10,7 @@
     error = "",
     submitLabel = "Save Assistant settings",
     requireCodex = false,
+    primary = true,
     onSave,
   }: {
     settings: AppSettings | null;
@@ -18,6 +19,7 @@
     error?: string;
     submitLabel?: string;
     requireCodex?: boolean;
+    primary?: boolean;
     onSave: (settings: AppSettings) => void;
   } = $props();
 
@@ -115,7 +117,7 @@
     <p class="callout callout-danger">{error}</p>
   {/if}
 
-  <button class="btn btn-primary" type="submit" disabled={isSaving || !settings}>
+  <button class="btn {primary ? 'btn-primary' : 'btn-secondary'}" type="submit" disabled={isSaving || !settings}>
     {isSaving ? "Saving" : submitLabel}
   </button>
 </form>
