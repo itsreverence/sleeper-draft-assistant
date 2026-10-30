@@ -1,4 +1,4 @@
-import { expectResponseTable, tableAnswer } from "./response-table";
+import { expectDistinctTableRegions, expectResponseTable, narrowAndWideTableAnswer, tableAnswer } from "./response-table";
 import { expect, test } from "@playwright/test";
 import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
 import { expectAccessible } from "./accessibility";
@@ -180,4 +180,19 @@ test("draft answers contain wide Markdown tables inside the chat bubble", async 
   await page.getByPlaceholder("Ask who to draft, compare players, or test a what-if.").fill("Show a table of lineup options.");
   await page.getByRole("button", { name: "Ask AI", exact: true }).click();
   await expectResponseTable(page);
+});
+
+test("several answer tables keep unique landmark names and only wide tables take focus", async ({ page }) => {
+  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), answer: narrowAndWideTableAnswer, strategyProposal: null } });
+  });
+  await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
+  for (const [index, question] of ["Show lineup options.", "Show them again."].entries()) {
+    await page.getByRole("textbox", { name: "Ask about your draft" }).fill(question);
+    await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+    await expect(page.getByText("Review your starters.", { exact: true })).toHaveCount(index + 1);
+  }
+  await expectDistinctTableRegions(page, 4);
+  await expectAccessible(page);
 });
