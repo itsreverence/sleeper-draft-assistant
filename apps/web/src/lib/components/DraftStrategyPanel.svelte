@@ -1,21 +1,18 @@
 <script lang="ts">
   import type { AiDraftStrategyPayload, DecisionSnapshot } from "../types";
   import DecisionHistoryPanel from "./DecisionHistoryPanel.svelte";
-  import Icon from "./Icon.svelte";
 
   let {
     strategy,
     history = [],
     isLoadingHistory = false,
     historyError = "",
-    embedded = false,
     detailsOpen = false,
   }: {
     strategy: AiDraftStrategyPayload;
     history?: DecisionSnapshot[];
     isLoadingHistory?: boolean;
     historyError?: string;
-    embedded?: boolean;
     detailsOpen?: boolean;
   } = $props();
 
@@ -26,18 +23,12 @@
   );
 </script>
 
-<article class="panel strategy-panel" class:embedded>
-  <div class="strategy-heading">
-    <div>
-      <h2><Icon name="clipboard" size={17} /> Draft strategy</h2>
-      <span>Updated at pick {plan.updatedAtPick}</span>
-    </div>
-    <DecisionHistoryPanel
-      snapshots={history}
-      isLoading={isLoadingHistory}
-      error={historyError}
-    />
-  </div>
+<article class="strategy-panel">
+  <DecisionHistoryPanel
+    snapshots={history}
+    isLoading={isLoadingHistory}
+    error={historyError}
+  />
 
   <p class="strategy-approach">{plan.approach}</p>
 
@@ -76,45 +67,6 @@
   .strategy-panel {
     display: grid;
     gap: 14px;
-    padding: var(--space-4);
-  }
-
-  .strategy-panel.embedded {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-  }
-
-  .strategy-heading,
-  .strategy-heading > div {
-    display: flex;
-    align-items: center;
-  }
-
-  .strategy-heading {
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .strategy-heading > div {
-    min-width: 0;
-    flex-wrap: wrap;
-    gap: 4px 8px;
-  }
-
-  .strategy-heading h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--text-lg);
-  }
-
-  .strategy-heading span {
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
   }
 
   .strategy-approach,

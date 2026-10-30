@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { modal } from "../modal";
   import type { DraftState, Position } from "../types";
   import { pickNumberForDraftSlot } from "../draft-board";
+  import Drawer from "./Drawer.svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -50,22 +50,20 @@
 
 </script>
 
-<button class="drawer-backdrop" type="button" aria-label="Close team roster" onclick={onClose}></button>
-<div class="team-drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label={`${team?.name ?? "Team"} roster`}>
-  <button class="drawer-close" type="button" aria-label="Close team roster" onclick={onClose}>
-    <Icon name="close" size={16} />
-  </button>
+<Drawer
+  label={`${team?.name ?? "Team"} roster`}
+  closeLabel="Close team roster"
+  eyebrow={team ? `Draft slot ${team.draftSlot}` : undefined}
+  title={team?.name ?? "Team roster"}
+  icon="users"
+  subtitle={team ? `${selections.length}/${state.settings.rounds} players drafted${nextScheduledPick ? ` · next scheduled at #${nextScheduledPick}` : ""}` : undefined}
+  {onClose}
+>
+  {#snippet badge()}
+    {#if team?.id === state.userTeamId}<span class="pill pill-ready">Your team</span>{/if}
+  {/snippet}
 
   {#if team}
-    <header>
-      <span class="eyebrow">Draft slot {team.draftSlot}</span>
-      <div class="title-row">
-        <h2><Icon name="users" size={18} /> {team.name}</h2>
-        {#if team.id === state.userTeamId}<span class="pill pill-ready">Your team</span>{/if}
-      </div>
-      <p>{selections.length}/{state.settings.rounds} players drafted{nextScheduledPick ? ` · next scheduled at #${nextScheduledPick}` : ""}</p>
-    </header>
-
     <div class="position-summary" aria-label="Roster position counts">
       {#each positionOrder as position}
         <span class:empty={positionCounts[position] === 0}>{position} <strong>{positionCounts[position]}</strong></span>
@@ -98,79 +96,9 @@
       </button>
     {/if}
   {/if}
-</div>
+</Drawer>
 
 <style>
-  .drawer-backdrop {
-    position: fixed;
-    z-index: 40;
-    inset: 0;
-    width: 100%;
-    border: 0;
-    border-radius: 0;
-    background: rgb(0 0 0 / 0.52);
-    cursor: default;
-  }
-
-  .team-drawer {
-    position: fixed;
-    z-index: 41;
-    top: 0;
-    right: 0;
-    display: grid;
-    align-content: start;
-    gap: 18px;
-    width: min(420px, 92vw);
-    height: 100vh;
-    overflow-y: auto;
-    border-left: 1px solid var(--border-strong);
-    background: var(--surface-raised);
-    box-shadow: -18px 0 50px rgb(0 0 0 / 0.28);
-    padding: 48px var(--space-5) var(--space-5);
-  }
-
-  .drawer-close {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    display: grid;
-    width: 32px;
-    height: 32px;
-    place-items: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .drawer-close:hover {
-    border-color: var(--border-strong);
-    background: var(--surface-sunken);
-    color: var(--text-primary);
-  }
-
-  header {
-    display: grid;
-    gap: 6px;
-  }
-
-  .title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .title-row h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    font-size: var(--text-xl);
-  }
-
-  header p,
   .empty-roster {
     color: var(--text-muted);
     font-size: var(--text-sm);
@@ -264,17 +192,5 @@
     cursor: pointer;
     font-size: var(--text-sm);
     font-weight: 600;
-  }
-
-  @media (max-width: 520px) {
-    .team-drawer {
-      top: auto;
-      bottom: 0;
-      width: 100%;
-      height: min(78vh, 680px);
-      border-top: 1px solid var(--border-strong);
-      border-left: 0;
-      padding: 48px var(--space-4) var(--space-4);
-    }
   }
 </style>

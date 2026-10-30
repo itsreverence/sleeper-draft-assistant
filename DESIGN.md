@@ -252,6 +252,13 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 - **Border:** 1px neutral border at rest, semantic border for active or warning state.
 - **Internal Padding:** 16px to 20px depending on panel importance.
 
+### Drawers
+
+- **Shell:** Every side panel uses `Drawer.svelte`, which owns the scrim, enter motion, header, close button, and scrolling body. The modal rules in `modal.ts` apply unchanged.
+- **Size:** `min(560px, 94vw)` and full height, anchored right. At the 520px phone breakpoint it becomes a full-width bottom sheet, `min(92vh, 840px)` tall with 16px top corners.
+- **Header:** Optional eyebrow, 18px title with optional icon and status pill, one-line subtitle, and a 32px close button at the top right. The header stays visible while the body scrolls.
+- **Motion:** The drawer slides in and the scrim fades in over `--transition-base`, which is 0ms under reduced motion. Closing is immediate, so focus returns to the opener without delay.
+
 ### Inputs / Fields
 
 - **Style:** Sunken surface, 1px input border (`--border-input`), 10px radius, 10px 12px padding.

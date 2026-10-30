@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { modal } from "../modal";
   import type { ConnectDraft, ConnectLeague, ConnectPayload } from "../types";
+  import Drawer from "./Drawer.svelte";
   import Icon from "./Icon.svelte";
   import ConnectPanel from "./ConnectPanel.svelte";
 
@@ -73,18 +73,14 @@
   }
 </script>
 
-<button class="drawer-backdrop" type="button" aria-label="Close draft switcher" onclick={onClose}></button>
-<div class="switcher-drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label="Switch league or draft">
-  <button class="drawer-close" type="button" aria-label="Close draft switcher" onclick={onClose}>
-    <Icon name="close" size={16} />
-  </button>
-
-  <header class="drawer-header">
-    <p class="eyebrow">Workspace</p>
-    <h2>Switch league or draft</h2>
-    <p>Keep this draft open while you find another Sleeper workspace.</p>
-  </header>
-
+<Drawer
+  label="Switch league or draft"
+  closeLabel="Close draft switcher"
+  eyebrow="Workspace"
+  title="Switch league or draft"
+  subtitle="Keep this draft open while you find another Sleeper workspace."
+  {onClose}
+>
   {#if draftOptions.length > 0}
     <section class="known-drafts" aria-labelledby="known-drafts-heading">
       <div class="section-heading">
@@ -145,69 +141,9 @@
       showDemo={false}
     />
   </section>
-</div>
+</Drawer>
 
 <style>
-  .drawer-backdrop {
-    position: fixed;
-    z-index: 40;
-    inset: 0;
-    width: 100%;
-    border: 0;
-    border-radius: 0;
-    background: rgb(0 0 0 / 0.52);
-    cursor: default;
-  }
-
-  .switcher-drawer {
-    position: fixed;
-    z-index: 41;
-    top: 0;
-    right: 0;
-    display: grid;
-    align-content: start;
-    gap: var(--space-5);
-    width: min(560px, 94vw);
-    height: 100vh;
-    overflow-y: auto;
-    border-left: 1px solid var(--border-strong);
-    background: var(--surface-raised);
-    box-shadow: -18px 0 50px rgb(0 0 0 / 0.28);
-    padding: 52px var(--space-5) var(--space-6);
-  }
-
-  .drawer-close {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    display: grid;
-    width: 32px;
-    height: 32px;
-    place-items: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .drawer-close:hover {
-    border-color: var(--border-strong);
-    background: var(--surface-sunken);
-    color: var(--text-primary);
-  }
-
-  .drawer-header,
-  .section-heading {
-    display: grid;
-    gap: 6px;
-  }
-
-  .drawer-header h2 {
-    font-size: var(--text-xl);
-  }
-
-  .drawer-header > p:last-child,
   .section-heading p:last-child {
     color: var(--text-secondary);
     font-size: var(--text-sm);
@@ -221,6 +157,7 @@
   }
 
   .section-heading {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
     gap: var(--space-3);
@@ -325,18 +262,5 @@
   .find-section :global(.mini-links) {
     justify-content: flex-start;
     flex-wrap: wrap;
-  }
-
-  @media (max-width: 760px) {
-    .switcher-drawer {
-      top: auto;
-      bottom: 0;
-      width: 100%;
-      height: min(88vh, 760px);
-      border-top: 1px solid var(--border-strong);
-      border-left: 0;
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      padding-inline: var(--space-4);
-    }
   }
 </style>
