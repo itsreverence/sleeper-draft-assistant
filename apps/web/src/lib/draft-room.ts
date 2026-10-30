@@ -1,3 +1,4 @@
+import { isDraftChoiceRosterFeasible } from "@sleeper-draft-assistant/engine";
 import { AI_REASON_LINE_MAX_LENGTH, draftStateRevision } from "@sleeper-draft-assistant/shared";
 import { recentDraftPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 
@@ -61,7 +62,9 @@ export function shortlistView(state: DraftState, call: StrategyCall, preferences
     .filter((pick) => pick.teamId === state.userTeamId && pick.pickNo < state.currentPick)
     .map((pick) => pick.pickNo));
   const options = callOptions(call.payload);
-  const ranked = options.filter(({ player }) => !picksByPlayer.has(player.id) && preferences[player.id] !== "exclude");
+  const ranked = options.filter(({ player }) => !picksByPlayer.has(player.id)
+    && preferences[player.id] !== "exclude"
+    && isDraftChoiceRosterFeasible(state, player.id));
   const taken = [...new Map([...call.carried, ...options].map((option) => [option.player.id, option])).values()]
     .flatMap((option) => {
       const pick = picksByPlayer.get(option.player.id);
@@ -143,7 +146,7 @@ export function callAnnouncement(view: ShortlistView | null, error: string): str
   const failed = error ? "The Assistant call could not update." : "";
   if (!view) return failed;
   const [top] = view.ranked;
-  if (!top) return `Every player on this shortlist is gone. Use Find player. ${failed}`.trim();
+  if (!top) return `No player on this shortlist is available for your roster. Use Find player. ${failed}`.trim();
   if (!view.promoted) return `The Assistant recommends ${top.player.name}. ${failed}`.trim();
   const [latest] = view.taken;
   const gone = latest ? `${latest.option.player.name} was taken by ${latest.takenBy}. ` : "";

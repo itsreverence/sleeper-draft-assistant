@@ -40,7 +40,7 @@ export function buildStrategy(state: DraftState, shortlistSize = 4): AiDraftStra
 type HeldStrategy = { respond: (json: AiDraftStrategyPayload) => Promise<void>; fail: (message: string) => Promise<void>; state: DraftState };
 
 // A real local event stream so a pick arrives through the browser's EventSource and the renderer's own listener.
-export async function openLiveRoom(page: Page, options: { mode: RoomMode; holdStrategies?: boolean; shortlistSize?: number; rename?: Record<string, string> }) {
+export async function openLiveRoom(page: Page, options: { mode: RoomMode; holdStrategies?: boolean; shortlistSize?: number; rename?: Record<string, string>; configure?: (state: DraftState) => DraftState }) {
   const streams = new Set<ServerResponse>();
   let latestFrame = "";
   const server = createServer((_request, response) => {
@@ -68,6 +68,7 @@ export async function openLiveRoom(page: Page, options: { mode: RoomMode; holdSt
     fetched.state.userTeamId = fetched.state.teams.find(team => team.draftSlot === snakeSlot(userPickNumber[options.mode], teams))!.id;
     for (const player of fetched.state.players) player.name = options.rename?.[player.name] ?? player.name;
     for (const team of fetched.state.teams) team.name = `Team ${team.draftSlot}`;
+    fetched.state = options.configure?.(fetched.state) ?? fetched.state;
     payload = fetched;
     for (let played = 0; played < openingPicks[options.mode]; played += 1) applyPick();
     fetched.state.status = "drafting";

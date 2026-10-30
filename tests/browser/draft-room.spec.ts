@@ -103,6 +103,34 @@ test.describe("on the clock", () => {
   });
 });
 
+for (const shortlistSize of [2, 3]) {
+  test(`an own pick removes roster-infeasible choices (shortlist size ${shortlistSize})`, async ({ page }) => {
+    const room = await openLiveRoom(page, {
+      mode: "on-clock", shortlistSize,
+      configure: state => {
+        const [rb1, rb2] = state.players.filter(player => player.position === "RB");
+        const te = state.players.find(player => player.position === "TE")!;
+        const teams = state.teams.slice(0, 2).map(team => ({ ...team, roster: [] }));
+        return { ...state, currentPick: 2, userTeamId: teams[1]!.id,
+          settings: { ...state.settings, teams: 2, rounds: 2, rosterSlots: { RB: 1, TE: 1 } },
+          teams, players: [rb1!, rb2!, te], picks: [], pickOrder: undefined };
+      },
+    });
+    const [rb1, rb2, te] = room.available();
+    await expect(topName(page)).toHaveText(rb1!.name);
+    room.setHold(true);
+    room.pick(rb1!.id);
+    await expect(strip(page).getByRole("heading")).toHaveText("On the clock");
+    await expect(shortlist(page)).not.toContainText(rb2!.name);
+    await expect(page.locator(".taken")).toHaveCount(0);
+    if (shortlistSize === 3) await expect(topName(page)).toHaveText(te!.name);
+    else {
+      await expect(page.locator(".all-gone")).toContainText("No player on this shortlist is available for your roster.");
+      await expect(page.locator(".all-gone").getByRole("button", { name: "Find player", exact: true })).toBeVisible();
+    }
+  });
+}
+
 test.describe("target taken", () => {
   test("strikes the row, promotes the next choice, and holds the list until the new call lands", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -147,7 +175,7 @@ test.describe("target taken", () => {
     await expect(topName(page)).toHaveText(second!.name);
     room.pick(second!.id);
     const gone = page.locator(".all-gone");
-    await expect(gone).toContainText("Every player on this shortlist is gone.");
+    await expect(gone).toContainText("No player on this shortlist is available for your roster.");
     await expect(gone).toContainText("A new call is on the way.");
     await expect(page.locator(".taken")).toHaveCount(2);
     await expectAccessible(page);

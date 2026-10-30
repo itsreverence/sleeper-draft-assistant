@@ -97,7 +97,7 @@ describe("Shortlist panel", () => {
     }
     const onOpenPlayerSearch = vi.fn();
     render(ShortlistPanel, props({ ...state, picks, currentPick: picks.length + 1 }, call, { onOpenPlayerSearch }));
-    expect(screen.getByText("Every player on this shortlist is gone.")).toBeTruthy();
+    expect(screen.getByText("No player on this shortlist is available for your roster.")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Find player" }));
     expect(onOpenPlayerSearch).toHaveBeenCalledOnce();
   });

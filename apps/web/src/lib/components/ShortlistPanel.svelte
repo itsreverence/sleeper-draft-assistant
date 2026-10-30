@@ -214,7 +214,7 @@
         {:else}
           <tr class="all-gone">
             <td colspan="5">
-              <strong>Every player on this shortlist is gone.</strong>
+              <strong>No player on this shortlist is available for your roster.</strong>
               <p>{loading ? "A new call is on the way." : "The Assistant has no next choice from this list."} Use Find player to see who is left.</p>
               <button class="btn btn-secondary" type="button" onclick={onOpenPlayerSearch}>
                 <Icon name="search" size={13} />

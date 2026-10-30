@@ -1,4 +1,4 @@
-import { createMockDraftState } from "@sleeper-draft-assistant/engine";
+import { createMockDraftState, isDraftChoiceRosterFeasible } from "@sleeper-draft-assistant/engine";
 import { draftStateRevision } from "@sleeper-draft-assistant/shared";
 import { describe, expect, it } from "vitest";
 
@@ -100,6 +100,56 @@ describe("draftRoomMode", () => {
 });
 
 describe("shortlistView", () => {
+  it.each([false, true])("rechecks consecutive picks against the current roster (explicit order: %s)", (explicitOrder) => {
+    const base = createMockDraftState(0);
+    const players = (["RB", "RB", "TE"] as const).map((position, index) => ({
+      ...base.players[index]!, id: `choice-${index}`, position,
+    }));
+    const state: DraftState = {
+      ...base, status: "drafting", currentPick: 2, userTeamId: "user",
+      settings: { ...base.settings, teams: 2, rounds: 2, rosterSlots: { RB: 1, TE: 1 } },
+      teams: [
+        { id: "other", name: "Other", draftSlot: 1, roster: [] },
+        { id: "user", name: "User", draftSlot: 2, roster: [] },
+      ], players, picks: [], pickOrder: undefined,
+    };
+    if (explicitOrder) state.pickOrder = { source: "sleeper", entries: [
+      { pickNo: 2, round: 1, draftSlot: 2, teamId: "user", originalTeamId: "user", isTraded: false },
+      { pickNo: 3, round: 2, draftSlot: 2, teamId: "user", originalTeamId: "user", isTraded: false },
+    ] };
+    const strategy = call(state);
+    expect(players.every((player) => isDraftChoiceRosterFeasible(state, player.id))).toBe(true);
+    const next = afterPick(state, players[0]!.id, "user");
+    next.teams = next.teams.map((team) => team.id === "user" ? { ...team, roster: [players[0]!.id] } : team);
+    expect(draftRoomMode(next, false)).toBe("on-clock");
+    expect(isDraftChoiceRosterFeasible(next, players[1]!.id)).toBe(false);
+    expect(isDraftChoiceRosterFeasible(next, players[2]!.id)).toBe(true);
+    const view = shortlistView(next, strategy, {});
+    expect(view.ranked.map((option) => option.player.id)).toEqual([players[2]!.id]);
+    expect(view.taken).toEqual([]);
+    const empty = shortlistView(next, { ...strategy, payload: { ...strategy.payload, alternativeCandidates: strategy.payload.alternativeCandidates.slice(0, 1) } }, {});
+    expect(empty.ranked).toEqual([]);
+    expect(callAnnouncement(empty, "")).toContain("No player on this shortlist is available for your roster.");
+    const keeper = { ...players[0]!, id: "keeper", position: "QB" as const };
+    const traded: DraftState = { ...next,
+      settings: { ...next.settings, rounds: 5 }, players: [...players, keeper],
+      teams: next.teams.map((team) => team.id === "user" ? { ...team, roster: [...team.roster, keeper.id] } : team),
+      picks: [...next.picks, { pickNo: 9, round: 5, draftSlot: 1, teamId: "user", playerId: keeper.id, isKeeper: true }],
+      pickOrder: { source: "sleeper", entries: [9, 10].map((pickNo) => ({
+        pickNo, round: 5, draftSlot: 1, teamId: "user", originalTeamId: "other", isTraded: true,
+      })) },
+    };
+    for (const [currentPick, mode] of [[4, "waiting"], [8, "approaching"], [10, "on-clock"]] as const) {
+      const board = { ...traded, currentPick };
+      expect(draftRoomMode(board, false)).toBe(mode);
+      expect(shortlistView(board, strategy, {}).ranked.map((option) => option.player.id)).toEqual([players[2]!.id]);
+    }
+    const initialLateAnswer = { ...strategy, payload: { ...strategy.payload,
+      recommendedCandidate: strategy.payload.alternativeCandidates[0]!, alternativeCandidates: [strategy.payload.alternativeCandidates[1]!],
+    } };
+    expect(shortlistView(next, initialLateAnswer, {}).ranked.map((option) => option.player.id)).toEqual([players[2]!.id]);
+  });
+
   it("keeps the Assistant's order and marks nothing when the list is intact", () => {
     const state = onClockState();
     const strategy = call(state);

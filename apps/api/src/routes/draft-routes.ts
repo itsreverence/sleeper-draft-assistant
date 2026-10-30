@@ -397,6 +397,9 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         // A turn cannot be interrupted, so its answer is still worth showing once the board moves on. The renderer
         // overlays current availability, and only an answer for the current board becomes the plan of record.
         const latestState = await loadDraftState(draftId, getUserRosterId(c));
+        if (!localDataReset.isCurrent(requestGeneration)) {
+          return c.json({ error: "Local data was reset while the Assistant was working. Request a fresh recommendation." }, 409);
+        }
         const overtaken = draftStateRevision(latestState) !== draftStateRevision(state);
         const availableIds = new Set(
           snapshot.players

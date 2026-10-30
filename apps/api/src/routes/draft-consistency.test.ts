@@ -224,6 +224,24 @@ describe("draft request consistency", () => {
     expect(f.record).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])("rejects a reset during the final board reload (overtaken: %s)", async (overtaken) => {
+    const state = finalTightEndPick();
+    const f = fixture(state);
+    f.strategizeDraft.mockResolvedValue(finalPickStrategy("recommended-te"));
+    let release!: (state: DraftState) => void;
+    f.getDraftState.mockResolvedValueOnce(state).mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    const request = f.app.request("/drafts/live/strategy", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    await vi.waitFor(() => expect(f.getDraftState).toHaveBeenCalledTimes(2));
+    f.reset.reset();
+    release({ ...state, currentPick: overtaken ? 4 : state.currentPick });
+    const response = await request;
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: expect.any(String) });
+    expect(f.record).not.toHaveBeenCalled();
+  });
+
   it("still rejects an overtaken answer that does not match the board it was asked about", async () => {
     const state = finalTightEndPick();
     const f = fixture(state);
