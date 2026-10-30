@@ -188,7 +188,7 @@ test("a pending retry keeps the failed-refresh note until new data arrives", asy
   await page.unroute(teamRoute);
   await page.route(teamRoute, route => route.fulfill({ status: 503, json: { error: "Synthetic outage." } }));
   await refresh.click();
-  await expect(page.getByText("Nothing flagged, but the last refresh failed.", { exact: false })).toBeVisible();
+  await expect(page.locator(".attention.note").filter({ hasText: "Nothing flagged, but the last refresh failed." })).toBeVisible();
 
   await page.unroute(teamRoute);
   let release = () => {};
@@ -200,7 +200,7 @@ test("a pending retry keeps the failed-refresh note until new data arrives", asy
   await refresh.click();
   await arrived;
   await expect(page.getByText("Lineup looks set")).toHaveCount(0);
-  await expect(page.getByText("Nothing flagged, but the last refresh failed.", { exact: false })).toBeVisible();
+  await expect(page.locator(".attention.note").filter({ hasText: "Nothing flagged, but the last refresh failed." })).toBeVisible();
 
   release();
   await expect(page.getByText("Lineup looks set").first()).toBeVisible();
