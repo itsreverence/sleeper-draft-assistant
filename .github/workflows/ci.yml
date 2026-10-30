@@ -51,6 +51,7 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npm run build:assets -w @sleeper-draft-assistant/desktop
       - run: node node_modules/electron-builder/cli.js --projectDir apps/desktop --win nsis portable --publish never
       - name: Record artifact integrity before smoke
