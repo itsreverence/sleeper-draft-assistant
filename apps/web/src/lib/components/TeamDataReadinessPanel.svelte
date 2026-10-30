@@ -1,14 +1,16 @@
 <script lang="ts">
   import { formatConfidence } from "../format";
-  import type { TeamDataReadiness, TeamManagerState } from "../types";
+  import type { TeamDataReadiness, TeamManagerState, WeeklyProjectionImportSummary } from "../types";
   import Icon from "./Icon.svelte";
 
   let {
     readiness,
+    weeklySummary = null,
     seasonPhase = "unknown",
     isLoading = false,
   }: {
     readiness: TeamDataReadiness | null;
+    weeklySummary?: WeeklyProjectionImportSummary | null;
     seasonPhase?: TeamManagerState["seasonPhase"];
     isLoading?: boolean;
   } = $props();
@@ -59,9 +61,10 @@
 
     <div class="position-list" aria-label="Projection position coverage">
       {#each readiness.relevantPositions as position}
+        {@const result = weeklySummary?.positionResults.find((item) => item.position === position)}
         <span class:loaded={readiness.loadedPositions.includes(position)}>
           {position === "DEF" ? "DST" : position}
-          <small>{readiness.loadedPositions.includes(position) ? "Loaded" : "Missing"}</small>
+          <small>{readiness.loadedPositions.includes(position) ? "Loaded" : result?.matched === 0 ? result.rowsParsed === 0 ? "No rows" : "No matches" : "Missing"}</small>
         </span>
       {/each}
     </div>

@@ -237,7 +237,6 @@ export function mergeWeeklyProjectionImports(
     playersById.set(playerId, importedPlayer);
   }
 
-  const positions = new Set(Array.from(playersById.values()).map((player) => player.position));
   const positionResults = new Map<Position, WeeklyProjectionImportSummary["positionResults"][number]>();
   for (const result of existingImport.summary.positionResults ?? inferPositionResults(existingImport)) {
     positionResults.set(result.position, result);
@@ -247,13 +246,14 @@ export function mergeWeeklyProjectionImports(
   }
   const orderedPositionResults = Array.from(positionResults.values())
     .sort((left, right) => comparePositions(left.position, right.position));
+  const positions = orderedPositionResults.map((result) => result.position);
   return {
     summary: {
       source: incomingImport.summary.source,
       season: incomingImport.summary.season,
       week: incomingImport.summary.week,
-      position: positions.size === 1 ? Array.from(positions)[0] : null,
-      positions: Array.from(positions).sort(comparePositions),
+      position: positions.length === 1 ? positions[0]! : null,
+      positions,
       positionResults: orderedPositionResults,
       rowsParsed: orderedPositionResults.reduce((total, result) => total + result.rowsParsed, 0),
       matched: playersById.size,
@@ -512,13 +512,19 @@ function serializeWeeklyProjectionImport(storedImport: StoredWeeklyProjectionImp
 
 function deserializeWeeklyProjectionImport(storedImport: SerializedWeeklyProjectionImport): StoredWeeklyProjectionImport {
   const playersById = new Map(storedImport.players);
-  const positions = Array.from(new Set(Array.from(playersById.values()).map((player) => player.position))).sort(comparePositions);
   const deserialized = { summary: storedImport.summary, playersById };
+  const positionResults = storedImport.summary.positionResults ?? inferPositionResults(deserialized);
+  // Merges before 0.1.2 dropped zero-match files from positions while keeping their results.
+  const positions = new Set([
+    ...(storedImport.summary.positions ?? Array.from(playersById.values()).map((player) => player.position)),
+    ...positionResults.map((result) => result.position),
+  ]);
   return {
     summary: {
       ...storedImport.summary,
-      positions: storedImport.summary.positions ?? positions,
-      positionResults: storedImport.summary.positionResults ?? inferPositionResults(deserialized),
+      position: positions.size === 1 ? Array.from(positions)[0] : null,
+      positions: Array.from(positions).sort(comparePositions),
+      positionResults,
     },
     playersById,
   };

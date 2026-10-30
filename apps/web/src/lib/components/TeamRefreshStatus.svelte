@@ -62,8 +62,9 @@
     margin: 0;
     padding: 2px;
     color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
   }
 
   .status-dot {

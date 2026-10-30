@@ -1,3 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { WeeklyProjectionImportStore } from "../weekly-projections-import";
+import { buildTeamAiContext } from "../ai/team-context";
+import { TeamDataReadinessSchema, TeamManagerStateSchema } from "@sleeper-draft-assistant/shared";
 import type { Player, TeamManagerState } from "@sleeper-draft-assistant/shared";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
@@ -51,6 +57,93 @@ const rosCsv = `RK,PLAYER NAME,TEAM,POS,SOS SEASON,SOS PLAYOFFS,ECR VS. ADP
 2,Jahmyr Gibbs,DET,RB1,3 out of 5 stars,4 out of 5 stars,-`;
 
 describe("Team Manager season value routes", () => {
+  it.each(["missing", "zero-match", "header-only", "matched", "legacy"] as const)(
+    "reports %s weekly files truthfully through import, reload and Assistant context",
+    async (kind) => {
+      const dir = mkdtempSync(path.join(tmpdir(), "sda-readiness-route-"));
+      try {
+        const filePath = path.join(dir, "weekly.json");
+        let store = new WeeklyProjectionImportStore(filePath);
+        const runners = Array.from({ length: 7 }, (_, index) => ({
+          ...player, id: `rb-${index}`, sleeperId: `rb-${index}`, name: `Runner ${index}`,
+        }));
+        const kicker: Player = { ...player, id: "k", sleeperId: "k", name: "Kicker", position: "K" };
+        const currentState = structuredClone(state);
+        currentState.league.rosterSlots = { RB: 1, K: 1, BN: 6 };
+        currentState.roster.starters = [
+          { slot: "RB", eligiblePositions: ["RB"], player: runners[0]! },
+          { slot: "K", eligiblePositions: ["K"], player: kicker },
+        ];
+        currentState.roster.bench = runners.slice(1);
+        const app = new Hono();
+        registerTeamRoutes(app, {
+          localDataReset: new LocalDataResetCoordinator({} as never),
+          sleeperClient: {
+            getNflSchedule: async () => null,
+            getTeamManagerState: async () => structuredClone(currentState),
+            getTeamWeekContext: async () => null,
+            getTeamActivitySummary: async () => null,
+            getProjectionImportPlayers: async () => [...runners, kicker],
+          } as never,
+          aiProviderManager: {} as never,
+          getSettingsStore: () => ({} as never),
+          getRankingImportStore: () => ({ get: () => null }) as never,
+          getSeasonProjectionImportStore: () => ({ get: () => null }) as never,
+          getAdpImportStore: () => ({ get: () => null }) as never,
+          getSeasonValueRankingImportStore: () => ({ get: () => null }) as never,
+          getWeeklyProjectionImportStore: () => store,
+          handleRouteError: (context, error) => context.json({ error: String(error) }, 500),
+        });
+        const files = [{
+          position: "RB",
+          csvText: "Player,Team,ATT,YDS,TDS,REC,YDS,TDS,FL,FPTS\n"
+            + runners.map((runner) => `${runner.name},DET,10,50,1,2,20,0,0,15`).join("\n"),
+        }];
+        if (kind !== "missing") files.push({
+          position: "K",
+          csvText: "Player,Team,FG,FGA,XPT,FPTS"
+            + (kind === "header-only" ? "" : `\n${kind === "matched" ? "Kicker" : "Unknown Kicker"},DET,2,2,3,9`),
+        });
+        const response = await app.request("/leagues/league-1/projections/weekly/import?userRosterId=1", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ season: "2026", week: 1, files }),
+        });
+        expect(response.status).toBe(200);
+        const imported = await response.json();
+        if (kind === "legacy") {
+          const saved = store.get({ leagueId: "league-1", season: "2026", week: 1 })!;
+          // 0.1.1 merged summaries retained K results but dropped K from positions.
+          writeFileSync(filePath, JSON.stringify({ "league-1:2026:1": {
+            summary: { ...saved.summary, positions: ["RB"], position: "RB" },
+            players: Array.from(saved.playersById.entries()),
+          } }));
+        }
+        store = new WeeklyProjectionImportStore(filePath);
+        const reloaded = await app.request("/leagues/league-1/team?userRosterId=1");
+        expect(reloaded.status).toBe(200);
+        const payload = await reloaded.json();
+        const readiness = TeamDataReadinessSchema.parse(payload.dataReadiness);
+        expect(readiness).toEqual(imported.dataReadiness);
+        expect(readiness.status).toBe(kind === "matched" ? "ready" : "partial");
+        expect(readiness.confidence).toBe(kind === "matched" ? "high" : "medium");
+        expect(readiness.loadedPositions).toEqual(kind === "matched" ? ["RB", "K"] : ["RB"]);
+        expect(readiness.missingPositions).toEqual(kind === "matched" ? [] : ["K"]);
+        const warning = kind === "missing" ? "Missing projection files for K."
+          : kind === "header-only" ? "K file has no rows." : "K file imported, but no players matched.";
+        if (kind !== "matched") {
+          expect(readiness.warnings).toContain(warning);
+          if (kind !== "missing") expect(readiness.warnings.join(" ")).not.toContain("Missing projection files");
+          const context = buildTeamAiContext(TeamManagerStateSchema.parse(payload.state), "Review my team", [], null, [], null, readiness);
+          expect(JSON.stringify(context.teamBrief)).toContain(warning);
+        }
+        expect(payload.weeklyProjectionSummary.positions).toEqual(kind === "missing" ? ["RB"] : ["RB", "K"]);
+        expect(payload.weeklyProjectionSummary.position).toBe(kind === "missing" ? "RB" : null);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
   it.each([
     ["rankings/ros/import", { season: "2026", scoring: "PPR", csvText: rosCsv }],
     ["projections/weekly/import", { season: "2026", week: 1, files: [{ position: "RB", csvText: "pending CSV" }] }],

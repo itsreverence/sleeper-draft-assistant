@@ -30,7 +30,13 @@ export function buildTeamDataReadiness(
     (state.league.rosterSlots[position] ?? 0) > 0
       || eligibleRosterPlayers.some((player) => player.position === position),
   );
-  const loadedPositions = relevantPositions.filter((position) => weeklyProjectionSummary?.positions.includes(position));
+  const emptyResults = weeklyProjectionSummary?.positionResults.filter((result) =>
+    relevantPositions.includes(result.position) && result.matched === 0,
+  ) ?? [];
+  const loadedPositions = relevantPositions.filter((position) =>
+    weeklyProjectionSummary?.positions.includes(position)
+      && !emptyResults.some((result) => result.position === position),
+  );
   const missingPositions = relevantPositions.filter((position) => !loadedPositions.includes(position));
   const projectedRosterPlayers = eligibleRosterPlayers.filter((player) =>
     player.projectionSource === "weekly_projection"
@@ -59,7 +65,14 @@ export function buildTeamDataReadiness(
     if (!importIsFresh) {
       warnings.push("Weekly projections are 3 or more days old; import fresh files before using weekly advice.");
     }
-    if (missingPositions.length > 0) warnings.push(`Missing projection files for ${missingPositions.join(", ")}.`);
+    const missingFiles = missingPositions.filter((position) => !emptyResults.some((result) => result.position === position));
+    if (missingFiles.length > 0) warnings.push(`Missing projection files for ${missingFiles.join(", ")}.`);
+    for (const result of emptyResults) {
+      const label = result.position === "DEF" ? "DST" : result.position;
+      warnings.push(result.rowsParsed === 0
+        ? `${label} file has no rows.`
+        : `${label} file imported, but no players matched.`);
+    }
     if (importMatchRate !== null && importMatchRate < 0.85) {
       warnings.push(`Only ${Math.round(importMatchRate * 100)}% of imported rows matched Sleeper players.`);
     }

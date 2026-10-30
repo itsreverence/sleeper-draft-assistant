@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DraftState, Player, WeeklyProjectionImportSummary } from "./types";
-import { draftSlotForPick, draftTeamReference, formatConfidence, formatDraftPick, formatMissingProjection, formatSleeperStatusSummary, formatStatus, formatWeeklyProjection, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, upcomingUserPicks } from "./format";
+import type { DraftState, Player, TeamManagerState, TeamWeekContext, WeeklyProjectionImportSummary } from "./types";
+import { draftSlotForPick, draftTeamReference, formatConfidence, formatDraftPick, formatMissingProjection, formatRosterSlot, formatSleeperStatusSummary, formatStatus, formatTeamContext, formatWeeklyProjection, formatSleeperStatusTitle, isUserOnTheClock, picksUntilUserTurn, preferredWorkspaceMode, rosterStatus, upcomingUserPicks } from "./format";
 
 describe("status copy", () => {
   it.each([
@@ -25,6 +25,36 @@ describe("status copy", () => {
     expect(formatMissingProjection(player, null)).toBe("No WR file");
     expect(formatMissingProjection(player, summary)).toBe("No WR file");
     expect(formatMissingProjection(player, { positions: ["WR"] } as WeeklyProjectionImportSummary)).toBe("No match");
+  });
+
+  it("builds the top-bar team context from the payload", () => {
+    const state = { seasonPhase: "regular", week: 7, league: { scoring: "ppr" } } as TeamManagerState;
+    const opponent = { week: 7, opponentTeamName: "Blitzkrieg Bops" } as TeamWeekContext;
+    expect(formatTeamContext(state, opponent, null)).toBe("Week 7 · vs Blitzkrieg Bops · PPR");
+    expect(formatTeamContext(state, null, null)).toBe("Week 7 · PPR");
+    expect(formatTeamContext(state, { week: 6, opponentTeamName: "Week Six Opponent" } as TeamWeekContext, 6)).toBe("Week 6 · vs Week Six Opponent · Active Week 7 · PPR");
+    expect(formatTeamContext({ ...state, seasonPhase: "preseason", week: null }, null, null)).toBe("Preseason · PPR");
+    expect(formatTeamContext({ ...state, seasonPhase: "postseason", week: null }, null, null)).toBe("Postseason · PPR");
+  });
+
+  it("classifies roster status tones from the Sleeper labels", () => {
+    const status = (injuryStatus: string | null, rosterStatus = "Active") => ({ sleeperStatus: { injuryStatus, rosterStatus, practiceParticipation: null } }) as unknown as Player;
+    expect(rosterStatus(status("Questionable"))).toEqual({ label: "Questionable", tone: "warning", injury: true });
+    expect(rosterStatus(status("Out"))?.tone).toBe("danger");
+    expect(rosterStatus(status("IR"))?.tone).toBe("danger");
+    expect(rosterStatus(status(null, "Injured Reserve"))?.tone).toBe("danger");
+    expect(rosterStatus({ schedule: { onBye: true } } as Player)).toEqual({ label: "On bye", tone: "warning", injury: false });
+    expect(rosterStatus({} as Player)).toBeNull();
+  });
+
+  it("shortens multi-position slots so they fit the Slot column", () => {
+    expect(formatRosterSlot("SUPER_FLEX")).toBe("SFLX");
+    expect(formatRosterSlot("WRRB_FLEX")).toBe("W/R");
+    expect(formatRosterSlot("FLEX")).toBe("FLEX");
+  });
+
+  it("names the defense file the way the import does", () => {
+    expect(formatMissingProjection({ position: "DEF" } as Player, null)).toBe("No DST file");
   });
 
   it("keeps the pts suffix and shows zero on a bye", () => {

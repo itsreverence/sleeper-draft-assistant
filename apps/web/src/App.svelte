@@ -57,7 +57,7 @@
     updateDraftStrategyInstruction,
   } from "./lib/api";
   import { errorCopy } from "./lib/error-copy";
-  import { draftTeamReference, formatStatus, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
+  import { draftTeamReference, formatStatus, formatTeamContext, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
   import {
     normalizeTeamProjectionOverride,
     shouldRefreshTeamManager,
@@ -1797,6 +1797,7 @@
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
+  const showTeamWorkspace = $derived(Boolean(draftState) && workspaceMode !== "draft");
   const isPreconnect = $derived(!connectPayload && !draftState);
   const hasStartedConnecting = $derived(!isPreconnect);
   const showSetupChecklist = $derived(
@@ -1902,6 +1903,16 @@
   />
 {/if}
 
+{#snippet teamRefreshStatus()}
+  <TeamRefreshStatus
+    lastCheckedAt={teamLastCheckedAt}
+    lastChangedAt={teamLastChangedAt}
+    isRefreshing={isRefreshingTeamManager}
+    error={teamRefreshError}
+    onRefresh={() => refreshTeamManagerIfEligible(true)}
+  />
+{/snippet}
+
 <main
   class="app-shell"
   class:preconnect-shell={isPreconnect || switchingDraft}
@@ -1917,10 +1928,12 @@
     showChangeDraft={Boolean(draftState)}
     centered={isPreconnect || switchingDraft}
     compact={workspaceMode === "manage"}
+    subtitle={showTeamWorkspace && teamManagerState ? formatTeamContext(teamManagerState, teamWeekContext, teamProjectionWeek || null) : null}
     draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
     onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
     onOpenSettings={toggleSettings}
+    meta={showTeamWorkspace ? teamRefreshStatus : undefined}
   />
 
   {#if draftSwitcherOpen && draftState}
@@ -2176,13 +2189,6 @@
           />
         {/if}
       {:else}
-        <TeamRefreshStatus
-          lastCheckedAt={teamLastCheckedAt}
-          lastChangedAt={teamLastChangedAt}
-          isRefreshing={isRefreshingTeamManager}
-          error={teamRefreshError}
-          onRefresh={() => refreshTeamManagerIfEligible(true)}
-        />
         <section class="team-workspace">
           <TeamAskPanel
             contextKey={String(appSettings?.codexWebSearch)}

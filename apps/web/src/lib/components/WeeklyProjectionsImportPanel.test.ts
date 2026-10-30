@@ -108,3 +108,22 @@ it.each([
   await fireEvent.click(screen.getByRole("button", { name: `Import ${label}` }));
   expect(onImport).toHaveBeenCalledWith({ season: "2026", week: 2, files: [{ position, csvText }] });
 });
+
+it("styles only positions with matched players as loaded", () => {
+  const { container } = render(WeeklyProjectionsImportPanel, {
+    hasTeam: true, defaultSeason: "2026", defaultWeek: 2, leagueSeason: "2026", currentWeek: 2,
+    summary: {
+      season: "2026", week: 2, position: "QB", positions: ["QB", "K"], importedAt: "2026-09-01T00:00:00.000Z",
+      rowsParsed: 8, matched: 7, unmatched: 1, ambiguous: 0, conflicts: 0, unmatchedSample: [],
+      positionResults: [
+        { position: "QB", rowsParsed: 7, matched: 7, unmatched: 0, ambiguous: 0 },
+        { position: "K", rowsParsed: 1, matched: 0, unmatched: 1, ambiguous: 0 },
+      ],
+    } as never,
+    rosLoaded: false, error: "", isImporting: false, isClearing: false,
+    onImport: vi.fn(), onLoadContext: vi.fn(), onClear: vi.fn(), onOpenFantasyPros: vi.fn(),
+  });
+  const chip = (label: string) => Array.from(container.querySelectorAll(".position-status > span")).find((node) => node.textContent?.trim().startsWith(label));
+  expect(chip("QB")?.classList.contains("loaded")).toBe(true);
+  expect(chip("K")?.classList.contains("loaded")).toBe(false);
+});
