@@ -42,6 +42,14 @@ describe("inline formatting", () => {
     expect(container.querySelector("strong, b")).toBeNull();
   });
 
+  it("ignores emphasis markers inside a code span when finding the closing marker", () => {
+    const { container } = render(ResponseMarkdown, { content: "*see `a*b` now* and **use `**` for bold**" });
+    expect(container.querySelector("p")!.textContent).toBe("see a*b now and use ** for bold");
+    expect(texts(container, "em")).toEqual(["see a*b now"]);
+    expect(texts(container, "strong")).toEqual(["use ** for bold"]);
+    expect(texts(container, "code")).toEqual(["a*b", "**"]);
+  });
+
   it("nests formatting inside links, links inside formatting, and code inside emphasis", () => {
     const { container } = render(ResponseMarkdown, {
       content: "**[Report](https://www.nfl.com/news/report)** then [**Bold**](https://www.nfl.com/news/report) and *a `b` c*",

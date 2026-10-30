@@ -30,6 +30,15 @@
 
   function findRun(text: string, from: number, marker: string, length: number, accept: (index: number) => boolean): number {
     for (let index = from; index < text.length; index++) {
+      // Emphasis markers inside a code span are literal, so step over complete spans.
+      if (marker !== "`" && text[index] === "`") {
+        const ticks = runLength(text, index);
+        const end = findRun(text, index + ticks, "`", ticks, () => true);
+        if (end !== -1) {
+          index = end + ticks - 1;
+          continue;
+        }
+      }
       if (text[index] !== marker) continue;
       const run = runLength(text, index);
       if (run === length && accept(index)) return index;
