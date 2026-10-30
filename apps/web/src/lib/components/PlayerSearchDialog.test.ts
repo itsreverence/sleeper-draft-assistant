@@ -29,3 +29,18 @@ it("Escape closes the preference menu before the search dialog and restores its 
   await fireEvent.keyDown(trigger, { key: "Escape" });
   expect(onClose).toHaveBeenCalledOnce();
 });
+
+it("clears saved preferences from the header and keeps focus in the dialog", async () => {
+  const onClearPreferences = vi.fn();
+  render(PlayerSearchDialog, {
+    state: createDraftPayloadFixture({ draftId: "test-draft", name: "Test Draft" }).state,
+    preferences: { "p-achane": "pin" },
+    onSetPreference: vi.fn(),
+    onClearPreferences,
+    onClose: vi.fn(),
+  });
+  expect(screen.getByText("1 set")).toBeTruthy();
+  await fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+  expect(onClearPreferences).toHaveBeenCalledOnce();
+  expect(document.activeElement).toBe(screen.getByRole("searchbox"));
+});

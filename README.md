@@ -25,7 +25,8 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Lets Codex check public NFL.com, ESPN, official team-site and NBC Sports injury, practice, or role reporting when useful, with dated source links and bounded lookups. News supplements Sleeper state and imported values.
 - Keeps one local Codex process and one temporary thread per draft or team while the app is running. Follow-up questions keep their context without the UI resending earlier messages.
 - Uses Codex as the primary draft strategist near your turn. It reasons from neutral draft evidence and can search the full read-only available-player snapshot.
-- Labels recommendations as contingent targets until your team is on the clock, shows the exact wait and turn pairing, and separates elite fallers from turn-range contingencies.
+- Leads the draft room with one ranked shortlist near your turn and the board between turns. A player who gets picked is struck through and the Assistant's next choice moves up while a new call loads. Picks are still made in Sleeper.
+- Labels recommendations as contingent targets until your team is on the clock, and shows the exact wait, turn pairing, elite fallers, and turn-range contingencies under **Why this call**.
 - Keeps comparisons, candidate questions, and what-if analysis in one contextual draft conversation that remains grounded in the latest board.
 - Carries a validated living draft plan across AI turns so current-pick focus, next-turn priorities, roster goals, and board changes stay coherent throughout the draft.
 - Lets users add next-pick or rest-of-draft guidance, and lets AI chat propose guidance that is persisted only after explicit user confirmation.

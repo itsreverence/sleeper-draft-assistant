@@ -2,7 +2,6 @@
   import type { DraftState, Position } from "../types";
   import {
     buildDraftBoardRows,
-    currentPickAnnouncement,
     visibleDraftRounds,
     type DraftBoardView,
   } from "../draft-board";
@@ -22,20 +21,6 @@
   const teams = $derived([...draftState.teams].sort((a, b) => a.draftSlot - b.draftSlot));
   const visibleRounds = $derived(visibleDraftRounds(draftState, view));
   const rows = $derived(buildDraftBoardRows(draftState, visibleRounds));
-
-  // A sync that leaves the message unchanged must stay silent, as must opening a board or switching drafts.
-  const pickMessage = $derived(currentPickAnnouncement(draftState));
-  let announcement = $state("");
-  let announcedDraftId = "";
-  let announcedMessage = "";
-  $effect(() => {
-    const message = pickMessage;
-    if (draftState.id === announcedDraftId && message !== announcedMessage) {
-      announcement = message;
-    }
-    announcedDraftId = draftState.id;
-    announcedMessage = message;
-  });
 
   $effect(() => {
     draftState.currentPick;
@@ -74,7 +59,7 @@
     <h2>Board · {view === "live" ? "live view" : "full view"}</h2>
     <div class="legend-group">
       <span><i class="legend-user"></i>Your picks</span>
-      <span><i class="legend-current"></i>On the clock</span>
+      <span><i class="legend-current"></i>Current pick</span>
       <span><i class="legend-traded"></i>Traded pick</span>
       <button
         class="view-action"
@@ -89,8 +74,6 @@
       </button>
     </div>
   </header>
-
-  <p class="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
 
   <div class="board-scroller" bind:this={boardScroller}>
     <div class="board" role="table" aria-label="Draft picks by round and team" style={`--team-count:${draftState.settings.teams}`}>
@@ -140,6 +123,7 @@
                 class={`pick-cell ${positionClass(cell.player?.position)}`}
                 class:filled={Boolean(cell.pick)}
                 class:current={cell.isCurrent}
+                class:user-next={cell.isUserNext && !cell.isCurrent}
                 class:user-pick={cell.isUserPick}
                 class:user-slot={cell.isUserOwned}
                 class:traded={cell.isTraded}
@@ -159,7 +143,11 @@
                     <span class="sr-only">{cell.owner.name}</span>
                   {/if}
                 {:else if cell.isCurrent}
-                  <strong class="on-clock">On the clock</strong>
+                  <strong class="now">Now</strong>
+                  <small>{cell.owner?.name ?? `Slot ${cell.draftSlot}`}</small>
+                  {#if cell.isTraded}<em>Traded</em>{/if}
+                {:else if cell.isUserNext}
+                  <strong class="your-pick">Your pick</strong>
                   <small>{cell.owner?.name ?? `Slot ${cell.draftSlot}`}</small>
                   {#if cell.isTraded}<em>Traded</em>{/if}
                 {:else}
@@ -405,8 +393,16 @@
     white-space: nowrap;
   }
 
-  .pick-cell > strong.on-clock {
+  .pick-cell > strong.now {
     color: var(--warning);
+  }
+
+  .pick-cell.user-next {
+    background: var(--board-user);
+  }
+
+  .pick-cell > strong.your-pick {
+    color: var(--accent);
   }
 
   .player-meta {

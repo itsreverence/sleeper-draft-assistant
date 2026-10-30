@@ -140,6 +140,7 @@ describe("DecisionLogStore", () => {
       confidence: "high",
       headline: recommendation.headline,
       summary: "Build around an elite running back.",
+      reasonLine: "Elite back before the tier closes.",
       reasons: ["The top tier is about to close."],
       risks: [],
       plan: {
@@ -165,6 +166,21 @@ describe("DecisionLogStore", () => {
 
     const secondStore = new DecisionLogStore(filePath);
     expect(secondStore.list(state.id)[0]?.aiStrategy).toEqual(aiStrategy);
+  });
+
+  it("still reads a strategy snapshot written before the reason line existed", () => {
+    const filePath = path.join(mkdtempSync(path.join(tmpdir(), "sleeper-strategy-")), "decision-log.json");
+    const state = createMockDraftState(2);
+    const recommendation = buildDraftRecommendation(state);
+    const aiStrategy: AiDraftDecision = {
+      basedOnPick: state.currentPick, recommendedPlayerId: recommendation.recommendedPlayerId!, alternativePlayerIds: [],
+      verdict: "strong", confidence: "high", headline: recommendation.headline, summary: "An older call.", reasons: ["Older reason."], risks: [],
+      plan: { updatedAtPick: state.currentPick, approach: "Older plan.", currentPickFocus: [], nextTurnPriorities: [], positionsThatCanWait: [], rosterGoals: ["Older goal."], watchItems: [], changeSummary: "Older note." },
+    };
+    new DecisionLogStore(filePath).record({ draftId: state.id, state, recommendation, aiStrategy, trigger: "ai-strategy" });
+    const loaded = new DecisionLogStore(filePath).list(state.id)[0]?.aiStrategy;
+    expect(loaded).toEqual(aiStrategy);
+    expect(loaded?.reasonLine).toBeUndefined();
   });
 
   it("inserts and prunes a decision in one durable replacement", async () => {

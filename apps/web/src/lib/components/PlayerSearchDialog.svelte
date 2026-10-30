@@ -9,12 +9,14 @@
     state: draftState,
     preferences = {},
     onSetPreference,
+    onClearPreferences,
     onAskAboutPlayer,
     onClose,
   }: {
     state: DraftState;
     preferences?: PlayerPreferences;
     onSetPreference: (playerId: string, preference: PlayerPreferenceLevel | null) => void;
+    onClearPreferences?: () => void;
     onAskAboutPlayer?: (playerName: string) => void;
     onClose: () => void;
   } = $props();
@@ -22,9 +24,15 @@
   const positions: Array<Position | null> = [null, "QB", "RB", "WR", "TE", "K", "DEF"];
   let query = $state("");
   let position: Position | null = $state(null);
+  let searchInput = $state<HTMLInputElement>();
   const results = $derived(searchDraftPlayers(draftState, query, position, preferences));
   const preferenceCount = $derived(Object.keys(preferences).length);
 
+
+  function clearPreferences() {
+    onClearPreferences?.();
+    searchInput?.focus();
+  }
 
   function askAboutPlayer(playerName: string) {
     onClose();
@@ -41,7 +49,10 @@
       <h2 id="player-search-title">Find player</h2>
     </div>
     <div class="header-actions">
-      {#if preferenceCount > 0}<span>{preferenceCount} set</span>{/if}
+      {#if preferenceCount > 0}
+        <span>{preferenceCount} set</span>
+        {#if onClearPreferences}<button class="clear-preferences" type="button" onclick={clearPreferences}>Clear</button>{/if}
+      {/if}
       <button type="button" aria-label="Close player search" onclick={onClose}>
         <Icon name="close" size={16} />
       </button>
@@ -51,6 +62,7 @@
   <div class="search-field">
     <Icon name="search" size={17} />
     <input
+      bind:this={searchInput}
       bind:value={query}
       type="search"
       placeholder="Search players"
@@ -170,6 +182,19 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+
+  .header-actions > button.clear-preferences {
+    width: auto;
+    height: auto;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   .header-actions > span {

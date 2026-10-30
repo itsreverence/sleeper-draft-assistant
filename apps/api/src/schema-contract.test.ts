@@ -64,6 +64,20 @@ describe("shared validation contracts", () => {
     });
     expect(AiDraftDecisionSchema.safeParse({ ...decision, plan: {} }).success).toBe(false);
   });
+
+  it("keeps a short reason line and drops a malformed one without rejecting the decision", () => {
+    const decision = {
+      basedOnPick: 1, recommendedPlayerId: "player", verdict: "reasonable", confidence: "medium",
+      headline: "Draft WR depth", summary: "Fill the WR slot.", reasons: ["An open starter slot remains."],
+      plan: { updatedAtPick: 1, approach: "Fill the lineup", rosterGoals: ["Fill WR"], changeSummary: "First pick" },
+    };
+    expect(AiDraftDecisionSchema.parse({ ...decision, reasonLine: "  Best value at a need.  " }).reasonLine).toBe("Best value at a need.");
+    for (const reasonLine of ["x".repeat(121), "   ", 42]) {
+      const parsed = AiDraftDecisionSchema.parse({ ...decision, reasonLine });
+      expect(parsed.reasonLine).toBeUndefined();
+      expect(parsed.summary).toBe(decision.summary);
+    }
+  });
   it.each(NEWS_SOURCE_HOSTS)("accepts exact article host %s and rejects host impersonation", (host) => {
     const source = { title: "Report", reportedAt: "2026-10-29" };
     expect(NewsSourceSchema.safeParse({ ...source, url: `https://${host}/news/report` }).success).toBe(true);

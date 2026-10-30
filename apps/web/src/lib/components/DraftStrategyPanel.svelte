@@ -32,6 +32,11 @@
 
   <p class="strategy-approach">{plan.approach}</p>
 
+  <p class="strategy-glance">
+    <span>Next turn: <strong>{plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong></span>
+    <span>Can wait: <strong>{plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong></span>
+  </p>
+
   <details class="strategy-details" open={detailsOpen}>
     <summary>Plan details</summary>
     <div class="strategy-details-content">
@@ -76,6 +81,20 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
+  }
+
+  .strategy-glance {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .strategy-glance strong {
+    color: var(--text-secondary);
+    font-weight: 600;
   }
 
   .strategy-details {

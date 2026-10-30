@@ -5,37 +5,28 @@
 
   let {
     state: draftState,
-    strategyOpen = false,
+    updateLabel = "",
+    planOpen = false,
     onOpenPlayerSearch,
-    onToggleStrategy,
+    onTogglePlan,
   }: {
     state: DraftState;
-    strategyOpen?: boolean;
+    updateLabel?: string;
+    planOpen?: boolean;
     onOpenPlayerSearch?: () => void;
-    onToggleStrategy?: () => void;
+    onTogglePlan?: () => void;
   } = $props();
 
   const summary = $derived(pickStripSummary(draftState));
 </script>
 
 <section class="pick-strip" class:on-clock={summary.tone === "clock"} aria-label="Draft state">
-  <span class="state">
-    {#if summary.tone === "clock"}<span class="clock-dot" aria-hidden="true"></span>{/if}
-    {summary.label}
-  </span>
-  <div class="meta">
-    {#each [summary.pick, summary.nextTurn].filter((pick) => pick !== null) as pick (pick.label)}
-      <span>{pick.label} <b>{pick.slot}</b> (#{pick.overall})</span>
-    {/each}
-    {#if summary.round}
-      <span class="round">
-        Round <b>{summary.round.number}</b>
-        <Icon name={summary.round.direction === "forward" ? "arrow-right" : "arrow-left"} size={13} />
-        {summary.round.direction === "forward" ? "left to right" : "right to left"}
-      </span>
-    {/if}
-  </div>
-  {#if onOpenPlayerSearch || onToggleStrategy}
+  <h2 class="state">{summary.label}</h2>
+  {#if summary.facts.length > 0}
+    <p class="meta">{summary.facts.map((fact) => `${fact.label} ${fact.slot}`).join(" · ")}</p>
+  {/if}
+  {#if updateLabel}<span class="update">{updateLabel}</span>{/if}
+  {#if onOpenPlayerSearch || onTogglePlan}
     <div class="actions">
       {#if onOpenPlayerSearch}
         <button class="btn btn-secondary" type="button" onclick={onOpenPlayerSearch}>
@@ -43,26 +34,26 @@
           Find player
         </button>
       {/if}
-      {#if onToggleStrategy}
-        <button class="btn btn-secondary" type="button" aria-expanded={strategyOpen} onclick={onToggleStrategy}>
-          {strategyOpen ? "Close plan" : "Draft plan"}
-        </button>
+      {#if onTogglePlan}
+        <button class="btn btn-secondary" type="button" aria-expanded={planOpen} onclick={onTogglePlan}>Plan</button>
       {/if}
     </div>
   {/if}
 </section>
 
 <style>
+  /* Status sits in its own track so it can come and go without moving anything else in the room. */
   .pick-strip {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "state meta update actions";
     align-items: center;
-    gap: var(--space-2) var(--space-4);
-    min-height: 52px;
+    gap: var(--space-1) var(--space-4);
+    min-height: 56px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   }
 
   .pick-strip.on-clock {
@@ -71,46 +62,39 @@
   }
 
   .state {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
+    grid-area: state;
     color: var(--text-primary);
+    font-size: var(--text-lg);
     font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
   }
 
   .on-clock .state {
     color: var(--warning);
   }
 
-  .clock-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--warning);
-  }
-
   .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-4);
+    grid-area: meta;
     min-width: 0;
     color: var(--text-secondary);
     font-size: var(--text-md);
-  }
-
-  .meta b {
-    color: var(--text-primary);
-    font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
-  .round {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
+  .update {
+    grid-area: update;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+
+  .on-clock .update {
+    color: var(--text-secondary);
   }
 
   .actions {
+    grid-area: actions;
     display: flex;
     gap: var(--space-2);
   }
@@ -123,7 +107,12 @@
 
   @media (max-width: 760px) {
     .pick-strip {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "state update"
+        "meta meta"
+        "actions actions";
+      padding-left: var(--space-3);
     }
   }
 

@@ -68,7 +68,7 @@ Sleeper draft normalization includes the draft's pick-to-roster order, for snake
 
 Users can add concise `next-pick` or `draft` strategy guidance. Active guidance is included as preference-level context in strategy, conversation, and candidate-evaluation turns. It can influence a decision when reasonable, but it does not override availability, exclusions, roster feasibility, or the current Sleeper snapshot.
 
-The backend rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer discards responses after the board advances and shows explicit reviewing, unavailable, or not-configured states when no current AI strategy exists.
+The backend validates each answer against the board it was asked about and rejects stale pick numbers, excluded or unavailable players, unknown IDs, lineup-infeasible choices, and plans tagged for a different pick. Alternatives receive the same validation. The renderer shows an answer the board overtook with taken players struck and its source pick named, and shows explicit thinking, unavailable, or not-configured states when no strategy exists. An overtaken answer is never stored as the plan or a decision snapshot.
 
 AI strategy cannot submit a Sleeper pick. The Codex thread is ephemeral, read-only, uses no approval flow, and is instructed to use supplied evidence and bounded fantasy tools. Direct web search is explicitly disabled on strategy and conversation threads. Both main and research threads disable built-in apps, plugins, browser and computer automation, shell and unified execution. Research additionally disables code-mode hosting, subagents, image tools, skill discovery and installation, hooks, goals, worktrees, tool suggestions, and sleep tools. Research retains hosted web search. A live codex-cli 0.163.0 probe confirmed that the main restrictions preserve app-owned dynamic tool results. Applying the full research restriction set to main threads made those results unreadable, so the additional flags remain research-only. Main threads remain instructed to use only supplied evidence and app-owned tools. The feature keys were checked with `codex features list` on codex-cli 0.163.0 and are asserted in the provider tests.
 
@@ -148,8 +148,8 @@ strategy retries run before queued automatic strategy refreshes; an active turn 
 never preempted. Pending refreshes coalesce by draft/team scope, rejecting older
 callers with a safe 409 response and keeping the highest priority among the
 coalesced requests. Before execution, strategy refreshes recheck the
-normalized draft revision, reset generation, and request cancellation. Existing
-response guards still reject stale results. Thread reuse and provider cleanup on
+normalized draft revision, reset generation, and request cancellation. A turn that was already
+running returns its validated answer for display only. Thread reuse and provider cleanup on
 settings changes, reset, and shutdown remain in place.
 
 The renderer polls `GET /ai/requests/:requestId` only during its active request,

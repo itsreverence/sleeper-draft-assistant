@@ -1,179 +1,364 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
 import { expectAccessible } from "./accessibility";
+import { buildStrategy, openLiveRoom, type LiveRoom } from "./draft-room-fixture";
 
-test.beforeEach(async ({ page }) => {
-  await page.route("**/*", (route) => new URL(route.request().url()).origin === "http://127.0.0.1:15173"
-    ? route.continue() : route.abort());
-  const provider = { id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available" } as const;
-  await page.route("**/api/ai/status", route => route.fulfill({ json: provider }));
-  await page.route(/\/api\/drafts\/[^/]+\/state(?:\?|$)/, async route => {
-    const payload = await (await route.fetch()).json() as DraftPayload;
-    payload.state.userTeamId = payload.state.teams.find(team => team.draftSlot === payload.state.currentPick)!.id;
-    await route.fulfill({ json: payload });
+const strip = (page: Page) => page.getByRole("region", { name: "Draft state" });
+const shortlist = (page: Page) => page.getByRole("table", { name: /^(Assistant's shortlist|Targets if available)/ });
+const board = (page: Page) => page.getByRole("table", { name: "Draft picks by round and team" });
+const topName = (page: Page) => shortlist(page).locator(".top-row .name");
+const composer = (page: Page) => page.getByRole("textbox", { name: "Ask about your draft" });
+const fits = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+const liveText = (page: Page) => page.locator('p[aria-live="polite"]');
+
+async function playOutToWaiting(room: LiveRoom, page: Page) {
+  await expect(shortlist(page)).toBeVisible();
+  for (let played = 0; played < 3; played += 1) room.pick();
+  await expect(board(page)).toBeVisible();
+}
+
+test.describe("on the clock", () => {
+  test("leads with one ranked list and nothing competing", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openLiveRoom(page, { mode: "on-clock" });
+    await expect(strip(page).getByRole("heading")).toHaveText("On the clock");
+    await expect(strip(page)).toContainText(/Pick 1\.09 · next 2\.02/);
+    await expect(strip(page).getByRole("button", { name: "Find player", exact: true })).toBeVisible();
+    await expect(strip(page).getByRole("button", { name: "Plan", exact: true })).toBeVisible();
+    await expect(page.getByText("On the clock", { exact: true })).toHaveCount(1);
+
+    await expect(shortlist(page).getByRole("rowheader")).toHaveCount(4);
+    await expect(topName(page)).toBeInViewport({ ratio: 1 });
+    await expect(topName(page)).toHaveCSS("font-size", "22px");
+    await expect(page.getByText("Best value at a need. Unlikely to reach your next pick.")).toBeVisible();
+    await expect(page.getByText("Synthetic summary")).toHaveCount(0);
+
+    await expect(page.locator(".btn-primary")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Draft board" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Recent picks" })).toHaveCount(0);
+    await expect(page.getByText(/^Last 3: /)).toBeVisible();
+    await expect(page.getByRole("list", { name: "Starter slots filled" })).toContainText("RB 0/2");
+    await expect(composer(page)).toHaveAttribute("placeholder", "Ask about this pick…");
+
+    const frame = (await page.locator(".shortlist-frame").boundingBox())!;
+    expect(frame.width).toBeLessThanOrEqual(880);
+    await expectAccessible(page);
   });
-  await page.route(/\/api\/drafts\/[^/]+\/events(?:\?|$)/, route => route.fulfill({
-    contentType: "text/event-stream", body: ": frozen browser fixture\n\n",
-  }));
-  await page.route(/\/api\/drafts\/[^/]+\/strategy(?:\?|$)/, async route => {
-    const response = await page.request.get("/api/drafts/mock/state", {
-      headers: { Authorization: route.request().headers().authorization },
-    });
-    const { state } = await response.json() as DraftPayload;
-    const taken = new Set(state.picks.map(pick => pick.playerId));
-    const [player, ...others] = state.players.filter(entry => !taken.has(entry.id));
-    const option = (entry: typeof player) => ({ player: entry!, rosterFit: "need" as const, evidence: [], orderSource: "ecr" as const, orderLabel: "ECR", requiredToCompleteLineup: true });
-    const alternatives = others.slice(0, 4);
-    const strategy: AiDraftStrategyPayload = {
-      provider, pickNumber: state.currentPick,
-      decision: {
-        basedOnPick: state.currentPick, recommendedPlayerId: player!.id, alternativePlayerIds: alternatives.map(entry => entry.id),
-        verdict: "strong", confidence: "high", headline: `Take ${player!.name}`, summary: "Synthetic browser scenario with a summary that runs long enough to wrap across a narrow column.", reasons: [], risks: [],
-        plan: { updatedAtPick: state.currentPick, approach: "Synthetic plan", currentPickFocus: [player!.position], nextTurnPriorities: ["WR"], positionsThatCanWait: ["QB"], rosterGoals: [], watchItems: [], changeSummary: "Test fixture" },
+
+  test("keeps every moved capability reachable", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "on-clock" });
+    await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
+    await expect(shortlist(page)).toBeVisible();
+
+    const why = page.getByRole("button", { name: "Why this call" });
+    await why.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Synthetic reason.")).toBeVisible();
+    await expect(page.getByText("Synthetic risk.")).toBeVisible();
+    await expect(page.getByText(/^Synthetic summary/)).toBeVisible();
+    await expectAccessible(page);
+    await page.getByRole("button", { name: `Ask about ${room.available()[0]!.name}` }).click();
+    await expect(page.getByText("Synthetic answer.")).toBeVisible();
+
+    await page.getByRole("button", { name: `Preference for ${room.available()[0]!.name}` }).click();
+    await expect(page.getByRole("menuitemradio", { name: /Prioritize/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    const boardToggle = page.getByRole("button", { name: "Board", exact: true });
+    await boardToggle.click();
+    await expect(boardToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(board(page)).toBeVisible();
+    await page.getByRole("button", { name: "Show full draft board" }).click();
+    await boardToggle.click();
+    await expect(board(page)).toHaveCount(0);
+
+    const activity = page.getByRole("button", { name: "Picks and roster" });
+    await activity.click();
+    const drawer = page.getByRole("dialog", { name: "Picks and roster" });
+    await expect(drawer.getByRole("heading", { name: "Recent picks" })).toBeVisible();
+    await expect(drawer.getByRole("list", { name: "Starter slots filled" })).toBeVisible();
+    await expectAccessible(page);
+    await page.keyboard.press("Escape");
+    await expect(activity).toBeFocused();
+
+    const plan = strip(page).getByRole("button", { name: "Plan", exact: true });
+    await plan.click();
+    const planDrawer = page.getByRole("dialog", { name: "Draft plan" });
+    await expect(planDrawer.getByText("Next turn:")).toContainText("WR");
+    await expect(planDrawer.getByText("Can wait:")).toContainText("QB");
+    await page.keyboard.press("Escape");
+    await expect(plan).toBeFocused();
+  });
+
+  test("offers question chips to the keyboard and not to a mouse click on Board", async ({ page }) => {
+    await openLiveRoom(page, { mode: "on-clock" });
+    const chips = page.getByLabel("Suggested questions").getByRole("button");
+    await expect(chips.first()).toBeHidden();
+    await page.getByRole("button", { name: "Board", exact: true }).click();
+    await expect(chips.first()).toBeHidden();
+    await composer(page).focus();
+    await expect(chips.first()).toBeVisible();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(chips.first()).toBeFocused();
+  });
+});
+
+for (const shortlistSize of [2, 3]) {
+  test(`an own pick removes roster-infeasible choices (shortlist size ${shortlistSize})`, async ({ page }) => {
+    const room = await openLiveRoom(page, {
+      mode: "on-clock", shortlistSize,
+      configure: state => {
+        const [rb1, rb2] = state.players.filter(player => player.position === "RB");
+        const te = state.players.find(player => player.position === "TE")!;
+        const teams = state.teams.slice(0, 2).map(team => ({ ...team, roster: [] }));
+        return { ...state, currentPick: 2, userTeamId: teams[1]!.id,
+          settings: { ...state.settings, teams: 2, rounds: 2, rosterSlots: { RB: 1, TE: 1 } },
+          teams, players: [rb1!, rb2!, te], picks: [], pickOrder: undefined };
       },
-      recommendedCandidate: option(player),
-      alternativeCandidates: alternatives.map(option),
-    };
-    await route.fulfill({ json: strategy });
-  });
-  await page.goto("/");
-  await page.getByRole("button", { name: "Try a demo draft" }).click();
-  await expect(page.getByRole("button", { name: "Find player", exact: true })).toBeVisible();
-});
-
-const headline = (page: Page) => page.getByRole("heading", { level: 2, name: /^Take / });
-const boardHeading = (page: Page) => page.getByRole("heading", { name: /^Board · / });
-
-test("the headline, card, summary, and ladder start above the fold at 1440x900", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(headline(page)).toBeInViewport({ ratio: 1 });
-  await expect(page.getByRole("button", { name: /^Ask Assistant about drafting/ })).toBeInViewport({ ratio: 1 });
-  await expect(page.getByText(/^Synthetic browser scenario/)).toBeInViewport({ ratio: 1 });
-  await expect(page.getByRole("complementary", { name: "Fallback order" }).getByRole("heading")).toBeInViewport();
-  expect((await headline(page).boundingBox())!.y).toBeLessThan(300);
-  await expect(headline(page)).toHaveCSS("font-size", "28px");
-});
-
-test("the call sits left of recent picks at wide widths", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const call = (await page.getByRole("article", { name: "Assistant call" }).boundingBox())!;
-  const side = (await page.getByRole("complementary", { name: "Recent picks and your roster" }).boundingBox())!;
-  expect(Math.abs(call.y - side.y)).toBeLessThan(2);
-  expect(call.x + call.width).toBeLessThanOrEqual(side.x);
-  expect(call.width / (call.width + side.width)).toBeCloseTo(7 / 12, 1);
-});
-
-for (const width of [1100, 800, 480, 320]) {
-  test(`the room stacks strip, call, recent picks, board, and ask at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    const tops = await Promise.all([
-      page.getByRole("region", { name: "Draft state" }),
-      page.getByRole("article", { name: "Assistant call" }),
-      page.getByRole("heading", { name: "Recent picks" }),
-      page.getByRole("region", { name: "Draft board" }),
-      page.getByRole("button", { name: "Ask about this draft", exact: true }),
-    ].map(async locator => (await locator.boundingBox())!.y));
-    expect(tops).toEqual([...tops].sort((a, b) => a - b));
-    const call = (await page.getByRole("article", { name: "Assistant call" }).boundingBox())!;
-    const side = (await page.getByRole("complementary", { name: "Recent picks and your roster" }).boundingBox())!;
-    expect(side.y).toBeGreaterThanOrEqual(call.y + call.height);
+    });
+    const [rb1, rb2, te] = room.available();
+    await expect(topName(page)).toHaveText(rb1!.name);
+    room.setHold(true);
+    room.pick(rb1!.id);
+    await expect(strip(page).getByRole("heading")).toHaveText("On the clock");
+    await expect(shortlist(page)).not.toContainText(rb2!.name);
+    await expect(page.locator(".taken")).toHaveCount(0);
+    if (shortlistSize === 3) await expect(topName(page)).toHaveText(te!.name);
+    else {
+      await expect(page.locator(".all-gone")).toContainText("No player on this shortlist is available for your roster.");
+      await expect(page.locator(".all-gone").getByRole("button", { name: "Find player", exact: true })).toBeVisible();
+    }
   });
 }
+
+test.describe("target taken", () => {
+  test("strikes the row, promotes the next choice, and holds the list until the new call lands", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const room = await openLiveRoom(page, { mode: "one-away" });
+    await expect(strip(page).getByRole("heading")).toHaveText("1 pick away");
+    await expect(shortlist(page)).toBeVisible();
+    const [target, next] = room.available();
+    await expect(topName(page)).toHaveText(target!.name);
+
+    room.setHold(true);
+    room.pick(target!.id);
+
+    const taken = page.locator(".taken");
+    await expect(taken.locator("s")).toHaveText(target!.name);
+    await expect(taken).toContainText("Taken by Team 9");
+    await expect(topName(page)).toHaveText(next!.name);
+    await expect(page.getByText("The Assistant's next choice. New call on the way.")).toBeVisible();
+    await expect(strip(page)).toContainText("Updating call…");
+    await expect(strip(page).getByRole("heading")).toHaveText("On the clock");
+    await expect(liveText(page)).toHaveText(`Pick 1.10. You are on the clock. ${target!.name} was taken by Team 9. ${next!.name} is the Assistant's next choice.`);
+    await expectAccessible(page);
+
+    await expect.poll(() => room.held.length).toBe(1);
+    const before = (await topName(page).boundingBox())!;
+    const frameBefore = (await page.locator(".shortlist-frame").boundingBox())!;
+    await room.held[0]!.respond(buildStrategy(room.state));
+    await expect(strip(page)).not.toContainText("Updating call…");
+    await expect(page.getByText("Best value at a need. Unlikely to reach your next pick.")).toBeVisible();
+    await expect(page.locator(".taken s")).toHaveText(target!.name);
+    const after = (await topName(page).boundingBox())!;
+    expect(after.y).toBe(before.y);
+    expect((await page.locator(".shortlist-frame").boundingBox())!.y).toBe(frameBefore.y);
+  });
+
+  test("shows a clear state pointing at Find player when every shortlist player is gone", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "two-away", shortlistSize: 2 });
+    await expect(strip(page).getByRole("heading")).toHaveText("2 picks away");
+    await expect(shortlist(page)).toBeVisible();
+    const [first, second] = room.available();
+    room.setHold(true);
+    room.pick(first!.id);
+    await expect(topName(page)).toHaveText(second!.name);
+    room.pick(second!.id);
+    const gone = page.locator(".all-gone");
+    await expect(gone).toContainText("No player on this shortlist is available for your roster.");
+    await expect(gone).toContainText("A new call is on the way.");
+    await expect(page.locator(".taken")).toHaveCount(2);
+    await expectAccessible(page);
+    const find = gone.getByRole("button", { name: "Find player", exact: true });
+    await find.click();
+    await expect(page.getByRole("dialog", { name: "Find player" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(find).toBeFocused();
+  });
+});
+
+test.describe("waiting", () => {
+  test("the board leads with a watch line, the needs line and the composer", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "two-away" });
+    await playOutToWaiting(room, page);
+    await expect(strip(page).getByRole("heading")).toHaveText("6 picks away");
+    await expect(shortlist(page)).toHaveCount(0);
+    const watching = page.getByRole("heading", { name: "Watching" }).locator("..").getByRole("listitem");
+    await expect(watching).toHaveCount(4);
+    await expect(page.getByRole("list", { name: "Starter slots filled" })).toBeVisible();
+    await expect(composer(page)).toHaveAttribute("placeholder", "Ask about this draft…");
+    await expect(page.getByRole("button", { name: "Board", exact: true })).toHaveCount(0);
+    await expect(page.getByTitle(/^Round \d+: /)).toHaveCount(2);
+    await expect(board(page).getByText("Your pick")).toHaveCount(1);
+    const wide = (await page.getByRole("region", { name: "Draft board" }).boundingBox())!;
+    if (page.viewportSize()!.width > 1000) expect(wide.width).toBeGreaterThan(880);
+    await expectAccessible(page);
+
+    await page.getByRole("button", { name: "Show full draft board" }).click();
+    expect(await page.getByTitle(/^Round \d+: /).count()).toBeGreaterThan(2);
+    await page.getByRole("button", { name: "Return to live draft view" }).click();
+    await expect(page.getByTitle(/^Round \d+: /)).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Picks and roster" }).click();
+    await expect(page.getByRole("dialog", { name: "Picks and roster" }).getByRole("heading", { name: "Recent picks" })).toBeVisible();
+  });
+
+  test("no strategy means no watch line, and no request until near the turn", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "waiting" });
+    await expect(board(page)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Watching" })).toHaveCount(0);
+    expect(room.strategyRequests).toBe(0);
+  });
+
+  test("focus on a control the next pick removes moves to the composer", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "two-away" });
+    await expect(shortlist(page)).toBeVisible();
+    const toggle = page.getByRole("button", { name: "Board", exact: true });
+    await toggle.focus();
+    for (let played = 0; played < 3; played += 1) room.pick();
+    await expect(toggle).toHaveCount(0);
+    await expect(composer(page)).toBeFocused();
+  });
+});
+
+test.describe("tools without a strategy", () => {
+  test("Find player and an honest Plan work during a slow first call", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "on-clock", holdStrategies: true });
+    await expect(page.getByText("Thinking…")).toBeVisible();
+    const opener = strip(page).getByRole("button", { name: "Find player", exact: true });
+    await opener.click();
+    const dialog = page.getByRole("dialog", { name: "Find player" });
+    await dialog.getByRole("searchbox").fill("Achane");
+    await expect(dialog.getByRole("button", { name: "Preference for De'Von Achane" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(opener).toBeFocused();
+
+    const plan = strip(page).getByRole("button", { name: "Plan", exact: true });
+    await plan.click();
+    await expect(page.getByRole("dialog", { name: "Draft plan" })).toContainText("No plan yet.");
+    await expectAccessible(page);
+    await page.keyboard.press("Escape");
+    expect(room.strategyRequests).toBe(1);
+  });
+
+  test("a failed first call keeps Find player and offers a retry", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "on-clock", holdStrategies: true });
+    await expect.poll(() => room.held.length).toBe(1);
+    await room.held[0]!.fail("Synthetic strategy failure.");
+    await expect(page.getByText("Assistant call unavailable")).toBeVisible();
+    await expect(page.getByText("Synthetic strategy failure.")).toBeVisible();
+    await expect(strip(page).getByRole("button", { name: "Find player", exact: true })).toBeEnabled();
+    await expectAccessible(page);
+    await page.getByRole("button", { name: "Retry call" }).click();
+    await expect.poll(() => room.held.length).toBe(2);
+    await room.held[1]!.respond(buildStrategy(room.held[1]!.state));
+    await expect(shortlist(page)).toBeVisible();
+  });
+
+  test("a failed refresh keeps the list readable", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "one-away" });
+    await expect(shortlist(page)).toBeVisible();
+    room.setHold(true);
+    room.pick();
+    await expect.poll(() => room.held.length).toBe(1);
+    await room.held[0]!.fail("Synthetic refresh failure.");
+    await expect(page.getByText("Call update failed.")).toBeVisible();
+    await expect(shortlist(page).getByRole("rowheader").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry call" })).toBeVisible();
+    await expectAccessible(page);
+  });
+});
+
+test.describe("stale answers", () => {
+  test("an answer the board overtook still appears, with its taken target never on top", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "two-away", holdStrategies: true });
+    await expect.poll(() => room.held.length).toBe(1);
+    const oldBoard = room.held[0]!.state;
+    const answer = buildStrategy(oldBoard);
+    room.pick(answer.recommendedCandidate.player.id);
+    await expect.poll(() => room.held.length).toBe(2);
+
+    await room.held[0]!.respond(answer);
+    await expect(page.locator(".taken s")).toHaveText(answer.recommendedCandidate.player.name);
+    await expect(topName(page)).toHaveText(answer.alternativeCandidates[0]!.player.name);
+    await expect(shortlist(page)).toHaveAccessibleName(/from pick 2\.05$/);
+    await expect(strip(page)).toContainText("Updating call…");
+
+    await room.held[1]!.respond(buildStrategy(room.held[1]!.state));
+    await expect(strip(page)).not.toContainText("Updating call…");
+    await expect(shortlist(page)).toHaveAccessibleName("Targets if available");
+  });
+
+  test("a stale answer arriving after a newer one is ignored", async ({ page }) => {
+    const room = await openLiveRoom(page, { mode: "two-away", holdStrategies: true });
+    await expect.poll(() => room.held.length).toBe(1);
+    const stale = buildStrategy(room.held[0]!.state);
+    room.pick(stale.recommendedCandidate.player.id);
+    await expect.poll(() => room.held.length).toBe(2);
+    const fresh = buildStrategy(room.held[1]!.state);
+    await room.held[1]!.respond(fresh);
+    await expect(topName(page)).toHaveText(fresh.recommendedCandidate.player.name);
+    await room.held[0]!.respond(stale);
+    await expect(page.locator(".taken")).toHaveCount(0);
+    await expect(shortlist(page)).toHaveAccessibleName("Targets if available");
+    await expect(topName(page)).toHaveText(fresh.recommendedCandidate.player.name);
+  });
+});
 
 for (const width of [1440, 1100, 800, 480, 320]) {
-  test(`no horizontal page overflow at ${width}px with and without the conversation open`, async ({ page }) => {
-    await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
+  test(`every mode fits at ${width}px without page overflow`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-    await expect.poll(fits).toBe(true);
-    await page.getByRole("textbox", { name: "Ask about your draft" }).fill("Synthetic question.");
+    const room = await openLiveRoom(page, { mode: "two-away", rename: { "Jahmyr Gibbs": "Christopher Montgomery-Williamson III" } });
+    await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
+    await expect(shortlist(page)).toBeVisible();
+    await expect.poll(() => fits(page)).toBe(true);
+    await page.getByRole("button", { name: "Why this call" }).click();
+    await expect.poll(() => fits(page)).toBe(true);
+    await composer(page).fill("Synthetic question.");
     await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
     await expect(page.getByText("Synthetic answer.")).toBeVisible();
-    await expect.poll(fits).toBe(true);
-    await page.getByRole("button", { name: "Show full draft board" }).click();
-    await expect.poll(fits).toBe(true);
+    await expect.poll(() => fits(page)).toBe(true);
+    await page.getByRole("button", { name: "Board", exact: true }).click();
+    await expect(board(page)).toBeVisible();
+    await expect.poll(() => fits(page)).toBe(true);
+    room.pick(room.available()[0]!.id);
+    await expect(page.locator(".taken")).toBeVisible();
+    await expect.poll(() => fits(page)).toBe(true);
+    room.pick();
+    room.pick();
+    await expect(page.getByRole("heading", { name: "Watching" })).toBeVisible();
+    await expect.poll(() => fits(page)).toBe(true);
   });
 }
 
-test("the live board shows two rounds and the toggle restores the full board", async ({ page }) => {
-  const rounds = page.getByTitle(/^Round \d+: /);
-  await expect(rounds).toHaveCount(2);
-  await expect(boardHeading(page)).toHaveText("Board · live view");
-  const toggle = page.getByRole("button", { name: "Show full draft board" });
-  await toggle.click();
-  await expect(boardHeading(page)).toHaveText("Board · full view");
-  expect(await rounds.count()).toBeGreaterThan(2);
-  await page.getByRole("button", { name: "Return to live draft view" }).click();
-  await expect(rounds).toHaveCount(2);
-});
-
-test("the board keeps its sticky round column and centers the current pick", async ({ page }) => {
-  await page.setViewportSize({ width: 480, height: 800 });
-  // Centering follows the pick and the view, not a window resize, so re-run it at this width.
-  await page.getByRole("button", { name: "Show full draft board" }).click();
-  await page.getByRole("button", { name: "Return to live draft view" }).click();
-  const scroller = page.locator(".board-scroller");
-  const current = page.locator('[data-current="true"]');
-  await expect.poll(async () => {
-    const [cell, box] = await Promise.all([current.boundingBox(), scroller.boundingBox()]);
-    return cell!.x + cell!.width > box!.x && cell!.x < box!.x + box!.width;
-  }).toBe(true);
-  await scroller.evaluate(node => node.scrollTo({ left: 200, behavior: "instant" }));
-  const roundCell = page.getByTitle(/^Round \d+: /).first();
-  await expect.poll(async () => Math.round((await roundCell.boundingBox())!.x)).toBe(Math.round((await scroller.boundingBox())!.x));
-});
-
-test("the collapsed command bar asks in one line and expands in place", async ({ page }) => {
-  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const toggle = page.getByRole("button", { name: "Ask about this draft", exact: true });
-  const composer = page.getByRole("textbox", { name: "Ask about your draft" });
-  const chips = page.getByLabel("Suggested questions").getByRole("button");
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(chips).toHaveCount(3);
-  const barHeight = (await page.locator(".ask-panel").boundingBox())!.height;
-  expect(barHeight).toBeLessThan(80);
-  expect(Math.abs((await composer.boundingBox())!.y - (await chips.first().boundingBox())!.y)).toBeLessThan(16);
-  await chips.first().focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByText("Synthetic answer.")).toBeVisible();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(composer).toBeFocused();
-  await toggle.click();
-  await expect(page.getByRole("log", { name: "Draft conversation" })).toHaveCount(0);
-  await toggle.click();
-  await expect(page.getByText("Synthetic answer.")).toBeVisible();
-});
-
-test("the strip carries the draft tools and the primary button asks about the call", async ({ page }) => {
-  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
-  const strip = page.getByRole("region", { name: "Draft state" });
-  await expect(strip).toContainText("You are on the clock");
-  await expect(strip).toContainText(/Pick \d+\.\d+ \(#\d+\)/);
-  await expect(strip).toContainText(/Round \d+/);
-  await expect(strip.getByRole("button", { name: "Find player", exact: true })).toBeVisible();
-  await expect(strip.getByRole("button", { name: "Draft plan", exact: true })).toBeVisible();
-  await expect(page.locator(".recommendation-panel .btn-primary")).toHaveCount(1);
-  await page.getByRole("button", { name: /^Ask Assistant about drafting/ }).click();
-  await expect(page.getByText("Synthetic answer.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ask about this draft", exact: true })).toHaveAttribute("aria-expanded", "true");
-});
-
-test("the draft room meets automated accessibility checks with the conversation collapsed", async ({ page }) => {
-  await expectAccessible(page);
-});
-
-test("a failed refresh keeps the recommendation readable and fits at 320px", async ({ page }) => {
-  await page.route(/\/api\/drafts\/[^/]+\/strategy(?:\?|$)/, route => route.fulfill({ status: 500, json: { error: "Synthetic refresh failure." } }));
-  await page.getByRole("button", { name: "Find player", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Find player" });
-  await dialog.getByRole("searchbox").fill("Achane");
-  await dialog.getByRole("button", { name: "Preference for De'Von Achane" }).click();
-  await page.getByRole("menuitemradio", { name: /Prioritize/ }).click();
-  await page.keyboard.press("Escape");
-  if (await dialog.isVisible()) await page.keyboard.press("Escape");
-  await expect(page.getByText("Recommendation update failed")).toBeVisible();
-  await expectAccessible(page);
+test("320px keeps the top row, tools and composer usable", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  const room = await openLiveRoom(page, { mode: "one-away", rename: { "Jahmyr Gibbs": "Christopher Montgomery-Williamson III" } });
+  await expect(topName(page)).toBeInViewport();
+  room.setHold(true);
+  const before = (await page.locator(".shortlist-frame").boundingBox())!;
+  room.pick(room.available()[0]!.id);
+  await expect(strip(page)).toContainText("Updating call…");
+  expect((await page.locator(".shortlist-frame").boundingBox())!.y).toBe(before.y);
+  await expect(strip(page).getByRole("button", { name: "Find player", exact: true })).toBeVisible();
+  await expect(composer(page)).toBeVisible();
+  await expectAccessible(page);
+});
+
+test("the shortlist does not animate rows or the refresh for reduced-motion users", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openLiveRoom(page, { mode: "on-clock" });
+  await expect(shortlist(page)).toBeVisible();
+  const chevron = page.getByRole("button", { name: "Why this call" }).locator(".icon");
+  expect(await chevron.evaluate(node => getComputedStyle(node).transitionDuration)).toBe("0s");
 });

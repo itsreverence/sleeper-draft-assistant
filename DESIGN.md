@@ -205,7 +205,9 @@ The uppercase label style is reserved for section eyebrows and table column head
 
 The application uses a centered responsive shell with a constrained content column. Connected workflows are top-anchored so the board and working panels remain immediately available. The pre-connect state may use a narrower centered column to keep the entry task deliberate. The Setup strip appears only while choosing a league and draft, and the logo stacks above the title at the 520px phone breakpoint. Draft preparation carries readiness in its own header.
 
-The draft room leads with the decision. A pick strip sits under the top bar, then the Assistant call (7/12) beside recent picks and the roster summary (5/12), then a two-round live board, then the Ask Assistant command bar. Emergency board-only mode and a completed draft put the board directly under their note instead, with recent picks and the roster below it. At 1100px and below the room is one column in the same order. The board scrolls horizontally when team count exceeds the viewport, and it keeps the round column and team header legible.
+The draft room has one derived mode, `draftRoomMode` in `apps/web/src/lib/draft-room.ts`: on the clock, approaching (one or two picks away, the same threshold as automatic analysis, and also before the draft starts), waiting (everything else while drafting, including unknown pick timing), complete, and emergency.
+
+On the clock and approaching, the room is one 880px column: the pick strip, the shortlist, the needs line, and the composer with its Board toggle, which opens the two-round board below at full width. Waiting, the strip and board lead at full width, followed by a Watching line, the needs line, and the composer. Emergency board-only mode and a completed draft put the board directly under their note, with recent picks and the roster below it. Recent picks and the roster are one quiet Picks and roster drawer in every live mode, because the drawer keeps the path identical across modes and competes with nothing. The board scrolls horizontally when team count exceeds the viewport, and it keeps the round column and team header legible.
 
 Spacing follows the 4px base scale: `--space-N` is 4N pixels, with tokens for 4, 8, 12, 16, 20, 24, 32, and 40. Panel padding is 20px on desktop and 16px at the compact breakpoint. List rows are 44px. Group related controls tightly and use a full divider or larger gap before a separate workflow.
 
@@ -276,11 +278,11 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 
 ### Pick Strip
 
-One line with the state ("You are on the clock" in amber, otherwise "N picks away"), the current pick, the next turn, the round direction, and Find player and Draft plan on the right. Find player and Draft plan appear once a recommendation exists, and never in board-only mode. Sync status lives in the top bar. The strip shows no pick clock because the draft payload has none.
+One slim line, the only place the room says "On the clock": the state (amber on an amber tint when on the clock, otherwise "N picks away"), small pick facts, a quiet "Updating call…" status, and Find player and Plan on the right. Find player and Plan appear in every live mode, whether or not a strategy exists, and never in board-only mode. The status has its own grid track, so a refresh moves nothing. Sync status lives in the top bar. The strip shows no pick clock because the draft payload has none. Round direction lives on the board's rows.
 
 ### Draft Board
 
-The live view shows the current and next round in 72px cells, with the legend and Full board in the board header. The board is a dense, structured grid. Round direction, pick number, team ownership, current pick, user picks, and traded picks must remain distinguishable through layout plus semantic color. Team headers are interactive roster entry points and should retain accessible names and hover/focus states. A round runs the way the Sleeper pick order says, so linear and third-round-reversal drafts lay out and point correctly, and a format with no modeled order shows no direction. An unpicked cell names the pick's actual owner, a traded one says "Traded", and no cell is on the clock outside a live draft. The grid is exposed as one table of column and row headers and cells through `display: contents` wrappers, so the sticky header and round column still belong to the grid. A polite live region announces a pick change and stays silent on a sync that changes nothing.
+The live view shows the current and next round in 72px cells, with the legend and Full board in the board header. The board is a dense, structured grid. Round direction, pick number, team ownership, current pick, user picks, and traded picks must remain distinguishable through layout plus semantic color. Team headers are interactive roster entry points and should retain accessible names and hover/focus states. A round runs the way the Sleeper pick order says, so linear and third-round-reversal drafts lay out and point correctly, and a format with no modeled order shows no direction. An unpicked cell names the pick's actual owner, a traded one says "Traded", the current pick says "Now", the user's next pick says "Your pick", and no cell is current outside a live draft. The grid is exposed as one table of column and row headers and cells through `display: contents` wrappers, so the sticky header and round column still belong to the grid. The room's single polite live region, not the board, announces a pick or call change once and stays silent on a sync that changes nothing.
 
 ### Roster Table
 
@@ -292,9 +294,11 @@ The header carries the confidence chip and "Manage team data". The footer holds 
 
 Call the strategist "Assistant" in copy. Say "Codex" only for the external program the user installs, signs in to, or configures. Separate metadata with " · ", show statuses as sentence-case labels rather than API values, and write errors as what happened, then what to do next.
 
-Assistant recommendation, strategy, evidence, and conversation are progressively disclosed. The recommendation headline and short reason lead; analysis, alternatives, evidence, history, and user guidance open on demand. AI status, confidence, stale context, and provider availability must be explicit.
+Assistant recommendation, strategy, evidence, and conversation are progressively disclosed. The shortlist's top row and its one reason line lead; analysis, evidence, history, and user guidance open on demand. AI status, confidence, stale context, and provider availability must be explicit.
 
-The call panel carries the only primary button: Ask Assistant, on a player card that shows the position chip, name, team, and whichever of ECR, ADP, Proj, and roster fit the payload holds. It never shows a computed score or rank, and placeholder ranks and rank-derived estimates do not count as ECR, ADP, or Proj. Fallbacks are titled "If <player> is gone". The collapsed Ask Assistant bar keeps its composer and three suggestion chips on one line, and asking expands the thread in place.
+The shortlist is one table: rank, position chip, name and team, ADP, Proj, with one heading that says "Assistant's shortlist" on the clock and "Targets if available" before it. Row 1 is emphasised with a larger name, a tint, an accent edge, and the reason line. Nothing else on the screen is bright, so the live draft room carries no primary button while a shortlist shows. It never shows a computed score, and placeholder ranks and rank-derived estimates count as no value. Availability comes from `state.picks`: a taken player is struck through with "Taken by <team>", and the next player moves up in the Assistant's own order, labelled as its next choice while a new call loads. The list stays on screen through a refresh, the heading names the pick an older list came from, and an empty list points at Find player. Promotion never re-ranks; it only removes unavailable players from the Assistant's order.
+
+Why this call opens reasons, evidence, risks, turn timing, confidence, contingencies, and news sources in place. Plan holds next-turn and can-wait priorities. Find player holds Clear for saved preferences. The composer is one quiet line with the Board toggle inside it; Ask appears once there is text, suggestion chips appear on keyboard focus, and asking expands the thread in place.
 
 ## Do's and Don'ts
 
@@ -304,7 +308,7 @@ The call panel carries the only primary button: Ask Assistant, on a player card 
 - **Do** use semantic colors consistently for readiness, AI/info, warning, and danger.
 - **Do** keep controls keyboard-accessible with meaningful labels and visible focus.
 - **Do** preserve the existing token system in `apps/web/src/lib/theme.css` and prefer shared primitives.
-- **Do** use progressive disclosure for evidence, alternatives, settings, and history.
+- **Do** use progressive disclosure for evidence, settings, and history.
 - **Do** keep draft-board horizontal scrolling explicit and usable on narrow screens.
 
 ### Don't:

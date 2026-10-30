@@ -3,8 +3,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { tick } from "svelte";
 
 vi.mock("./lib/api", async () => await import("./lib/testing/mock-api"));
-vi.mock("./lib/components/RecommendationPanel.svelte", async () => ({
-  default: (await import("./lib/testing/RecommendationPanelProbe.svelte")).default,
+vi.mock("./lib/components/PlayerSearchDialog.svelte", async () => ({
+  default: (await import("./lib/testing/PlayerSearchProbe.svelte")).default,
 }));
 vi.mock("./lib/components/AskManagerPanel.svelte", async () => ({
   default: (await import("./lib/testing/AskManagerPanelProbe.svelte")).default,
@@ -418,7 +418,7 @@ describe("App draft lifecycle", () => {
     expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
     expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
     expect(screen.queryByRole("button", { name: "Find player" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Draft plan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Plan" })).toBeNull();
     expect(screen.getByRole("region", { name: "Draft board" })).toBeTruthy();
   });
 
@@ -501,6 +501,7 @@ describe("App draft lifecycle", () => {
     await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
     expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: A.J. Brown");
 
+    await fireEvent.click(screen.getByRole("button", { name: "Find player" }));
     await fireEvent.click(screen.getByRole("button", { name: "Prioritize De'Von Achane" }));
 
     expect(window.localStorage.getItem("playerPreferences:draft-1")).toBe(JSON.stringify({
@@ -560,6 +561,7 @@ describe("App draft lifecycle", () => {
     await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
     expect(screen.getByTestId("ask-manager-recommendation").textContent).toContain("Local reference: A.J. Brown");
 
+    await fireEvent.click(screen.getByRole("button", { name: "Find player" }));
     await fireEvent.click(screen.getByRole("button", { name: "Prioritize De'Von Achane" }));
     await fireEvent.click(screen.getByRole("button", { name: "Deprioritize De'Von Achane" }));
 
@@ -621,6 +623,7 @@ describe("App draft lifecycle", () => {
     render(App);
 
     await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
+    await fireEvent.click(screen.getByRole("button", { name: "Find player" }));
     await fireEvent.click(screen.getByRole("button", { name: "Prioritize De'Von Achane" }));
     await fireEvent.click(screen.getByTitle("Switch league or draft"));
     await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);

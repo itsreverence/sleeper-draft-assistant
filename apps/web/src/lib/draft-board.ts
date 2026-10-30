@@ -12,6 +12,7 @@ export type DraftBoardCell = {
   player: Player | null;
   owner: Team | null;
   isCurrent: boolean;
+  isUserNext: boolean;
   isUserPick: boolean;
   isUserOwned: boolean;
   isTraded: boolean;
@@ -92,38 +93,32 @@ export type PickStripPick = { label: string; slot: string; overall: number };
 export type PickStripSummary = {
   tone: "clock" | "neutral";
   label: string;
-  pick: PickStripPick | null;
-  nextTurn: PickStripPick | null;
-  round: { number: number; direction: RoundDirection } | null;
+  facts: PickStripPick[];
 };
 
 export function pickStripSummary(state: DraftState): PickStripSummary {
   if (state.status === "complete") {
-    return { tone: "neutral", label: "Draft complete", pick: null, nextTurn: null, round: null };
+    return { tone: "neutral", label: "Draft complete", facts: [] };
   }
 
-  const stripPick = (label: string, overall: number | undefined): PickStripPick | null => overall === undefined
-    ? null
-    : { label, slot: formatDraftPick(overall, state.settings.teams), overall };
+  const facts = (...picks: Array<[string, number | undefined]>): PickStripPick[] => picks.flatMap(([label, overall]) => overall === undefined
+    ? []
+    : [{ label, slot: formatDraftPick(overall, state.settings.teams), overall }]);
   const [nextUserPick, followingUserPick] = upcomingUserPicks(state);
-  const number = currentDraftRound(state);
-  const direction = roundDirection(state, number);
-  const round = direction ? { number, direction } : null;
 
   if (state.status === "pre_draft") {
-    return { tone: "neutral", label: "Draft not started", pick: stripPick("First pick", nextUserPick), nextTurn: null, round };
+    return { tone: "neutral", label: "Draft not started", facts: facts(["First pick", nextUserPick]) };
   }
 
-  const pick = stripPick("Pick", state.currentPick);
   if (isUserOnTheClock(state)) {
-    return { tone: "clock", label: "You are on the clock", pick, nextTurn: stripPick("Next turn", followingUserPick), round };
+    return { tone: "clock", label: "On the clock", facts: facts(["Pick", state.currentPick], ["next", followingUserPick]) };
   }
 
   const picksAway = picksUntilUserTurn(state);
   const label = picksAway === null
     ? (state.pickOrder?.source === "unsupported" || !getUserTeam(state) ? "Pick timing unknown" : "No picks left")
     : `${picksAway} pick${picksAway === 1 ? "" : "s"} away`;
-  return { tone: "neutral", label, pick, nextTurn: stripPick("Next turn", nextUserPick), round };
+  return { tone: "neutral", label, facts: facts(["Your pick", nextUserPick], ["Now", state.currentPick]) };
 }
 
 export type StarterSlotGroup = { label: string; filled: number; total: number };
@@ -171,6 +166,7 @@ export function buildDraftBoardRows(state: DraftState, rounds: number[]): DraftB
   const picksByNumber = new Map(state.picks.map((pick) => [pick.pickNo, pick]));
   const entriesBySlot = new Map((state.pickOrder?.entries ?? []).map((entry) => [`${entry.round}:${entry.draftSlot}`, entry]));
   const teamCount = state.settings.teams;
+  const nextUserPick = state.status === "drafting" ? upcomingUserPicks(state, 1)[0] : undefined;
 
   return rounds.map((round) => ({
     round,
@@ -190,6 +186,7 @@ export function buildDraftBoardRows(state: DraftState, rounds: number[]): DraftB
         player: pick ? playersById.get(pick.playerId) ?? null : null,
         owner: ownerId ? teamsById.get(ownerId) ?? null : null,
         isCurrent: state.status === "drafting" && pickNo === state.currentPick,
+        isUserNext: pickNo === nextUserPick,
         isUserPick: pick?.teamId === state.userTeamId,
         isUserOwned: ownerId === state.userTeamId,
         isTraded: Boolean(ownerId && slotTeam && ownerId !== slotTeam.id),

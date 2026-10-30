@@ -32,7 +32,7 @@ it("keeps the parent draft plan on the latest same-pick correction when requests
   apiMock.eventSources[0]!.emit("snapshot", corrected);
   await waitFor(() => expect(apiMock.fetchAiDraftStrategyRequest).toHaveBeenCalledTimes(2));
   updated.resolve(strategy(corrected, "Current corrected plan"));
-  await fireEvent.click(await screen.findByRole("button", { name: "Draft plan" }));
+  await fireEvent.click(await screen.findByRole("button", { name: "Plan" }));
   const drawer = await screen.findByRole("dialog", { name: "Draft plan" });
   expect(await within(drawer).findByText("Current corrected plan")).toBeTruthy();
   initial.resolve(strategy(payload, "Obsolete plan"));

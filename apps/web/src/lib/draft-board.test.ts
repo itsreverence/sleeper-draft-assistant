@@ -4,7 +4,7 @@ import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 
 import type { DraftState } from "@sleeper-draft-assistant/shared";
 
-import { buildDraftBoardRows, currentPickAnnouncement, nextPickForTeam, pickNumberForDraftSlot, pickStripSummary, starterSlotSummary, visibleDraftRounds } from "./draft-board";
+import { buildDraftBoardRows, currentPickAnnouncement, nextPickForTeam, pickNumberForDraftSlot, pickStripSummary, roundDirection, starterSlotSummary, visibleDraftRounds } from "./draft-board";
 
 type RoundOrder = (round: number) => "forward" | "reverse";
 const linear: RoundOrder = () => "forward";
@@ -138,14 +138,12 @@ describe("draft board", () => {
       const state = withOrder(linear, { userTeamId, currentPick: 2 * teams });
       const summary = pickStripSummary(state);
       expect(summary.label).toBe("1 pick away");
-      expect(summary.nextTurn?.overall).toBe(2 * teams + 1);
-      expect(summary.round).toEqual({ number: 2, direction: "forward" });
+      expect(summary.facts[0]).toMatchObject({ label: "Your pick", overall: 2 * teams + 1 });
+      expect(roundDirection(state, 2)).toBe("forward");
     });
 
-    it("points the strip through a third-round reversal", () => {
-      const base = withOrder(thirdRoundReversal);
-      const currentPick = 2 * base.settings.teams + 1;
-      expect(pickStripSummary({ ...base, currentPick }).round).toEqual({ number: 3, direction: "reverse" });
+    it("points the board through a third-round reversal", () => {
+      expect(roundDirection(withOrder(thirdRoundReversal), 3)).toBe("reverse");
     });
 
     it("shows no board direction it cannot know", () => {
@@ -199,10 +197,11 @@ describe("draft board", () => {
       const userTeamId = state.teams.find((team) => team.draftSlot === 1)!.id;
       expect(pickStripSummary({ ...state, userTeamId })).toEqual({
         tone: "clock",
-        label: "You are on the clock",
-        pick: { label: "Pick", slot: "1.01", overall: 1 },
-        nextTurn: { label: "Next turn", slot: "2.10", overall: 2 * state.settings.teams },
-        round: { number: 1, direction: "forward" },
+        label: "On the clock",
+        facts: [
+          { label: "Pick", slot: "1.01", overall: 1 },
+          { label: "next", slot: "2.10", overall: 2 * state.settings.teams },
+        ],
       });
     });
 
@@ -214,8 +213,7 @@ describe("draft board", () => {
       const away = userPickInRoundTwo - state.currentPick;
       expect(summary.tone).toBe("neutral");
       expect(summary.label).toBe(`${away} picks away`);
-      expect(summary.nextTurn?.overall).toBe(userPickInRoundTwo);
-      expect(summary.round).toEqual({ number: 2, direction: "reverse" });
+      expect(summary.facts).toMatchObject([{ label: "Your pick", overall: userPickInRoundTwo }, { label: "Now", overall: state.currentPick }]);
     });
 
     it("does not call a pre-draft first pick on the clock", () => {
@@ -224,7 +222,7 @@ describe("draft board", () => {
       const summary = pickStripSummary({ ...state, userTeamId });
       expect(summary.tone).toBe("neutral");
       expect(summary.label).toBe("Draft not started");
-      expect(summary.pick?.label).toBe("First pick");
+      expect(summary.facts[0]?.label).toBe("First pick");
     });
 
     it("says so when the user has no picks left", () => {
@@ -238,9 +236,9 @@ describe("draft board", () => {
       const state = { ...drafting(3), pickOrder: { source: "unsupported" as const, entries: [] } };
       const summary = pickStripSummary(state);
       expect(summary.label).toBe("Pick timing unknown");
-      expect(summary.nextTurn).toBeNull();
-      expect(summary.round).toBeNull();
-      expect(pickStripSummary({ ...state, status: "complete" })).toEqual({ tone: "neutral", label: "Draft complete", pick: null, nextTurn: null, round: null });
+      expect(summary.facts.map((fact) => fact.label)).toEqual(["Now"]);
+      expect(roundDirection(state, 1)).toBeNull();
+      expect(pickStripSummary({ ...state, status: "complete" })).toEqual({ tone: "neutral", label: "Draft complete", facts: [] });
     });
   });
 
