@@ -100,6 +100,12 @@ export function currentAiDraftStrategy(
   return strategy?.pickNumber === currentPick ? strategy : null;
 }
 
+const AUTOMATIC_ANALYSIS_PICKS = 2;
+
+export function isNearUserTurn(picksUntilTurn: number): boolean {
+  return picksUntilTurn <= AUTOMATIC_ANALYSIS_PICKS;
+}
+
 export function shouldRequestAiDraftStrategy(
   state: DraftState | null,
   providerStatus: AiProviderStatus | null,
@@ -113,7 +119,7 @@ export function shouldRequestAiDraftStrategy(
     return false;
   }
   return state?.status === "pre_draft" ||
-    (state?.status === "drafting" && picksUntilTurn !== null && picksUntilTurn <= 2);
+    (state?.status === "drafting" && picksUntilTurn !== null && isNearUserTurn(picksUntilTurn));
 }
 
 export function buildSuggestedQuestions(
