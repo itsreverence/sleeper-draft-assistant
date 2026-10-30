@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { keeperCases, keeperInput } from "../../../tests/fixtures/keeper-drafts";
+import { recentDraftPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import { normalizeSleeperDraftState } from "./sleeper";
 import { buildDraftStrategyContext } from "./ai/context";
 import { createDraftPlayerSnapshot, createDraftStrategyTools } from "./ai/draft-tools";
@@ -37,5 +38,27 @@ describe("synthetic keeper timing", () => {
     const input = keeperInput(keeperCases[1]!);
     input.draft.settings = { teams: 12 };
     expect(normalizeSleeperDraftState(input).settings.rounds).toBe(3);
+  });
+
+  it("does not read a missing pick_no as a one-round draft", () => {
+    const input = keeperInput({ ...keeperCases[8]!, made: Array.from({ length: 16 }, (_, index) => index + 1), keepers: [] });
+    input.draft.settings = { teams: 12 };
+    input.picks = input.picks.map(({ pick_no: _pickNo, ...pick }) => pick) as typeof input.picks;
+    expect(normalizeSleeperDraftState(input).settings.rounds).toBe(2);
+  });
+
+  it("keeps the strategist's remaining selections when turn timing is unsupported", () => {
+    const input = keeperInput({ ...keeperCases[8]!, made: [], keepers: [] });
+    input.draft.type = "auction";
+    const state = normalizeSleeperDraftState(input);
+    expect(state.pickOrder?.source).toBe("unsupported");
+    expect(buildDraftStrategyContext(state).draft.remainingUserSelections).toBe(3);
+  });
+
+  it("hides only future keepers from recent picks, not a real pick above a sync gap", () => {
+    const input = keeperInput({ ...keeperCases[8]!, made: [1, 2, 4], keepers: [9] });
+    const state = normalizeSleeperDraftState(input);
+    expect(state.currentPick).toBe(3);
+    expect(recentDraftPicks(state, 12).map((pick) => pick.pickNo)).toEqual([4, 2, 1]);
   });
 });

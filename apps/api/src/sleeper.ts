@@ -918,7 +918,7 @@ function getTeamsCount(input: SleeperDraftStateInput): number {
 function getRounds(input: SleeperDraftStateInput, teamsCount: number): number {
   const settings = input.draft.settings ?? {};
   const rosterSlots = input.league?.roster_positions?.length;
-  return numberFrom(settings.rounds) ?? rosterSlots ?? Math.max(1, Math.ceil(Math.max(0, ...input.picks.map((pick) => pick.pick_no ?? 0)) / teamsCount));
+  return numberFrom(settings.rounds) ?? rosterSlots ?? Math.max(1, Math.ceil(Math.max(input.picks.length, ...input.picks.map((pick) => pick.pick_no ?? 0)) / teamsCount));
 }
 
 function buildDraftName(input: SleeperDraftStateInput): string {

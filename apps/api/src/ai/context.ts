@@ -1,4 +1,4 @@
-import { countUnmadePicks, remainingTeamPicks, recentDraftPicks } from "@sleeper-draft-assistant/shared/draft-timing";
+import { countUnmadePicks, remainingTeamPicks, remainingTeamSelections, recentDraftPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import type { AiDraftPlan, DraftState, DraftStrategyInstruction, Player, Position } from "@sleeper-draft-assistant/shared";
 import { countUnfilledStarterSlots, withoutSuperFlexSlots } from "@sleeper-draft-assistant/shared/roster-slots";
 
@@ -53,7 +53,7 @@ export function buildDraftStrategyContext(
         : countUnmadePicks(state, nextUserPick + 1, followingUserPick),
       pickOrderSource: getPickOrderSource(state),
       pickOrderNote: getPickOrderNote(state),
-      remainingUserSelections: remainingTeamPicks(state, state.userTeamId).length,
+      remainingUserSelections: remainingTeamSelections(state, state.userTeamId),
       updatedAt: state.updatedAt,
     },
     settings: state.settings,
