@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AiRequestProgress } from "../api";
 import TeamAskPanel from "./TeamAskPanel.svelte";
 import { createAiProviderStatusFixture, createTeamPayloadFixture } from "../testing/draft-fixtures";
 import { createDeferred } from "../testing/deferred";
@@ -351,5 +353,83 @@ describe("Team ask panel", () => {
     expect(await screen.findByText("Second answer")).toBeTruthy();
     expect(log.scrollTop).toBe(300);
     geometry.mockRestore();
+  });
+});
+
+async function openTeamComposer(onAsk: (question: string, history: import("../types").AiConversationMessage[], progress?: AiRequestProgress) => Promise<string>) {
+  render(TeamAskPanel, {
+    teamState: createTeamPayloadFixture().state,
+    providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+    onAsk,
+  });
+  const textarea = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+  await fireEvent.input(textarea, { target: { value: "Composer question" } });
+  return textarea;
+}
+
+describe("Team ask panel composer focus", () => {
+  it("keeps focus on the button a click turned into Cancel and returns it to the composer after Cancel", async () => {
+    const answer = createDeferred<string>();
+    const textarea = await openTeamComposer(vi.fn(() => answer.promise));
+    const send = screen.getByRole("button", { name: "Ask Codex" });
+    send.focus();
+    await fireEvent.click(send);
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    expect(document.activeElement).toBe(cancel);
+
+    await fireEvent.click(cancel);
+    await tick();
+    expect(screen.getByRole("button", { name: "Ask Codex" })).toBeTruthy();
+    expect(document.activeElement).toBe(textarea);
+  });
+
+  it("keeps focus in the composer when Ctrl+Enter submits from the textarea", async () => {
+    const answer = createDeferred<string>();
+    const textarea = await openTeamComposer(vi.fn(() => answer.promise));
+    textarea.focus();
+    await fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true });
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+    expect(document.activeElement).toBe(textarea);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await tick();
+    expect(document.activeElement).toBe(textarea);
+  });
+
+  it("returns focus to the composer when the answer arrives while Cancel is focused", async () => {
+    const answer = createDeferred<string>();
+    const textarea = await openTeamComposer(vi.fn(() => answer.promise));
+    const send = screen.getByRole("button", { name: "Ask Codex" });
+    send.focus();
+    await fireEvent.click(send);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+
+    answer.resolve("Settled answer");
+    expect(await screen.findByText("Settled answer")).toBeTruthy();
+    await tick();
+    expect(document.activeElement).toBe(textarea);
+  });
+});
+
+describe("Team ask panel follow-up history", () => {
+  it("cancel then re-ask sends neither half of the cancelled turn, and a completed turn is carried", async () => {
+    const held = createDeferred<string>();
+    const onAsk = vi.fn()
+      .mockReturnValueOnce(held.promise)
+      .mockResolvedValueOnce("Second answer")
+      .mockResolvedValueOnce("Third answer");
+    const textarea = await openTeamComposer(onAsk);
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    for (const [question, answer] of [["Second question", "Second answer"], ["Third question", "Third answer"]]) {
+      await fireEvent.input(textarea, { target: { value: question } });
+      await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+      expect(await screen.findByText(answer)).toBeTruthy();
+    }
+    expect(onAsk.mock.calls.map((call) => call[1])).toEqual([
+      [],
+      [],
+      [{ role: "user", content: "Second question" }, { role: "assistant", content: "Second answer" }],
+    ]);
   });
 });

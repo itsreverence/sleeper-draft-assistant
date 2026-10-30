@@ -217,7 +217,7 @@
   {/if}
 
   {#if displayedAiStrategy}
-    <div class:previous={isPreviousRecommendation} class="ai-strategy" aria-live="polite" aria-busy={isLoadingAiStrategy}>
+    <div class:previous={isPreviousRecommendation} class="ai-strategy" aria-live="polite">
       <div class="decision-layout">
         <div class="decision-main">
           {#if isPreviousRecommendation}

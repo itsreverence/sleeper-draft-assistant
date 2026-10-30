@@ -1,3 +1,4 @@
+import { expectConversationBehavior } from "./conversation-behavior";
 import { expectResponseTable, tableAnswer } from "./response-table";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
@@ -255,4 +256,16 @@ test("Team Manager answers contain wide Markdown tables inside the chat bubble",
   await page.getByRole("textbox", { name: "Ask Codex about your team" }).fill("Show a table of lineup options.");
   await page.getByRole("button", { name: "Ask Codex", exact: true }).click();
   await expectResponseTable(page);
+});
+
+test("Team Manager cancel, newest-message scrolling, focus and follow-up history", async ({ page }) => {
+  await page.route("**/api/ai/status", route => route.fulfill({ json: {
+    id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available",
+  } }));
+  await page.goto("/");
+  await connect(page);
+  await expectConversationBehavior(page, {
+    route: /\/api\/leagues\/[^/]+\/team\/ask(?:\?|$)/,
+    inputName: "Ask Codex about your team", sendName: "Ask Codex", logName: "Team conversation", inputKey: "Control+Enter",
+  });
 });

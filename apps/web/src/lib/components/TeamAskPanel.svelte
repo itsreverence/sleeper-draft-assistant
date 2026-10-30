@@ -37,6 +37,12 @@
   } = $props();
 
   let handledPromptRequestId = 0;
+  let composerElement = $state<HTMLTextAreaElement>();
+  let sendButton = $state<HTMLButtonElement>();
+
+  $effect(() => {
+    if (!conversation.isAsking && document.activeElement === sendButton) composerElement?.focus();
+  });
 
   const providerReady = $derived(providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus));
   const providerDisabled = $derived(aiProviderAvailability(providerStatus) === "disabled");
@@ -205,6 +211,7 @@
 
   {#if providerReady}<div class="composer">
     <textarea
+      bind:this={composerElement}
       class="input"
       aria-label="Ask Codex about your team"
       bind:value={conversation.question}
@@ -213,13 +220,12 @@
       placeholder={conversation.messages.length > 0 ? "Ask a follow-up…" : "Ask something else…"}
       disabled={!teamState || !providerReady}
     ></textarea>
-    {#if conversation.isAsking}
-      <button class="btn btn-secondary" type="button" title={CANCEL_REQUEST_HELP} onclick={conversation.cancel}>Cancel</button>
-    {:else}
-      <button class="btn btn-primary" type="button" aria-label="Ask Codex" disabled={!conversation.question.trim() || !teamState || !providerReady} onclick={() => submit()}>
-        {conversation.messages.length > 0 ? "Ask Codex" : "Ask"}
-      </button>
-    {/if}
+    <button bind:this={sendButton} class="btn" class:btn-secondary={conversation.isAsking} class:btn-primary={!conversation.isAsking}
+      type="button" aria-label={conversation.isAsking ? "Cancel" : "Ask Codex"}
+      title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
+      disabled={!conversation.isAsking && (!conversation.question.trim() || !teamState || !providerReady)}
+      onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
+    >{conversation.isAsking ? "Cancel" : conversation.messages.length > 0 ? "Ask Codex" : "Ask"}</button>
   </div>{/if}
 </article>
 

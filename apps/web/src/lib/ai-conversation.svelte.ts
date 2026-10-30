@@ -17,8 +17,8 @@ export type AiConversationDisplayMessage = {
   strategyProposalApplied?: boolean;
 };
 
-export const CANCEL_REQUEST_HELP = "Stop waiting for this answer. A turn that already started finishes on its own and its answer is discarded.";
-const CANCELLED_MESSAGE = "Cancelled. An answer that was already in progress finishes on its own and is discarded.";
+export const CANCEL_REQUEST_HELP = "Stop waiting for this answer. If the Assistant had already started, it finishes in the background and its answer isn’t shown.";
+const CANCELLED_MESSAGE = "Cancelled. If the Assistant had already started, it finishes in the background and its answer isn’t shown.";
 
 export function createAiConversation(options: {
   ask: (question: string, history: AiConversationMessage[], progress: AiRequestProgress) => Promise<AiConversationReply>;
@@ -69,10 +69,14 @@ export function createAiConversation(options: {
   }
 
   function history(): AiConversationMessage[] {
-    return messages
-      .filter((message) => message.status === "complete" && message.content.trim())
-      .map((message) => ({ role: message.role, content: message.content.trim() }))
-      .slice(-8);
+    return messages.flatMap((message, index): AiConversationMessage[] => {
+      const answer = messages[index + 1];
+      if (message.role !== "user" || answer?.role !== "assistant" || answer.status !== "complete") return [];
+      return [
+        { role: "user", content: message.content.trim() },
+        { role: "assistant", content: answer.content.trim() },
+      ];
+    }).slice(-8);
   }
 
   async function submit(overrideQuestion?: string): Promise<boolean> {

@@ -41,6 +41,12 @@
   let conversationPick: number | null = $state(null);
   let conversationDraftIdentity = $state("");
   let handledPromptRequestId = 0;
+  let composerElement = $state<HTMLInputElement>();
+  let sendButton = $state<HTMLButtonElement>();
+
+  $effect(() => {
+    if (!conversation.isAsking && document.activeElement === sendButton) composerElement?.focus();
+  });
   let panelElement: HTMLElement;
 
   const providerReady = $derived(
@@ -193,6 +199,7 @@
           {/if}
           <div class="composer">
             <input
+              bind:this={composerElement}
               aria-label="Ask about your draft"
               bind:value={conversation.question}
               onkeydown={handleKeydown}
@@ -200,11 +207,12 @@
                 ? "Ask a follow-up about this draft."
                 : "Ask who to draft, compare players, or test a what-if."}
             />
-            {#if conversation.isAsking}
-              <button class="composer-send composer-cancel" type="button" title={CANCEL_REQUEST_HELP} onclick={conversation.cancel}>Cancel</button>
-            {:else}
-              <button class="composer-send" aria-label="Ask AI" type="button" disabled={!conversation.question.trim()} onclick={() => submit()}>Send</button>
-            {/if}
+            <button bind:this={sendButton} class="composer-send" class:composer-cancel={conversation.isAsking}
+              aria-label={conversation.isAsking ? "Cancel" : "Ask AI"} type="button"
+              title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
+              disabled={!conversation.isAsking && !conversation.question.trim()}
+              onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
+            >{conversation.isAsking ? "Cancel" : "Send"}</button>
           </div>
         </div>
       </div>

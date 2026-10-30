@@ -34,6 +34,7 @@ describe("Recommendation panel", () => {
     await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(2));
     expect(screen.getByText(`Previous: ${strategy.decision.headline}`)).toBeTruthy();
     expect(screen.getByText("Thinking…")).toBeTruthy();
+    expect(screen.getByText("Thinking…").closest("[aria-live]")?.hasAttribute("aria-busy")).toBe(false);
     expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
 
     const latestState = { ...correctedState, status: "complete" as const };

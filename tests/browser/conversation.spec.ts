@@ -1,3 +1,4 @@
+import { expectConversationBehavior } from "./conversation-behavior";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { AiDraftStrategyPayload, DraftPayload } from "../../apps/web/src/lib/types";
 import { expectAccessible } from "./accessibility";
@@ -116,4 +117,11 @@ test("cancel returns the composer to idle and the late answer never appears", as
   await expect(page.getByText("Line 30 of a long synthetic answer.")).toHaveCount(0);
   await page.getByRole("textbox", { name: "Ask about your draft" }).fill("A fresh question.");
   await expect(page.getByRole("button", { name: "Ask AI", exact: true })).toBeEnabled();
+});
+
+test("draft composer preserves native focus and sends only completed turns", async ({ page }) => {
+  await expectConversationBehavior(page, {
+    route: /\/api\/drafts\/[^/]+\/ask(?:\?|$)/,
+    inputName: "Ask about your draft", sendName: "Ask AI", logName: "Draft conversation", inputKey: "Enter",
+  });
 });
