@@ -41,6 +41,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
     "Give every generated field a distinct purpose:",
     "- headline: an imperative verdict naming the player; do not include a list of supporting metrics.",
     "- summary: one live-pick-clock sentence of 18-30 words stating the decisive strategic advantage and the immediate roster-construction consequence; do not restate raw evidence values.",
+    "- reasonLine: the same point in at most 12 words, shown beside the player during the live pick; no player name and no raw evidence values.",
     "- reasons: two or three distinct comparative or strategic reasons that add information beyond summary and raw evidence; do not re-list ranks, projections, ADP, tiers, or flags.",
     "- risks: only material decision implications, each paired with its consequence or mitigation; do not merely repeat an imported flag and do not invent a risk when none is material.",
     "- plan.approach, plan.rosterGoals, and plan.watchItems: begin after the recommended selection and describe future picks, contingencies, and board developments; do not re-justify or restate the current recommendation.",
@@ -59,6 +60,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
       confidence: "high | medium | low",
       headline: "imperative verdict naming the recommended player",
       summary: "one 18-30 word sentence with the decisive advantage and immediate roster consequence, without raw evidence values",
+      reasonLine: "at most 12 words, no player name",
       reasons: ["2-3 non-overlapping comparative or strategic reasons"],
       risks: ["0-4 material implications with consequences or mitigations"],
       plan: {

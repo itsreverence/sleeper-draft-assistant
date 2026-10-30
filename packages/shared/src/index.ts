@@ -194,6 +194,8 @@ export const NewsSourceSchema = z.object({
 });
 export type NewsSource = z.infer<typeof NewsSourceSchema>;
 
+export const AI_REASON_LINE_MAX_LENGTH = 120;
+
 export const AiDraftDecisionSchema = z.object({
   basedOnPick: z.number().int().positive(),
   recommendedPlayerId: z.string().min(1),
@@ -202,6 +204,8 @@ export const AiDraftDecisionSchema = z.object({
   confidence: z.enum(["high", "medium", "low"]),
   headline: z.string().min(1).max(120),
   summary: z.string().min(1).max(600),
+  // The summary still carries the full call, so a bad line falls back to it rather than discarding a valid decision.
+  reasonLine: z.string().trim().min(1).max(AI_REASON_LINE_MAX_LENGTH).optional().catch(undefined),
   reasons: z.array(z.string().min(1).max(240)).min(1).max(5),
   risks: z.array(z.string().min(1).max(240)).max(4).default([]),
   plan: AiDraftPlanSchema,
