@@ -181,6 +181,31 @@ test("a real attention change is announced once, and an unchanged refresh stays 
   await expect(live).toHaveText("Lineup looks set.");
 });
 
+test("a pending retry keeps the failed-refresh note until new data arrives", async ({ page }) => {
+  await open(page, "all-clear");
+  const refresh = page.getByRole("button", { name: "Refresh team data" });
+  const teamRoute = /\/api\/leagues\/[^/]+\/team(?:\?|$)/;
+  await page.unroute(teamRoute);
+  await page.route(teamRoute, route => route.fulfill({ status: 503, json: { error: "Synthetic outage." } }));
+  await refresh.click();
+  await expect(page.getByText("Nothing flagged, but the last refresh failed.", { exact: false })).toBeVisible();
+
+  await page.unroute(teamRoute);
+  let release = () => {};
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let requested = () => {};
+  const arrived = new Promise<void>(resolve => { requested = resolve; });
+  await routeLineup(page, "all-clear");
+  await page.route(teamRoute, async route => { requested(); await held; await route.fallback(); });
+  await refresh.click();
+  await arrived;
+  await expect(page.getByText("Lineup looks set")).toHaveCount(0);
+  await expect(page.getByText("Nothing flagged, but the last refresh failed.", { exact: false })).toBeVisible();
+
+  release();
+  await expect(page.getByText("Lineup looks set").first()).toBeVisible();
+});
+
 test("every part of Team Manager fits and works at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await open(page, "needs-look", true);

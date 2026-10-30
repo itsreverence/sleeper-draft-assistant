@@ -967,7 +967,6 @@
     if (!isBackgroundRefresh) {
       teamManagerError = "";
     }
-    teamRefreshError = "";
 
     await teamSession.run(isBackgroundRefresh ? "refresh" : "load", () => fetchTeamManagerState(
         leagueId,
@@ -979,6 +978,7 @@
         accept: (payload) => {
           applyTeamPayload(payload);
           teamManagerError = "";
+          teamRefreshError = "";
         },
         reject: (error) => {
           const message = error instanceof Error ? error.message : "Could not load team roster.";
@@ -992,6 +992,7 @@
             weeklyProjectionSummary = null;
             rosRankingSummary = null;
             teamManagerError = message;
+            teamRefreshError = "";
           }
         },
       });
