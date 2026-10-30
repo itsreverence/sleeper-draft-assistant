@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -137,6 +137,63 @@ describe("FantasyPros weekly projection import", () => {
       expect.objectContaining({ position: "QB", rowsParsed: 2, matched: 2 }),
     ]);
     expect(merged.playersById.get("1")?.projectedPoints).toBe(25);
+  });
+
+  it("keeps a zero-match position file in the merged positions", () => {
+    const players = [player("1", "Josh Allen", "BUF", "QB")];
+    const qbImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,24`,
+      position: "QB",
+    });
+    const wrImport = importFantasyProsWeeklyProjectionCsv({
+      players,
+      leagueId: "league-1",
+      season: "2026",
+      week: 1,
+      csvText: `Player,Team,REC,YDS,TDS,ATT,YDS,TDS,FL,FPTS\nUnknown Receiver,BUF,5,60,1,0,0,0,0,13`,
+      position: "WR",
+    });
+
+    const merged = mergeWeeklyProjectionImports(qbImport, wrImport);
+
+    expect(merged.summary.position).toBeNull();
+    expect(merged.summary.positions).toEqual(["QB", "WR"]);
+    expect(merged.summary.positionResults).toEqual([
+      expect.objectContaining({ position: "QB", matched: 1 }),
+      expect.objectContaining({ position: "WR", rowsParsed: 1, matched: 0 }),
+    ]);
+  });
+
+  it("restores a zero-match position from a record stored before merged positions kept it", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "sda-weekly-legacy-"));
+    try {
+      const filePath = path.join(dir, "legacy-weekly.json");
+      const qbImport = importFantasyProsWeeklyProjectionCsv({
+        players: [player("1", "Josh Allen", "BUF", "QB")],
+        leagueId: "league-1",
+        season: "2026",
+        week: 1,
+        csvText: `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nJosh Allen,BUF,31,20,220,2,1,6,35,1,0,24`,
+        position: "QB",
+      });
+      const zeroMatchResult = { ...qbImport.summary.positionResults[0]!, position: "WR" as const, matched: 0 };
+      writeFileSync(filePath, JSON.stringify({
+        "league-1:2026:1": {
+          summary: { ...qbImport.summary, positions: ["QB"], positionResults: [qbImport.summary.positionResults[0], zeroMatchResult] },
+          players: Array.from(qbImport.playersById.entries()),
+        },
+      }));
+
+      const store = new WeeklyProjectionImportStore(filePath);
+
+      expect(store.get({ leagueId: "league-1", season: "2026", week: 1 })?.summary.positions).toEqual(["QB", "WR"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("only activates projections for the connected league season and selected week", () => {
