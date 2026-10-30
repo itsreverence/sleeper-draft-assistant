@@ -1735,7 +1735,7 @@
     },
     {
       label: "Draft room",
-      value: draftState ? draftState.status.replace("_", " ") : selectedDraft ? "Selected" : "Not selected",
+      value: draftState ? formatStatus(draftState.status) : selectedDraft ? "Selected" : "Not selected",
       detail: draftState ? draftState.name : selectedDraft ? selectedDraft.name : "Choose a league and draft",
       tone: draftState ? "ready" : selectedDraft ? "warning" : "blocked",
     },

@@ -127,7 +127,7 @@ export function registerTeamRoutes(app: Hono, dependencies: TeamRouteDependencie
       const question = body.question?.trim() ?? "";
       localDataReset.assertCurrent(generation);
       if (!question) {
-        return c.json({ error: "Ask a team question before requesting AI advice." }, 400);
+        return c.json({ error: "Ask a team question before asking the Assistant." }, 400);
       }
 
       const leagueId = c.req.param("leagueId");

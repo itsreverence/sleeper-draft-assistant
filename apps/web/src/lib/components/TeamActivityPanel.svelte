@@ -45,7 +45,7 @@
     <div class="activity-details" id="team-market-activity-details">
       <div class="details-heading">
         <div><p class="eyebrow">Sleeper activity</p><h2>Market signals</h2></div>
-        {#if activitySummary}<button class="btn btn-ghost btn-sm" type="button" onclick={askActivity}>Ask Assistant</button>{/if}
+        {#if activitySummary}<button class="btn btn-ghost btn-sm" type="button" aria-label="Ask Assistant about market activity" onclick={askActivity}>Ask Assistant</button>{/if}
       </div>
 
       {#if isLoading}

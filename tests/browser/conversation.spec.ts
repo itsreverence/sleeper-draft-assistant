@@ -88,6 +88,8 @@ test("an answer that arrives while the reader has scrolled up does not move the 
   await expect(page.getByText("Thinking…")).toBeVisible();
   await thread.evaluate(node => node.scrollTo({ top: 0, behavior: "instant" }));
   await expect.poll(() => thread.evaluate(node => node.scrollTop)).toBe(0);
+  // The scroll event that records "reading history" fires on the next frame.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   release();
   await expect(page.getByText("Line 30 of a long synthetic answer.")).toHaveCount(2);
   await page.waitForTimeout(400);

@@ -338,7 +338,7 @@ describe("App draft lifecycle", () => {
     await fireEvent.click(marketDisclosure);
     const marketPanel = marketDisclosure.closest("article");
     if (!marketPanel) throw new Error("Expected market activity panel");
-    await fireEvent.click(within(marketPanel).getByRole("button", { name: "Ask Assistant" }));
+    await fireEvent.click(within(marketPanel).getByRole("button", { name: "Ask Assistant about market activity" }));
     await waitFor(() => expect(apiMock.askTeamManagerRequest).toHaveBeenCalledTimes(1));
 
     await fireEvent.click(screen.getByTitle("Switch league or draft"));

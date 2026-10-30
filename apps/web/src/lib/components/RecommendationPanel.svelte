@@ -199,7 +199,7 @@
 <article class="panel recommendation-panel">
   <div class="panel-heading">
     <div class="decision-heading">
-      <span>Assistant recommends</span>
+      {#if turnPresentation || isPreviousRecommendation}<span>Assistant recommends</span>{/if}
       <h2>{activeHeadline}</h2>
     </div>
   </div>
