@@ -3,6 +3,7 @@
 
   let {
     draftName,
+    statusLabel,
     scoring,
     season,
     teamLabel,
@@ -16,6 +17,7 @@
     onOpenEmergency,
   }: {
     draftName: string;
+    statusLabel: string;
     scoring: string;
     season: string;
     teamLabel: string;
@@ -66,7 +68,7 @@
   <span class="section-label">Draft preparation</span>
   <h2 id="draft-preparation-title">Ground the Assistant before entering the draft room</h2>
   <div class="meta">
-    <p>{draftName} · {scoring} · {season} season · {loadedCount}/3 sources ready</p>
+    <p>{draftName} · {statusLabel} · {scoring} · {season} season · {loadedCount}/3 sources ready</p>
     <p title={`Your team: ${teamLabel}`}>Your team: {teamLabel}</p>
   </div>
 

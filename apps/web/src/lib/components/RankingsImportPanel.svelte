@@ -196,7 +196,7 @@
           <span>League-scored points and replacement value</span>
         </div>
         <span class="source-status" class:ready={Boolean(seasonProjectionImportSummary)}>
-          {seasonProjectionImportSummary ? `${seasonProjectionImportSummary.matched} matched` : "Recommended"}
+          {seasonProjectionImportSummary ? `${seasonProjectionImportSummary.matched} matched` : "Required"}
         </span>
       </div>
       <div class="source-actions">
@@ -241,7 +241,7 @@
           <span>Sleeper and Real-Time market evidence</span>
         </div>
         <span class="source-status" class:ready={Boolean(adpImportSummary)}>
-          {adpImportSummary ? `${adpImportSummary.matched} matched` : "Recommended"}
+          {adpImportSummary ? `${adpImportSummary.matched} matched` : "Required"}
         </span>
       </div>
       <div class="source-actions">

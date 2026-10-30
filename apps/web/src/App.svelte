@@ -2031,6 +2031,7 @@
         <div class="preparation-flow">
           <DraftPreparationHeader
             draftName={draftState.name}
+            statusLabel={formatStatus(draftState.status)}
             scoring={normalizeDraftScoring(draftState.settings.scoring)}
             season={draftDataDefaultSeason}
             teamLabel={yourTeamLabel}
