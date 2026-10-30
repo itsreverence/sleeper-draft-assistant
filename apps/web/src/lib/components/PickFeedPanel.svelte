@@ -1,11 +1,13 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import PositionChip from "./PositionChip.svelte";
   import type { DraftState } from "../types";
-  import { playerName, teamName } from "../format";
+  import { formatDraftPick, playerName, teamName } from "../format";
 
-  let { state }: { state: DraftState } = $props();
+  let { state, limit = 8 }: { state: DraftState; limit?: number } = $props();
 
-  const recentPicks = $derived([...state.picks].reverse().slice(0, 8));
+  const positionById = $derived(new Map(state.players.map((player) => [player.id, player.position])));
+  const recentPicks = $derived([...state.picks].reverse().slice(0, limit));
 </script>
 
 <article class="panel">
@@ -17,12 +19,12 @@
   {#if recentPicks.length > 0}
     <ul class="pick-feed">
       {#each recentPicks as pick (pick.pickNo)}
-        <li>
-          <span>{pick.pickNo}</span>
-          <div>
-            <strong>{playerName(state, pick.playerId)}</strong>
-            <small>{teamName(state, pick.teamId)} · Round {pick.round}</small>
-          </div>
+        {@const position = positionById.get(pick.playerId)}
+        <li class:mine={pick.teamId === state.userTeamId}>
+          <span class="pick-no" title={`Pick ${pick.pickNo}`}>{formatDraftPick(pick.pickNo, state.settings.teams)}</span>
+          {#if position}<PositionChip {position} />{:else}<span></span>{/if}
+          <strong>{playerName(state, pick.playerId)}</strong>
+          <small>{teamName(state, pick.teamId)}</small>
         </li>
       {/each}
     </ul>
@@ -34,7 +36,6 @@
 <style>
   .pick-feed {
     display: grid;
-    gap: 4px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -42,39 +43,38 @@
 
   .pick-feed li {
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 36px auto minmax(0, 1fr) minmax(0, 40%);
+    gap: var(--space-2);
     align-items: center;
-    border-radius: var(--radius-sm);
-    padding: 6px 8px;
+    min-height: 44px;
+    border-top: 1px solid var(--border);
   }
 
-  .pick-feed li:hover {
-    background: var(--surface-sunken);
-  }
-
-  .pick-feed li > span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    color: var(--accent);
-    font-size: var(--text-xs);
-    font-weight: 600;
+  .pick-no {
+    color: var(--text-muted);
+    font-size: var(--text-md);
+    font-variant-numeric: tabular-nums;
   }
 
   .pick-feed strong {
-    display: block;
-    font-size: var(--text-sm);
+    overflow: hidden;
+    font-size: var(--text-md);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .pick-feed small {
-    display: block;
-    margin-top: 1px;
+    overflow: hidden;
     color: var(--text-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pick-feed .mine small {
+    color: var(--accent);
+    font-weight: 600;
   }
 </style>

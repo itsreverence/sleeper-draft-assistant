@@ -1,6 +1,7 @@
 import type {
   AiProviderStatus,
   AiDraftStrategyPayload,
+  DraftOption,
   DraftRecommendation,
   DraftState,
   Position,
@@ -66,6 +67,19 @@ export function recommendationTurnPresentation(
     contingent: true,
     nextUserPick,
   };
+}
+
+export type PlayerCardFact = { label: string; value: string };
+
+// Imported-rank estimates and Sleeper placeholder ranks also land in projectedPoints and adp, so only a labeled source qualifies.
+export function playerCardFacts({ player }: DraftOption): PlayerCardFact[] {
+  const isDemo = player.projectionSource === "mock";
+  const facts: Array<[string, string | null]> = [
+    ["ECR", player.importedRank != null ? String(player.importedRank) : null],
+    ["ADP", player.adp != null && (player.adpSource != null || isDemo) ? String(Math.round(player.adp * 10) / 10) : null],
+    ["Proj", (player.seasonProjectedPoints ?? (isDemo ? player.projectedPoints : null))?.toFixed(1) ?? null],
+  ];
+  return facts.flatMap(([label, value]) => value === null ? [] : [{ label, value }]);
 }
 
 export function buildCandidateDiscussionQuestion(

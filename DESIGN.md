@@ -205,11 +205,11 @@ The uppercase label style is reserved for section eyebrows and table column head
 
 The application uses a centered responsive shell with a constrained content column. Connected workflows are top-anchored so the board and working panels remain immediately available. The pre-connect state may use a narrower centered column to keep the entry task deliberate.
 
-Draft pages use a wide board region with intentional horizontal scrolling when team count exceeds the available viewport. The board keeps the round column and team header legible while the page below provides AI guidance, roster context, strategy, and conversation. Mobile layouts stack working regions and keep horizontal board scrolling explicit with a visible hint.
+The draft room leads with the decision. A pick strip sits under the top bar, then the Assistant call (7/12) beside recent picks and the roster summary (5/12), then a two-round live board, then the Ask Assistant command bar. Emergency board-only mode and a completed draft put the board directly under their note instead, with recent picks and the roster below it. At 1100px and below the room is one column in the same order. The board scrolls horizontally when team count exceeds the viewport, and it keeps the round column and team header legible.
 
 Spacing follows the 4px base scale: `--space-N` is 4N pixels, with tokens for 4, 8, 12, 16, 20, 24, 32, and 40. Panel padding is 20px on desktop and 16px at the compact breakpoint. List rows are 44px. Group related controls tightly and use a full divider or larger gap before a separate workflow.
 
-Breakpoints are literal in media queries because custom properties cannot drive them: compact at 760px and phone at 520px. The two-column collapse moves to 1100px with the layout work; until then 920px, 900px, and 860px remain and the style guard lists them as legacy.
+Breakpoints are literal in media queries because custom properties cannot drive them: two-column collapse at 1100px, compact at 760px, and phone at 520px. The style guard rejects any other width.
 
 ## Elevation & Depth
 
@@ -271,9 +271,13 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 - **Workspace controls:** Use segmented tabs for view ranges such as live rounds versus full board, and keep them visually distinct from connection or sync status.
 - **Mobile:** Stack controls when necessary; preserve the active state and keep overflow intentional rather than clipping text.
 
+### Pick Strip
+
+One line with the state ("You are on the clock" in amber, otherwise "N picks away"), the current pick, the next turn, the round direction, and Find player and Draft plan on the right. Find player and Draft plan appear once a recommendation exists, and never in board-only mode. Sync status lives in the top bar. The strip shows no pick clock because the draft payload has none.
+
 ### Draft Board
 
-The board is a dense, structured grid. Round direction, pick number, team ownership, current pick, user picks, and traded picks must remain distinguishable through layout plus semantic color. Team headers are interactive roster entry points and should retain accessible names and hover/focus states.
+The live view shows the current and next round in 72px cells, with the legend and Full board in the board header. The board is a dense, structured grid. Round direction, pick number, team ownership, current pick, user picks, and traded picks must remain distinguishable through layout plus semantic color. Team headers are interactive roster entry points and should retain accessible names and hover/focus states.
 
 ### Roster Table
 
@@ -286,6 +290,8 @@ The header carries the confidence chip and "Manage data". The footer holds the c
 Call the strategist "Assistant" in copy. Say "Codex" only for the external program the user installs, signs in to, or configures. Separate metadata with " · ", show statuses as sentence-case labels rather than API values, and write errors as what happened, then what to do next.
 
 Assistant recommendation, strategy, evidence, and conversation are progressively disclosed. The recommendation headline and short reason lead; analysis, alternatives, evidence, history, and user guidance open on demand. AI status, confidence, stale context, and provider availability must be explicit.
+
+The call panel carries the only primary button: Ask Assistant, on a player card that shows the position chip, name, team, and whichever of ECR, ADP, Proj, and roster fit the payload holds. It never shows a computed score or rank, and placeholder ranks and rank-derived estimates do not count as ECR, ADP, or Proj. Fallbacks are titled "If <player> is gone". The collapsed Ask Assistant bar keeps its composer and three suggestion chips on one line, and asking expands the thread in place.
 
 ## Do's and Don'ts
 

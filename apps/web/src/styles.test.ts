@@ -11,9 +11,7 @@ const shared = readFileSync(path.join(src, "styles.css"), "utf8");
 const design = readFileSync(path.join(src, "../../../DESIGN.md"), "utf8");
 
 const SCALE_WEIGHTS = new Set(["400", "500", "600", "700"]);
-const BREAKPOINTS = new Set([760, 520]);
-// Two-column collapse points that the layout PRs move to 1100px. Shrink this set; never grow it.
-const LEGACY_BREAKPOINTS = new Set([920, 900, 860]);
+const BREAKPOINTS = new Set([1100, 760, 520]);
 
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -73,7 +71,7 @@ describe("renderer style guard", () => {
 
   it("uses the documented breakpoints", () => {
     const widths = (prelude: string) => [...prelude.matchAll(/\(\s*(?:max|min)-width\s*:\s*(\d+)px\s*\)/g)].map((match) => Number(match[1]));
-    expect(offenders(/@media([^{]*)\{/g, (match) => widths(match[1]).every((width) => BREAKPOINTS.has(width) || LEGACY_BREAKPOINTS.has(width)))).toEqual([]);
+    expect(offenders(/@media([^{]*)\{/g, (match) => widths(match[1]).every((width) => BREAKPOINTS.has(width)))).toEqual([]);
   });
 
   it("keeps text tokens at AA on every surface", () => {

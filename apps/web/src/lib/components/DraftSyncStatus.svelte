@@ -45,7 +45,9 @@
   }
 </script>
 
-<div class="sync-status" class:degraded title={statusText} aria-label={statusText} aria-live="polite">
+<div class="sync-status" class:degraded role="group" title={statusText} aria-label={statusText}>
+  <!-- Mounted for the whole draft: a healthy sync updates every poll and must stay silent. -->
+  <span class="sr-only" aria-live="polite">{degraded ? statusText : ""}</span>
   <span class="status-dot" aria-hidden="true"></span>
   <span class="sync-label">{displayLabel}</span>
   <span class="sync-detail">{displayDetail}</span>
@@ -57,6 +59,7 @@
 </div>
 
 <style>
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .sync-status {
     display: flex;
     align-items: center;

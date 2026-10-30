@@ -3,8 +3,9 @@
   import { draftStateRevision } from "@sleeper-draft-assistant/shared";
   import Icon from "./Icon.svelte";
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
+  import PositionChip from "./PositionChip.svelte";
   import RequestPhase from "./RequestPhase.svelte";
-  import { currentAiDraftStrategy, recommendationTurnPresentation } from "../ai-panel";
+  import { currentAiDraftStrategy, playerCardFacts, recommendationTurnPresentation } from "../ai-panel";
   import { errorCopy } from "../error-copy";
   import { formatConfidence, formatDraftPick, rosterFitLabel, sourceLabel } from "../format";
   import type { AiDraftStrategyPayload, DraftOption, DraftState, PlayerPreferenceLevel, PlayerPreferences } from "../types";
@@ -16,7 +17,6 @@
     onClearPreferences,
     onOpenRankings,
     onOpenSettings,
-    onOpenPlayerSearch,
     currentPick,
     aiEnabled = false,
     aiStrategyEnabled = false,
@@ -24,8 +24,6 @@
     strategyRequestKey = "",
     onAskAboutCandidate,
     onRequestAiStrategy,
-    strategyOpen = false,
-    onToggleStrategy,
     draftState,
   }: {
     showPlaceholderWarning?: boolean;
@@ -34,7 +32,6 @@
     onClearPreferences?: () => void;
     onOpenRankings?: () => void;
     onOpenSettings?: () => void;
-    onOpenPlayerSearch?: () => void;
     currentPick: number;
     aiEnabled?: boolean;
     aiStrategyEnabled?: boolean;
@@ -42,8 +39,6 @@
     strategyRequestKey?: string;
     onAskAboutCandidate?: (playerName: string, recommendedPlayerName: string) => void;
     onRequestAiStrategy?: (automatic?: boolean, progress?: AiRequestProgress) => Promise<AiDraftStrategyPayload>;
-    strategyOpen?: boolean;
-    onToggleStrategy?: () => void;
     draftState: DraftState;
   } = $props();
 
@@ -196,14 +191,7 @@
   });
 </script>
 
-<article class="panel recommendation-panel">
-  <div class="panel-heading">
-    <div class="decision-heading">
-      {#if turnPresentation || isPreviousRecommendation}<span>Assistant recommends</span>{/if}
-      <h2>{activeHeadline}</h2>
-    </div>
-  </div>
-
+{#snippet placeholderWarning()}
   {#if showPlaceholderWarning}
     <div class="callout callout-warning placeholder-warning">
       <Icon name="alert" size={15} />
@@ -216,82 +204,88 @@
       </div>
     </div>
   {/if}
+{/snippet}
+
+<article class="panel recommendation-panel" aria-label="Assistant call">
+  <div class="panel-heading">
+    <div class="decision-heading">
+      {#if turnPresentation || isPreviousRecommendation}<span>Assistant recommends</span>{/if}
+      <h2 class:decision={displayedAiStrategy !== null}>{activeHeadline}</h2>
+    </div>
+  </div>
 
   {#if displayedAiStrategy}
+    {@const candidate = displayedAiStrategy.recommendedCandidate}
     <div class:previous={isPreviousRecommendation} class="ai-strategy" aria-live="polite">
-      <div class="decision-layout">
-        <div class="decision-main">
-          {#if isPreviousRecommendation}
-            <span class="previous-recommendation-label">Previous recommendation</span>
-          {/if}
-          {#if isLoadingAiStrategy}
-            <div class="strategy-refresh-status"><RequestPhase {phase} /></div>
-          {/if}
-          {#if aiStrategyError}
-            <div class="strategy-refresh-error">
-              <div>
-                <strong>Recommendation update failed</strong>
-                <span>{aiStrategyError}</span>
-              </div>
-              <button type="button" onclick={retryAiStrategy}>Retry recommendation</button>
-            </div>
-          {/if}
-          {#if turnContext}<p class="turn-context">{turnContext}</p>{/if}
-          <p class="decision-summary">{displayedAiStrategy.decision.summary}</p>
-          <div class="decision-actions">
-            <PlayerPreferenceMenu
-              playerId={displayedAiStrategy.recommendedCandidate.player.id}
-              playerName={displayedAiStrategy.recommendedCandidate.player.name}
-              preference={playerPreferences[displayedAiStrategy.recommendedCandidate.player.id] ?? null}
-              onSetPreference={strategyInteractionDisabled ? undefined : onSetPreference}
-            />
-            <button
-              type="button"
-              disabled={strategyInteractionDisabled}
-              aria-label={`Ask Assistant about drafting ${displayedAiStrategy.recommendedCandidate.player.name}`}
-              title={`Ask about drafting ${displayedAiStrategy.recommendedCandidate.player.name}`}
-              onclick={() => discussCandidate(displayedAiStrategy.recommendedCandidate.player.name)}
-            >
-              <Icon name="message" size={13} />
-              Ask Assistant
-            </button>
-            <button
-              class="analysis-trigger"
-              class:active={analysisOpen}
-              type="button"
-              disabled={strategyInteractionDisabled}
-              aria-expanded={analysisOpen}
-              onclick={() => (analysisOpen = !analysisOpen)}
-            >
-              Why
-            </button>
+      {#if isPreviousRecommendation}
+        <span class="previous-recommendation-label">Previous recommendation</span>
+      {/if}
+      {#if isLoadingAiStrategy}
+        <div class="strategy-refresh-status"><RequestPhase {phase} /></div>
+      {/if}
+      {#if aiStrategyError}
+        <div class="strategy-refresh-error">
+          <div>
+            <strong>Recommendation update failed</strong>
+            <span>{aiStrategyError}</span>
           </div>
-          {#if preferenceCount > 0}
-            <div class="preference-summary" aria-label="Draft preferences">
-              <span>{preferenceSummary}</span>
-              {#if onClearPreferences}
-                <button type="button" onclick={onClearPreferences}>Clear</button>
-              {/if}
-            </div>
+          <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry recommendation</button>
+        </div>
+      {/if}
+      {#if turnContext}<p class="turn-context">{turnContext}</p>{/if}
+      {@render placeholderWarning()}
+      <div class="player-card">
+        <PositionChip position={candidate.player.position} size="lg" />
+        <div class="player-identity">
+          <strong>{candidate.player.name}</strong>
+          <ul class="player-facts">
+            <li>{candidate.player.team || "FA"}</li>
+            {#each playerCardFacts(candidate) as fact (fact.label)}
+              <li>{fact.label} <b>{fact.value}</b></li>
+            {/each}
+            <li>{rosterFitLabel(candidate.rosterFit)}</li>
+          </ul>
+        </div>
+        <button
+          class="btn btn-primary"
+          type="button"
+          disabled={strategyInteractionDisabled}
+          aria-label={`Ask Assistant about drafting ${candidate.player.name}`}
+          title={`Ask about drafting ${candidate.player.name}`}
+          onclick={() => discussCandidate(candidate.player.name)}
+        >
+          <Icon name="message" size={14} />
+          Ask Assistant
+        </button>
+      </div>
+      <p class="decision-summary">{displayedAiStrategy.decision.summary}</p>
+      <div class="decision-actions">
+        <button
+          class="analysis-trigger"
+          class:active={analysisOpen}
+          type="button"
+          disabled={strategyInteractionDisabled}
+          aria-expanded={analysisOpen}
+          onclick={() => (analysisOpen = !analysisOpen)}
+        >
+          Why this call
+          <Icon name="chevron-right" size={12} />
+        </button>
+        <PlayerPreferenceMenu
+          playerId={candidate.player.id}
+          playerName={candidate.player.name}
+          preference={playerPreferences[candidate.player.id] ?? null}
+          onSetPreference={strategyInteractionDisabled ? undefined : onSetPreference}
+        />
+      </div>
+      {#if preferenceCount > 0}
+        <div class="preference-summary" aria-label="Draft preferences">
+          <span>{preferenceSummary}</span>
+          {#if onClearPreferences}
+            <button type="button" onclick={onClearPreferences}>Clear</button>
           {/if}
         </div>
-        {#if alternativeAiCandidates.length > 0}
-          <aside class="fallback-ladder" aria-label="Fallback order">
-            <h3>If unavailable</h3>
-            <ol>
-              {#each alternativeAiCandidates as candidate, index (candidate.player.id)}
-                <li>
-                  <span class="fallback-rank">{index + 1}</span>
-                  <span class="fallback-player">
-                    <strong>{candidate.player.name}</strong>
-                    <small>{candidate.player.team} · {candidate.player.position} · {contingencyLabel(candidate)}</small>
-                  </span>
-                </li>
-              {/each}
-            </ol>
-          </aside>
-        {/if}
-      </div>
+      {/if}
       {#if analysisOpen}
         <div class="analysis-content">
           {#if displayedAiStrategy.decision.newsSources?.length}
@@ -318,16 +312,13 @@
           <section>
             <h3>Evidence</h3>
             <div class="evidence-summary">
-              <span>
-                {displayedAiStrategy.recommendedCandidate.player.team} -
-                {displayedAiStrategy.recommendedCandidate.player.position}
-              </span>
-              <span>{rosterFitLabel(displayedAiStrategy.recommendedCandidate.rosterFit)}</span>
-              <span>{sourceLabel(displayedAiStrategy.recommendedCandidate)}</span>
+              <span>{candidate.player.team} · {candidate.player.position}</span>
+              <span>{rosterFitLabel(candidate.rosterFit)}</span>
+              <span>{sourceLabel(candidate)}</span>
             </div>
-            {#if displayedAiStrategy.recommendedCandidate.evidence.length > 0}
+            {#if candidate.evidence.length > 0}
               <ul>
-                {#each displayedAiStrategy.recommendedCandidate.evidence as evidence}
+                {#each candidate.evidence as evidence}
                   <li>{evidence}</li>
                 {/each}
               </ul>
@@ -345,30 +336,29 @@
           {/if}
         </div>
       {/if}
+      {#if alternativeAiCandidates.length > 0}
+        <aside class="fallback-ladder" aria-label="Fallback order">
+          <h3>If {candidate.player.name} is gone</h3>
+          <ol>
+            {#each alternativeAiCandidates as alternative, index (alternative.player.id)}
+              <li>
+                <span class="fallback-rank">{index + 1}</span>
+                <span class="fallback-player">
+                  <strong>{alternative.player.name}</strong>
+                  <small>{alternative.player.team} · {alternative.player.position} · {contingencyLabel(alternative)}</small>
+                </span>
+              </li>
+            {/each}
+          </ol>
+        </aside>
+      {/if}
       <div class="strategy-glance" aria-label="Draft strategy summary">
-        <span>Next: <strong>{displayedAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong></span>
-        <span>Wait: <strong>{displayedAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong></span>
-        <div class="strategy-utilities">
-          {#if onOpenPlayerSearch}
-            <button type="button" onclick={onOpenPlayerSearch}>
-              <Icon name="search" size={12} />
-              Find player
-            </button>
-          {/if}
-          {#if onToggleStrategy}
-            <button
-              type="button"
-              aria-expanded={strategyOpen}
-              onclick={onToggleStrategy}
-            >
-              {strategyOpen ? "Close plan" : "Draft plan"}
-              <Icon name="chevron-right" size={12} />
-            </button>
-          {/if}
-        </div>
+        <span>Next turn: <strong>{displayedAiStrategy.decision.plan.nextTurnPriorities.join(" / ") || "Reassess board"}</strong></span>
+        <span>Can wait: <strong>{displayedAiStrategy.decision.plan.positionsThatCanWait.join(" / ") || "Nothing identified"}</strong></span>
       </div>
     </div>
   {:else if !aiEnabled}
+    {@render placeholderWarning()}
     <div class="empty-state" aria-live="polite">
       <Icon name="message" size={20} />
       <div>
@@ -380,11 +370,13 @@
       {/if}
     </div>
   {:else if isLoadingAiStrategy}
+    {@render placeholderWarning()}
     <div class="ai-strategy-pending" aria-live="polite">
       <strong><RequestPhase {phase} /></strong>
       <span>The Assistant can search the complete available-player pool while it evaluates the current roster and draft room.</span>
     </div>
   {:else if aiStrategyEnabled && aiStrategyError}
+    {@render placeholderWarning()}
     <div class="callout callout-warning" aria-live="polite">
       <div>
         <strong>Assistant strategy unavailable</strong>
@@ -393,6 +385,7 @@
       </div>
     </div>
   {:else if !aiStrategyEnabled}
+    {@render placeholderWarning()}
     <div class="empty-state" aria-live="polite">
       <Icon name="pause" size={20} />
       <div>
@@ -404,6 +397,7 @@
       {/if}
     </div>
   {:else}
+    {@render placeholderWarning()}
     <div class="empty-state" aria-live="polite">
       <Icon name="clock" size={20} />
       <div>
@@ -428,11 +422,21 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
+    margin-bottom: 0;
   }
 
   .panel-heading h2 {
     margin-top: 3px;
     font-size: var(--text-2xl);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .panel-heading h2.decision {
+    font-size: var(--text-3xl);
+    letter-spacing: -0.015em;
+    line-height: 1.15;
   }
 
   .decision-heading {
@@ -483,20 +487,47 @@
 
   .ai-strategy {
     display: grid;
-    gap: 10px;
-  }
-
-  .decision-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-  }
-
-  .decision-main {
-    display: grid;
-    align-content: start;
-    gap: 10px;
+    gap: var(--space-3);
     min-width: 0;
+  }
+
+  .player-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .player-identity {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .player-identity strong {
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+
+  .ai-strategy .player-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--space-3);
+    margin: 0;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    list-style: none;
+  }
+
+  .ai-strategy .player-facts b {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
   .strategy-refresh-status,
@@ -527,22 +558,17 @@
 
   .strategy-refresh-error strong,
   .strategy-refresh-error span {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
   }
 
   .strategy-refresh-error span {
     color: var(--text-secondary);
   }
 
-  .strategy-refresh-error button {
+  .strategy-refresh-error .btn {
     flex: 0 0 auto;
-    border: 0;
-    background: transparent;
-    padding: 3px;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: var(--text-xs);
-    font-weight: 600;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
   }
 
   .previous-recommendation-label {
@@ -553,9 +579,7 @@
     font-weight: 600;
   }
 
-  .ai-strategy.previous .decision-main > :not(.strategy-refresh-status, .strategy-refresh-error, .previous-recommendation-label),
-  .ai-strategy.previous .fallback-ladder,
-  .ai-strategy.previous .strategy-glance {
+  .ai-strategy.previous > :not(.strategy-refresh-status, .strategy-refresh-error, .previous-recommendation-label, .placeholder-warning) {
     opacity: 0.58;
   }
 
@@ -575,7 +599,8 @@
 
   .fallback-ladder ol {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -583,16 +608,13 @@
 
   .fallback-ladder li {
     display: grid;
-    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-columns: 22px minmax(0, 1fr);
     align-items: center;
-    gap: 8px;
-    border-left: 1px solid var(--border);
-    padding: 2px 14px;
-  }
-
-  .fallback-ladder li:first-child {
-    border-left: 0;
-    padding-left: 0;
+    gap: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    padding: var(--space-2) var(--space-3);
   }
 
   .fallback-rank {
@@ -610,7 +632,8 @@
   .fallback-player strong {
     overflow: hidden;
     color: var(--text-primary);
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
+    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -618,7 +641,7 @@
   .fallback-player small {
     overflow: hidden;
     color: var(--text-muted);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -661,8 +684,8 @@
     max-width: 72ch;
     color: var(--text-primary);
     font-size: var(--text-lg);
-    font-weight: 600;
-    line-height: 1.55;
+    font-weight: 400;
+    line-height: 1.5;
   }
 
   .decision-actions,
@@ -694,6 +717,14 @@
   .decision-actions > button.active {
     background: transparent;
     color: var(--accent);
+  }
+
+  .decision-actions > button > :global(.icon) {
+    transition: transform var(--transition-base);
+  }
+
+  .decision-actions > button.active > :global(.icon) {
+    transform: rotate(90deg);
   }
 
   .decision-actions :global(.preference-trigger) {
@@ -738,31 +769,6 @@
   .strategy-glance strong {
     color: var(--text-secondary);
     font-weight: 700;
-  }
-
-  .strategy-utilities {
-    display: flex;
-    align-items: center;
-    margin-left: auto;
-    gap: 16px;
-  }
-
-  .strategy-utilities button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 0;
-    background: transparent;
-    padding: 3px 0;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: var(--text-xs);
-    font-weight: 600;
-  }
-
-  .strategy-utilities button:hover {
-    background: transparent;
-    color: var(--text-primary);
   }
 
   .analysis-content {
@@ -817,20 +823,17 @@
     color: var(--info);
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 760px) {
+    .player-card {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .player-card .btn {
+      grid-column: 1 / -1;
+    }
+
     .fallback-ladder ol {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .fallback-ladder li:nth-child(odd) {
-      border-left: 0;
-      padding-left: 0;
-    }
-
-    .fallback-ladder li:nth-child(n + 3) {
-      border-top: 1px solid var(--border);
-      margin-top: 9px;
-      padding-top: 9px;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -840,9 +843,9 @@
       gap: 8px;
     }
 
-    .panel-heading h2 {
-      font-size: var(--text-lg);
-      line-height: 1.3;
+    .panel-heading h2.decision {
+      font-size: var(--text-2xl);
+      line-height: 1.2;
     }
 
     .empty-state {
@@ -854,28 +857,5 @@
       width: 100%;
     }
 
-    .strategy-glance {
-      align-items: flex-start;
-    }
-
-    .strategy-utilities {
-      width: 100%;
-      margin-left: 0;
-      justify-content: flex-start;
-    }
-
-    .fallback-ladder ol {
-      grid-template-columns: 1fr;
-    }
-
-    .fallback-ladder li,
-    .fallback-ladder li:first-child,
-    .fallback-ladder li:nth-child(odd),
-    .fallback-ladder li:nth-child(n + 3) {
-      border-top: 1px solid var(--border);
-      border-left: 0;
-      margin-top: 0;
-      padding: 9px 0;
-    }
   }
 </style>
