@@ -1,13 +1,20 @@
 <script lang="ts">
   import type {
+    Player,
     SeasonValueRankingImportSummary,
     TeamDataReadiness,
     TeamManagerState,
     TeamWeekContext,
     WeeklyProjectionImportSummary,
   } from "../types";
-  import { formatPlayerSchedule } from "../format";
-  import { formatSleeperStatusSummary, formatSleeperStatusTitle, formatWeeklyProjection } from "../format";
+  import {
+    formatConfidence,
+    formatMissingProjection,
+    formatPlayerSchedule,
+    formatSleeperStatusSummary,
+    formatSleeperStatusTitle,
+    formatWeeklyProjection,
+  } from "../format";
 
   let {
     state,
@@ -75,7 +82,7 @@
         ? `Data: ${sourceCount}/2 sources`
         : "Manage data"
       : readiness
-        ? `Data: ${readiness.confidence} confidence`
+        ? `Data: ${formatConfidence(readiness.confidence)}`
         : "Manage data",
   );
   const weeklyDataTitle = $derived(
@@ -92,6 +99,10 @@
   );
   const dataTitle = $derived(`${sourceCount}/2 sources · ${seasonValueTitle} · ${weeklyDataTitle}`);
 </script>
+
+{#snippet byeChip(player: Player)}
+  <span class="bye-chip" role="img" aria-label={`On bye in Week ${player.schedule?.week}`}>BYE</span>
+{/snippet}
 
 <article class="panel roster-panel">
   <header class="roster-heading">
@@ -113,7 +124,7 @@
     <p class="empty warning-copy">{error}</p>
   {:else if state}
     {#if state.scheduleStatus?.available === false}
-      <p class="empty warning-copy">NFL schedule unavailable. Imported draft byes are used where known; other bye status is unknown.</p>
+      <p class="empty warning-copy">NFL schedule unavailable. Byes from your draft imports still show; other byes are unknown. Refresh to try again.</p>
     {/if}
     <div class="slot-list" aria-label="Starting lineup">
       <div class:with-projections={showProjections} class="column-head">
@@ -128,10 +139,10 @@
           {#if slot.player}
             <span class="player-name">
               <strong>{slot.player.name}</strong>
-              <small>{slot.player.team} · {slot.player.position}{#if formatPlayerSchedule(slot.player)} · <span role={slot.player.schedule?.onBye ? "img" : undefined} aria-label={slot.player.schedule?.onBye ? `On bye in Week ${slot.player.schedule.week}` : undefined}>{formatPlayerSchedule(slot.player)}</span>{/if}</small>
+              <small>{slot.player.team} · {slot.player.position}{#if slot.player.schedule?.onBye}{" "}{@render byeChip(slot.player)}{:else if formatPlayerSchedule(slot.player)}{` · ${formatPlayerSchedule(slot.player)}`}{/if}</small>
             </span>
-            {#if showProjections}<span class="projection">{formatWeeklyProjection(slot.player) ?? "Not matched"}</span>{/if}
-            <span class:warning-status={Boolean(formatSleeperStatusSummary(slot.player))} class="player-status" title={formatSleeperStatusTitle(slot.player)}>{formatSleeperStatusSummary(slot.player) ?? "Clear"}</span>
+            {#if showProjections}<span class="projection" class:muted={slot.player.schedule?.onBye || !formatWeeklyProjection(slot.player)}>{formatWeeklyProjection(slot.player) ?? formatMissingProjection(slot.player, weeklySummary)}</span>{/if}
+            <span class:warning-status={Boolean(formatSleeperStatusSummary(slot.player))} class="player-status" title={formatSleeperStatusTitle(slot.player)}>{formatSleeperStatusSummary(slot.player) ?? ""}</span>
           {:else}
             <span class="player-name muted"><strong>Open starter slot {index + 1}</strong><small>{slot.eligiblePositions.join("/")}</small></span>
             {#if showProjections}<span class="projection muted">Open slot</span>{/if}
@@ -148,7 +159,7 @@
           <div>
             {#each group.players as player}
               <small class:warning-status={Boolean(formatSleeperStatusSummary(player))} title={formatSleeperStatusTitle(player)}>
-                {player.name}<i>{player.position}</i>{#if formatPlayerSchedule(player)}<i role={player.schedule?.onBye ? "img" : undefined} aria-label={player.schedule?.onBye ? `On bye in Week ${player.schedule.week}` : undefined}>{formatPlayerSchedule(player)}</i>{/if}{#if showProjections}<i>{formatWeeklyProjection(player) ?? "Not matched"}</i>{/if}{#if formatSleeperStatusSummary(player)}<i>{formatSleeperStatusSummary(player)}</i>{/if}
+                {player.name}<i>{player.position}</i>{#if player.schedule?.onBye}{" "}{@render byeChip(player)}{:else if formatPlayerSchedule(player)}<i>{formatPlayerSchedule(player)}</i>{/if}{#if showProjections}<i>{formatWeeklyProjection(player) ?? formatMissingProjection(player, weeklySummary)}</i>{/if}{#if formatSleeperStatusSummary(player)}<i>{formatSleeperStatusSummary(player)}</i>{/if}
               </small>
             {/each}
           </div>
@@ -183,8 +194,9 @@
   .player-name strong { overflow: hidden; color: var(--text-primary); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
   .player-name small { flex: 0 0 auto; color: var(--text-muted); font-size: var(--text-xs); }
   .player-name.muted strong { color: var(--text-secondary); }
-  .projection { color: var(--accent); font-size: var(--text-xs); font-weight: 600; }
-  .projection.muted { color: var(--text-muted); font-weight: 700; }
+  .projection { color: var(--text-primary); font-size: var(--text-xs); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .projection.muted { color: var(--text-muted); font-weight: 400; }
+  .bye-chip { border: 1px solid var(--warning-border); border-radius: var(--radius-sm); background: var(--warning-soft); color: var(--warning); font-size: var(--text-xs); font-weight: 600; padding: 0 var(--space-1); }
   .player-status { color: var(--text-muted); font-size: var(--text-xs); text-align: right; }
   .warning-status { color: var(--warning) !important; }
   .reserve-line { display: grid; grid-template-columns: 60px 1fr; gap: 12px; padding: 11px 16px; }

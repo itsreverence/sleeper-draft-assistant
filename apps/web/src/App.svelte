@@ -56,7 +56,8 @@
     updateSettings,
     updateDraftStrategyInstruction,
   } from "./lib/api";
-  import { draftTeamReference, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
+  import { errorCopy } from "./lib/error-copy";
+  import { draftTeamReference, formatStatus, getDraftPhase, getUserTeam, isMockDraft, picksUntilUserTurn, preferredWorkspaceMode } from "./lib/format";
   import {
     normalizeTeamProjectionOverride,
     shouldRefreshTeamManager,
@@ -470,7 +471,7 @@
     try {
       aiProviderStatus = await fetchAiStatus();
     } catch (error) {
-      settingsError = error instanceof Error ? error.message : "Could not check Codex status.";
+      settingsError = error instanceof Error ? error.message : errorCopy.providerStatus;
     }
   }
 
@@ -577,7 +578,7 @@
     try {
       aiProviderStatus = await fetchAiStatus();
     } catch (error) {
-      settingsError = error instanceof Error ? error.message : "Could not refresh AI status.";
+      settingsError = error instanceof Error ? error.message : errorCopy.providerStatus;
     }
 
     await tick();
@@ -630,7 +631,7 @@
       connectPayload = null;
       selectedLeagueId = "";
       selectedDraftId = "";
-      loadError = error instanceof Error ? error.message : "Sleeper lookup failed.";
+      loadError = error instanceof Error ? error.message : errorCopy.sleeperLookup;
       status = "Sleeper lookup unavailable";
     } finally {
       isConnecting = false;
@@ -869,7 +870,7 @@
       if (!isCurrentLoadDraftRequest(requestId)) {
         return false;
       }
-      loadError = error instanceof Error ? error.message : "Draft load failed.";
+      loadError = error instanceof Error ? error.message : errorCopy.draftLoad;
       status = "Draft unavailable";
       draftSession.clear();
       decisionSnapshots = [];
@@ -1079,7 +1080,7 @@
       if (!draftSession.isGuardCurrent(guard) || !isCurrentRankingMutation(requestId)) {
         return;
       }
-      rankingImportError = error instanceof Error ? error.message : "Ranking import failed.";
+      rankingImportError = error instanceof Error ? error.message : errorCopy.rankingImport;
     } finally {
       if (draftSession.isGuardCurrent(guard) && isCurrentRankingMutation(requestId)) {
         isImportingRankings = false;
@@ -1174,7 +1175,7 @@
       if (!draftSession.isGuardCurrent(guard) || !isCurrentSeasonProjectionMutation(requestId)) {
         return;
       }
-      seasonProjectionImportError = error instanceof Error ? error.message : "Season projection import failed.";
+      seasonProjectionImportError = error instanceof Error ? error.message : errorCopy.seasonProjectionImport;
     } finally {
       if (draftSession.isGuardCurrent(guard) && isCurrentSeasonProjectionMutation(requestId)) {
         isImportingSeasonProjections = false;
@@ -1246,7 +1247,7 @@
       if (!draftSession.isGuardCurrent(guard) || !isCurrentAdpMutation(requestId)) {
         return;
       }
-      adpImportError = error instanceof Error ? error.message : "Sleeper ADP import failed.";
+      adpImportError = error instanceof Error ? error.message : errorCopy.adpImport;
     } finally {
       if (draftSession.isGuardCurrent(guard) && isCurrentAdpMutation(requestId)) {
         isImportingAdp = false;
@@ -1364,7 +1365,7 @@
           lastEvent = `${payload.summary.matched} season value ranking rows matched`;
         },
         reject: (error) => {
-          rosRankingError = error instanceof Error ? error.message : "Season value ranking import failed.";
+          rosRankingError = error instanceof Error ? error.message : errorCopy.seasonValueImport;
         },
       });
   }
@@ -1432,7 +1433,7 @@
           lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
         },
         reject: (error) => {
-          weeklyProjectionError = error instanceof Error ? error.message : "Weekly projection import failed.";
+          weeklyProjectionError = error instanceof Error ? error.message : errorCopy.weeklyImport;
         },
       });
   }
@@ -1565,7 +1566,7 @@
       return;
     }
     const confirmed = window.confirm(
-      "Open emergency board-only mode? AI recommendations and draft questions will stay disabled until setup is complete.",
+      "Open emergency board-only mode? Assistant recommendations and draft questions will stay disabled until setup is complete.",
     );
     if (!confirmed) return;
     emergencyBoardMode = true;
@@ -1734,7 +1735,7 @@
     },
     {
       label: "Draft room",
-      value: draftState ? draftState.status.replace("_", " ") : selectedDraft ? "Selected" : "Not selected",
+      value: draftState ? formatStatus(draftState.status) : selectedDraft ? "Selected" : "Not selected",
       detail: draftState ? draftState.name : selectedDraft ? selectedDraft.name : "Choose a league and draft",
       tone: draftState ? "ready" : selectedDraft ? "warning" : "blocked",
     },
@@ -1774,7 +1775,7 @@
         : draftDataSignalCount === 3
         ? "ECR, season projections, and Sleeper ADP loaded"
         : hasImportedRankings
-          ? "Season projections and Sleeper ADP are required for AI draft advice"
+          ? "Season projections and Sleeper ADP are required for Assistant draft advice"
         : isRealDraftActive
           ? "FantasyPros ECR, projections, and Sleeper ADP are required"
           : isDemoDraftActive
@@ -1787,11 +1788,11 @@
           : "neutral",
     },
     {
-      label: "AI manager",
-      value: codexProviderReady ? "Codex" : "Required",
+      label: "Assistant",
+      value: codexProviderReady ? "Ready" : "Required",
       detail: codexProviderReady
-        ? "Local app-server selected"
-        : "Connect a ready Codex app-server before entering the AI draft room",
+        ? "Runs on your local Codex CLI"
+        : "Set up your local Codex CLI before entering the draft room",
       tone: codexProviderReady ? "ready" : isRealDraftActive ? "warning" : "neutral",
     },
   ]);
@@ -1806,18 +1807,18 @@
       league.drafts.map((draft) => ({
         draftId: draft.draftId,
         name: draft.name || league.name,
-        detail: [draft.season ?? league.season, draft.status, draft.teams ? `${draft.teams} teams` : ""]
+        detail: [draft.season ?? league.season, formatStatus(draft.status), draft.teams ? `${draft.teams} teams` : ""]
           .filter(Boolean)
-          .join(" - "),
+          .join(" · "),
       })),
     ) ?? [];
     if (draftState && !options.some((option) => option.draftId === activeDraftId)) {
       options.unshift({
         draftId: activeDraftId,
         name: draftState.name,
-        detail: [draftState.status.replace("_", " "), `${draftState.settings.teams} teams`]
+        detail: [formatStatus(draftState.status), `${draftState.settings.teams} teams`]
           .filter(Boolean)
-          .join(" - "),
+          .join(" · "),
       });
     }
     return options;
@@ -2077,7 +2078,7 @@
               {#if emergencyBoardMode}
                 <article class="panel phase-note">
                   <h2>Emergency board-only mode</h2>
-                  <p>Live pick tracking remains available. AI recommendations and draft questions are disabled until all required data and Codex are ready.</p>
+                  <p>Live pick tracking remains available. Assistant recommendations and draft questions stay disabled until all required data and the Assistant are ready.</p>
                   <button class="btn btn-secondary" type="button" onclick={openDraftPreparation}>
                     Finish draft setup
                   </button>

@@ -2,6 +2,7 @@
   import type { AiRequestProgress } from "../api";
   import { tick } from "svelte";
   import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
+  import { errorCopy } from "../error-copy";
   import { followNewest } from "../thread-scroll";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
   import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
@@ -52,7 +53,7 @@
   const providerReady = $derived(
     providerStatus?.id === "codex-app-server" && providerStatus.configured,
   );
-  const providerLabel = $derived(providerReady ? providerStatus?.label ?? "AI manager" : "No AI provider");
+  const providerLabel = $derived(providerReady ? providerStatus?.label ?? "Assistant" : "Assistant not set up");
   const suggestedQuestions = $derived(buildSuggestedQuestions(draftState, recommendation, hasImportedRankings, showPlaceholderWarning));
   const contextSummary = $derived(buildAiPanelContextSummary(draftState, recommendation, hasImportedRankings, hasSeasonProjections, hasImportedAdp, showPlaceholderWarning));
   const providerContextTitle = $derived(
@@ -62,7 +63,7 @@
   );
   const conversation = createAiConversation({
     ask: (nextQuestion, history, progress) => onAsk(nextQuestion, history, progress),
-    fallbackError: "The manager could not answer because the draft state is unavailable.",
+    fallbackError: errorCopy.draftAnswer,
   });
   const newest = $derived.by(() => {
     const last = conversation.messages.at(-1);
@@ -87,6 +88,7 @@
 
   function chooseSuggestion(nextQuestion: string) {
     submit(nextQuestion);
+    composerElement?.focus();
   }
 
   function clearConversation() {
@@ -136,7 +138,7 @@
     <div class="ask-heading">
       <Icon name="message" size={17} />
       <div>
-        <h2>Ask Codex</h2>
+        <h2>Ask Assistant</h2>
         <span>Compare picks or test a scenario</span>
       </div>
     </div>
@@ -153,11 +155,11 @@
       {#if !providerReady}
         <div class="provider-empty">
           <div>
-            <strong>Connect an AI provider to ask draft questions</strong>
-            <span>Imported rankings and projections will be supplied as grounding evidence once Codex is connected.</span>
+            <strong>Set up the Assistant to ask draft questions</strong>
+            <span>Imported rankings and projections will be supplied as grounding evidence once the Assistant is set up.</span>
           </div>
           {#if onOpenSettings}
-            <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open AI settings</button>
+            <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open Assistant settings</button>
           {/if}
         </div>
       {:else}
@@ -183,6 +185,7 @@
           {#each conversation.messages as message (message.id)}
             <AiMessageBubble
               {message}
+              answerNumber={conversation.answerNumber(message.id)}
               onCopy={conversation.copy}
               onRetry={() => submit(conversation.questionFor(message.id))}
               onApplyStrategyProposal={(proposal) => applyStrategyProposal(message.id, proposal)}
@@ -208,11 +211,11 @@
                 : "Ask who to draft, compare players, or test a what-if."}
             />
             <button bind:this={sendButton} class="composer-send" class:composer-cancel={conversation.isAsking}
-              aria-label={conversation.isAsking ? "Cancel" : "Ask AI"} type="button"
+              aria-label={conversation.isAsking ? "Cancel" : "Ask Assistant"} type="button"
               title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
               disabled={!conversation.isAsking && !conversation.question.trim()}
               onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
-            >{conversation.isAsking ? "Cancel" : "Send"}</button>
+            >{conversation.isAsking ? "Cancel" : "Ask"}</button>
           </div>
         </div>
       </div>

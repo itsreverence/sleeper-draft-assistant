@@ -6,11 +6,13 @@
 
   let {
     message,
+    answerNumber,
     onCopy,
     onRetry,
     onApplyStrategyProposal,
   }: {
     message: AiConversationDisplayMessage;
+    answerNumber?: number;
     onCopy?: (content: string) => void;
     onRetry?: () => void;
     onApplyStrategyProposal?: (proposal: DraftStrategyProposal) => void;
@@ -24,7 +26,7 @@
     {:else if message.status === "cancelled"}
       <p class="cancelled-line">{message.content}</p>
     {:else if message.role === "assistant"}
-      <ResponseMarkdown content={message.content} />
+      <ResponseMarkdown content={message.content} {answerNumber} />
     {:else}
       <p>{message.content}</p>
     {/if}

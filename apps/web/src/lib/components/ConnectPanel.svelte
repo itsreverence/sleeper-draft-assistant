@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import { formatStatus, sentenceCase } from "../format";
   import type { ConnectDraft, ConnectLeague, ConnectPayload } from "../types";
 
   let {
@@ -73,7 +74,7 @@
       : draft.userDraftSlot
         ? `matched to draft slot ${draft.userDraftSlot}`
         : "team match checked after opening";
-    return `${draft.type} - ${draft.rounds ?? "?"} rounds - ${match}`;
+    return `${sentenceCase(draft.type)} · ${draft.rounds ?? "?"} rounds · ${match}`;
   }
 
   function submitLookup(event: SubmitEvent) {
@@ -181,7 +182,7 @@
     <div class="connect-results">
       <div class="results-heading">
         <strong>{connectPayload.user.displayName ?? connectPayload.user.username ?? connectPayload.user.userId}</strong>
-        <span>{connectPayload.season} season - {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
+        <span>{connectPayload.season} season · {connectPayload.leagues.length} league{connectPayload.leagues.length === 1 ? "" : "s"}</span>
       </div>
 
       {#if showLeaguePicker}
@@ -197,7 +198,7 @@
               />
               <span class="option-copy">
                 <strong>{league.name}</strong>
-                <small>{league.status} - {league.totalRosters ?? "?"} teams - {league.scoring}</small>
+                <small>{formatStatus(league.status)} · {league.totalRosters ?? "?"} teams · {league.scoring}</small>
               </span>
             </label>
           {/each}
@@ -217,7 +218,7 @@
               />
               <span class="option-copy">
                 <strong>{draft.name}</strong>
-                <small>{draft.status} - {draft.type} - {draft.rounds ?? "?"} rounds</small>
+                <small>{formatStatus(draft.status)} · {sentenceCase(draft.type)} · {draft.rounds ?? "?"} rounds</small>
               </span>
             </label>
           {/each}

@@ -12,9 +12,20 @@ describe("Team Manager season state", () => {
     player.schedule = { season: "2026", week: 1, source: "draft_import", onBye: true, opponent: null, homeAway: null, gameStatus: null };
     payload.state.scheduleStatus = { available: false, week: 1 };
     render(MyTeamPanel, { state: payload.state, readiness: { ...payload.dataReadiness, projectedRosterPlayers: 1 } });
-    expect(screen.getAllByText(/BYE/)).toHaveLength(2);
-    expect(screen.queryByText("Not matched")).toBeNull();
+    expect(screen.getByRole("img", { name: "On bye in Week 1" }).textContent).toBe("BYE");
+    expect(screen.getByText("0 pts").classList.contains("muted")).toBe(true);
     expect(screen.getByText(/NFL schedule unavailable/)).toBeTruthy();
+  });
+
+  it("joins roster meta with middots and leaves a clear player's status empty", () => {
+    const payload = createTeamPayloadFixture();
+    const player = payload.state.roster.starters[0]!.player!;
+    player.sleeperStatus = undefined;
+    player.schedule = { season: "2026", week: 1, source: "sleeper", onBye: false, opponent: "JAX", homeAway: "away", gameStatus: "pre_game" };
+    const { container } = render(MyTeamPanel, { state: payload.state });
+    expect(screen.getByText(`${player.team} · ${player.position} · @ JAX`)).toBeTruthy();
+    expect(screen.queryByText("Clear", { exact: true })).toBeNull();
+    expect(container.querySelector(".slot-row .player-status")?.textContent).toBe("");
   });
 
   it("shows a selected-week NFL opponent", () => {
@@ -198,6 +209,6 @@ describe("Team Manager season state", () => {
     });
 
     expect(screen.getByText("Projection")).toBeTruthy();
-    expect(screen.getByText("Not matched")).toBeTruthy();
+    expect(screen.getByText(`No ${payload.state.roster.starters[0]!.player!.position} file`).classList.contains("muted")).toBe(true);
   });
 });

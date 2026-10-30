@@ -392,11 +392,11 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           },
         );
         if (!localDataReset.isCurrent(requestGeneration)) {
-          return c.json({ error: "Local data was reset while AI strategy was running. Request a fresh recommendation." }, 409);
+          return c.json({ error: "Local data was reset while the Assistant was working. Request a fresh recommendation." }, 409);
         }
         const latestState = await loadDraftState(draftId, getUserRosterId(c));
         if (draftStateRevision(latestState) !== draftStateRevision(state)) {
-          return c.json({ error: "The draft board changed while AI strategy was running. Refreshing the recommendation." }, 409);
+          return c.json({ error: "The draft board changed while the Assistant was working. Refreshing the recommendation." }, 409);
         }
         const availableIds = new Set(
           snapshot.players
@@ -412,7 +412,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           !recommendedCandidate ||
           !isDraftChoiceRosterFeasible(state, recommendedCandidate.player.id)
         ) {
-          return c.json({ error: "The AI strategy did not match the current draft board." }, 502);
+          return c.json({ error: "The Assistant’s recommendation did not match the current draft board." }, 502);
         }
         const alternativeCandidates = Array.from(new Set(strategy.decision.alternativePlayerIds))
           .filter((playerId) => playerId !== recommendedCandidate.player.id)
@@ -466,7 +466,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           });
         });
         if (!persisted) {
-          return c.json({ error: "Local data was reset while AI strategy was running. Request a fresh recommendation." }, 409);
+          return c.json({ error: "Local data was reset while the Assistant was working. Request a fresh recommendation." }, 409);
         }
 
         return c.json({
@@ -490,7 +490,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           .catch(() => ({ question: "", conversationHistory: [], userPreferences: undefined, recommendationPreferences: undefined }));
         const question = body.question?.trim() ?? "";
         if (!question) {
-          return c.json({ error: "Ask a question before requesting AI advice." }, 400);
+          return c.json({ error: "Ask a question before asking the Assistant." }, 400);
         }
         const conversationHistory = normalizeConversationHistory(body.conversationHistory);
         const userPreferences = normalizeUserPreferences(body.userPreferences);
@@ -577,7 +577,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         const latestState = await loadDraftState(draftId, getUserRosterId(c));
         localDataReset.assertCurrent(generation);
         if (draftStateRevision(latestState) !== draftStateRevision(state)) {
-          return c.json({ error: "The draft board changed while AI evaluation was running. Refreshing the recommendation." }, 409);
+          return c.json({ error: "The draft board changed while the Assistant was working. Refreshing the recommendation." }, 409);
         }
 
         return c.json({

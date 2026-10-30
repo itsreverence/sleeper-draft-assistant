@@ -29,6 +29,7 @@ Failures retain screenshots and traces under ignored `test-results/`; the HTML r
 | Surface | User entry | Primary evidence |
 | --- | --- | --- |
 | Demo | Connection screen → Try a demo draft | Browser suite loads the renderer through the real API |
+| Long titles | Draft or league with a long name | Browser suite checks no page overflow and no settings-button overlap at 1280, 480, and 320 |
 | Settings | Open settings button | Browser keyboard dismissal/focus; `App.test.ts` owns application wiring and modal unit tests own action edge cases |
 | Player search | Demo → Find player | Browser checks actual overflow, reachable last row, fixed header/search and page scroll lock at desktop/compact sizes |
 | Search matching | Search input and position filters | `player-search.test.ts` owns ordering and matching; browser tests do not replay its tables |

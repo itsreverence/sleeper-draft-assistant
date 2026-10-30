@@ -230,14 +230,14 @@ function handleRouteError(c: Context, error: unknown) {
 
   if (error instanceof SleeperApiError) {
     const status = error.status === 404 ? 404 : 502;
-    return c.json({ error: status === 404 ? "Sleeper resource not found." : "Sleeper request failed." }, status);
+    return c.json({ error: status === 404 ? "Sleeper could not find that league, draft, or user. Check the link or ID, then try again." : "Could not reach Sleeper. Check your connection, then try again." }, status);
   }
 
   if (error instanceof SyntaxError || (error instanceof Error && error.name === "ZodError")) {
     return c.json({ error: "Invalid request data." }, 400);
   }
 
-  return c.json({ error: "The local service could not complete this request." }, 500);
+  return c.json({ error: "The local service could not complete this request. Try again, and restart the app if it keeps failing." }, 500);
 }
 
 export function redactErrorMessage(message: string): string {

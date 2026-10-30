@@ -213,7 +213,10 @@ export class SleeperClient {
   constructor(private readonly baseUrl = sleeperApiBaseUrl) {}
 
   async getUser(usernameOrUserId: string): Promise<SleeperUser> {
-    return this.fetchJson<SleeperUser>(`/user/${encodeURIComponent(usernameOrUserId)}`);
+    // Sleeper answers 200 with a null body for an unknown username.
+    const user = await this.fetchJson<SleeperUser | null>(`/user/${encodeURIComponent(usernameOrUserId)}`);
+    if (!user) throw new SleeperApiError("Sleeper user was not found.", 404);
+    return user;
   }
 
   async getNflState(): Promise<SleeperNflState> {

@@ -45,7 +45,7 @@ test.beforeEach(async ({ page }) => {
 
 async function ask(page: Page, question: string) {
   await page.getByRole("textbox", { name: "Ask about your draft" }).fill(question);
-  await page.getByRole("button", { name: "Ask AI", exact: true }).click();
+  await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
 }
 
 // Where the newest message's top edge sits relative to the thread's visible box.
@@ -88,6 +88,8 @@ test("an answer that arrives while the reader has scrolled up does not move the 
   await expect(page.getByText("Thinking…")).toBeVisible();
   await thread.evaluate(node => node.scrollTo({ top: 0, behavior: "instant" }));
   await expect.poll(() => thread.evaluate(node => node.scrollTop)).toBe(0);
+  // The scroll event that records "reading history" fires on the next frame.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   release();
   await expect(page.getByText("Line 30 of a long synthetic answer.")).toHaveCount(2);
   await page.waitForTimeout(400);
@@ -110,18 +112,18 @@ test("cancel returns the composer to idle and the late answer never appears", as
   await expect(page.getByText("Thinking…")).toHaveCount(0);
   await expect(page.getByText(/^Cancelled\./)).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ask AI", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ask Assistant", exact: true })).toBeVisible();
   await expectAccessible(page);
   release();
   await page.waitForTimeout(500);
   await expect(page.getByText("Line 30 of a long synthetic answer.")).toHaveCount(0);
   await page.getByRole("textbox", { name: "Ask about your draft" }).fill("A fresh question.");
-  await expect(page.getByRole("button", { name: "Ask AI", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Ask Assistant", exact: true })).toBeEnabled();
 });
 
 test("draft composer preserves native focus and sends only completed turns", async ({ page }) => {
   await expectConversationBehavior(page, {
     route: /\/api\/drafts\/[^/]+\/ask(?:\?|$)/,
-    inputName: "Ask about your draft", sendName: "Ask AI", logName: "Draft conversation", inputKey: "Enter",
+    inputName: "Ask about your draft", sendName: "Ask Assistant", logName: "Draft conversation", inputKey: "Enter",
   });
 });

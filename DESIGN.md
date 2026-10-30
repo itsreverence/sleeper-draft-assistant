@@ -270,7 +270,9 @@ The board is a dense, structured grid. Round direction, pick number, team owners
 
 ### AI Guidance
 
-AI call, strategy, evidence, and conversation are progressively disclosed. The recommendation headline and short reason lead; analysis, alternatives, evidence, history, and user guidance open on demand. AI status, confidence, stale context, and provider availability must be explicit.
+Call the strategist "Assistant" in copy. Say "Codex" only for the external program the user installs, signs in to, or configures. Separate metadata with " · ", show statuses as sentence-case labels rather than API values, and write errors as what happened, then what to do next.
+
+Assistant recommendation, strategy, evidence, and conversation are progressively disclosed. The recommendation headline and short reason lead; analysis, alternatives, evidence, history, and user guidance open on demand. AI status, confidence, stale context, and provider availability must be explicit.
 
 ## Do's and Don'ts
 

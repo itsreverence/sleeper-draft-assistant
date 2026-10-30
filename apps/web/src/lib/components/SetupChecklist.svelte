@@ -13,7 +13,7 @@
   <span class="strip-label">Setup</span>
   <div class="strip-steps">
     {#each items as item, index (item.label)}
-      <div class="step-chip tone-{item.tone}" title={`${item.label}: ${item.value} - ${item.detail}`}>
+      <div class="step-chip tone-{item.tone}" title={`${item.label}: ${item.value} · ${item.detail}`}>
         <span class="step-marker">
           {#if item.tone === "ready"}
             <Icon name="check-circle" size={12} />

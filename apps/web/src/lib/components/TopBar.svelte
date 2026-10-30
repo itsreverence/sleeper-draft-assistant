@@ -127,6 +127,7 @@
   .title-row {
     display: flex;
     align-items: center;
+    min-width: 0;
   }
 
   h1 {
@@ -157,10 +158,10 @@
     text-align: left;
   }
 
+  h1,
   .draft-switch-trigger > span:first-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .draft-switch-trigger > :global(.icon) {
@@ -304,19 +305,6 @@
 
     .status-panel {
       min-width: 0;
-    }
-
-    .title-row {
-      min-width: 0;
-    }
-
-    .topbar.has-draft h1 {
-      overflow-wrap: anywhere;
-    }
-
-    .draft-switch-trigger span {
-      white-space: normal;
-      overflow-wrap: anywhere;
     }
 
   }

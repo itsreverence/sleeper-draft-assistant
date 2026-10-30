@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatConfidence } from "../format";
   import type { TeamDataReadiness, TeamManagerState } from "../types";
   import Icon from "./Icon.svelte";
 
@@ -26,7 +27,7 @@
     </div>
     {#if readiness && seasonPhase !== "preseason"}
       <span class="pill" class:pill-ready={readiness.status === "ready"} class:pill-warning={readiness.status !== "ready"}>
-        {readiness.confidence} confidence
+        {formatConfidence(readiness.confidence)}
       </span>
     {/if}
   </div>

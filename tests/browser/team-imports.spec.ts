@@ -1,5 +1,5 @@
 import { expectConversationBehavior } from "./conversation-behavior";
-import { expectResponseTable, tableAnswer } from "./response-table";
+import { expectHeaderFits, expectResponseTable, longUnbrokenTitle, tableAnswer } from "./response-table";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { expectAccessible } from "./accessibility";
@@ -253,9 +253,32 @@ test("Team Manager answers contain wide Markdown tables inside the chat bubble",
   await page.goto("/");
   await connect(page, `browser-t${testInfo.project.name[0]}`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  await page.getByRole("textbox", { name: "Ask Codex about your team" }).fill("Show a table of lineup options.");
-  await page.getByRole("button", { name: "Ask Codex", exact: true }).click();
+  await page.getByRole("textbox", { name: "Ask Assistant about your team" }).fill("Show a table of lineup options.");
+  await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
   await expectResponseTable(page);
+});
+
+test("a keyboard-activated starter prompt hands focus to the team composer", async ({ page }) => {
+  await page.route("**/api/ai/status", route => route.fulfill({ json: {
+    id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available",
+  } }));
+  await page.route(/\/api\/leagues\/[^/]+\/team\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer." } }));
+  await page.goto("/");
+  await connect(page);
+  await page.getByLabel("Ask Assistant starters").getByRole("button").first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Ask Assistant starters")).toHaveCount(0);
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Ask Assistant about your team");
+});
+
+test("a long league title wraps on the Team Manager at compact widths", async ({ page }) => {
+  await page.goto("/");
+  const league = `browser-${longUnbrokenTitle}`;
+  await connect(page, league);
+  for (const width of [480, 320]) {
+    await page.setViewportSize({ width, height: 700 });
+    await expectHeaderFits(page, league);
+  }
 });
 
 test("Team Manager cancel, newest-message scrolling, focus and follow-up history", async ({ page }) => {
@@ -266,6 +289,6 @@ test("Team Manager cancel, newest-message scrolling, focus and follow-up history
   await connect(page);
   await expectConversationBehavior(page, {
     route: /\/api\/leagues\/[^/]+\/team\/ask(?:\?|$)/,
-    inputName: "Ask Codex about your team", sendName: "Ask Codex", logName: "Team conversation", inputKey: "Control+Enter",
+    inputName: "Ask Assistant about your team", sendName: "Ask Assistant", logName: "Team conversation", inputKey: "Control+Enter",
   });
 });

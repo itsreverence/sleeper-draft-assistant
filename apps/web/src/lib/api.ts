@@ -1,5 +1,6 @@
 import type { AdpImportPayload, AiConversationMessage, AiDraftStrategyPayload, AiProviderStatus, AppSettings, AskAnswerPayload, DataMutationPayload, DecisionHistoryPayload, DiagnosticsPayload, ConnectPayload, DraftPayload, DraftRecommendation, DraftScoringFormat, DraftStrategyInstructionSource, DraftStrategyInstructionsPayload, DraftStrategyProposal, LocalDataCategory, PlayerPreferenceSummary, RankingImportPayload, RecommendationPreferenceRequest, RosRankingImportPayload, SeasonProjectionImportPayload, StorageInventory, TeamAskAnswerPayload, TeamPayload, WeeklyProjectionImportPayload, WeeklyProjectionStatusPayload, Position } from "./types";
 import { resolvePackagedApiConfiguration } from "./api-config";
+import { errorCopy } from "./error-copy";
 
 const packagedParameters = window.location.protocol === "file:"
   ? new URLSearchParams(window.location.search)
@@ -121,7 +122,7 @@ export async function updateSettings(settings: Partial<AppSettings>): Promise<Ap
 export async function fetchAiStatus(): Promise<AiProviderStatus> {
   const response = await apiFetch(`${apiBase}/ai/status`);
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not load AI provider status."));
+    throw new Error(await readErrorMessage(response, errorCopy.providerStatus));
   }
 
   return (await response.json()) as AiProviderStatus;
@@ -142,7 +143,8 @@ export async function fetchSleeperConnect(params: {
 
   const response = await apiFetch(`${apiBase}/sleeper/connect?${query.toString()}`);
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Sleeper lookup failed."));
+    if (response.status === 404) throw new Error(errorCopy.sleeperNotFound(params.username, Boolean(params.leagueId)));
+    throw new Error(await readErrorMessage(response, errorCopy.sleeperLookup));
   }
 
   return (await response.json()) as ConnectPayload;
@@ -211,7 +213,7 @@ export async function importRosRankingsRequest(input: {
     }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not import season value rankings."));
+    throw new Error(await readErrorMessage(response, errorCopy.seasonValueImport));
   }
   return (await response.json()) as RosRankingImportPayload;
 }
@@ -273,7 +275,7 @@ export async function importWeeklyProjectionFilesRequest(input: {
     }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Could not import weekly projections."));
+    throw new Error(await readErrorMessage(response, errorCopy.weeklyImport));
   }
 
   return (await response.json()) as WeeklyProjectionImportPayload;
@@ -302,7 +304,7 @@ export async function fetchDraftState(
   }
   const response = await apiFetch(url);
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Draft load failed."));
+    throw new Error(await readErrorMessage(response, errorCopy.draftLoad));
   }
 
   return (await response.json()) as DraftPayload;
@@ -321,7 +323,7 @@ export async function importRankingsRequest(
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Ranking import failed."));
+    throw new Error(await readErrorMessage(response, errorCopy.rankingImport));
   }
 
   return (await response.json()) as RankingImportPayload;
@@ -343,7 +345,7 @@ export async function importSeasonProjectionsRequest(input: {
     }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Season projection import failed."));
+    throw new Error(await readErrorMessage(response, errorCopy.seasonProjectionImport));
   }
   return (await response.json()) as SeasonProjectionImportPayload;
 }
@@ -377,7 +379,7 @@ export async function importAdpRequest(input: {
     }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Sleeper ADP import failed."));
+    throw new Error(await readErrorMessage(response, errorCopy.adpImport));
   }
   return (await response.json()) as AdpImportPayload;
 }
@@ -453,7 +455,7 @@ export async function fetchAiDraftStrategyRequest(
     body: JSON.stringify({ userPreferences, recommendationPreferences, automatic }),
   }, progress);
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "The AI strategist could not evaluate this board."));
+    throw new Error(await readErrorMessage(response, errorCopy.draftStrategy));
   }
   return (await response.json()) as AiDraftStrategyPayload;
 }
@@ -529,7 +531,7 @@ export async function askManagerRequest(
   }, progress);
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "The manager could not answer because the draft state is unavailable."));
+    throw new Error(await readErrorMessage(response, errorCopy.draftAnswer));
   }
 
   return (await response.json()) as AskAnswerPayload;
@@ -581,7 +583,7 @@ export async function askTeamManagerRequest(
   }, progress);
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "The manager could not answer because team context is unavailable."));
+    throw new Error(await readErrorMessage(response, errorCopy.teamAnswer));
   }
 
   return (await response.json()) as TeamAskAnswerPayload;
@@ -606,7 +608,7 @@ async function aiFetch(input: RequestInfo | URL, init: RequestInit, progress: Ai
   progress.onPhase?.("thinking");
   timer = setTimeout(poll, 100);
   try {
-    if (progress.signal?.aborted) throw new Error("AI request was cancelled.");
+    if (progress.signal?.aborted) throw new Error("Assistant request was cancelled.");
     const headers = new Headers(init.headers);
     headers.set("X-AI-Request", key);
     return await apiFetch(input, { ...init, headers, signal: progress.signal });

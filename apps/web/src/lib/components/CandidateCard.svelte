@@ -7,7 +7,7 @@
   let {
     candidate,
     rank,
-    strategyLabel = "AI alternative",
+    strategyLabel = "Assistant alternative",
     preference = null,
     onSetPreference,
     onDiscuss,
@@ -39,15 +39,15 @@
         <h3>{candidate.player.name}</h3>
         <span class="strategy-badge">{strategyLabel}</span>
         {#if preference}
-          <span class="preference-badge preference-{preference}">{preference === "pin" ? "prioritized" : preference === "fade" ? "deprioritized" : "excluded"}</span>
+          <span class="preference-badge preference-{preference}">{preference === "pin" ? "Prioritized" : preference === "fade" ? "Deprioritized" : "Excluded"}</span>
         {/if}
       </div>
       <p>
-        {candidate.player.team} - {candidate.player.position}
+        {candidate.player.team} · {candidate.player.position}
       </p>
       {#if candidate.player.importedRank}
         <p class="import-meta">
-          Rank {candidate.player.importedRank}{candidate.player.tier ? ` - Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` - Bye ${candidate.player.byeWeek}` : ""}
+          Rank {candidate.player.importedRank}{candidate.player.tier ? ` · Tier ${candidate.player.tier}` : ""}{candidate.player.byeWeek ? ` · Bye ${candidate.player.byeWeek}` : ""}
         </p>
       {:else}
         <p class="import-meta">{sourceLabel(candidate)}</p>
@@ -171,9 +171,7 @@
     padding: 3px 7px;
     font-size: var(--text-xs);
     font-weight: 600;
-    letter-spacing: 0.06em;
     line-height: 1;
-    text-transform: uppercase;
   }
 
   .strategy-badge {

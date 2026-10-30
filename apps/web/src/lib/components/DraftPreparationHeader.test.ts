@@ -37,6 +37,6 @@ describe("DraftPreparationHeader", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Open emergency board only" }));
     expect(onOpenEmergency).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/disables AI advice/i)).toBeTruthy();
+    expect(screen.getByText(/disables Assistant advice/i)).toBeTruthy();
   });
 });

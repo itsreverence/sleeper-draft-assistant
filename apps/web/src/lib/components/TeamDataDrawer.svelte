@@ -74,7 +74,7 @@
   <header class="drawer-heading">
     <p class="eyebrow">Team Manager</p>
     <h2><Icon name="database" size={18} /> Manage data</h2>
-    <p>Update the evidence Codex uses for weekly and season-value decisions.</p>
+    <p>Update the evidence the Assistant uses for weekly and season-value decisions.</p>
   </header>
 
   <div class="drawer-content">

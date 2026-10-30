@@ -44,7 +44,7 @@
 
   <header class="drawer-heading">
     <h2><Icon name="settings" size={18} /> Settings</h2>
-    <p>Connect Codex and manage data stored on this device.</p>
+    <p>Set up the Assistant and manage data stored on this device.</p>
   </header>
 
   <SettingsPanel

@@ -554,7 +554,7 @@ describe("team data readiness", () => {
     expect(ready.status).toBe("ready");
     expect(ready.confidence).toBe("high");
     expect(ready.rosterProjectionCoverage).toBe(1);
-    expect(ready.headline).toBe("Weekly evidence is ready for Codex.");
+    expect(ready.headline).toBe("Weekly evidence is ready for the Assistant.");
     expect(partial.status).toBe("partial");
     expect(partial.missingPositions).toEqual(["RB", "WR", "TE"]);
     expect(partial.warnings.some((warning) => warning.includes("Missing projection files"))).toBe(true);

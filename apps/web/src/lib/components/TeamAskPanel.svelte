@@ -2,6 +2,7 @@
   import type { AiRequestProgress } from "../api";
   import type { SuggestedQuestion } from "../ai-panel";
   import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
+  import { errorCopy } from "../error-copy";
   import { followNewest } from "../thread-scroll";
   import { aiProviderAvailability, isAiProviderAvailable } from "../types";
   import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "../types";
@@ -47,8 +48,8 @@
   const providerReady = $derived(providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus));
   const providerDisabled = $derived(aiProviderAvailability(providerStatus) === "disabled");
   const providerLabel = $derived(providerReady
-    ? providerStatus?.label ?? "Codex"
-    : providerDisabled ? "Codex disabled" : "Codex needs attention");
+    ? providerStatus?.label ?? "Assistant"
+    : providerDisabled ? "Assistant disabled" : "Assistant needs attention");
   const suggestions = $derived(buildTeamQuestions(teamState, weekContext, activitySummary));
   const openStarterSlots = $derived(teamState?.roster.starters.filter((slot) => !slot.player).length ?? 0);
   const firstOpenStarterSlot = $derived(teamState?.roster.starters.find((slot) => !slot.player)?.slot ?? null);
@@ -91,18 +92,18 @@
     weekContext
       ? `vs ${weekContext.opponentTeamName ?? "opponent"}`
       : teamState.seasonPhase === "preseason"
-        ? "preseason"
+        ? "Preseason"
         : teamState.week
-          ? `week ${teamState.week}`
-          : "week unknown",
-    hasWeeklyProjections ? "weekly data ready" : "weekly data limited",
+          ? `Week ${teamState.week}`
+          : "Week unknown",
+    hasWeeklyProjections ? "Weekly data ready" : "Weekly data limited",
   ] : ["No team loaded"]);
   const conversationIdentity = $derived(teamState
     ? `${teamState.league.id}:${teamState.userTeam.rosterId}:${selectedSeason ?? teamState.league.season}:${selectedWeek ?? weekContext?.week ?? teamState.week}`
     : "no-team");
   const conversation = createAiConversation({
     ask: async (nextQuestion, history, progress) => ({ answer: await onAsk(nextQuestion, history, progress) }),
-    fallbackError: "Codex could not answer because team context is unavailable.",
+    fallbackError: errorCopy.teamAnswer,
   });
 
   const newest = $derived.by(() => {
@@ -124,6 +125,11 @@
   function submit(overrideQuestion?: string) {
     if (!teamState || !providerReady) return;
     void conversation.submit(overrideQuestion);
+  }
+
+  function choosePrompt(prompt: string) {
+    submit(prompt);
+    composerElement?.focus();
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -158,7 +164,7 @@
   <header class="assistant-header">
     <div>
       <div class="assistant-title">
-        <h2>Ask Codex</h2>
+        <h2>Ask Assistant</h2>
         <span
           class:offline={!providerReady}
           class="provider-state"
@@ -174,7 +180,7 @@
   {#if !providerReady}
     <div class="provider-recovery" role="status">
       <div>
-        <strong>{providerDisabled ? "Codex is disabled" : "Codex could not start"}</strong>
+        <strong>{providerDisabled ? "The Assistant is disabled" : "The Assistant could not start"}</strong>
         <span>{providerStatus?.detail ?? "Verify the Codex CLI and login, then retry."}</span>
       </div>
       <div class="provider-actions">
@@ -183,7 +189,7 @@
       </div>
     </div>
   {:else if conversation.messages.length === 0}
-    <div class="decision-grid" aria-label="Ask Codex starters">
+    <div class="decision-grid" aria-label="Ask Assistant starters">
       {#each decisionPrompts as prompt (prompt.prompt)}
         <button
           class="decision-prompt"
@@ -191,7 +197,7 @@
           aria-label={prompt.prompt}
           title={prompt.prompt}
           disabled={conversation.isAsking || !teamState || !providerReady}
-          onclick={() => submit(prompt.prompt)}
+          onclick={() => choosePrompt(prompt.prompt)}
         >
           <span>{prompt.category}</span>
           <strong>{prompt.title}</strong>
@@ -202,18 +208,18 @@
   {:else}
     <div class="conversation" role="log" aria-label="Team conversation" aria-live="polite" use:followNewest={newest}>
       {#each conversation.messages as message (message.id)}
-        <AiMessageBubble message={message} onCopy={conversation.copy} onRetry={() => submit(conversation.questionFor(message.id))} />
+        <AiMessageBubble message={message} answerNumber={conversation.answerNumber(message.id)} onCopy={conversation.copy} onRetry={() => submit(conversation.questionFor(message.id))} />
       {/each}
     </div>
     {#if conversation.copied}<p class="copy-note">Copied response.</p>{/if}
-    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={conversation.isAsking || !teamState || !providerReady} onChoose={submit} />
+    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={conversation.isAsking || !teamState || !providerReady} onChoose={choosePrompt} />
   {/if}
 
   {#if providerReady}<div class="composer">
     <textarea
       bind:this={composerElement}
       class="input"
-      aria-label="Ask Codex about your team"
+      aria-label="Ask Assistant about your team"
       bind:value={conversation.question}
       onkeydown={handleKeydown}
       rows={conversation.messages.length > 0 ? 3 : 1}
@@ -221,11 +227,11 @@
       disabled={!teamState || !providerReady}
     ></textarea>
     <button bind:this={sendButton} class="btn" class:btn-secondary={conversation.isAsking} class:btn-primary={!conversation.isAsking}
-      type="button" aria-label={conversation.isAsking ? "Cancel" : "Ask Codex"}
+      type="button" aria-label={conversation.isAsking ? "Cancel" : "Ask Assistant"}
       title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
       disabled={!conversation.isAsking && (!conversation.question.trim() || !teamState || !providerReady)}
       onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
-    >{conversation.isAsking ? "Cancel" : conversation.messages.length > 0 ? "Ask Codex" : "Ask"}</button>
+    >{conversation.isAsking ? "Cancel" : conversation.messages.length > 0 ? "Ask Assistant" : "Ask"}</button>
   </div>{/if}
 </article>
 

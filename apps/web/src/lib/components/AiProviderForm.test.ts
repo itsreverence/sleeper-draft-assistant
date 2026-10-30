@@ -30,7 +30,7 @@ describe("AI provider form", () => {
 
     await fireEvent.click(fastResponses);
     await fireEvent.click(webSearch);
-    await fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save Assistant settings" }));
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ codexServiceTier: "default", codexWebSearch: false }));
   });

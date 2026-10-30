@@ -19,6 +19,19 @@ function stubThreadGeometry() {
 }
 
 describe("Team ask panel", () => {
+  it("moves focus to the composer when a starter prompt is removed", async () => {
+    render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk: vi.fn(() => new Promise<string>(() => {})),
+    });
+    const starter = screen.getByLabelText("Ask Assistant starters").querySelector("button")!;
+    starter.focus();
+    await fireEvent.click(starter);
+    await waitFor(() => expect(screen.queryByLabelText("Ask Assistant starters")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Ask Assistant about your team" }));
+  });
+
   it("drops an in-flight news answer when the search setting changes", async () => {
     const answer = createDeferred<string>();
     const props = {
@@ -27,8 +40,8 @@ describe("Team ask panel", () => {
       onAsk: vi.fn(() => answer.promise),
     };
     const view = render(TeamAskPanel, { ...props, contextKey: "true" });
-    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Check player news" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Assistant about your team" }), { target: { value: "Check player news" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(props.onAsk).toHaveBeenCalledOnce());
     await view.rerender({ ...props, contextKey: "false" });
     answer.resolve("Old news result");
@@ -46,8 +59,8 @@ describe("Team ask panel", () => {
       onAsk,
     };
     const view = render(TeamAskPanel, { ...props, selectedWeek: 1 });
-    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Week one question" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Assistant about your team" }), { target: { value: "Week one question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(onAsk).toHaveBeenCalledOnce());
     await view.rerender({ ...props, selectedWeek: 2 });
     answer.resolve("Old week answer");
@@ -74,13 +87,13 @@ describe("Team ask panel", () => {
 
     expect(screen.getByLabelText("Codex app-server ready")).toBeTruthy();
     expect(screen.getByTitle("Codex app-server")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Ask Codex" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ask Assistant" })).toBeTruthy();
     expect(screen.getByText("Choose a prompt or ask your own.")).toBeTruthy();
     expect(screen.getByText("Review the plan")).toBeTruthy();
 
-    const textbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+    const textbox = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(textbox, { target: { value: "What should I fix first?" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenCalledWith("What should I fix first?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -148,7 +161,7 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const textbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+    const textbox = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(textbox, { target: { value: "Should I change my lineup?" } });
     await fireEvent.keyDown(textbox, { key: "Enter", ctrlKey: true });
 
@@ -175,9 +188,9 @@ describe("Team ask panel", () => {
     });
 
     expect(screen.getByText("Disabled")).toBeTruthy();
-    expect(screen.getByText("Codex is disabled")).toBeTruthy();
-    expect(screen.getByTitle("Codex disabled")).toBeTruthy();
-    expect(screen.queryByRole("textbox", { name: "Ask Codex about your team" })).toBeNull();
+    expect(screen.getByText("The Assistant is disabled")).toBeTruthy();
+    expect(screen.getByTitle("Assistant disabled")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Ask Assistant about your team" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Who should I start this week?" })).toBeNull();
     expect(onAsk).not.toHaveBeenCalled();
   });
@@ -203,7 +216,7 @@ describe("Team ask panel", () => {
       onOpenSettings,
     });
 
-    expect(screen.getByText("Codex could not start")).toBeTruthy();
+    expect(screen.getByText("The Assistant could not start")).toBeTruthy();
     expect(screen.getByText(/Update the Codex CLI/)).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
@@ -235,9 +248,9 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const firstTextbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+    const firstTextbox = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(firstTextbox, { target: { value: "Question A" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) })));
 
     await view.rerender({
@@ -248,9 +261,9 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    const secondTextbox = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+    const secondTextbox = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -323,11 +336,11 @@ describe("Team ask panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByText("Thinking…")).toBeNull();
     expect(screen.getByText(/^Cancelled\./)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Ask Codex" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask Assistant" })).toBeTruthy();
 
     answer.resolve("Late answer");
-    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Follow-up" } });
-    await waitFor(() => expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Assistant about your team" }), { target: { value: "Follow-up" } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Ask Assistant" }) as HTMLButtonElement).disabled).toBe(false));
     expect(screen.queryByText("Late answer")).toBeNull();
     expect(screen.getByText("Who should I start this week?")).toBeTruthy();
   });
@@ -346,8 +359,8 @@ describe("Team ask panel", () => {
     const log = screen.getByRole("log", { name: "Team conversation" });
     expect(log.scrollTop).toBe(100);
 
-    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Second question" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Assistant about your team" }), { target: { value: "Second question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(log.scrollTop).toBe(300));
     second.resolve("Second answer");
     expect(await screen.findByText("Second answer")).toBeTruthy();
@@ -362,7 +375,7 @@ async function openTeamComposer(onAsk: (question: string, history: import("../ty
     providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
     onAsk,
   });
-  const textarea = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+  const textarea = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
   await fireEvent.input(textarea, { target: { value: "Composer question" } });
   return textarea;
 }
@@ -371,7 +384,7 @@ describe("Team ask panel composer focus", () => {
   it("keeps focus on the button a click turned into Cancel and returns it to the composer after Cancel", async () => {
     const answer = createDeferred<string>();
     const textarea = await openTeamComposer(vi.fn(() => answer.promise));
-    const send = screen.getByRole("button", { name: "Ask Codex" });
+    const send = screen.getByRole("button", { name: "Ask Assistant" });
     send.focus();
     await fireEvent.click(send);
     const cancel = screen.getByRole("button", { name: "Cancel" });
@@ -379,7 +392,7 @@ describe("Team ask panel composer focus", () => {
 
     await fireEvent.click(cancel);
     await tick();
-    expect(screen.getByRole("button", { name: "Ask Codex" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask Assistant" })).toBeTruthy();
     expect(document.activeElement).toBe(textarea);
   });
 
@@ -399,7 +412,7 @@ describe("Team ask panel composer focus", () => {
   it("returns focus to the composer when the answer arrives while Cancel is focused", async () => {
     const answer = createDeferred<string>();
     const textarea = await openTeamComposer(vi.fn(() => answer.promise));
-    const send = screen.getByRole("button", { name: "Ask Codex" });
+    const send = screen.getByRole("button", { name: "Ask Assistant" });
     send.focus();
     await fireEvent.click(send);
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
@@ -419,11 +432,11 @@ describe("Team ask panel follow-up history", () => {
       .mockResolvedValueOnce("Second answer")
       .mockResolvedValueOnce("Third answer");
     const textarea = await openTeamComposer(onAsk);
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     for (const [question, answer] of [["Second question", "Second answer"], ["Third question", "Third answer"]]) {
       await fireEvent.input(textarea, { target: { value: question } });
-      await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+      await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
       expect(await screen.findByText(answer)).toBeTruthy();
     }
     expect(onAsk.mock.calls.map((call) => call[1])).toEqual([
@@ -445,8 +458,8 @@ describe("Team ask panel follow-up history", () => {
       onAsk,
     });
     const ask = async (question: string) => {
-      await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: question } });
-      await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+      await fireEvent.input(screen.getByRole("textbox", { name: "Ask Assistant about your team" }), { target: { value: question } });
+      await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     };
 
     await ask("Question A");

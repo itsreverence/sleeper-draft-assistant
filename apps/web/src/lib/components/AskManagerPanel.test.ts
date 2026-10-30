@@ -19,6 +19,21 @@ function stubThreadGeometry() {
 }
 
 describe("Ask manager panel", () => {
+  it("moves focus to the composer when a suggestion chip is removed", async () => {
+    const draft = createDraftPayloadFixture({ draftId: "synthetic-draft", name: "Synthetic draft" });
+    render(AskManagerPanel, {
+      onAsk: vi.fn(() => new Promise<never>(() => {})),
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      draftState: draft.state, recommendation: draft.recommendation, draftIdentity: "first",
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
+    const chip = screen.getByLabelText("Suggested questions").querySelector("button")!;
+    chip.focus();
+    await fireEvent.click(chip);
+    await waitFor(() => expect(screen.queryByLabelText("Suggested questions")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Ask about your draft" }));
+  });
+
   it("announces request phases and ignores progress after context changes", async () => {
     const draft = createDraftPayloadFixture({ draftId: "phase-fixture", name: "Phase fixture" });
     const reply = createDeferred<{ answer: string; strategyProposal: null }>();
@@ -30,8 +45,8 @@ describe("Ask manager panel", () => {
     });
     await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     await fireEvent.input(screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if."), { target: { value: "Fixture question" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
-    for (const [phase, label] of [["queued", "Waiting for another AI request…"], ["thinking", "Thinking…"], ["news", "Checking news…"]] as const) {
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
+    for (const [phase, label] of [["queued", "Waiting for another Assistant request…"], ["thinking", "Thinking…"], ["news", "Checking news…"]] as const) {
       progress?.onPhase?.(phase);
       await waitFor(() => expect(screen.getByText(label)).toBeTruthy());
     }
@@ -79,7 +94,7 @@ describe("Ask manager panel", () => {
     const composer = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     expect(composer.tagName).toBe("INPUT");
     await fireEvent.input(composer, { target: { value: "Compare the top options" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     expect(await screen.findByRole("log", { name: "Draft conversation" })).toBeTruthy();
     expect(screen.queryByLabelText("Suggested questions")).toBeNull();
@@ -129,7 +144,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     const textbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     await fireEvent.input(textbox, { target: { value: "Question A" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -151,7 +166,7 @@ describe("Ask manager panel", () => {
 
     const secondTextbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -171,7 +186,7 @@ describe("Ask manager panel", () => {
     secondAnswer.resolve({ answer: "Answer B", strategyProposal: null });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Ask AI" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Ask Assistant" })).toBeTruthy();
       expect(screen.getByText("Answer B")).toBeTruthy();
       expect(screen.queryByText("Answer A")).toBeNull();
     });
@@ -213,7 +228,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     const textbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     await fireEvent.input(textbox, { target: { value: "Question A" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(1, "Question A", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -235,7 +250,7 @@ describe("Ask manager panel", () => {
 
     const secondTextbox = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     await fireEvent.input(secondTextbox, { target: { value: "Question B" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenNthCalledWith(2, "Question B", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -253,7 +268,7 @@ describe("Ask manager panel", () => {
     secondAnswer.resolve({ answer: "Answer B", strategyProposal: null });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Ask AI" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Ask Assistant" })).toBeTruthy();
       expect(screen.getByText("Answer B")).toBeTruthy();
       expect(screen.queryByText("Answer A")).toBeNull();
     });
@@ -271,7 +286,7 @@ describe("Ask manager panel", () => {
     await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     const composer = screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if.");
     await fireEvent.input(composer, { target: { value: "Cancelled question" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     expect(screen.getByText("Thinking…")).toBeTruthy();
 
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -283,11 +298,11 @@ describe("Ask manager panel", () => {
 
     reply.resolve({ answer: "Late answer", strategyProposal: null });
     await fireEvent.input(screen.getByPlaceholderText("Ask a follow-up about this draft."), { target: { value: "Next question" } });
-    await waitFor(() => expect((screen.getByRole("button", { name: "Ask AI" }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Ask Assistant" }) as HTMLButtonElement).disabled).toBe(false));
     expect(screen.queryByText("Late answer")).toBeNull();
     expect(screen.getByText("Cancelled question")).toBeTruthy();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(onAsk).toHaveBeenLastCalledWith("Next question", [], expect.anything()));
   });
 
@@ -304,13 +319,13 @@ describe("Ask manager panel", () => {
     });
     await fireEvent.click(screen.getByRole("button", { name: /ask about this draft/i }));
     await fireEvent.input(screen.getByPlaceholderText("Ask who to draft, compare players, or test a what-if."), { target: { value: "First question" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     expect(await screen.findByText("First answer")).toBeTruthy();
     const log = screen.getByRole("log", { name: "Draft conversation" });
     expect(log.scrollTop).toBe(100);
 
     await fireEvent.input(screen.getByPlaceholderText("Ask a follow-up about this draft."), { target: { value: "Second question" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await waitFor(() => expect(log.scrollTop).toBe(300));
     second.resolve({ answer: "Second answer", strategyProposal: null });
     expect(await screen.findByText("Second answer")).toBeTruthy();
@@ -335,7 +350,7 @@ describe("Ask manager panel composer focus", () => {
   it("keeps focus on the button a click turned into Cancel and returns it to the composer after Cancel", async () => {
     const reply = createDeferred<{ answer: string; strategyProposal: null }>();
     const input = await openComposer(vi.fn(() => reply.promise));
-    const send = screen.getByRole("button", { name: "Ask AI" });
+    const send = screen.getByRole("button", { name: "Ask Assistant" });
     send.focus();
     await fireEvent.click(send);
     const cancel = screen.getByRole("button", { name: "Cancel" });
@@ -343,7 +358,7 @@ describe("Ask manager panel composer focus", () => {
 
     await fireEvent.click(cancel);
     await tick();
-    expect(screen.getByRole("button", { name: "Ask AI" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask Assistant" })).toBeTruthy();
     expect(document.activeElement).toBe(input);
   });
 
@@ -363,7 +378,7 @@ describe("Ask manager panel composer focus", () => {
   it("returns focus to the composer when the answer arrives while Cancel is focused", async () => {
     const reply = createDeferred<{ answer: string; strategyProposal: null }>();
     const input = await openComposer(vi.fn(() => reply.promise));
-    const send = screen.getByRole("button", { name: "Ask AI" });
+    const send = screen.getByRole("button", { name: "Ask Assistant" });
     send.focus();
     await fireEvent.click(send);
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
@@ -380,7 +395,7 @@ describe("Ask manager panel follow-up history", () => {
 
   async function askFollowUp(question: string) {
     await fireEvent.input(screen.getByPlaceholderText("Ask a follow-up about this draft."), { target: { value: question } });
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
   }
 
   it("a normal follow-up carries the completed question and answer", async () => {
@@ -388,7 +403,7 @@ describe("Ask manager panel follow-up history", () => {
       .mockResolvedValueOnce({ answer: "First answer", strategyProposal: null })
       .mockResolvedValueOnce({ answer: "Second answer", strategyProposal: null });
     await openComposer(onAsk);
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     expect(await screen.findByText("First answer")).toBeTruthy();
     await askFollowUp("Follow-up question");
     expect(await screen.findByText("Second answer")).toBeTruthy();
@@ -406,7 +421,7 @@ describe("Ask manager panel follow-up history", () => {
       .mockResolvedValueOnce({ answer: "Second answer", strategyProposal: null })
       .mockResolvedValueOnce({ answer: "Third answer", strategyProposal: null });
     await openComposer(onAsk);
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await askFollowUp("Second question");
     expect(await screen.findByText("Second answer")).toBeTruthy();
@@ -426,7 +441,7 @@ describe("Ask manager panel follow-up history", () => {
       .mockResolvedValueOnce({ answer: "Recovered answer", strategyProposal: null })
       .mockResolvedValueOnce({ answer: "Next answer", strategyProposal: null });
     await openComposer(onAsk);
-    await fireEvent.click(screen.getByRole("button", { name: "Ask AI" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant" }));
     expect(await screen.findByText("The Assistant did not answer.")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Recovered answer")).toBeTruthy();

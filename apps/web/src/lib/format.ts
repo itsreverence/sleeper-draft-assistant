@@ -1,5 +1,5 @@
 import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared/player-status";
-import type { ConnectDraft, DraftOption, DraftState, Player } from "./types";
+import type { ConnectDraft, DraftOption, DraftState, Player, WeeklyProjectionImportSummary } from "./types";
 
 export function isMockDraft(draftId: string) {
   return draftId === "mock" || draftId === "mock-draft";
@@ -36,6 +36,25 @@ export function formatImportDate(summary: { appliedAt: string }) {
   });
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  pre_draft: "Pre-draft",
+  in_season: "In season",
+  post_season: "Postseason",
+  unknown: "Status unknown",
+};
+
+export function sentenceCase(value: string) {
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+export function formatStatus(status: string) {
+  return STATUS_LABELS[status] ?? sentenceCase(status.replaceAll("_", " "));
+}
+
+export function formatConfidence(confidence: string) {
+  return `${sentenceCase(confidence)} confidence`;
+}
+
 export function formatPlayerSchedule(player: Player): string | null {
   const schedule = player.schedule;
   if (schedule?.onBye === true) return "BYE";
@@ -43,10 +62,14 @@ export function formatPlayerSchedule(player: Player): string | null {
 }
 
 export function formatWeeklyProjection(player: Player | null | undefined) {
-  if (player?.schedule?.onBye === true) return "BYE · 0 pts";
+  if (player?.schedule?.onBye === true) return "0 pts";
   return player?.weeklyProjectedPoints === null || player?.weeklyProjectedPoints === undefined
     ? null
     : `${player.weeklyProjectedPoints.toFixed(1)} pts`;
+}
+
+export function formatMissingProjection(player: Player, weeklySummary: WeeklyProjectionImportSummary | null) {
+  return weeklySummary?.positions.includes(player.position) ? "No match" : `No ${player.position} file`;
 }
 
 export function formatSleeperStatusSummary(player: Player | null | undefined): string | null {

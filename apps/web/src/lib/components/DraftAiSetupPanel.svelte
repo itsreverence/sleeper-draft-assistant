@@ -29,12 +29,12 @@
       <Icon name={aiReady ? "check-circle" : "message"} size={18} />
     </div>
     <div>
-      <span class="section-label">AI manager</span>
-      <h2 id="ai-setup-title">{aiReady ? "Codex is selected" : "Connect the AI manager"}</h2>
+      <span class="section-label">Assistant</span>
+      <h2 id="ai-setup-title">{aiReady ? "The Assistant is ready" : "Set up the Assistant"}</h2>
       <p>
         {aiReady
           ? "Draft strategy and follow-up questions will use your local Codex login."
-          : "Codex is required for AI recommendations and draft questions."}
+          : "The Assistant runs on your local Codex CLI and is required for recommendations and draft questions."}
       </p>
     </div>
     {#if aiReady && !editing}
@@ -51,7 +51,7 @@
         {providerStatus}
         {isSaving}
         {error}
-        submitLabel={aiReady ? "Save AI settings" : "Confirm Codex settings"}
+        submitLabel={aiReady ? "Save Assistant settings" : "Confirm Codex settings"}
         requireCodex={true}
         {onSave}
       />

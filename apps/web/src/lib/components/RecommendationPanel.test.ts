@@ -35,7 +35,7 @@ describe("Recommendation panel", () => {
     expect(screen.getByText(`Previous: ${strategy.decision.headline}`)).toBeTruthy();
     expect(screen.getByText("Thinking…")).toBeTruthy();
     expect(screen.getByText("Thinking…").closest("[aria-live]")?.hasAttribute("aria-busy")).toBe(false);
-    expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Ask Assistant about drafting/ }) as HTMLButtonElement).disabled).toBe(true);
 
     const latestState = { ...correctedState, status: "complete" as const };
     await view.rerender({ ...props, draftState: latestState });
@@ -83,7 +83,7 @@ describe("Recommendation panel", () => {
     await waitFor(() => expect(onRequestAiStrategy).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Target Jahmyr Gibbs at 2.08 if available")).toBeTruthy();
     expect(screen.getByText("Thinking…")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Ask Assistant about drafting/ }) as HTMLButtonElement).disabled).toBe(true);
 
     second.resolve(createStrategy(state, 1));
     expect(await screen.findByText("Target A.J. Brown at 2.08 if available")).toBeTruthy();
@@ -128,7 +128,7 @@ describe("Recommendation panel", () => {
     expect(screen.getByText(`Previous: ${initialStrategy.decision.headline}`)).toBeTruthy();
     expect(screen.getByText("Previous recommendation")).toBeTruthy();
     expect(screen.getByText("Thinking…")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Ask Assistant about drafting/ }) as HTMLButtonElement).disabled).toBe(true);
 
     const replacementStrategy = createStrategy(advancedState, 1);
     second.resolve(replacementStrategy);
@@ -201,7 +201,7 @@ describe("Recommendation panel", () => {
     expect(await screen.findByText("Recommendation update failed")).toBeTruthy();
     expect(screen.getByText("Codex timed out")).toBeTruthy();
     expect(screen.getByText("Target Jahmyr Gibbs at 2.08 if available")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Ask Assistant about drafting/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("button", { name: "Retry recommendation" })).toBeTruthy();
   });
 });

@@ -5,7 +5,8 @@
   import PlayerPreferenceMenu from "./PlayerPreferenceMenu.svelte";
   import RequestPhase from "./RequestPhase.svelte";
   import { currentAiDraftStrategy, recommendationTurnPresentation } from "../ai-panel";
-  import { formatDraftPick, rosterFitLabel, sourceLabel } from "../format";
+  import { errorCopy } from "../error-copy";
+  import { formatConfidence, formatDraftPick, rosterFitLabel, sourceLabel } from "../format";
   import type { AiDraftStrategyPayload, DraftOption, DraftState, PlayerPreferenceLevel, PlayerPreferences } from "../types";
 
   let {
@@ -116,7 +117,7 @@
   const activeHeadline = $derived(
     isPreviousRecommendation
       ? `Previous: ${displayedAiStrategy?.decision.headline ?? "recommendation"}`
-      : turnPresentation?.headline ?? "AI draft assistant",
+      : turnPresentation?.headline ?? "Assistant",
   );
   const timingSummary = $derived(turnPresentation?.timing ?? null);
   const activeConfidence = $derived(
@@ -124,7 +125,7 @@
   );
   const turnContext = $derived.by(() => {
     const confidence = activeConfidence
-      ? `${activeConfidence.charAt(0).toUpperCase()}${activeConfidence.slice(1)} confidence`
+      ? formatConfidence(activeConfidence)
       : null;
     if (!timingSummary) return confidence;
     if (!confidence) return timingSummary;
@@ -133,7 +134,7 @@
   });
   function contingencyLabel(candidate: DraftOption): string {
     const nextUserPick = turnPresentation?.nextUserPick;
-    if (nextUserPick === null || nextUserPick === undefined || !turnPresentation?.contingent) return "AI alternative";
+    if (nextUserPick === null || nextUserPick === undefined || !turnPresentation?.contingent) return "Assistant alternative";
     const turnRangeStart = Math.max(currentPick, nextUserPick - 2);
     const marketPoint = candidate.player.importedRank
       ?? candidate.player.realTimeAdp
@@ -183,7 +184,7 @@
         })
         .catch((error) => {
           if (requestId === aiStrategyRequestId && requestKey === currentRequestKey) {
-            aiStrategyError = error instanceof Error ? error.message : "The AI strategist could not evaluate this board.";
+            aiStrategyError = error instanceof Error ? error.message : errorCopy.draftStrategy;
           }
         })
         .finally(() => {
@@ -198,7 +199,7 @@
 <article class="panel recommendation-panel">
   <div class="panel-heading">
     <div class="decision-heading">
-      <span>AI call</span>
+      {#if turnPresentation || isPreviousRecommendation}<span>Assistant recommends</span>{/if}
       <h2>{activeHeadline}</h2>
     </div>
   </div>
@@ -208,7 +209,7 @@
       <Icon name="alert" size={15} />
       <div>
         <strong>Player value data is incomplete.</strong>
-        <span>AI can reason from the draft state, but Sleeper search ranks are only placeholder valuation evidence.</span>
+        <span>The Assistant can reason from the draft state, but Sleeper search ranks are only placeholder valuation evidence.</span>
         {#if onOpenRankings}
           <button class="btn btn-secondary" type="button" onclick={onOpenRankings}>Import rankings</button>
         {/if}
@@ -247,11 +248,12 @@
             <button
               type="button"
               disabled={strategyInteractionDisabled}
+              aria-label={`Ask Assistant about drafting ${displayedAiStrategy.recommendedCandidate.player.name}`}
               title={`Ask about drafting ${displayedAiStrategy.recommendedCandidate.player.name}`}
               onclick={() => discussCandidate(displayedAiStrategy.recommendedCandidate.player.name)}
             >
               <Icon name="message" size={13} />
-              Ask Codex
+              Ask Assistant
             </button>
             <button
               class="analysis-trigger"
@@ -370,42 +372,42 @@
     <div class="empty-state" aria-live="polite">
       <Icon name="message" size={20} />
       <div>
-        <strong>Connect an AI provider for draft strategy</strong>
+        <strong>Set up the Assistant for draft strategy</strong>
         <span>The draft board and imported data remain available, but this app does not generate local pick recommendations.</span>
       </div>
       {#if onOpenSettings}
-        <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open AI settings</button>
+        <button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open Assistant settings</button>
       {/if}
     </div>
   {:else if isLoadingAiStrategy}
     <div class="ai-strategy-pending" aria-live="polite">
       <strong><RequestPhase {phase} /></strong>
-      <span>Codex can search the complete available-player pool while it evaluates the current roster and draft room.</span>
+      <span>The Assistant can search the complete available-player pool while it evaluates the current roster and draft room.</span>
     </div>
   {:else if aiStrategyEnabled && aiStrategyError}
     <div class="callout callout-warning" aria-live="polite">
       <div>
-        <strong>AI strategy unavailable</strong>
+        <strong>Assistant strategy unavailable</strong>
         <span>{aiStrategyError}</span>
-        <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry AI strategy</button>
+        <button class="btn btn-secondary" type="button" onclick={retryAiStrategy}>Retry Assistant strategy</button>
       </div>
     </div>
   {:else if !aiStrategyEnabled}
     <div class="empty-state" aria-live="polite">
       <Icon name="pause" size={20} />
       <div>
-        <strong>Automatic AI strategy is paused</strong>
+        <strong>Automatic Assistant strategy is paused</strong>
         <span>Enable automatic draft strategy in Settings or use Ask about this draft for an on-demand decision.</span>
       </div>
       {#if onOpenSettings}
-        <button class="btn btn-secondary" type="button" onclick={onOpenSettings}>Open AI settings</button>
+        <button class="btn btn-secondary" type="button" onclick={onOpenSettings}>Open Assistant settings</button>
       {/if}
     </div>
   {:else}
     <div class="empty-state" aria-live="polite">
       <Icon name="clock" size={20} />
       <div>
-        <strong>AI strategy will update near your turn</strong>
+        <strong>Assistant strategy will update near your turn</strong>
         <span>Automatic analysis starts when you are within two picks. Ask about this draft remains available at any time.</span>
       </div>
     </div>

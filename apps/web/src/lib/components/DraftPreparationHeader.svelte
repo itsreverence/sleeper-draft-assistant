@@ -38,8 +38,8 @@
     { label: "Projections ready", pending: "Projections", ready: hasProjections },
     { label: "ADP ready", pending: "ADP", ready: hasAdp },
     {
-      label: "AI manager ready",
-      pending: "Codex required",
+      label: "Assistant ready",
+      pending: "Assistant required",
       ready: aiConfigured,
     },
   ]);
@@ -49,19 +49,19 @@
   );
 
   const helperText = $derived.by(() => {
-    if (fullyReady) return "All grounding sources and Codex are ready.";
+    if (fullyReady) return "All grounding sources and the Assistant are ready.";
     if (liveDraft) {
-      return "Emergency access keeps the live board available, but disables AI advice until setup is complete.";
+      return "Emergency access keeps the live board available, but disables Assistant advice until setup is complete.";
     }
-    if (rankingsStale) return "Import a current ECR export before entering the AI draft room.";
-    return "Complete all three data imports and connect Codex before entering the draft room.";
+    if (rankingsStale) return "Import a current ECR export before entering the draft room.";
+    return "Complete all three data imports and set up the Assistant before entering the draft room.";
   });
 </script>
 
 <section class="panel preparation-header" aria-labelledby="draft-preparation-title">
   <span class="section-label">Draft preparation</span>
-  <h2 id="draft-preparation-title">Ground the AI before entering the draft room</h2>
-  <p class="meta-line">{draftName} - {scoring} - {season} season - {loadedCount}/3 sources ready</p>
+  <h2 id="draft-preparation-title">Ground the Assistant before entering the draft room</h2>
+  <p class="meta-line">{draftName} · {scoring} · {season} season · {loadedCount}/3 sources ready</p>
 
   <div class="chip-row" aria-label="Draft data readiness">
     {#each chips as chip}

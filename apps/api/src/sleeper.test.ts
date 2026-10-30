@@ -20,6 +20,12 @@ describe("Sleeper client resilience", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("reports an unknown username as not found when Sleeper answers 200 null", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("null", { status: 200, headers: { "content-type": "application/json" } })));
+
+    await expect(new SleeperClient("https://example.test").getUser("missing")).rejects.toMatchObject({ name: "SleeperApiError", status: 404 });
+  });
+
   it("turns repeated network failures into a useful Sleeper error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
 

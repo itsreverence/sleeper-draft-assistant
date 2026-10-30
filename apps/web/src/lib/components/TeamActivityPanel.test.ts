@@ -43,13 +43,13 @@ describe("Team activity panel", () => {
     expect(screen.getByText(/not projections/)).toBeTruthy();
   });
 
-  it("routes market questions to the shared Codex conversation", async () => {
+  it("routes market questions to the shared Assistant conversation", async () => {
     const payload = createTeamPayloadFixture();
     const onAsk = vi.fn();
     render(TeamActivityPanel, { activitySummary: payload.activitySummary, onAsk });
 
     await fireEvent.click(screen.getByRole("button", { name: /Market activity/ }));
-    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant about market activity" }));
 
     expect(onAsk).toHaveBeenCalledWith("What does recent Sleeper activity say about my roster moves?");
   });
