@@ -159,6 +159,55 @@ test("draft questions preserve the plan while preference changes request fresh s
   await expect.poll(() => refreshes).toBe(1);
 });
 
+test("a long unbroken drawer title wraps clear of the close button", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Application settings" });
+  const close = dialog.getByRole("button", { name: "Close settings" });
+  const heading = dialog.getByRole("heading", { level: 2 }).first();
+  await close.focus();
+  await heading.evaluate((node, title) => { node.textContent = title; }, "x".repeat(60));
+  await expect.poll(async () => (await heading.boundingBox())!.x + (await heading.boundingBox())!.width).toBeLessThanOrEqual((await close.boundingBox())!.x);
+});
+
+test("drawer body scrolls by keyboard under a fixed header", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: testInfo.project.use.viewport!.width, height: 420 });
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Application settings" });
+  const close = dialog.getByRole("button", { name: "Close settings" });
+  const body = dialog.getByRole("region", { name: "Application settings content" });
+  await expect(close).toBeFocused();
+  await dialog.evaluate(node => Promise.all(node.getAnimations().map(animation => animation.finished)));
+  await expect(body).toHaveAttribute("tabindex", "0");
+  await page.keyboard.press("Tab");
+  await expect(body).toBeFocused();
+  const closeTop = (await close.boundingBox())!.y;
+  await page.keyboard.press("End");
+  await expect.poll(() => body.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  expect((await close.boundingBox())!.y).toBe(closeTop);
+  const geometry = await dialog.evaluate(node => {
+    const { left, right, bottom, width } = node.getBoundingClientRect();
+    return { left, right, bottom, width, viewport: window.innerWidth, height: window.innerHeight };
+  });
+  expect(geometry.right).toBe(geometry.viewport);
+  expect(geometry.bottom).toBe(geometry.height);
+  if (geometry.viewport <= 520) expect(geometry.left).toBe(0);
+  else expect(geometry.width).toBeLessThanOrEqual(560);
+});
+
+test("drawer motion is removed for reduced-motion users", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Application settings" });
+  await expect(dialog).toBeVisible();
+  const durations = await dialog.evaluate(node => getComputedStyle(node).animationDuration);
+  expect(durations).toBe("0s");
+  await page.keyboard.press("Escape");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  expect(await dialog.evaluate(node => getComputedStyle(node).animationDuration)).toBe("0.2s");
+});
+
 test("draft and its dialogs meet automated accessibility checks", async ({ page }) => {
   await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   await expectAccessible(page);
