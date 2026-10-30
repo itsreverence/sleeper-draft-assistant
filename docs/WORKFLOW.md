@@ -24,7 +24,7 @@ Running the API or web workspace separately requires coordinating `SLEEPER_AI_AP
 
 For repeatable, harness-independent Chromium checks, see [Verification](VERIFICATION.md). Run `npm run test:browser` after installing Playwright Chromium. This supplements component tests and does not replace packaged Windows gates.
 
-For popup checks, open Settings, the draft switcher, a team roster, Plan, Picks and roster, player search, and Manage team data. Verify initial focus (search starts in its input), Tab/Shift+Tab containment, Escape dismissal, opener focus restoration, and page-scroll restoration. Closed disclosures must not expose their controls to Tab. If dialogs overlap, only the top dialog should handle Escape, and the page must stay scroll-locked until the last dialog closes.
+For popup checks, open Settings, the draft switcher, a team roster, Plan, Picks and roster, player search, and Manage data. Verify initial focus (search starts in its input), Tab/Shift+Tab containment, Escape dismissal, opener focus restoration, and page-scroll restoration. Closed disclosures must not expose their controls to Tab. If dialogs overlap, only the top dialog should handle Escape, and the page must stay scroll-locked until the last dialog closes.
 
 In player search, open a preference menu and press Escape. Only the menu should close, with focus returned to its preference button; a second Escape closes search.
 
@@ -99,9 +99,10 @@ Toggle **Web search** off in Assistant settings and save during a lookup. Verify
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
 - **Team Manager needs two evidence categories:** use scoring-specific season value rankings for long-term value, then the six weekly projection files for current-week points. ROS ECR is preferred; matching draft ECR is a labeled fallback through Week 1 and prompts for replacement beginning in Week 2.
-- **Team Manager imports:** use the data action in the roster heading; closing the drawer keeps the roster and Codex workspace in place.
+- **Team Manager imports:** use **Manage data** in the top bar, or a data item in the attention box to land on the relevant control. Closing the drawer returns focus to what opened it and keeps the lineup and Assistant in place.
+- **Team Manager attention box:** verify a starter on bye, a starter with a Sleeper status, and an empty slot each raise one item, that a bench player's status raises none, and that **Lineup looks set** never appears in preseason, in postseason, with an unknown week, on a pinned other week, or after a failed refresh.
 - **Weekly position mismatch:** keep the original FantasyPros filenames when selecting several files, or select the matching position when importing one file. The importer rejects a filename/position label that disagrees with the CSV headers and rejects unsupported column orders.
-- **Preseason Team Manager:** verify the roster loads, the page says **Preseason**, and no regular-season matchup or weekly-readiness warning is presented as current.
+- **Preseason Team Manager:** verify the roster loads, the page says **Preseason**, the attention box shows its one Preseason note, and no regular-season matchup or weekly-readiness warning is presented as current.
 - **Season value rankings are inactive:** confirm the import season and scoring format match the connected league. Historical imports remain stored but do not affect current advice.
 - **Weekly advice has no projection data:** import all six FantasyPros position exports for the selected season and week in Team Manager.
 - **Weekly scoring warning:** weekly `FPTS` are used as FantasyPros provides them. Confirm the FantasyPros export scoring matches the Sleeper league.
