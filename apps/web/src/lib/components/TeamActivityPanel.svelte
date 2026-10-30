@@ -4,59 +4,47 @@
 
   let {
     activitySummary,
-    isLoading = false,
     onAsk,
   }: {
     activitySummary: TeamActivitySummary | null;
-    isLoading?: boolean;
     onAsk?: (question: string) => void | Promise<void>;
   } = $props();
 
   let expanded = $state(false);
   const recent = $derived(activitySummary?.recentTransactions.slice(0, 3) ?? []);
   const adds = $derived(activitySummary?.trendingAdds.slice(0, 4) ?? []);
-  const transactionCount = $derived(activitySummary?.recentTransactions.length ?? 0);
-  const summary = $derived(
-    isLoading
-      ? "Loading Sleeper activity"
-      : adds[0]?.player.name
-        ? [
-            `Top add: ${adds[0].player.name}`,
-            ...(transactionCount > 0 ? [`${transactionCount} recent league transaction${transactionCount === 1 ? "" : "s"}`] : []),
-          ].join(" · ")
-        : activitySummary?.headline ?? "No activity loaded",
-  );
+  const hasActivity = $derived(recent.length > 0 || adds.length > 0 || Boolean(activitySummary?.trendingDrops.length));
+  const summary = $derived([
+    ...recent.slice(0, 2).map((transaction) => transaction.description),
+    ...(adds[0] ? [`Top add: ${adds[0].player.name}`] : []),
+  ].join(" · ") || activitySummary?.headline || "");
 
   function askActivity() {
     void onAsk?.("What does recent Sleeper activity say about my roster moves?");
   }
 </script>
 
-<article class:expanded class="activity-panel">
-  <button
-    class="activity-summary"
-    type="button"
-    aria-expanded={expanded}
-    aria-controls="team-market-activity-details"
-    onclick={() => (expanded = !expanded)}
-  >
-    <span class="activity-label"><Icon name="activity" size={14} /> Market activity</span>
-    <strong>{summary}</strong>
-    <span class="activity-cue">{expanded ? "Hide details" : "View details"}<Icon name="chevron-right" size={14} /></span>
-  </button>
+{#if hasActivity && activitySummary}
+  <article class:expanded class="activity-panel">
+    <button
+      class="activity-summary"
+      type="button"
+      title={summary}
+      aria-expanded={expanded}
+      aria-controls={expanded ? "team-market-activity-details" : undefined}
+      onclick={() => (expanded = !expanded)}
+    >
+      <span class="activity-label">Market activity</span>
+      <span class="activity-line">{summary}</span>
+      <span class="activity-cue">{expanded ? "Hide details" : "View details"}<Icon name="chevron-right" size={12} /></span>
+    </button>
 
-  {#if expanded}
-    <div class="activity-details" id="team-market-activity-details">
-      <div class="details-heading">
-        <h2>Market signals</h2>
-        {#if activitySummary}<button class="btn btn-ghost btn-sm" type="button" aria-label="Ask Assistant about market activity" onclick={askActivity}>Ask Assistant</button>{/if}
-      </div>
-
-      {#if isLoading}
-        <p class="muted">Loading Sleeper activity...</p>
-      {:else if !activitySummary}
-        <p class="muted">No activity context is loaded yet.</p>
-      {:else}
+    {#if expanded}
+      <div class="activity-details" id="team-market-activity-details">
+        <div class="details-heading">
+          <h2>Market signals</h2>
+          <button class="btn btn-ghost btn-sm" type="button" aria-label="Ask Assistant about market activity" onclick={askActivity}>Ask Assistant</button>
+        </div>
         <p class="summary-copy">{activitySummary.headline}</p>
         <div class="signal-grid">
           {#if adds.length > 0}
@@ -75,39 +63,37 @@
           {/if}
         </div>
         <p class="muted compact-copy">Trending counts are global Sleeper activity, not projections.</p>
-      {/if}
-    </div>
-  {/if}
-</article>
+      </div>
+    {/if}
+  </article>
+{/if}
 
 <style>
-  .activity-panel { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
-  .activity-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; min-height: 44px; border: 0; padding: 9px 14px; background: transparent; color: var(--text-muted); cursor: pointer; text-align: left; transition: background var(--transition-fast); }
+  .activity-panel { display: grid; min-width: 0; }
+  .activity-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; width: 100%; min-height: 36px; border: 0; border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); background: transparent; color: var(--text-muted); cursor: pointer; text-align: left; transition: background var(--transition-fast); }
   .activity-summary:hover { background: var(--surface-raised); }
-  .activity-label, .activity-cue { display: inline-flex; gap: 7px; align-items: center; font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
-  .activity-label { color: var(--text-secondary); }
-  .activity-label :global(svg) { color: var(--text-muted); }
-  .activity-summary strong { overflow: hidden; color: var(--text-muted); font-size: var(--text-md); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-  .activity-cue { color: var(--text-secondary); }
+  .activity-label { color: var(--text-muted); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
+  .activity-line { overflow: hidden; color: var(--text-secondary); font-size: var(--text-md); text-overflow: ellipsis; white-space: nowrap; }
+  .activity-cue { display: inline-flex; gap: 2px; align-items: center; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
   .activity-cue :global(svg) { transition: transform var(--transition-fast); }
-  .expanded .activity-summary { border-bottom: 1px solid var(--border); }
   .expanded .activity-cue :global(svg) { transform: rotate(90deg); }
-  .activity-details { display: grid; gap: 10px; padding: 14px 16px 16px; }
-  .details-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .activity-details { display: grid; gap: var(--space-3); margin-top: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); padding: var(--space-4); }
+  .details-heading { display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; }
   .details-heading h2 { font-size: var(--text-lg); }
   .muted, .summary-copy { color: var(--text-muted); font-size: var(--text-sm); line-height: 1.45; }
-  .summary-copy { margin: 0; color: var(--text-secondary); }
-  .compact-copy { font-size: var(--text-xs); }
-  .signal-grid { display: grid; gap: 10px; }
+  .summary-copy { color: var(--text-secondary); }
+  .signal-grid { display: grid; gap: var(--space-3); }
   .signal-grid:has(section:nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .signal-grid section { display: grid; gap: 7px; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 9px 10px; }
+  .signal-grid section { display: grid; align-content: start; gap: var(--space-2); }
   .signal-grid section > span { color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
-  .activity-row { display: flex; justify-content: space-between; gap: 10px; }
-  .activity-row strong, .signal-grid section p { margin: 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.35; }
-  .activity-row em { color: var(--text-muted); font-size: var(--text-xs); font-style: normal; white-space: nowrap; }
+  .activity-row { display: flex; justify-content: space-between; gap: var(--space-3); }
+  .activity-row strong, .signal-grid section p { color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; line-height: 1.35; }
+  .activity-row em { color: var(--text-muted); font-size: var(--text-sm); font-style: normal; white-space: nowrap; }
   @media (max-width: 760px) {
     .signal-grid:has(section:nth-child(2)) { grid-template-columns: 1fr; }
-    .activity-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
-    .activity-summary strong { grid-column: 1 / -1; grid-row: 2; }
+  }
+  @media (max-width: 520px) {
+    .activity-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--space-3); }
+    .activity-line { grid-column: 1 / -1; grid-row: 2; }
   }
 </style>
