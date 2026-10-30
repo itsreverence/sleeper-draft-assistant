@@ -84,7 +84,7 @@ describe("Shortlist panel", () => {
     expect(screen.getByText("The Assistant's next choice. New call on the way.")).toBeTruthy();
     expect(screen.getByRole("table", { name: /from pick 1\.09/ })).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Why this call" }));
-    expect(screen.getByText(`Written for ${target.name}, who is no longer available. A new call replaces it.`)).toBeTruthy();
+    expect(screen.getByText(`Written for ${target.name}, who is no longer an option for this pick. A new call replaces it.`)).toBeTruthy();
   });
 
   it("points at Find player when every shortlist player is gone", async () => {

@@ -68,7 +68,7 @@
   {@const decision = call!.payload.decision}
   <div class="analysis" id="why-this-call">
     {#if option.player.id !== recommended.player.id}
-      <p class="analysis-note">Written for {recommended.player.name}, who is no longer available. A new call replaces it.</p>
+      <p class="analysis-note">Written for {recommended.player.name}, who is no longer an option for this pick. A new call replaces it.</p>
     {/if}
     {#if timing}<p class="analysis-timing">{timing}</p>{/if}
     <p class="analysis-summary">{decision.summary}</p>
