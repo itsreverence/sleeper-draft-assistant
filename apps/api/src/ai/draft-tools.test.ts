@@ -125,6 +125,26 @@ describe("draft AI tools", () => {
     expect(result.teamsSelectingBeforeNextTurn.map((team) => team.team)).toEqual([otherTeam.name]);
   });
 
+  it("skips the current pick by its actual owner, not a snake slot", async () => {
+    const state = createMockDraftState(8);
+    const otherTeam = state.teams.find((team) => team.id !== state.userTeamId)!;
+    const followingPick = state.currentPick + state.teams.length;
+    const entries = Array.from({ length: state.settings.teams * state.settings.rounds }, (_, index) => {
+      const pickNo = index + 1;
+      const teamId = pickNo === state.currentPick || pickNo === followingPick ? state.userTeamId : otherTeam.id;
+      return { pickNo, round: Math.ceil(pickNo / state.settings.teams), draftSlot: 1, teamId, originalTeamId: teamId, isTraded: false };
+    });
+    const snapshot = createDraftPlayerSnapshot(
+      { ...state, pickOrder: { source: "sleeper", entries } },
+      { pinned: [], faded: [], excluded: [] },
+    );
+    const market = createDraftStrategyTools(snapshot).find((tool) => tool.definition.name === "inspect_position_market");
+
+    const result = await market!.execute({ positions: ["RB"] }) as { userNextPick: number | null };
+
+    expect(result.userNextPick).toBe(followingPick);
+  });
+
   it("does not invent future timing for unsupported formats", async () => {
     const state = createMockDraftState(8);
     const snapshot = createDraftPlayerSnapshot(

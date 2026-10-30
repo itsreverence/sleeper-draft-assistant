@@ -259,6 +259,82 @@ describe("Sleeper draft normalization", () => {
       isTraded: true,
     });
   });
+  describe("pick order by draft type", () => {
+    const orderInput = (draft: Partial<SleeperDraftStateInput["draft"]>, picks: SleeperDraftStateInput["picks"] = []): SleeperDraftStateInput => ({
+      ...fixture,
+      draft: { ...fixture.draft, settings: { teams: 4, rounds: 4 }, ...draft },
+      picks,
+    });
+    const slotsByRound = (input: SleeperDraftStateInput) => {
+      const entries = normalizeSleeperDraftState(input).pickOrder!.entries;
+      return [1, 2, 3, 4].map((round) => entries.filter((entry) => entry.round === round).map((entry) => entry.draftSlot));
+    };
+    const forward = [1, 2, 3, 4];
+    const reverse = [4, 3, 2, 1];
+
+    it("alternates direction in a snake draft", () => {
+      expect(slotsByRound(orderInput({ type: "snake" }))).toEqual([forward, reverse, forward, reverse]);
+    });
+
+    it("repeats the same direction in a linear draft and reports exact timing", () => {
+      const input = orderInput({ type: "linear" });
+      expect(slotsByRound(input)).toEqual([forward, forward, forward, forward]);
+      const userPicks = normalizeSleeperDraftState(input).pickOrder!.entries
+        .filter((entry) => entry.teamId === "roster-12")
+        .map((entry) => entry.pickNo);
+      expect(userPicks).toEqual([2, 6, 10, 14]);
+    });
+
+    it("keeps traded ownership in a linear draft", () => {
+      const state = normalizeSleeperDraftState({
+        ...orderInput({ type: "linear", season: "2026" }),
+        tradedPicks: [{ season: "2026", round: 2, roster_id: 11, previous_owner_id: 11, owner_id: 13 }],
+      });
+      expect(state.pickOrder?.entries.find((entry) => entry.pickNo === 5)).toMatchObject({
+        draftSlot: 1,
+        teamId: "roster-13",
+        originalTeamId: "roster-11",
+        isTraded: true,
+      });
+    });
+
+    it("derives missing pick slots from the draft type", () => {
+      const state = normalizeSleeperDraftState(orderInput({ type: "linear" }, [
+        ...[1, 2, 3, 4, 5].map((pick_no) => ({ pick_no, player_id: "p1" })),
+      ]));
+      expect(state.picks[4]).toMatchObject({ pickNo: 5, draftSlot: 1, teamId: "roster-11" });
+      expect(state.pickOrder?.source).toBe("sleeper");
+    });
+
+    it("repeats the previous direction at the reversal round, then snakes", () => {
+      const settings = { teams: 4, rounds: 4, reversal_round: 3 };
+      expect(slotsByRound(orderInput({ type: "snake", settings }))).toEqual([forward, reverse, reverse, forward]);
+    });
+
+    it.each([0, null, undefined])("ignores a reversal round of %s", (reversal_round) => {
+      const settings = { teams: 4, rounds: 4, reversal_round };
+      expect(slotsByRound(orderInput({ type: "snake", settings }))).toEqual([forward, reverse, forward, reverse]);
+    });
+
+    it("reports timing as unsupported for an unknown draft type", () => {
+      expect(normalizeSleeperDraftState(orderInput({ type: "derby" })).pickOrder).toEqual({ source: "unsupported", entries: [] });
+    });
+
+    it("reports timing as unsupported when Sleeper's picks contradict the modeled order", () => {
+      const state = normalizeSleeperDraftState(orderInput({ type: "snake" }, [
+        { pick_no: 5, draft_slot: 1, round: 2, player_id: "p1" },
+      ]));
+      expect(state.pickOrder).toEqual({ source: "unsupported", entries: [] });
+    });
+
+    it("does not let a keeper's slot contradict the modeled order", () => {
+      const state = normalizeSleeperDraftState(orderInput({ type: "snake" }, [
+        { pick_no: 5, draft_slot: 1, round: 2, player_id: "p1", is_keeper: true },
+      ]));
+      expect(state.pickOrder?.source).toBe("sleeper");
+    });
+  });
+
   it("uses an explicit draft-slot team reference instead of a same-numbered roster", () => {
     const state = normalizeSleeperDraftState({
       ...fixture,

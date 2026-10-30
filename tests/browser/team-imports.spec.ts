@@ -2,7 +2,7 @@ import { expectConversationBehavior } from "./conversation-behavior";
 import { expectHeaderFits, expectResponseTable, longUnbrokenTitle, tableAnswer } from "./response-table";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { expectAccessible } from "./accessibility";
+import { expectAccessible, expectNamesContainVisibleText } from "./accessibility";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/*", route => new URL(route.request().url()).origin === "http://127.0.0.1:15173"
@@ -256,9 +256,11 @@ test("connection, Team Manager, and import controls meet automated accessibility
   await expectAccessible(page);
   await connect(page);
   await expectAccessible(page);
+  await expectNamesContainVisibleText(page);
   await page.getByRole("button", { name: "Manage team data" }).click();
   await expect(panels(page).drawer).toBeVisible();
   await expectAccessible(page);
+  await expectNamesContainVisibleText(page);
 });
 
 

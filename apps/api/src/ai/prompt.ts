@@ -31,7 +31,7 @@ export function buildDraftStrategyPrompt(context: DraftStrategyContext): string 
   return [
     "Choose the best target for the user's next selection from the current board.",
     "When draft.picksUntilNextUserPick is greater than zero, treat the recommendation as contingent: distinguish the current manager's pick from the user's upcoming pick, say that the player must remain available, and do not imply the user is on the clock.",
-    "Use draft.followingUserPick and draft.picksBetweenUserTurns to distinguish the wait before the user's next selection from the gap after it. A snake-turn pair may have zero intervening selections.",
+    "Use draft.followingUserPick and draft.picksBetweenUserTurns to distinguish the wait before the user's next selection from the gap after it. Consecutive user picks may have zero intervening selections.",
     "Reason independently from the current Sleeper draft snapshot. The evidence groups are separate raw signals, not a composite recommendation.",
     "Use search_available_players when the supplied evidence does not cover a material position, tier, or named alternative; use compare_players for named alternatives and inspect_position_market when wait-or-take timing depends on supply or the teams before the next turn. Do not call a tool just to repeat facts already in the context.",
     "Treat draft.pickOrderSource as authoritative for timing confidence. If it is normal_snake_fallback or unsupported, qualify exact wait-or-take timing rather than presenting it as a confirmed future pick path.",

@@ -12,15 +12,17 @@ export type DraftBoardCell = {
   owner: Team | null;
   isCurrent: boolean;
   isUserPick: boolean;
-  isUserSlot: boolean;
+  isUserOwned: boolean;
   isTraded: boolean;
 };
 
 export type DraftBoardRow = {
   round: number;
-  direction: "forward" | "reverse";
+  direction: RoundDirection | null;
   cells: DraftBoardCell[];
 };
+
+export type RoundDirection = "forward" | "reverse";
 
 export type DraftBoardView = "live" | "full";
 
@@ -32,6 +34,50 @@ export function pickNumberForDraftSlot(round: number, draftSlot: number, teamCou
   return round % 2 === 1
     ? (round - 1) * teamCount + draftSlot
     : round * teamCount - draftSlot + 1;
+}
+
+export function roundDirection(state: DraftState, round: number): RoundDirection | null {
+  if (state.pickOrder?.source === "unsupported") {
+    return null;
+  }
+  const entries = state.pickOrder?.entries.filter((entry) => entry.round === round) ?? [];
+  if (entries.length > 1) {
+    return entries[0]!.draftSlot < entries.at(-1)!.draftSlot ? "forward" : "reverse";
+  }
+  return round % 2 === 1 ? "forward" : "reverse";
+}
+
+export function nextPickForTeam(state: DraftState, teamId: string): number | null {
+  if (state.status === "complete" || state.pickOrder?.source === "unsupported") {
+    return null;
+  }
+  if (state.pickOrder?.entries.length) {
+    return state.pickOrder.entries.find((entry) => entry.pickNo >= state.currentPick && entry.teamId === teamId)?.pickNo ?? null;
+  }
+  const team = state.teams.find((candidate) => candidate.id === teamId);
+  if (!team) {
+    return null;
+  }
+  const pickNo = range(1, state.settings.rounds)
+    .map((round) => pickNumberForDraftSlot(round, team.draftSlot, state.settings.teams))
+    .find((candidate) => candidate >= state.currentPick);
+  return pickNo ?? null;
+}
+
+export function currentPickAnnouncement(state: DraftState): string {
+  if (state.status === "complete") {
+    return "Draft complete";
+  }
+  if (state.status === "pre_draft") {
+    return "";
+  }
+  const slot = formatDraftPick(state.currentPick, state.settings.teams);
+  if (isUserOnTheClock(state)) {
+    return `Pick ${slot}. You are on the clock.`;
+  }
+  const entry = state.pickOrder?.entries.find((candidate) => candidate.pickNo === state.currentPick);
+  const owner = state.teams.find((team) => team.id === entry?.teamId);
+  return owner ? `Pick ${slot}. ${owner.name} is on the clock.` : `Pick ${slot}.`;
 }
 
 export function currentDraftRound(state: DraftState): number {
@@ -60,7 +106,7 @@ export type PickStripSummary = {
   label: string;
   pick: PickStripPick | null;
   nextTurn: PickStripPick | null;
-  round: { number: number; direction: "forward" | "reverse" } | null;
+  round: { number: number; direction: RoundDirection } | null;
 };
 
 export function pickStripSummary(state: DraftState): PickStripSummary {
@@ -73,9 +119,8 @@ export function pickStripSummary(state: DraftState): PickStripSummary {
     : { label, slot: formatDraftPick(overall, state.settings.teams), overall };
   const [nextUserPick, followingUserPick] = upcomingUserPicks(state);
   const number = currentDraftRound(state);
-  const round = state.pickOrder?.source === "unsupported"
-    ? null
-    : { number, direction: number % 2 === 1 ? "forward" as const : "reverse" as const };
+  const direction = roundDirection(state, number);
+  const round = direction ? { number, direction } : null;
 
   if (state.status === "pre_draft") {
     return { tone: "neutral", label: "Draft not started", pick: stripPick("First pick", nextUserPick), nextTurn: null, round };
@@ -136,16 +181,18 @@ export function buildDraftBoardRows(state: DraftState, rounds: number[]): DraftB
   const teamsById = new Map(state.teams.map((team) => [team.id, team]));
   const playersById = new Map(state.players.map((player) => [player.id, player]));
   const picksByNumber = new Map(state.picks.map((pick) => [pick.pickNo, pick]));
+  const entriesBySlot = new Map((state.pickOrder?.entries ?? []).map((entry) => [`${entry.round}:${entry.draftSlot}`, entry]));
   const teamCount = state.settings.teams;
 
   return rounds.map((round) => ({
     round,
-    direction: round % 2 === 1 ? "forward" : "reverse",
+    direction: roundDirection(state, round),
     cells: range(1, teamCount).map((draftSlot) => {
-      const pickNo = pickNumberForDraftSlot(round, draftSlot, teamCount);
+      const entry = entriesBySlot.get(`${round}:${draftSlot}`);
+      const pickNo = entry?.pickNo ?? pickNumberForDraftSlot(round, draftSlot, teamCount);
       const pick = picksByNumber.get(pickNo) ?? null;
       const slotTeam = teamsBySlot.get(draftSlot) ?? null;
-      const owner = pick ? teamsById.get(pick.teamId) ?? null : slotTeam;
+      const ownerId = pick?.teamId ?? entry?.teamId ?? slotTeam?.id ?? null;
 
       return {
         round,
@@ -153,11 +200,11 @@ export function buildDraftBoardRows(state: DraftState, rounds: number[]): DraftB
         pickNo,
         pick,
         player: pick ? playersById.get(pick.playerId) ?? null : null,
-        owner,
-        isCurrent: state.status !== "complete" && pickNo === state.currentPick,
+        owner: ownerId ? teamsById.get(ownerId) ?? null : null,
+        isCurrent: state.status === "drafting" && pickNo === state.currentPick,
         isUserPick: pick?.teamId === state.userTeamId,
-        isUserSlot: slotTeam?.id === state.userTeamId,
-        isTraded: Boolean(pick && slotTeam && pick.teamId !== slotTeam.id),
+        isUserOwned: ownerId === state.userTeamId,
+        isTraded: Boolean(ownerId && slotTeam && ownerId !== slotTeam.id),
       };
     }),
   }));

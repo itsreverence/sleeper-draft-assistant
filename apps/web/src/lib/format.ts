@@ -234,11 +234,13 @@ export function getDraftPhase(state: DraftState | null): DraftPhase | null {
   return state?.status ?? null;
 }
 
+// rememberedMode stands in for team data that has not arrived yet, so a completed draft does not flash its board.
 export function preferredWorkspaceMode(
   phase: DraftPhase | null,
   manageAvailable: boolean,
+  rememberedMode: WorkspaceMode | null = null,
 ): WorkspaceMode {
-  if (phase === "complete" && manageAvailable) {
+  if (phase === "complete" && (manageAvailable || rememberedMode === "manage")) {
     return "manage";
   }
   return "draft";

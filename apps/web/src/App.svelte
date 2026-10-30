@@ -185,6 +185,26 @@
     return `playerPreferences:${draftId}`;
   }
 
+  function workspaceModeStorageKey(leagueId: string) {
+    return `workspaceMode:${leagueId}`;
+  }
+
+  function readRememberedWorkspaceMode(leagueId: string | null | undefined): WorkspaceMode | null {
+    try {
+      return leagueId && window.localStorage.getItem(workspaceModeStorageKey(leagueId)) === "manage" ? "manage" : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberManageWorkspace(leagueId: string) {
+    try {
+      window.localStorage.setItem(workspaceModeStorageKey(leagueId), "manage");
+    } catch {
+      // Local preferences are optional; ignore storage failures.
+    }
+  }
+
   function loadPlayerPreferences(draftId: string) {
     try {
       const raw = window.localStorage.getItem(preferenceStorageKey(draftId));
@@ -524,6 +544,7 @@
         .filter((key): key is string => Boolean(key))
         .filter((key) =>
           key.startsWith("playerPreferences:") ||
+          key.startsWith("workspaceMode:") ||
           ["lastDraftId", "lastDraftTeamRef", "lastUserRosterId", "lastLeagueId", "sleeperUsername", "sleeperSeason", "sleeperLeagueInput"].includes(key),
         );
       for (const key of keys) {
@@ -1810,6 +1831,7 @@
     },
   ]);
   const manageAvailable = $derived(Boolean(teamManagerState) && isRealDraftActive);
+  const teamDataPending = $derived(isRealDraftActive && Boolean(draftState?.leagueId) && !teamManagerState && !teamManagerError);
   const showTeamWorkspace = $derived(Boolean(draftState) && workspaceMode !== "draft");
   const showDraftRoom = $derived(Boolean(draftState) && workspaceMode === "draft" && !draftPreparationOpen);
   const isPreconnect = $derived(!connectPayload && !draftState);
@@ -1875,7 +1897,7 @@
     if (key !== phaseSyncKey) {
       phaseSyncKey = key;
       reviewingDraftResults = false;
-      workspaceMode = preferredWorkspaceMode(draftPhase, manageAvailable);
+      workspaceMode = preferredWorkspaceMode(draftPhase, manageAvailable, teamDataPending ? readRememberedWorkspaceMode(draftState.leagueId) : null);
       return;
     }
 
@@ -1896,8 +1918,15 @@
   });
 
   $effect(() => {
-    if (!manageAvailable && workspaceMode === "manage") {
+    if (!manageAvailable && !teamDataPending && workspaceMode === "manage") {
       workspaceMode = "draft";
+    }
+  });
+
+  $effect(() => {
+    const leagueId = draftState?.leagueId;
+    if (leagueId && manageAvailable && draftPhase === "complete" && workspaceMode === "manage") {
+      rememberManageWorkspace(leagueId);
     }
   });
 </script>
@@ -2247,7 +2276,7 @@
             rosSummary={rosRankingSummary}
             weeklySummary={weeklyProjectionSummary}
             error={teamManagerError}
-            isLoading={isLoadingTeamManager}
+            isLoading={isLoadingTeamManager || teamDataPending}
             onManageData={() => (teamDataOpen = true)}
           />
           <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={askAboutTeamActivity} />

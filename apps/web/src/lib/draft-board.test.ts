@@ -2,7 +2,30 @@ import { describe, expect, it } from "vitest";
 
 import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 
-import { buildDraftBoardRows, pickNumberForDraftSlot, pickStripSummary, starterSlotSummary, visibleDraftRounds } from "./draft-board";
+import type { DraftState } from "@sleeper-draft-assistant/shared";
+
+import { buildDraftBoardRows, currentPickAnnouncement, nextPickForTeam, pickNumberForDraftSlot, pickStripSummary, starterSlotSummary, visibleDraftRounds } from "./draft-board";
+
+type RoundOrder = (round: number) => "forward" | "reverse";
+const linear: RoundOrder = () => "forward";
+const snake: RoundOrder = (round) => round % 2 === 1 ? "forward" : "reverse";
+const thirdRoundReversal: RoundOrder = (round) => round === 1 || round === 4 ? "forward" : "reverse";
+
+function withOrder(order: RoundOrder, overrides: Partial<DraftState> = {}, trades: Record<number, string> = {}): DraftState {
+  const mock = createMockDraftState(0);
+  const state = { ...mock, settings: { ...mock.settings, rounds: 4 } };
+  const teams = state.settings.teams;
+  const entries = Array.from({ length: teams * state.settings.rounds }, (_, index) => {
+    const pickNo = index + 1;
+    const round = Math.ceil(pickNo / teams);
+    const inRound = index % teams;
+    const draftSlot = order(round) === "forward" ? inRound + 1 : teams - inRound;
+    const originalTeamId = state.teams.find((team) => team.draftSlot === draftSlot)!.id;
+    const teamId = trades[pickNo] ?? originalTeamId;
+    return { pickNo, round, draftSlot, teamId, originalTeamId, isTraded: teamId !== originalTeamId };
+  });
+  return { ...state, status: "drafting", pickOrder: { source: "sleeper", entries }, ...overrides };
+}
 
 describe("draft board", () => {
   it("maps fixed draft slots to snake-order pick numbers", () => {
@@ -34,6 +57,135 @@ describe("draft board", () => {
     expect(visibleDraftRounds({ ...mockState, settings, status: "drafting", currentPick: 145 }, "live")).toEqual([14, 15]);
     expect(visibleDraftRounds({ ...mockState, settings, status: "complete", currentPick: 3 }, "live")).toEqual([14, 15]);
     expect(visibleDraftRounds({ ...mockState, settings: { ...settings, rounds: 1 }, status: "drafting", currentPick: 3 }, "live")).toEqual([1]);
+  });
+
+  describe("pick ownership", () => {
+    const cellAt = (state: DraftState, pickNo: number) =>
+      buildDraftBoardRows(state, Array.from({ length: state.settings.rounds }, (_, index) => index + 1))
+        .flatMap((row) => row.cells)
+        .find((cell) => cell.pickNo === pickNo)!;
+
+    it("names the traded owner on an unpicked cell in every view", () => {
+      const base = withOrder(snake);
+      const pickNo = base.settings.teams * 2 + 4;
+      const original = base.teams.find((team) => team.draftSlot === 4)!;
+      const newOwner = base.teams.find((team) => team.draftSlot === 7)!;
+      const state = withOrder(snake, { currentPick: pickNo }, { [pickNo]: newOwner.id });
+
+      const cell = cellAt(state, pickNo);
+      expect(cell.draftSlot).toBe(original.draftSlot);
+      expect(cell.owner?.id).toBe(newOwner.id);
+      expect(cell.isTraded).toBe(true);
+      expect(cell.isCurrent).toBe(true);
+      const liveCell = buildDraftBoardRows(state, visibleDraftRounds(state, "live")).flatMap((row) => row.cells).find((entry) => entry.pickNo === pickNo)!;
+      expect(liveCell.owner?.id).toBe(newOwner.id);
+    });
+
+    it("moves a traded pick's user marking to the actual owner", () => {
+      const base = withOrder(snake);
+      const userSlot = base.teams.find((team) => team.id === base.userTeamId)!.draftSlot;
+      const rival = base.teams.find((team) => team.id !== base.userTeamId)!;
+      const gained = pickNumberForDraftSlot(2, rival.draftSlot, base.settings.teams);
+      const lost = pickNumberForDraftSlot(3, userSlot, base.settings.teams);
+      const state = withOrder(snake, {}, { [gained]: base.userTeamId, [lost]: rival.id });
+
+      expect(cellAt(state, gained)).toMatchObject({ isUserOwned: true, isTraded: true });
+      expect(cellAt(state, lost)).toMatchObject({ isUserOwned: false, isTraded: true });
+      expect(nextPickForTeam({ ...state, currentPick: gained }, base.userTeamId)).toBe(gained);
+    });
+
+    it("does not mark an untraded cell", () => {
+      const state = withOrder(snake);
+      expect(cellAt(state, 3).isTraded).toBe(false);
+    });
+
+    it("falls back to the slot's team without a pick order", () => {
+      const state = { ...createMockDraftState(0), status: "drafting" as const };
+      expect(cellAt(state, 1).owner?.draftSlot).toBe(1);
+      expect(cellAt(state, 1).isTraded).toBe(false);
+    });
+
+    it("has no pick on the clock before the draft starts or after it ends", () => {
+      for (const status of ["pre_draft", "complete"] as const) {
+        const state = withOrder(snake, { status, currentPick: 1 });
+        const cells = buildDraftBoardRows(state, [1, 2]).flatMap((row) => row.cells);
+        expect(cells.some((cell) => cell.isCurrent)).toBe(false);
+      }
+      expect(cellAt(withOrder(snake, { currentPick: 1 }), 1).isCurrent).toBe(true);
+    });
+  });
+
+  describe("round order", () => {
+    it.each([
+      ["snake", snake, ["forward", "reverse", "forward", "reverse"]],
+      ["linear", linear, ["forward", "forward", "forward", "forward"]],
+      ["third-round reversal", thirdRoundReversal, ["forward", "reverse", "reverse", "forward"]],
+    ] as const)("lays out a %s board from the pick order", (_name, order, directions) => {
+      const state = withOrder(order);
+      const rows = buildDraftBoardRows(state, [1, 2, 3, 4]);
+      expect(rows.map((row) => row.direction)).toEqual(directions);
+      const teams = state.settings.teams;
+      rows.forEach((row, index) => {
+        const firstInRound = row.cells.find((cell) => cell.pickNo === index * teams + 1)!;
+        expect(firstInRound.draftSlot).toBe(row.direction === "forward" ? 1 : teams);
+      });
+    });
+
+    it("points the strip the way a linear round runs and counts linear turns", () => {
+      const base = withOrder(linear);
+      const teams = base.settings.teams;
+      const userTeamId = base.teams.find((team) => team.draftSlot === 1)!.id;
+      const state = withOrder(linear, { userTeamId, currentPick: 2 * teams });
+      const summary = pickStripSummary(state);
+      expect(summary.label).toBe("1 pick away");
+      expect(summary.nextTurn?.overall).toBe(2 * teams + 1);
+      expect(summary.round).toEqual({ number: 2, direction: "forward" });
+    });
+
+    it("points the strip through a third-round reversal", () => {
+      const base = withOrder(thirdRoundReversal);
+      const currentPick = 2 * base.settings.teams + 1;
+      expect(pickStripSummary({ ...base, currentPick }).round).toEqual({ number: 3, direction: "reverse" });
+    });
+
+    it("shows no board direction it cannot know", () => {
+      const state = { ...createMockDraftState(0), pickOrder: { source: "unsupported" as const, entries: [] } };
+      expect(buildDraftBoardRows(state, [1, 2]).map((row) => row.direction)).toEqual([null, null]);
+      expect(nextPickForTeam(state, state.userTeamId)).toBeNull();
+    });
+
+    it("finds a team's next pick by owner in linear order", () => {
+      const state = withOrder(linear);
+      const team = state.teams.find((entry) => entry.draftSlot === 1)!;
+      const teams = state.settings.teams;
+      expect(nextPickForTeam({ ...state, currentPick: 2 }, team.id)).toBe(teams + 1);
+    });
+  });
+
+  describe("current pick announcement", () => {
+    it("names the owner, including a traded one", () => {
+      const base = withOrder(snake);
+      const rival = base.teams.find((team) => team.id !== base.userTeamId)!;
+      const currentPick = base.teams.find((team) => team.id === rival.id)!.draftSlot === 1 ? 2 : 1;
+      const state = withOrder(snake, { currentPick }, { [currentPick]: rival.id });
+      expect(currentPickAnnouncement(state)).toBe(`Pick 1.${String(currentPick).padStart(2, "0")}. ${rival.name} is on the clock.`);
+    });
+
+    it("tells the user it is their turn", () => {
+      const base = withOrder(snake);
+      const currentPick = base.teams.find((team) => team.id === base.userTeamId)!.draftSlot;
+      expect(currentPickAnnouncement({ ...base, currentPick })).toContain("You are on the clock");
+    });
+
+    it("stays quiet before the draft and reports its end", () => {
+      expect(currentPickAnnouncement(withOrder(snake, { status: "pre_draft" }))).toBe("");
+      expect(currentPickAnnouncement(withOrder(snake, { status: "complete" }))).toBe("Draft complete");
+    });
+
+    it("gives only the pick when ownership is unknown", () => {
+      const state: DraftState = { ...createMockDraftState(0), status: "drafting", currentPick: 3, pickOrder: { source: "unsupported", entries: [] } };
+      expect(currentPickAnnouncement(state)).toBe("Pick 1.03.");
+    });
   });
 
   describe("pick strip", () => {

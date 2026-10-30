@@ -194,7 +194,6 @@
         <button
           class="decision-prompt"
           type="button"
-          aria-label={prompt.prompt}
           title={prompt.prompt}
           disabled={conversation.isAsking || !teamState || !providerReady}
           onclick={() => choosePrompt(prompt.prompt)}

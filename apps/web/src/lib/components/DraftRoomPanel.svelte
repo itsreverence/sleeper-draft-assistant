@@ -2,6 +2,7 @@
   import type { DraftState, Position } from "../types";
   import {
     buildDraftBoardRows,
+    currentPickAnnouncement,
     visibleDraftRounds,
     type DraftBoardView,
   } from "../draft-board";
@@ -21,6 +22,21 @@
   const teams = $derived([...draftState.teams].sort((a, b) => a.draftSlot - b.draftSlot));
   const visibleRounds = $derived(visibleDraftRounds(draftState, view));
   const rows = $derived(buildDraftBoardRows(draftState, visibleRounds));
+
+  // A sync that leaves the message unchanged must stay silent, as must opening a board or switching drafts.
+  const pickMessage = $derived(currentPickAnnouncement(draftState));
+  let announcement = $state("");
+  let announcedDraftId = "";
+  let announcedMessage = "";
+  $effect(() => {
+    const message = pickMessage;
+    if (draftState.id === announcedDraftId && message !== announcedMessage) {
+      announcement = message;
+    }
+    announcedDraftId = draftState.id;
+    announcedMessage = message;
+  });
+
   $effect(() => {
     draftState.currentPick;
     view;
@@ -74,63 +90,87 @@
     </div>
   </header>
 
-  <div class="board-scroller" bind:this={boardScroller}>
-    <div class="board" style={`--team-count:${draftState.settings.teams}`}>
-      <div class="corner-cell">
-        <span>Round</span>
-      </div>
-      {#each teams as team (team.id)}
-        <button
-          class="team-header"
-          class:user-team={team.id === draftState.userTeamId}
-          data-user-slot={team.id === draftState.userTeamId}
-          type="button"
-          title={`View ${team.name} roster`}
-          onclick={() => onSelectTeam?.(team.id)}
-        >
-          <span>{team.draftSlot}</span>
-          <strong title={team.name}>{shortTeamName(team.name)}</strong>
-          {#if team.id === draftState.userTeamId}<small>Your team</small>{/if}
-        </button>
-      {/each}
+  <p class="sr-only" aria-live="polite" aria-atomic="true">{announcement}</p>
 
-      {#each rows as boardRow (boardRow.round)}
-        <div class="round-cell" title={`Round ${boardRow.round}: ${boardRow.direction === "forward" ? "left to right" : "right to left"}`}>
-          <strong>{boardRow.round}</strong>
-          <span class="direction-icon">
-            <Icon name={boardRow.direction === "forward" ? "arrow-right" : "arrow-left"} size={15} />
-          </span>
-          <span class="direction-label">{boardRow.direction === "forward" ? "Left to right" : "Right to left"}</span>
+  <div class="board-scroller" bind:this={boardScroller}>
+    <div class="board" role="table" aria-label="Draft picks by round and team" style={`--team-count:${draftState.settings.teams}`}>
+      <div class="board-group" role="rowgroup">
+        <div class="board-group" role="row">
+          <div class="corner-cell" role="columnheader">
+            <span>Round</span>
+          </div>
+          {#each teams as team (team.id)}
+            <div class="board-group" role="columnheader">
+              <button
+                class="team-header"
+                class:user-team={team.id === draftState.userTeamId}
+                data-user-slot={team.id === draftState.userTeamId}
+                type="button"
+                title={`View ${team.name} roster`}
+                onclick={() => onSelectTeam?.(team.id)}
+              >
+                <span>{team.draftSlot}</span>
+                <strong>{team.name}</strong>
+                {#if team.id === draftState.userTeamId}<small>Your team</small>{/if}
+              </button>
+            </div>
+          {/each}
         </div>
-        {#each boardRow.cells as cell (cell.pickNo)}
-          <div
-            class={`pick-cell ${positionClass(cell.player?.position)}`}
-            class:filled={Boolean(cell.pick)}
-            class:current={cell.isCurrent}
-            class:user-pick={cell.isUserPick}
-            class:user-slot={cell.isUserSlot}
-            class:traded={cell.isTraded}
-            data-current={cell.isCurrent}
-          >
-            <div class="pick-number">{boardRow.round}.{String(cell.pickNo - (boardRow.round - 1) * draftState.settings.teams).padStart(2, "0")} <span>#{cell.pickNo}</span></div>
-            {#if cell.player}
-              <strong title={cell.player.name}>{cell.player.name}</strong>
-              <div class="player-meta">
-                <span>{cell.player.position}</span>
-                <small>{cell.player.team || "FA"}</small>
-              </div>
-              {#if cell.isTraded}
-                <em title={cell.owner?.name}>via {cell.owner ? shortTeamName(cell.owner.name) : "traded pick"}</em>
+      </div>
+
+      <div class="board-group" role="rowgroup">
+        {#each rows as boardRow (boardRow.round)}
+          <div class="board-group" role="row">
+            <div
+              class="round-cell"
+              class:reverse={boardRow.direction === "reverse"}
+              role="rowheader"
+              title={boardRow.direction ? `Round ${boardRow.round}: ${boardRow.direction === "forward" ? "left to right" : "right to left"}` : `Round ${boardRow.round}`}
+            >
+              <strong><span class="sr-only">{"Round "}</span>{boardRow.round}</strong>
+              {#if boardRow.direction}
+                <span class="direction-icon">
+                  <Icon name={boardRow.direction === "forward" ? "arrow-right" : "arrow-left"} size={15} />
+                </span>
+                <span class="sr-only">{boardRow.direction === "forward" ? "Left to right" : "Right to left"}</span>
               {/if}
-            {:else if cell.isCurrent}
-              <strong class="on-clock">On the clock</strong>
-              <small>{cell.owner?.name ?? `Slot ${cell.draftSlot}`}</small>
-            {:else}
-              <span class="empty-pick">{cell.owner?.name ?? `Slot ${cell.draftSlot}`}</span>
-            {/if}
+            </div>
+            {#each boardRow.cells as cell (cell.pickNo)}
+              <div
+                class={`pick-cell ${positionClass(cell.player?.position)}`}
+                class:filled={Boolean(cell.pick)}
+                class:current={cell.isCurrent}
+                class:user-pick={cell.isUserPick}
+                class:user-slot={cell.isUserOwned}
+                class:traded={cell.isTraded}
+                role="cell"
+                data-current={cell.isCurrent}
+              >
+                <div class="pick-number">{boardRow.round}.{String(cell.pickNo - (boardRow.round - 1) * draftState.settings.teams).padStart(2, "0")} <span>#{cell.pickNo}</span></div>
+                {#if cell.player}
+                  <strong title={cell.player.name}>{cell.player.name}</strong>
+                  <div class="player-meta">
+                    <span>{cell.player.position}</span>
+                    <small>{cell.player.team || "FA"}</small>
+                  </div>
+                  {#if cell.isTraded}
+                    <em title={cell.owner?.name}>via {cell.owner ? shortTeamName(cell.owner.name) : "traded pick"}</em>
+                  {:else if cell.owner}
+                    <span class="sr-only">{cell.owner.name}</span>
+                  {/if}
+                {:else if cell.isCurrent}
+                  <strong class="on-clock">On the clock</strong>
+                  <small>{cell.owner?.name ?? `Slot ${cell.draftSlot}`}</small>
+                  {#if cell.isTraded}<em>Traded</em>{/if}
+                {:else}
+                  <span class="empty-pick">{cell.owner?.name ?? `Slot ${cell.draftSlot}`}</span>
+                  {#if cell.isTraded}<em>Traded</em>{/if}
+                {/if}
+              </div>
+            {/each}
           </div>
         {/each}
-      {/each}
+      </div>
     </div>
   </div>
 
@@ -158,6 +198,11 @@
     display: grid;
     grid-template-columns: 70px repeat(var(--team-count), minmax(118px, 1fr));
     min-width: calc(70px + var(--team-count) * 118px);
+  }
+
+  /* Table roles sit on wrappers; the cells stay direct items of the board grid so the sticky header and round column keep working. */
+  .board-group {
+    display: contents;
   }
 
   .corner-cell,
@@ -265,7 +310,7 @@
     opacity: 0.9;
   }
 
-  .direction-label {
+  .sr-only {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -276,7 +321,7 @@
     border: 0;
   }
 
-  .round-cell[title*="right to left"] .direction-icon {
+  .round-cell.reverse .direction-icon {
     color: var(--info);
   }
 

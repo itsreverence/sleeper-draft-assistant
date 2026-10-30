@@ -130,6 +130,17 @@ describe("preferredWorkspaceMode", () => {
   it("defaults to season manager after the draft when available", () => {
     expect(preferredWorkspaceMode("complete", true)).toBe("manage");
   });
+
+  it("restores a remembered Team Manager while team data is pending", () => {
+    expect(preferredWorkspaceMode("complete", false, "manage")).toBe("manage");
+    expect(preferredWorkspaceMode("complete", false, null)).toBe("draft");
+  });
+
+  it("does not let a remembered mode leave an unfinished draft", () => {
+    expect(preferredWorkspaceMode("pre_draft", false, "manage")).toBe("draft");
+    expect(preferredWorkspaceMode("drafting", true, "manage")).toBe("draft");
+    expect(preferredWorkspaceMode(null, false, "manage")).toBe("draft");
+  });
 });
 
 describe("Sleeper player status formatting", () => {
