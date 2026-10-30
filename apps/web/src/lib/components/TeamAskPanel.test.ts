@@ -1,9 +1,22 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AiRequestProgress } from "../api";
 import TeamAskPanel from "./TeamAskPanel.svelte";
 import { createAiProviderStatusFixture, createTeamPayloadFixture } from "../testing/draft-fixtures";
 import { createDeferred } from "../testing/deferred";
+
+
+// jsdom has no layout. Stack the thread's rows 100px apart so the scroll
+// position the panel chooses is observable.
+function stubThreadGeometry() {
+  return vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    const parent = this.parentElement;
+    if (this.getAttribute("role") === "log" || !parent || parent.getAttribute("role") !== "log") return { top: 0 } as DOMRect;
+    return { top: Array.from(parent.children).indexOf(this) * 100 - parent.scrollTop } as DOMRect;
+  });
+}
 
 describe("Team ask panel", () => {
   it("drops an in-flight news answer when the search setting changes", async () => {
@@ -293,5 +306,156 @@ describe("Team ask panel", () => {
     });
     expect(onPromptRequestHandled).toHaveBeenCalledWith(1);
     expect(await screen.findByText("Investigate the market move before changing your roster.")).toBeTruthy();
+  });
+
+  it("cancel returns the composer to idle and discards the late answer", async () => {
+    const answer = createDeferred<string>();
+    const onAsk = vi.fn(() => answer.promise);
+    render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk,
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    await waitFor(() => expect(onAsk).toHaveBeenCalledOnce());
+    expect(screen.getByText("Thinking…")).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Thinking…")).toBeNull();
+    expect(screen.getByText(/^Cancelled\./)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask Codex" })).toBeTruthy();
+
+    answer.resolve("Late answer");
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Follow-up" } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Ask Codex" }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText("Late answer")).toBeNull();
+    expect(screen.getByText("Who should I start this week?")).toBeTruthy();
+  });
+
+  it("scrolls the thread to the newest message as questions and answers arrive", async () => {
+    const geometry = stubThreadGeometry();
+    const second = createDeferred<string>();
+    const onAsk = vi.fn().mockResolvedValueOnce("First answer").mockReturnValueOnce(second.promise);
+    render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk,
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Who should I start this week?" }));
+    expect(await screen.findByText("First answer")).toBeTruthy();
+    const log = screen.getByRole("log", { name: "Team conversation" });
+    expect(log.scrollTop).toBe(100);
+
+    await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: "Second question" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await waitFor(() => expect(log.scrollTop).toBe(300));
+    second.resolve("Second answer");
+    expect(await screen.findByText("Second answer")).toBeTruthy();
+    expect(log.scrollTop).toBe(300);
+    geometry.mockRestore();
+  });
+});
+
+async function openTeamComposer(onAsk: (question: string, history: import("../types").AiConversationMessage[], progress?: AiRequestProgress) => Promise<string>) {
+  render(TeamAskPanel, {
+    teamState: createTeamPayloadFixture().state,
+    providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+    onAsk,
+  });
+  const textarea = screen.getByRole("textbox", { name: "Ask Codex about your team" });
+  await fireEvent.input(textarea, { target: { value: "Composer question" } });
+  return textarea;
+}
+
+describe("Team ask panel composer focus", () => {
+  it("keeps focus on the button a click turned into Cancel and returns it to the composer after Cancel", async () => {
+    const answer = createDeferred<string>();
+    const textarea = await openTeamComposer(vi.fn(() => answer.promise));
+    const send = screen.getByRole("button", { name: "Ask Codex" });
+    send.focus();
+    await fireEvent.click(send);
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    expect(document.activeElement).toBe(cancel);
+
+    await fireEvent.click(cancel);
+    await tick();
+    expect(screen.getByRole("button", { name: "Ask Codex" })).toBeTruthy();
+    expect(document.activeElement).toBe(textarea);
+  });
+
+  it("keeps focus in the composer when Ctrl+Enter submits from the textarea", async () => {
+    const answer = createDeferred<string>();
+    const textarea = await openTeamComposer(vi.fn(() => answer.promise));
+    textarea.focus();
+    await fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true });
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+    expect(document.activeElement).toBe(textarea);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await tick();
+    expect(document.activeElement).toBe(textarea);
+  });
+
+  it("returns focus to the composer when the answer arrives while Cancel is focused", async () => {
+    const answer = createDeferred<string>();
+    const textarea = await openTeamComposer(vi.fn(() => answer.promise));
+    const send = screen.getByRole("button", { name: "Ask Codex" });
+    send.focus();
+    await fireEvent.click(send);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+
+    answer.resolve("Settled answer");
+    expect(await screen.findByText("Settled answer")).toBeTruthy();
+    await tick();
+    expect(document.activeElement).toBe(textarea);
+  });
+});
+
+describe("Team ask panel follow-up history", () => {
+  it("cancel then re-ask sends neither half of the cancelled turn, and a completed turn is carried", async () => {
+    const held = createDeferred<string>();
+    const onAsk = vi.fn()
+      .mockReturnValueOnce(held.promise)
+      .mockResolvedValueOnce("Second answer")
+      .mockResolvedValueOnce("Third answer");
+    const textarea = await openTeamComposer(onAsk);
+    await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    for (const [question, answer] of [["Second question", "Second answer"], ["Third question", "Third answer"]]) {
+      await fireEvent.input(textarea, { target: { value: question } });
+      await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+      expect(await screen.findByText(answer)).toBeTruthy();
+    }
+    expect(onAsk.mock.calls.map((call) => call[1])).toEqual([
+      [],
+      [],
+      [{ role: "user", content: "Second question" }, { role: "assistant", content: "Second answer" }],
+    ]);
+  });
+
+  it("retries the question under the bubble, not the most recent one", async () => {
+    const teamPayload = createTeamPayloadFixture();
+    const pending = createDeferred<string>();
+    const onAsk = vi.fn(async (question: string) => question === "Question A" && onAsk.mock.calls.length === 1 ? pending.promise : `Answer to ${question}`);
+    render(TeamAskPanel, {
+      teamState: teamPayload.state,
+      weekContext: teamPayload.weekContext,
+      activitySummary: teamPayload.activitySummary,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", label: "Codex", configured: true }),
+      onAsk,
+    });
+    const ask = async (question: string) => {
+      await fireEvent.input(screen.getByRole("textbox", { name: "Ask Codex about your team" }), { target: { value: question } });
+      await fireEvent.click(screen.getByRole("button", { name: "Ask Codex" }));
+    };
+
+    await ask("Question A");
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await ask("Question B");
+    await screen.findByText("Answer to Question B");
+    await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await screen.findByText("Answer to Question A");
+    expect(onAsk.mock.calls.map(([question]) => question)).toEqual(["Question A", "Question B", "Question A"]);
   });
 });

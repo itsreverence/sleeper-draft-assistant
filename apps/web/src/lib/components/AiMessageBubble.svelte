@@ -1,6 +1,7 @@
 ﻿<script lang="ts">
   import type { AiConversationDisplayMessage } from "../ai-conversation.svelte";
   import type { DraftStrategyProposal } from "../types";
+  import RequestPhase from "./RequestPhase.svelte";
   import ResponseMarkdown from "./ResponseMarkdown.svelte";
 
   let {
@@ -19,10 +20,9 @@
 <div class="message-row role-{message.role}">
   <div class="message-bubble status-{message.status ?? "complete"}">
     {#if message.status === "loading"}
-      <div class="loading-line">
-        <span class="spinner"></span>
-        <span>{message.content}</span>
-      </div>
+      <div class="loading-line"><RequestPhase phase={message.phase} /></div>
+    {:else if message.status === "cancelled"}
+      <p class="cancelled-line">{message.content}</p>
     {:else if message.role === "assistant"}
       <ResponseMarkdown content={message.content} />
     {:else}
@@ -47,8 +47,10 @@
 
     {#if message.role === "assistant" && message.status !== "loading"}
       <div class="message-actions">
-        <button class="tiny-action" type="button" onclick={() => onCopy?.(message.content)}>Copy</button>
-        {#if message.status === "error"}
+        {#if message.status !== "cancelled"}
+          <button class="tiny-action" type="button" onclick={() => onCopy?.(message.content)}>Copy</button>
+        {/if}
+        {#if message.status === "error" || message.status === "cancelled"}
           <button class="tiny-action" type="button" onclick={() => onRetry?.()}>Retry</button>
         {/if}
       </div>
@@ -91,15 +93,21 @@
     background: var(--danger-soft);
   }
 
+  .status-cancelled {
+    border-style: dashed;
+    background: transparent;
+  }
+
+  .cancelled-line {
+    color: var(--text-muted);
+  }
+
   .message-bubble p {
     font-size: var(--text-sm);
     line-height: 1.5;
   }
 
   .loading-line {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
     color: var(--text-secondary);
     font-size: var(--text-sm);
   }

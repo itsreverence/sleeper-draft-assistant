@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { AiRequestProgress } from "../api";
   import { tick } from "svelte";
-  import { createAiConversation } from "../ai-conversation.svelte";
+  import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
+  import { followNewest } from "../thread-scroll";
   import { buildAiPanelContextSummary, buildSuggestedQuestions } from "../ai-panel";
   import type { AiConversationMessage, AiProviderStatus, DraftAskResult, DraftRecommendation, DraftState, DraftStrategyProposal } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
@@ -40,6 +41,12 @@
   let conversationPick: number | null = $state(null);
   let conversationDraftIdentity = $state("");
   let handledPromptRequestId = 0;
+  let composerElement = $state<HTMLInputElement>();
+  let sendButton = $state<HTMLButtonElement>();
+
+  $effect(() => {
+    if (!conversation.isAsking && document.activeElement === sendButton) composerElement?.focus();
+  });
   let panelElement: HTMLElement;
 
   const providerReady = $derived(
@@ -55,8 +62,11 @@
   );
   const conversation = createAiConversation({
     ask: (nextQuestion, history, progress) => onAsk(nextQuestion, history, progress),
-    loadingMessage: "Thinking through your draft context...",
     fallbackError: "The manager could not answer because the draft state is unavailable.",
+  });
+  const newest = $derived.by(() => {
+    const last = conversation.messages.at(-1);
+    return last ? { id: last.id, status: last.status } : null;
   });
   const boardChanged = $derived(
     Boolean(conversation.messages.length > 0 && conversationPick !== null && draftState && conversationPick !== draftState.currentPick),
@@ -169,12 +179,12 @@
 
       <div class:has-conversation={conversation.messages.length > 0} class="chat-workspace">
         {#if conversation.messages.length > 0}
-        <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite">
+        <div class="conversation" role="log" aria-label="Draft conversation" aria-live="polite" use:followNewest={newest}>
           {#each conversation.messages as message (message.id)}
             <AiMessageBubble
               {message}
               onCopy={conversation.copy}
-              onRetry={() => submit(conversation.lastQuestion)}
+              onRetry={() => submit(conversation.questionFor(message.id))}
               onApplyStrategyProposal={(proposal) => applyStrategyProposal(message.id, proposal)}
             />
           {/each}
@@ -189,6 +199,7 @@
           {/if}
           <div class="composer">
             <input
+              bind:this={composerElement}
               aria-label="Ask about your draft"
               bind:value={conversation.question}
               onkeydown={handleKeydown}
@@ -196,16 +207,12 @@
                 ? "Ask a follow-up about this draft."
                 : "Ask who to draft, compare players, or test a what-if."}
             />
-            <button
-              class="composer-send"
-              aria-label={conversation.isAsking ? "Asking" : "Ask AI"}
-              type="button"
-              disabled={conversation.isAsking || !conversation.question.trim()}
-              onclick={() => submit()}
-            >
-              {#if conversation.isAsking}<span class="spinner"></span>{/if}
-              {conversation.isAsking ? "Asking" : "Send"}
-            </button>
+            <button bind:this={sendButton} class="composer-send" class:composer-cancel={conversation.isAsking}
+              aria-label={conversation.isAsking ? "Cancel" : "Ask AI"} type="button"
+              title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
+              disabled={!conversation.isAsking && !conversation.question.trim()}
+              onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
+            >{conversation.isAsking ? "Cancel" : "Send"}</button>
           </div>
         </div>
       </div>
@@ -357,8 +364,10 @@
   .conversation {
     display: grid;
     gap: 10px;
-    max-height: 310px;
-    overflow: auto;
+    max-height: clamp(300px, 50vh, 600px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     padding: var(--space-4) var(--space-5);
   }
 
@@ -428,6 +437,16 @@
   .composer-send:disabled {
     cursor: not-allowed;
     opacity: 0.45;
+  }
+
+  .composer-cancel {
+    border: 1px solid var(--border-strong);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+
+  .composer-cancel:hover {
+    background: var(--surface-hover);
   }
 
   .provider-readiness {

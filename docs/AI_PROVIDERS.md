@@ -162,6 +162,15 @@ provider is waiting behind another operation, and “Checking news…” during 
 Context changes/unmount cancel queued work and stop polling without interrupting an
 already-running model turn or admitting its result into the new context.
 
+While a question is in flight, both ask panels change the send button to
+**Cancel**. Cancel aborts the renderer request, which closes the HTTP call, sends
+`DELETE /ai/requests/:requestId` so queued work is skipped, and stops polling. A
+model turn that already started finishes in the background; its answer is not
+shown, and the renderer shows a cancelled bubble with Retry. Renderer follow-up
+history includes only completed question/answer pairs, excluding both halves of
+cancelled or failed turns. Reused Codex app-server threads keep their own context
+and omit renderer history, so the model may still remember a cancelled turn.
+
 Copy diagnostics and support reports include `aiTimings`, the latest 20 completed
 main operations in this provider session. Entries contain only the request kind
 (`draft_strategy`, `draft_question`, `team_question`) and elapsed milliseconds:
