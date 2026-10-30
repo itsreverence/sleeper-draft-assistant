@@ -23,7 +23,7 @@
         <li class:mine={pick.teamId === state.userTeamId}>
           <span class="pick-no" title={`Pick ${pick.pickNo}`}>{formatDraftPick(pick.pickNo, state.settings.teams)}</span>
           {#if position}<PositionChip {position} />{:else}<span></span>{/if}
-          <strong>{playerName(state, pick.playerId)}</strong>
+          <strong title={playerName(state, pick.playerId)}>{playerName(state, pick.playerId)}</strong>
           <small>{teamName(state, pick.teamId)}</small>
         </li>
       {/each}

@@ -216,7 +216,7 @@
 
   {#if displayedAiStrategy}
     {@const candidate = displayedAiStrategy.recommendedCandidate}
-    <div class:previous={isPreviousRecommendation} class="ai-strategy" aria-live="polite">
+    <div class="ai-strategy" aria-live="polite">
       {#if isPreviousRecommendation}
         <span class="previous-recommendation-label">Previous recommendation</span>
       {/if}
@@ -344,8 +344,8 @@
               <li>
                 <span class="fallback-rank">{index + 1}</span>
                 <span class="fallback-player">
-                  <strong>{alternative.player.name}</strong>
-                  <small>{alternative.player.team} · {alternative.player.position} · {contingencyLabel(alternative)}</small>
+                  <strong title={alternative.player.name}>{alternative.player.name}</strong>
+                  <small title={contingencyLabel(alternative)}>{alternative.player.team} · {alternative.player.position} · {contingencyLabel(alternative)}</small>
                 </span>
               </li>
             {/each}
@@ -542,6 +542,7 @@
 
   .strategy-refresh-error {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
@@ -577,10 +578,6 @@
     padding: 4px 8px;
     color: var(--text-secondary);
     font-weight: 600;
-  }
-
-  .ai-strategy.previous > :not(.strategy-refresh-status, .strategy-refresh-error, .previous-recommendation-label, .placeholder-warning) {
-    opacity: 0.58;
   }
 
   .fallback-ladder {

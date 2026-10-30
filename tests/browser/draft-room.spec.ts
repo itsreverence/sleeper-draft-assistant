@@ -162,3 +162,18 @@ test("the strip carries the draft tools and the primary button asks about the ca
 test("the draft room meets automated accessibility checks with the conversation collapsed", async ({ page }) => {
   await expectAccessible(page);
 });
+
+test("a failed refresh keeps the recommendation readable and fits at 320px", async ({ page }) => {
+  await page.route(/\/api\/drafts\/[^/]+\/strategy(?:\?|$)/, route => route.fulfill({ status: 500, json: { error: "Synthetic refresh failure." } }));
+  await page.getByRole("button", { name: "Find player", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Find player" });
+  await dialog.getByRole("searchbox").fill("Achane");
+  await dialog.getByRole("button", { name: "Preference for De'Von Achane" }).click();
+  await page.getByRole("menuitemradio", { name: /Prioritize/ }).click();
+  await page.keyboard.press("Escape");
+  if (await dialog.isVisible()) await page.keyboard.press("Escape");
+  await expect(page.getByText("Recommendation update failed")).toBeVisible();
+  await expectAccessible(page);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});

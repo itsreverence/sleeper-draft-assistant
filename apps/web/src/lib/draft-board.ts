@@ -88,7 +88,7 @@ export function pickStripSummary(state: DraftState): PickStripSummary {
 
   const picksAway = picksUntilUserTurn(state);
   const label = picksAway === null
-    ? "Pick timing unknown"
+    ? (state.pickOrder?.source === "unsupported" || !getUserTeam(state) ? "Pick timing unknown" : "No picks left")
     : `${picksAway} pick${picksAway === 1 ? "" : "s"} away`;
   return { tone: "neutral", label, pick, nextTurn: stripPick("Next turn", nextUserPick), round };
 }

@@ -75,6 +75,13 @@ describe("draft board", () => {
       expect(summary.pick?.label).toBe("First pick");
     });
 
+    it("says so when the user has no picks left", () => {
+      const state = drafting(3);
+      const userTeamId = state.teams.find((team) => team.draftSlot === 1)!.id;
+      const pickOrder = { source: "sleeper" as const, entries: [{ pickNo: state.currentPick, teamId: state.teams.find((team) => team.id !== userTeamId)!.id }] } as never;
+      expect(pickStripSummary({ ...state, userTeamId, pickOrder }).label).toBe("No picks left");
+    });
+
     it("drops timing and direction it cannot know", () => {
       const state = { ...drafting(3), pickOrder: { source: "unsupported" as const, entries: [] } };
       const summary = pickStripSummary(state);
