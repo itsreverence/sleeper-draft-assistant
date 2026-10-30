@@ -15,11 +15,15 @@
   let expanded = $state(false);
   const recent = $derived(activitySummary?.recentTransactions.slice(0, 3) ?? []);
   const adds = $derived(activitySummary?.trendingAdds.slice(0, 4) ?? []);
+  const transactionCount = $derived(activitySummary?.recentTransactions.length ?? 0);
   const summary = $derived(
     isLoading
       ? "Loading Sleeper activity"
       : adds[0]?.player.name
-        ? `Top add: ${adds[0].player.name}`
+        ? [
+            `Top add: ${adds[0].player.name}`,
+            ...(transactionCount > 0 ? [`${transactionCount} recent league transaction${transactionCount === 1 ? "" : "s"}`] : []),
+          ].join(" · ")
         : activitySummary?.headline ?? "No activity loaded",
   );
 
@@ -44,7 +48,7 @@
   {#if expanded}
     <div class="activity-details" id="team-market-activity-details">
       <div class="details-heading">
-        <div><p class="eyebrow">Sleeper activity</p><h2>Market signals</h2></div>
+        <h2>Market signals</h2>
         {#if activitySummary}<button class="btn btn-ghost btn-sm" type="button" aria-label="Ask Assistant about market activity" onclick={askActivity}>Ask Assistant</button>{/if}
       </div>
 
@@ -80,17 +84,17 @@
   .activity-panel { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
   .activity-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; min-height: 44px; border: 0; padding: 9px 14px; background: transparent; color: var(--text-muted); cursor: pointer; text-align: left; transition: background var(--transition-fast); }
   .activity-summary:hover { background: var(--surface-raised); }
-  .activity-label, .activity-cue { display: inline-flex; gap: 7px; align-items: center; font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+  .activity-label, .activity-cue { display: inline-flex; gap: 7px; align-items: center; font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
   .activity-label { color: var(--text-secondary); }
   .activity-label :global(svg) { color: var(--text-muted); }
-  .activity-summary strong { overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-  .activity-cue { color: var(--accent); }
+  .activity-summary strong { overflow: hidden; color: var(--text-muted); font-size: var(--text-md); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-cue { color: var(--text-secondary); }
   .activity-cue :global(svg) { transition: transform var(--transition-fast); }
   .expanded .activity-summary { border-bottom: 1px solid var(--border); }
   .expanded .activity-cue :global(svg) { transform: rotate(90deg); }
   .activity-details { display: grid; gap: 10px; padding: 14px 16px 16px; }
   .details-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-  .details-heading h2 { margin-top: 2px; font-size: var(--text-lg); }
+  .details-heading h2 { font-size: var(--text-lg); }
   .muted, .summary-copy { color: var(--text-muted); font-size: var(--text-sm); line-height: 1.45; }
   .summary-copy { margin: 0; color: var(--text-secondary); }
   .compact-copy { font-size: var(--text-xs); }

@@ -1,5 +1,5 @@
 import { sleeperDepthChartLabel } from "@sleeper-draft-assistant/shared/player-status";
-import type { ConnectDraft, DraftOption, DraftState, Player, WeeklyProjectionImportSummary } from "./types";
+import type { ConnectDraft, DraftOption, DraftState, Player, TeamManagerState, TeamWeekContext, WeeklyProjectionImportSummary } from "./types";
 
 export function isMockDraft(draftId: string) {
   return draftId === "mock" || draftId === "mock-draft";
@@ -69,7 +69,50 @@ export function formatWeeklyProjection(player: Player | null | undefined) {
 }
 
 export function formatMissingProjection(player: Player, weeklySummary: WeeklyProjectionImportSummary | null) {
-  return weeklySummary?.positions.includes(player.position) ? "No match" : `No ${player.position} file`;
+  return weeklySummary?.positions.includes(player.position) ? "No match" : `No ${player.position === "DEF" ? "DST" : player.position} file`;
+}
+
+const ROSTER_SLOT_LABELS: Readonly<Record<string, string>> = {
+  WRRB_FLEX: "W/R",
+  REC_FLEX: "W/T",
+  SUPER_FLEX: "SFLX",
+  SF: "SFLX",
+};
+
+export function formatRosterSlot(slot: string) {
+  return ROSTER_SLOT_LABELS[slot] ?? slot;
+}
+
+export function effectiveTeamWeek(state: TeamManagerState | null, weekContext: TeamWeekContext | null, selectedWeek: number | null) {
+  return selectedWeek ?? weekContext?.week ?? state?.week ?? null;
+}
+
+export function formatTeamContext(state: TeamManagerState, weekContext: TeamWeekContext | null, selectedWeek: number | null) {
+  const week = effectiveTeamWeek(state, weekContext, selectedWeek);
+  const period = state.seasonPhase === "preseason"
+    ? ["Preseason"]
+    : state.seasonPhase === "postseason"
+      ? ["Postseason"]
+      : week
+        ? [
+            `Week ${week}`,
+            ...(weekContext?.opponentTeamName ? [`vs ${weekContext.opponentTeamName}`] : []),
+            ...(selectedWeek && state.week && selectedWeek !== state.week ? [`Active Week ${state.week}`] : []),
+          ]
+        : ["Season"];
+  return [...period, state.league.scoring.toUpperCase()].join(" · ");
+}
+
+export type RosterStatus = { label: string; tone: "warning" | "danger"; injury: boolean };
+
+export function rosterStatus(player: Player): RosterStatus | null {
+  const label = formatSleeperStatusSummary(player);
+  if (label) {
+    const status = player.sleeperStatus;
+    const sidelined = /^(out|ir)$/i.test(status?.injuryStatus ?? "") || /injured reserve/i.test(status?.rosterStatus ?? "");
+    return { label, tone: sidelined ? "danger" : "warning", injury: true };
+  }
+  return player.schedule?.onBye === true ? { label: "On bye", tone: "warning", injury: false } : null;
 }
 
 export function formatSleeperStatusSummary(player: Player | null | undefined): string | null {

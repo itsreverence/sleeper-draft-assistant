@@ -306,7 +306,7 @@ describe("App draft lifecycle", () => {
 
     await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(2));
     expect(apiMock.fetchTeamManagerState.mock.calls[1]?.slice(3)).toEqual(["2026", 1]);
-    expect(await screen.findByText("Week 1 vs Week One Opponent · Active Week 2 · PPR · 1 player")).toBeTruthy();
+    expect(await screen.findByText("Week 1 · vs Week One Opponent · Active Week 2 · PPR")).toBeTruthy();
   });
 
   it("does not replay a handled market question after Team Manager remounts", async () => {

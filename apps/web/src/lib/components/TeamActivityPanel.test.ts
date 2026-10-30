@@ -28,6 +28,7 @@ describe("Team activity panel", () => {
 
     render(TeamActivityPanel, { activitySummary });
 
+    expect(screen.getByText(`Top add: ${starter.name} · 1 recent league transaction`)).toBeTruthy();
     const disclosure = screen.getByRole("button", { name: /Market activity/ });
     expect(disclosure.getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByText("View details")).toBeTruthy();

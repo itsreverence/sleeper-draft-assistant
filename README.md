@@ -18,7 +18,7 @@ An unofficial, local-first fantasy football draft and team-management assistant 
 - Imports user-downloaded FantasyPros season value rankings and weekly projection CSVs for team-management analysis. Draft ECR remains a labeled fallback until ROS ECR is available.
 - Stops weekly projection evidence from reaching Codex after the three-day freshness window and follows Sleeper automatically when the active fantasy week advances.
 - Gives Codex the live roster, inferred availability, weekly projections, ROS ECR or labeled draft ECR fallback, Sleeper injury/practice/depth-chart status, matchup state, and league activity as separate evidence for team-management advice.
-- Keeps Team Manager focused on the Codex command bar and live Sleeper roster. Matchup and data readiness appear in the roster heading; imports stay in **Manage data**.
+- Keeps Team Manager focused on the Codex command bar and live Sleeper roster. The top bar carries the week, matchup, and scoring; the roster table shows each player's week, projection, and status with data readiness in its header and footer; imports stay in **Manage data**.
 - Distinguishes preseason from regular-season fantasy weeks so future matchups are not presented as current.
 - Refreshes visible Team Manager data from Sleeper every 60 seconds and when the app regains focus.
 - Runs Codex locally through the supported app-server integration.

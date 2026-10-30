@@ -1,8 +1,11 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import Icon from "./Icon.svelte";
 
   let {
     title,
+    subtitle = null,
+    meta,
     status,
     lastEvent,
     connected,
@@ -16,6 +19,8 @@
     onOpenSettings,
   }: {
     title: string;
+    subtitle?: string | null;
+    meta?: Snippet;
     status: string;
     lastEvent: string;
     connected: boolean;
@@ -54,12 +59,14 @@
         {:else}
           <h1>{title}</h1>
         {/if}
+        {#if subtitle}<p class="subtitle">{subtitle}</p>{/if}
       </div>
       {#if !showChangeDraft}
         <p class="product-name">Sleeper Draft Assistant</p>
       {/if}
     </div>
   </div>
+  {#if meta}<div class="topbar-meta">{@render meta()}</div>{/if}
   <div class="topbar-actions">
     {#if showStatus}
       <div class="status-panel" class:connected>
@@ -126,8 +133,22 @@
 
   .title-row {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-2);
     min-width: 0;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .topbar-meta {
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
   h1 {
@@ -295,8 +316,19 @@
       flex-direction: row;
     }
 
+    .topbar.has-draft {
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-3);
+    }
+
     .topbar.has-draft .brand {
       flex: 1;
+    }
+
+    .topbar-meta {
+      order: 1;
+      flex-basis: 100%;
+      margin-left: 0;
     }
 
     .topbar-actions {

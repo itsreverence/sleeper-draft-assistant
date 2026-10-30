@@ -275,6 +275,12 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 
 The board is a dense, structured grid. Round direction, pick number, team ownership, current pick, user picks, and traded picks must remain distinguishable through layout plus semantic color. Team headers are interactive roster entry points and should retain accessible names and hover/focus states.
 
+### Roster Table
+
+Team Manager's roster is one semantic table: Slot, Player (position chip, name, team), Week (`@ JAX`, `vs MIN`, or the amber BYE chip), Proj, and Status. Bench, injured reserve, and taxi are row groups in the same table. Rows are 44px. Proj is right-aligned in tabular figures; missing values are muted and say why ("No WR file", "No match"). Status is empty when clear, amber for caution and for "On bye", and red for out and IR, and the text always carries the meaning without the color. "On bye" appears only when the player has no injury flag, and it is hidden from assistive technology because the BYE chip already announces the week.
+
+The header carries the confidence chip and "Manage data". The footer holds the coverage meter, the one action that improves it, and any schedule outage note. At the 760px compact breakpoint Proj and Status hide with `display: none`; Week stays so BYE is visible at every width, and injury flags move onto the player's team line. The table shows only what the payload contains and never ranks or compares players.
+
 ### AI Guidance
 
 Call the strategist "Assistant" in copy. Say "Codex" only for the external program the user installs, signs in to, or configures. Separate metadata with " · ", show statuses as sentence-case labels rather than API values, and write errors as what happened, then what to do next.

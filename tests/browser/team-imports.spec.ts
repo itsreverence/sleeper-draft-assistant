@@ -245,6 +245,30 @@ test("bye markers announce the selected week and remain visible at every viewpor
   await expect(page.getByRole("img", { name: "On bye in Week 9", exact: true })).toHaveText("BYE");
 });
 
+test("the roster table keeps its Player column usable and the page unscrolled at every width", async ({ page }) => {
+  await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, async route => {
+    const response = await route.fetch();
+    const payload = await response.json();
+    const starter = payload.state.roster.starters[0].player;
+    starter.name = "Unbrokenlongsyntheticplayernamewithoutanyspaces";
+    payload.state.roster.bench = [{ ...starter, id: "bench-player", sleeperId: "bench-player", name: "Synthetic Bench Player" }];
+    await route.fulfill({ response, json: payload });
+  });
+  await page.goto("/");
+  await connect(page);
+  const table = page.getByRole("table", { name: "Starting lineup and reserves" });
+  await expect(table).toBeVisible();
+  for (const width of [1440, 800, 480, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    const tableBox = await table.boundingBox();
+    const panelBox = await table.locator("xpath=ancestor::article").boundingBox();
+    expect(tableBox!.width).toBeLessThanOrEqual(panelBox!.width);
+    const playerHeader = await table.getByRole("columnheader", { name: "Player", exact: true }).boundingBox();
+    expect(playerHeader!.width).toBeGreaterThan(120);
+  }
+});
+
 test("Team Manager answers contain wide Markdown tables inside the chat bubble", async ({ page }, testInfo) => {
   await page.route("**/api/ai/status", route => route.fulfill({ json: {
     id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available",

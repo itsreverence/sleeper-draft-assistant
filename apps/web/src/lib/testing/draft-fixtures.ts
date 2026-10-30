@@ -144,24 +144,23 @@ export function createTeamPayloadFixture(leagueId = DEFAULT_LEAGUE_ID): TeamPayl
     },
   } as unknown as TeamManagerState;
 
-  const dataReadiness = {
+  const dataReadiness: TeamDataReadiness = {
     status: "ready",
-    warnings: [],
     confidence: "medium",
     headline: "Ready",
-    facts: [],
     activeSeason: "2026",
     activeWeek: 1,
-    rosAvailable: false,
-    weeklyAvailable: false,
-    rosScoring: null,
-    weeklyScoring: null,
-    rosImportedAt: null,
-    weeklyImportedAt: null,
-    rosAgeDays: null,
-    weeklyAgeDays: null,
+    importedAt: null,
+    relevantPositions: ["QB"],
+    loadedPositions: [],
+    missingPositions: ["QB"],
+    importMatchRate: null,
+    rosterProjectionCoverage: 0,
+    projectedRosterPlayers: 0,
     eligibleRosterPlayers: 1,
-  } as unknown as TeamDataReadiness;
+    facts: [],
+    warnings: [],
+  };
 
   const activitySummary = {
     headline: "No recent activity",
