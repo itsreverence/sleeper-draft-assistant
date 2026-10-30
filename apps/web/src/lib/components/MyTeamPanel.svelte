@@ -113,7 +113,7 @@
         <div class="player-identity">
           <strong>{player.name}</strong>
           <small class:danger={status?.tone === "danger"} data-status={status?.injury ? status.label : undefined}>{player.team}</small>
-          {#if formatSleeperStatusTitle(player)}
+          {#if status?.injury && formatSleeperStatusTitle(player)}
             <details class="status-details">
               <summary>Status details<span class="sr-only"> for {player.name}</span></summary>
               <span>{formatSleeperStatusTitle(player)}</span>
@@ -132,7 +132,7 @@
     {#if showProjections}
       <td class="projection" class:muted={player.schedule?.onBye || !formatWeeklyProjection(player)}>{formatWeeklyProjection(player) ?? formatMissingProjection(player, weeklySummary)}</td>
     {/if}
-    <td class={`player-status ${status ? `tone-${status.tone}` : ""}`} title={formatSleeperStatusTitle(player)}>
+    <td class={`player-status ${status ? `tone-${status.tone}` : ""}`} title={status ? formatSleeperStatusTitle(player) : undefined}>
       {#if status}<span aria-hidden={status.injury ? undefined : "true"}>{status.label}</span>{/if}
     </td>
   </tr>
@@ -254,7 +254,7 @@
 
   .slot-label { overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .status-details { flex-basis: 100%; min-width: 0; font-size: var(--text-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+  .status-details { display: none; flex-basis: 100%; min-width: 0; font-size: var(--text-sm); color: var(--text-muted); overflow-wrap: anywhere; }
   .status-details summary { cursor: pointer; }
   .player-name { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
   .player-identity { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); align-items: baseline; min-width: 0; }
@@ -299,6 +299,9 @@
   .warning-copy { color: var(--warning); }
 
   @media (max-width: 760px) {
+    /* The Status column and its hover details are hidden at this width. */
+    .status-details { display: block; }
+
     /* Auto layout keeps the colspan's implied columns for the hidden Proj and Status at zero width. */
     .roster-table { table-layout: auto; }
     .roster-table .projection,

@@ -277,7 +277,7 @@
     <div class="position-status" aria-label="Weekly projection position import status">
       {#each requiredPositions as requiredPosition}
         {@const result = summary.positionResults.find((item) => item.position === requiredPosition)}
-        <span class:loaded={Boolean(result)}>
+        <span class:loaded={Boolean(result?.matched)}>
           {requiredPosition === "DEF" ? "DST" : requiredPosition}
           <small>{result ? `${result.matched}/${result.rowsParsed}` : "Needed"}</small>
         </span>

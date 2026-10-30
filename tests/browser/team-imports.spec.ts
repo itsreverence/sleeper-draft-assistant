@@ -257,7 +257,13 @@ test("the roster table keeps its Player column usable and the page unscrolled at
       rosterStatus: "Active", injuryStartDate: null, depthChartPosition: "QB",
       depthChartOrder: 2, newsUpdatedAt: null,
     };
-    payload.state.roster.bench = [{ ...starter, id: "bench-player", sleeperId: "bench-player", name: "Synthetic Bench Player" }];
+    payload.state.roster.bench = [
+      { ...starter, id: "bench-player", sleeperId: "bench-player", name: "Synthetic Bench Player" },
+      {
+        ...starter, id: "healthy-player", sleeperId: "healthy-player", name: "Synthetic Healthy Player",
+        sleeperStatus: { ...starter.sleeperStatus!, injuryStatus: null, practiceParticipation: null },
+      },
+    ];
     await route.fulfill({ response, json: payload });
   });
   await page.goto("/");
@@ -275,6 +281,12 @@ test("the roster table keeps its Player column usable and the page unscrolled at
     const slot = table.getByRole("cell", { name: "IDP_FLEX", exact: true });
     expect(await slot.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     const details = table.getByText("Status details", { exact: false }).first();
+    if (width > 760) {
+      await expect(details).toBeHidden();
+      continue;
+    }
+    // Only flagged players get a details control, so healthy rows add no tab stop.
+    await expect(table.getByText("Status details", { exact: false })).toHaveCount(2);
     await details.focus();
     await page.keyboard.press("Enter");
     await expect(table.getByText(/Sleeper status — injury: Questionable; practice: Limited; depth:/).first()).toBeVisible();
