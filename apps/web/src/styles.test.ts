@@ -8,7 +8,7 @@ const here = new URL(".", import.meta.url);
 const src = here.protocol === "file:" ? fileURLToPath(here) : path.resolve(process.cwd(), `.${here.pathname}`);
 const theme = readFileSync(path.join(src, "lib/theme.css"), "utf8");
 const shared = readFileSync(path.join(src, "styles.css"), "utf8");
-const design = readFileSync(path.join(src, "../../../DESIGN.md"), "utf8");
+const design = readFileSync(path.join(src, "../../../DESIGN.md"), "utf8").replaceAll("\r\n", "\n");
 
 const SCALE_WEIGHTS = new Set(["400", "500", "600", "700"]);
 const BREAKPOINTS = new Set([1100, 760, 520]);
@@ -28,7 +28,7 @@ function styleText(file: string): string {
 }
 
 const sheets = [...walk(src)]
-  .map((file) => ({ file: path.relative(src, file), css: styleText(file) }))
+  .map((file) => ({ file: path.relative(src, file).replaceAll(path.sep, "/"), css: styleText(file) }))
   .filter((sheet) => sheet.css.trim());
 
 function offenders(pattern: RegExp, accept: (match: RegExpMatchArray) => boolean, files = sheets) {
