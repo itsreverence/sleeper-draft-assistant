@@ -28,13 +28,13 @@ describe("status copy", () => {
   });
 
   it("builds the top-bar team context from the payload", () => {
-    const state = { seasonPhase: "regular", week: 7, league: { scoring: "ppr" } } as TeamManagerState;
+    const state = { seasonPhase: "regular", week: 7, league: { scoring: "ppr" }, userTeam: { name: "My Team" } } as TeamManagerState;
     const opponent = { week: 7, opponentTeamName: "Blitzkrieg Bops" } as TeamWeekContext;
-    expect(formatTeamContext(state, opponent, null)).toBe("Week 7 · vs Blitzkrieg Bops · PPR");
-    expect(formatTeamContext(state, null, null)).toBe("Week 7 · PPR");
-    expect(formatTeamContext(state, { week: 6, opponentTeamName: "Week Six Opponent" } as TeamWeekContext, 6)).toBe("Week 6 · vs Week Six Opponent · Active Week 7 · PPR");
-    expect(formatTeamContext({ ...state, seasonPhase: "preseason", week: null }, null, null)).toBe("Preseason · PPR");
-    expect(formatTeamContext({ ...state, seasonPhase: "postseason", week: null }, null, null)).toBe("Postseason · PPR");
+    expect(formatTeamContext(state, opponent, null)).toBe("Week 7 · My Team vs Blitzkrieg Bops · PPR");
+    expect(formatTeamContext(state, null, null)).toBe("Week 7 · My Team · PPR");
+    expect(formatTeamContext(state, { week: 6, opponentTeamName: "Week Six Opponent" } as TeamWeekContext, 6)).toBe("Week 6 · My Team vs Week Six Opponent · Active Week 7 · PPR");
+    expect(formatTeamContext({ ...state, seasonPhase: "preseason", week: null }, null, null)).toBe("Preseason · My Team · PPR");
+    expect(formatTeamContext({ ...state, seasonPhase: "postseason", week: null }, null, null)).toBe("Postseason · My Team · PPR");
   });
 
   it("classifies roster status tones from the Sleeper labels", () => {
@@ -57,9 +57,9 @@ describe("status copy", () => {
     expect(formatMissingProjection({ position: "DEF" } as Player, null)).toBe("No DST file");
   });
 
-  it("keeps the pts suffix and shows zero on a bye", () => {
-    expect(formatWeeklyProjection({ weeklyProjectedPoints: 24.5 } as Player)).toBe("24.5 pts");
-    expect(formatWeeklyProjection({ schedule: { onBye: true } } as Player)).toBe("0 pts");
+  it("shows the number alone and nothing on a bye", () => {
+    expect(formatWeeklyProjection({ weeklyProjectedPoints: 24.5 } as Player)).toBe("24.5");
+    expect(formatWeeklyProjection({ weeklyProjectedPoints: 24.5, schedule: { onBye: true } } as Player)).toBeNull();
   });
 });
 

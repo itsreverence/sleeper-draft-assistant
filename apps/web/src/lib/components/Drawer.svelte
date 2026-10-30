@@ -12,6 +12,7 @@
     subtitle,
     icon,
     badge,
+    initialFocus,
     onClose,
     children,
   }: {
@@ -22,13 +23,14 @@
     subtitle?: string;
     icon?: ComponentProps<typeof Icon>["name"];
     badge?: Snippet;
+    initialFocus?: string;
     onClose: () => void;
     children: Snippet;
   } = $props();
 </script>
 
 <button class="drawer-backdrop" type="button" aria-label={closeLabel} onclick={onClose}></button>
-<div class="drawer" use:modal={{ onClose: () => onClose() }} role="dialog" aria-modal="true" aria-label={label}>
+<div class="drawer" use:modal={{ onClose: () => onClose(), initialFocus }} role="dialog" aria-modal="true" aria-label={label}>
   <header class="drawer-header">
     <div class="drawer-heading">
       {#if eyebrow}<p class="eyebrow">{eyebrow}</p>{/if}

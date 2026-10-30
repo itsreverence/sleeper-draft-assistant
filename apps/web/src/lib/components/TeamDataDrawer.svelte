@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { TeamDataSection } from "../team-attention";
   import type {
     DraftScoringFormat,
     Position,
@@ -12,7 +13,14 @@
   import TeamDataReadinessPanel from "./TeamDataReadinessPanel.svelte";
   import WeeklyProjectionsImportPanel from "./WeeklyProjectionsImportPanel.svelte";
 
+  const SECTION_FOCUS: Record<TeamDataSection, string | undefined> = {
+    readiness: undefined,
+    "weekly-files": ".weekly-import-panel input[type='file']",
+    "weekly-week": ".weekly-import-panel input[type='number']",
+  };
+
   let {
+    section = "readiness",
     teamState,
     readiness,
     rosSummary,
@@ -37,6 +45,7 @@
     onOpenWeekly,
     onClose,
   }: {
+    section?: TeamDataSection;
     teamState: TeamManagerState | null;
     readiness: TeamDataReadiness | null;
     rosSummary: SeasonValueRankingImportSummary | null;
@@ -71,6 +80,7 @@
   title="Manage data"
   icon="database"
   subtitle="Update the evidence the Assistant uses for weekly and season-value decisions."
+  initialFocus={SECTION_FOCUS[section]}
   {onClose}
 >
   <TeamDataReadinessPanel readiness={readiness} {weeklySummary} seasonPhase={teamState?.seasonPhase} {isLoading} />

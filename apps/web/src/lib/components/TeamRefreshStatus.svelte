@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import LiveAnnouncer from "./LiveAnnouncer.svelte";
 
   let {
     lastCheckedAt = null,
@@ -38,7 +39,8 @@
   }
 </script>
 
-<div class="refresh-status" class:error={Boolean(error)} aria-live="polite">
+<LiveAnnouncer scope="team-refresh" message={error ? "Team refresh failed. Showing earlier Sleeper data." : ""} />
+<div class="refresh-status" class:error={Boolean(error)}>
   <span class="status-dot" aria-hidden="true"></span>
   <span>{statusText}</span>
   <button

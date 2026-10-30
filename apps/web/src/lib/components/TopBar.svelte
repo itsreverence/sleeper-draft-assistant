@@ -13,6 +13,7 @@
     showChangeDraft = false,
     centered = false,
     compact = false,
+    measure = false,
     settingsOpen = false,
     draftSwitcherOpen = false,
     onOpenDraftSwitcher,
@@ -28,6 +29,7 @@
     showChangeDraft?: boolean;
     centered?: boolean;
     compact?: boolean;
+    measure?: boolean;
     settingsOpen?: boolean;
     draftSwitcherOpen?: boolean;
     onOpenDraftSwitcher?: () => void;
@@ -35,7 +37,7 @@
   } = $props();
 </script>
 
-<section class="topbar" class:centered class:compact class:has-draft={showChangeDraft} aria-label="Draft status">
+<section class="topbar" class:centered class:compact class:measure class:has-draft={showChangeDraft} aria-label="Draft status">
   <div class="brand">
     {#if !connected}
       <img class="brand-mark" src="./favicon.svg" alt="" aria-hidden="true" />
@@ -109,6 +111,12 @@
     padding-bottom: var(--space-3);
   }
 
+  .topbar.measure {
+    width: 100%;
+    max-width: 880px;
+    margin-inline: auto;
+  }
+
   .brand {
     display: flex;
     align-items: center;
@@ -140,6 +148,8 @@
   }
 
   .subtitle {
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--text-muted);
     font-size: var(--text-sm);
     font-weight: 500;

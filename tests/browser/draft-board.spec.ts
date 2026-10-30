@@ -96,7 +96,7 @@ test("the board reads round, team, pick and player as a table under axe", async 
 test("a remembered Team Manager opens without flashing the completed board", async ({ page }) => {
   const league = `browser-${randomUUID()}`;
   await loadDraft(page, league);
-  await expect(page.getByRole("button", { name: "Manage team data" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage data", exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(id => window.localStorage.getItem(`workspaceMode:${id}`), league)).toBe("manage");
 
   let release = () => {};
@@ -109,14 +109,14 @@ test("a remembered Team Manager opens without flashing the completed board", asy
   await expect(page.getByText("Loading Sleeper roster...")).toBeVisible();
   await expect(page.getByRole("region", { name: "Draft board" })).toHaveCount(0);
   release();
-  await expect(page.getByRole("button", { name: "Manage team data" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage data", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Draft board" })).toHaveCount(0);
 });
 
 test("a remembered Team Manager falls back to the board when team data fails", async ({ page }) => {
   const league = `browser-${randomUUID()}`;
   await loadDraft(page, league);
-  await expect(page.getByRole("button", { name: "Manage team data" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage data", exact: true })).toBeVisible();
   await page.route(/\/api\/leagues\/[^/]+\/team/, route => route.fulfill({ status: 500, json: { error: "Synthetic team failure." } }));
   await page.reload();
   await expect(page.getByRole("region", { name: "Draft board" })).toBeVisible();

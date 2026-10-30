@@ -186,6 +186,10 @@ export function isAiProviderAvailable(status: AiProviderStatus | null | undefine
   return aiProviderAvailability(status) === "available";
 }
 
+export function isAssistantReady(status: AiProviderStatus | null | undefined): boolean {
+  return status?.id === "codex-app-server" && isAiProviderAvailable(status);
+}
+
 export function conversationalAiProviderStatus(status: AiProviderStatus | null | undefined): AiProviderStatus | null {
   if (!status) {
     return null;

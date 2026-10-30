@@ -19,16 +19,16 @@ function stubThreadGeometry() {
 }
 
 describe("Team ask panel", () => {
-  it("moves focus to the composer when a starter prompt is removed", async () => {
+  it("keeps focus in the composer when a quick question sends", async () => {
     render(TeamAskPanel, {
       teamState: createTeamPayloadFixture().state,
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       onAsk: vi.fn(() => new Promise<string>(() => {})),
     });
-    const starter = screen.getByLabelText("Ask Assistant starters").querySelector("button")!;
-    starter.focus();
-    await fireEvent.click(starter);
-    await waitFor(() => expect(screen.queryByLabelText("Ask Assistant starters")).toBeNull());
+    const quick = screen.getByRole("button", { name: "Waivers" });
+    quick.focus();
+    await fireEvent.click(quick);
+    await waitFor(() => expect(screen.getByRole("log", { name: "Team conversation" })).toBeTruthy());
     expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Ask Assistant about your team" }));
   });
 
@@ -66,7 +66,7 @@ describe("Team ask panel", () => {
     answer.resolve("Old week answer");
     await waitFor(() => expect(screen.queryByText("Week one question")).toBeNull());
     expect(screen.queryByText("Old week answer")).toBeNull();
-    expect(screen.getByPlaceholderText("Ask something else…")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Ask about your team…")).toBeTruthy();
   });
 
   it("configured provider submits team question", async () => {
@@ -76,7 +76,6 @@ describe("Team ask panel", () => {
     render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -85,11 +84,8 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    expect(screen.getByLabelText("Codex app-server ready")).toBeTruthy();
-    expect(screen.getByTitle("Codex app-server")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Ask Assistant" })).toBeTruthy();
-    expect(screen.getByText("Choose a prompt or ask your own.")).toBeTruthy();
-    expect(screen.getByText("Review the plan")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Assistant" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Quick questions" }).textContent).toContain("Plan");
 
     const textbox = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(textbox, { target: { value: "What should I fix first?" } });
@@ -101,14 +97,13 @@ describe("Team ask panel", () => {
     expect(await screen.findByText("Start your best running backs first.")).toBeTruthy();
   });
 
-  it("submits a decision starter through the shared conversation", async () => {
+  it("submits a quick question through the shared conversation", async () => {
     const teamPayload = createTeamPayloadFixture();
     const onAsk = vi.fn(async () => "Keep the current starters.");
 
     render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -117,7 +112,7 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    await fireEvent.click(screen.getByRole("button", { name: "Lineup Choose starters" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Lineup" }));
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenCalledWith("Who should I start this week?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
@@ -125,13 +120,12 @@ describe("Team ask panel", () => {
     expect(await screen.findByText("Keep the current starters.")).toBeTruthy();
   });
 
-  it("offers a depth decision instead of weekly lineup advice during preseason", () => {
+  it("offers a depth question instead of weekly lineup advice during preseason", () => {
     const teamPayload = createTeamPayloadFixture();
 
     render(TeamAskPanel, {
       teamState: { ...teamPayload.state, seasonPhase: "preseason", week: null },
       weekContext: null,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -140,19 +134,17 @@ describe("Team ask panel", () => {
       onAsk: vi.fn(async () => "Review the roster depth."),
     });
 
-    expect(screen.getByText("Depth")).toBeTruthy();
-    expect(screen.getByText("Review weak spots")).toBeTruthy();
-    expect(screen.queryByText("Choose starters")).toBeNull();
+    expect(screen.getByRole("button", { name: "Depth" }).getAttribute("title")).toBe("Where is my roster or bench too thin?");
+    expect(screen.queryByRole("button", { name: "Lineup" })).toBeNull();
   });
 
-  it("submits from the keyboard with Ctrl or Command plus Enter", async () => {
+  it("submits from the keyboard with Enter and with Ctrl or Command plus Enter", async () => {
     const teamPayload = createTeamPayloadFixture();
     const onAsk = vi.fn(async () => "Keep the current lineup.");
 
     render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -163,11 +155,17 @@ describe("Team ask panel", () => {
 
     const textbox = screen.getByRole("textbox", { name: "Ask Assistant about your team" });
     await fireEvent.input(textbox, { target: { value: "Should I change my lineup?" } });
+    await fireEvent.keyDown(textbox, { key: "Enter", shiftKey: true });
+    expect(onAsk).not.toHaveBeenCalled();
     await fireEvent.keyDown(textbox, { key: "Enter", ctrlKey: true });
 
     await waitFor(() => {
       expect(onAsk).toHaveBeenCalledWith("Should I change my lineup?", [], expect.objectContaining({ onPhase: expect.any(Function), signal: expect.any(AbortSignal) }));
     });
+    expect(await screen.findByText("Keep the current lineup.")).toBeTruthy();
+    await fireEvent.input(textbox, { target: { value: "And the bench?" } });
+    await fireEvent.keyDown(textbox, { key: "Enter" });
+    await waitFor(() => expect(onAsk).toHaveBeenCalledTimes(2));
   });
 
   it("noop provider stays disabled even when configured", async () => {
@@ -177,7 +175,6 @@ describe("Team ask panel", () => {
     render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "noop",
         label: "No AI provider",
@@ -187,11 +184,9 @@ describe("Team ask panel", () => {
       onAsk,
     });
 
-    expect(screen.getByText("Disabled")).toBeTruthy();
     expect(screen.getByText("The Assistant is disabled")).toBeTruthy();
-    expect(screen.getByTitle("Assistant disabled")).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: "Ask Assistant about your team" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Lineup Choose starters" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Lineup" })).toBeNull();
     expect(onAsk).not.toHaveBeenCalled();
   });
 
@@ -203,7 +198,6 @@ describe("Team ask panel", () => {
     render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -243,7 +237,6 @@ describe("Team ask panel", () => {
     const view = render(TeamAskPanel, {
       teamState: firstTeam.state,
       weekContext: firstTeam.weekContext,
-      activitySummary: firstTeam.activitySummary,
       providerStatus,
       onAsk,
     });
@@ -256,7 +249,6 @@ describe("Team ask panel", () => {
     await view.rerender({
       teamState: secondTeam.state,
       weekContext: secondTeam.weekContext,
-      activitySummary: secondTeam.activitySummary,
       providerStatus,
       onAsk,
     });
@@ -281,6 +273,43 @@ describe("Team ask panel", () => {
     expect(await screen.findByText("Answer B")).toBeTruthy();
   });
 
+  it("composes a question for review, focused and not sent", async () => {
+    const onAsk = vi.fn(async () => "Answer");
+    const view = render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk,
+    });
+    const composer = screen.getByRole("textbox", { name: "Ask Assistant about your team" }) as HTMLTextAreaElement;
+    await view.component.composeQuestion("Sleeper lists Q as Out. Should I change anything at QB?");
+    expect(composer.value).toBe("Sleeper lists Q as Out. Should I change anything at QB?");
+    expect(document.activeElement).toBe(composer);
+    expect(onAsk).not.toHaveBeenCalled();
+
+    await fireEvent.input(composer, { target: { value: "My own words" } });
+    await view.component.composeQuestion("Second question");
+    expect(composer.value).toBe("My own words\nSecond question");
+    expect(onAsk).not.toHaveBeenCalled();
+  });
+
+  it("collapses the thread without losing it and reopens it on the next question", async () => {
+    render(TeamAskPanel, {
+      teamState: createTeamPayloadFixture().state,
+      providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
+      onAsk: vi.fn(async () => "First answer"),
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    expect(await screen.findByText("First answer")).toBeTruthy();
+    const toggle = screen.getByRole("button", { name: "Conversation" });
+    await fireEvent.click(toggle);
+    expect(screen.queryByRole("log")).toBeNull();
+    await fireEvent.click(toggle);
+    expect(screen.getByText("First answer")).toBeTruthy();
+    await fireEvent.click(toggle);
+    await fireEvent.click(screen.getByRole("button", { name: "Waivers" }));
+    expect(await screen.findByRole("log", { name: "Team conversation" })).toBeTruthy();
+  });
+
   it("opens the shared conversation for a contextual prompt request", async () => {
     const teamPayload = createTeamPayloadFixture();
     const onAsk = vi.fn(async () => "Investigate the market move before changing your roster.");
@@ -289,7 +318,6 @@ describe("Team ask panel", () => {
     const view = render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -303,7 +331,6 @@ describe("Team ask panel", () => {
     await view.rerender({
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({
         id: "codex-app-server",
         label: "Codex app-server",
@@ -329,7 +356,7 @@ describe("Team ask panel", () => {
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       onAsk,
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Lineup Choose starters" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Lineup" }));
     await waitFor(() => expect(onAsk).toHaveBeenCalledOnce());
     expect(screen.getByText("Thinking…")).toBeTruthy();
 
@@ -354,7 +381,7 @@ describe("Team ask panel", () => {
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", configured: true }),
       onAsk,
     });
-    await fireEvent.click(screen.getByRole("button", { name: "Lineup Choose starters" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Lineup" }));
     expect(await screen.findByText("First answer")).toBeTruthy();
     const log = screen.getByRole("log", { name: "Team conversation" });
     expect(log.scrollTop).toBe(100);
@@ -453,7 +480,6 @@ describe("Team ask panel follow-up history", () => {
     render(TeamAskPanel, {
       teamState: teamPayload.state,
       weekContext: teamPayload.weekContext,
-      activitySummary: teamPayload.activitySummary,
       providerStatus: createAiProviderStatusFixture({ id: "codex-app-server", label: "Codex", configured: true }),
       onAsk,
     });

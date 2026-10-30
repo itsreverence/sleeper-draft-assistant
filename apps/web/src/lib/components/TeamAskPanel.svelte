@@ -1,18 +1,17 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import type { AiRequestProgress } from "../api";
-  import type { SuggestedQuestion } from "../ai-panel";
   import { CANCEL_REQUEST_HELP, createAiConversation } from "../ai-conversation.svelte";
   import { errorCopy } from "../error-copy";
   import { followNewest } from "../thread-scroll";
-  import { aiProviderAvailability, isAiProviderAvailable } from "../types";
-  import type { AiConversationMessage, AiProviderStatus, TeamActivitySummary, TeamManagerState, TeamWeekContext } from "../types";
+  import { aiProviderAvailability, isAssistantReady } from "../types";
+  import type { AiConversationMessage, AiProviderStatus, TeamManagerState, TeamWeekContext } from "../types";
   import AiMessageBubble from "./AiMessageBubble.svelte";
-  import SuggestedQuestions from "./SuggestedQuestions.svelte";
+  import Icon from "./Icon.svelte";
 
   let {
     teamState,
     weekContext = null,
-    activitySummary = null,
     selectedSeason = null,
     selectedWeek = null,
     contextKey = "",
@@ -25,7 +24,6 @@
   }: {
     teamState: TeamManagerState | null;
     weekContext?: TeamWeekContext | null;
-    activitySummary?: TeamActivitySummary | null;
     selectedSeason?: string | null;
     selectedWeek?: number | null;
     contextKey?: string;
@@ -37,67 +35,39 @@
     onRetryProvider?: () => void | Promise<void>;
   } = $props();
 
+  // Puts a question in the composer for the reader to edit and send. Anything already typed stays.
+  export async function composeQuestion(question: string) {
+    const draft = conversation.question.trim();
+    conversation.question = draft ? `${draft}\n${question}` : question;
+    await tick();
+    composerElement?.focus();
+    composerElement?.setSelectionRange(conversation.question.length, conversation.question.length);
+  }
+
   let handledPromptRequestId = 0;
+  let panelElement = $state<HTMLElement>();
   let composerElement = $state<HTMLTextAreaElement>();
   let sendButton = $state<HTMLButtonElement>();
+  let threadOpen = $state(true);
 
   $effect(() => {
     if (!conversation.isAsking && document.activeElement === sendButton) composerElement?.focus();
   });
 
-  const providerReady = $derived(providerStatus?.id === "codex-app-server" && isAiProviderAvailable(providerStatus));
+  const providerReady = $derived(isAssistantReady(providerStatus));
   const providerDisabled = $derived(aiProviderAvailability(providerStatus) === "disabled");
-  const providerLabel = $derived(providerReady
-    ? providerStatus?.label ?? "Assistant"
-    : providerDisabled ? "Assistant disabled" : "Assistant needs attention");
-  const suggestions = $derived(buildTeamQuestions(teamState, weekContext, activitySummary));
-  const openStarterSlots = $derived(teamState?.roster.starters.filter((slot) => !slot.player).length ?? 0);
-  const firstOpenStarterSlot = $derived(teamState?.roster.starters.find((slot) => !slot.player)?.slot ?? null);
-  const decisionPrompts = $derived.by(() => [
-    firstOpenStarterSlot
-      ? {
-          category: "Lineup",
-          title: `Fill ${firstOpenStarterSlot}`,
-          prompt: `How should I fill my open ${firstOpenStarterSlot} slot?`,
-        }
-      : teamState?.seasonPhase === "regular"
-        ? {
-            category: "Lineup",
-            title: "Choose starters",
-            prompt: "Who should I start this week?",
-          }
-        : {
-            category: "Depth",
-            title: "Review weak spots",
-            prompt: "Where is my roster or bench too thin?",
-          },
-    {
-      category: "Waivers",
-      title: "Find an upgrade",
-      prompt: "Which available players improve my roster, and who could I drop?",
-    },
-    {
-      category: "Strategy",
-      title: "Review the plan",
-      prompt: "What are the three highest-priority improvements for this roster?",
-    },
-  ]);
-  const hasWeeklyProjections = $derived(Boolean(
-    teamState?.roster.starters.some((slot) => slot.player?.projectionSource === "weekly_projection")
-      || teamState?.roster.bench.some((player) => player.projectionSource === "weekly_projection"),
-  ));
-  const contextSummary = $derived(teamState ? [
-    teamState.league.scoring,
-    openStarterSlots ? `${openStarterSlots} open slot${openStarterSlots === 1 ? "" : "s"}` : `${teamState.roster.bench.length} bench`,
-    weekContext
-      ? `vs ${weekContext.opponentTeamName ?? "opponent"}`
-      : teamState.seasonPhase === "preseason"
-        ? "Preseason"
-        : teamState.week
-          ? `Week ${teamState.week}`
-          : "Week unknown",
-    hasWeeklyProjections ? "Weekly data ready" : "Weekly data limited",
-  ] : ["No team loaded"]);
+  const quickQuestions = $derived.by(() => {
+    const openSlot = teamState?.roster.starters.find((slot) => !slot.player)?.slot;
+    return [
+      openSlot
+        ? { label: "Lineup", prompt: `How should I fill my open ${openSlot} slot?` }
+        : teamState?.seasonPhase === "regular"
+          ? { label: "Lineup", prompt: "Who should I start this week?" }
+          : { label: "Depth", prompt: "Where is my roster or bench too thin?" },
+      { label: "Waivers", prompt: "Which available players improve my roster, and who could I drop?" },
+      { label: "Plan", prompt: "What are the three highest-priority improvements for this roster?" },
+    ];
+  });
   const conversationIdentity = $derived(teamState
     ? `${teamState.league.id}:${teamState.userTeam.rosterId}:${selectedSeason ?? teamState.league.season}:${selectedWeek ?? weekContext?.week ?? teamState.week}`
     : "no-team");
@@ -119,12 +89,15 @@
     handledPromptRequestId = request.id;
     onPromptRequestHandled?.(request.id);
     conversation.question = request.question;
-    if (teamState && providerReady) void conversation.submit(request.question);
+    if (teamState && providerReady) submit(request.question);
   });
 
+  // The open thread has a fixed height, so this one scroll keeps it and the composer in view and an arriving answer never moves the page.
   function submit(overrideQuestion?: string) {
     if (!teamState || !providerReady) return;
+    threadOpen = true;
     void conversation.submit(overrideQuestion);
+    void tick().then(() => panelElement?.scrollIntoView({ block: "nearest" }));
   }
 
   function choosePrompt(prompt: string) {
@@ -133,50 +106,14 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       submit();
     }
   }
-
-  function buildTeamQuestions(
-    currentState: TeamManagerState | null,
-    currentWeek: TeamWeekContext | null | undefined,
-    currentActivity: TeamActivitySummary | null | undefined,
-  ): SuggestedQuestion[] {
-    if (!currentState) return [{ label: "After roster load", prompt: "What should I check after loading my roster?" }];
-
-    const questions: SuggestedQuestion[] = [
-      { label: "Roster plan", prompt: "What are the three highest-priority improvements for this roster?" },
-      { label: "Add/drop", prompt: "Which available players improve my roster, and who could I drop?" },
-      { label: "Bench depth", prompt: "Where is my bench too thin?" },
-    ];
-    const openSlot = currentState.roster.starters.find((slot) => !slot.player)?.slot;
-    if (openSlot) questions.unshift({ label: `Fill ${openSlot}`, prompt: `How should I fill my open ${openSlot} slot?` });
-    if (currentState.seasonPhase === "regular") questions.unshift({ label: "Lineup", prompt: "Who should I start this week?" });
-    if (currentWeek) questions.unshift({ label: "Matchup", prompt: "What does this week's matchup change about my decisions?" });
-    if (currentActivity?.trendingAdds.length) questions.push({ label: "Trending", prompt: "Which trending players should I investigate?" });
-    return questions.filter((item, index) => questions.findIndex((candidate) => candidate.prompt === item.prompt) === index).slice(0, 5);
-  }
 </script>
 
-<article class:has-conversation={conversation.messages.length > 0} class="panel team-ask-panel">
-  <header class="assistant-header">
-    <div>
-      <div class="assistant-title">
-        <h2>Ask Assistant</h2>
-        <span
-          class:offline={!providerReady}
-          class="provider-state"
-          role="status"
-          title={providerLabel}
-          aria-label={providerReady ? `${providerLabel} ready` : providerLabel}
-        ><i></i>{#if !providerReady}<span>{providerDisabled ? "Disabled" : "Needs attention"}</span>{/if}</span>
-      </div>
-      <p class="context-line">{conversation.messages.length > 0 ? contextSummary.join(" · ") : "Choose a prompt or ask your own."}</p>
-    </div>
-  </header>
-
+<section class="team-assistant" class:thread-open={threadOpen && conversation.messages.length > 0} aria-label="Assistant" bind:this={panelElement}>
   {#if !providerReady}
     <div class="provider-recovery" role="status">
       <div>
@@ -185,95 +122,87 @@
       </div>
       <div class="provider-actions">
         {#if onRetryProvider && !providerDisabled}<button class="btn btn-secondary" type="button" onclick={onRetryProvider}>Retry</button>{/if}
-        {#if onOpenSettings}<button class="btn btn-primary" type="button" onclick={onOpenSettings}>Open settings</button>{/if}
+        {#if onOpenSettings}<button class="btn btn-secondary" type="button" onclick={onOpenSettings}>Open settings</button>{/if}
       </div>
     </div>
-  {:else if conversation.messages.length === 0}
-    <div class="decision-grid" aria-label="Ask Assistant starters">
-      {#each decisionPrompts as prompt (prompt.prompt)}
-        <button
-          class="decision-prompt"
-          type="button"
-          title={prompt.prompt}
-          disabled={conversation.isAsking || !teamState || !providerReady}
-          onclick={() => choosePrompt(prompt.prompt)}
-        >
-          <span>{prompt.category}</span>
-          <strong>{prompt.title}</strong>
-          <b aria-hidden="true">→</b>
-        </button>
-      {/each}
-    </div>
   {:else}
-    <div class="conversation" role="log" aria-label="Team conversation" aria-live="polite" use:followNewest={newest}>
-      {#each conversation.messages as message (message.id)}
-        <AiMessageBubble message={message} answerNumber={conversation.answerNumber(message.id)} onCopy={conversation.copy} onRetry={() => submit(conversation.questionFor(message.id))} />
-      {/each}
+    {#if threadOpen && conversation.messages.length > 0}
+      <div class="conversation" role="log" aria-label="Team conversation" aria-live="polite" use:followNewest={newest}>
+        {#each conversation.messages as message (message.id)}
+          <AiMessageBubble message={message} answerNumber={conversation.answerNumber(message.id)} onCopy={conversation.copy} onRetry={() => submit(conversation.questionFor(message.id))} />
+        {/each}
+      </div>
+      {#if conversation.copied}<p class="copy-note">Copied response.</p>{/if}
+    {/if}
+    <div class="command-bar">
+      <div class="composer">
+        <textarea
+          bind:this={composerElement}
+          aria-label="Ask Assistant about your team"
+          bind:value={conversation.question}
+          onkeydown={handleKeydown}
+          rows="1"
+          placeholder={conversation.messages.length > 0 ? "Ask a follow-up…" : "Ask about your team…"}
+          disabled={!teamState}
+        ></textarea>
+        <button bind:this={sendButton} class="composer-send" class:composer-cancel={conversation.isAsking}
+          class:idle={!conversation.isAsking && !conversation.question.trim()}
+          type="button" aria-label={conversation.isAsking ? "Cancel" : "Ask Assistant"}
+          title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
+          disabled={!conversation.isAsking && (!conversation.question.trim() || !teamState)}
+          onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
+        >{conversation.isAsking ? "Cancel" : "Ask"}</button>
+        <div class="composer-actions">
+          {#if conversation.messages.length > 0}
+            <button class="quick" type="button" aria-expanded={threadOpen} onclick={() => (threadOpen = !threadOpen)}>
+              Conversation<Icon name="chevron-right" size={12} />
+            </button>
+          {/if}
+          <div class="quick-questions" role="group" aria-label="Quick questions">
+            {#each quickQuestions as question (question.label)}
+              <button class="quick" type="button" title={question.prompt} disabled={conversation.isAsking || !teamState} onclick={() => choosePrompt(question.prompt)}>{question.label}</button>
+            {/each}
+          </div>
+        </div>
+      </div>
     </div>
-    {#if conversation.copied}<p class="copy-note">Copied response.</p>{/if}
-    <SuggestedQuestions questions={suggestions.slice(0, 3)} disabled={conversation.isAsking || !teamState || !providerReady} onChoose={choosePrompt} />
   {/if}
-
-  {#if providerReady}<div class="composer">
-    <textarea
-      bind:this={composerElement}
-      class="input"
-      aria-label="Ask Assistant about your team"
-      bind:value={conversation.question}
-      onkeydown={handleKeydown}
-      rows={conversation.messages.length > 0 ? 3 : 1}
-      placeholder={conversation.messages.length > 0 ? "Ask a follow-up…" : "Ask something else…"}
-      disabled={!teamState || !providerReady}
-    ></textarea>
-    <button bind:this={sendButton} class="btn" class:btn-secondary={conversation.isAsking} class:btn-primary={!conversation.isAsking}
-      type="button" aria-label={conversation.isAsking ? "Cancel" : "Ask Assistant"}
-      title={conversation.isAsking ? CANCEL_REQUEST_HELP : undefined}
-      disabled={!conversation.isAsking && (!conversation.question.trim() || !teamState || !providerReady)}
-      onclick={() => conversation.isAsking ? conversation.cancel() : submit()}
-    >{conversation.isAsking ? "Cancel" : conversation.messages.length > 0 ? "Ask Assistant" : "Ask"}</button>
-  </div>{/if}
-</article>
+</section>
 
 <style>
-  .team-ask-panel { display: grid; grid-template-columns: minmax(190px, 230px) minmax(320px, 1fr); gap: 8px 18px; align-items: center; padding: 14px 16px; }
-  .team-ask-panel.has-conversation { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: var(--space-3); padding: var(--space-5); }
-  .assistant-header { grid-column: 1; grid-row: 1 / 3; align-self: center; }
-  .has-conversation .assistant-header { grid-row: auto; }
-  .assistant-title { display: flex; align-items: center; gap: 9px; }
-  .assistant-header h2 { font-size: var(--text-lg); line-height: 1.2; }
-  .context-line, .copy-note { margin: 5px 0 0; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.45; }
-  .provider-state { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 600; }
-  .provider-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-  .provider-state.offline { color: var(--danger); }
-  .provider-state.offline i { background: var(--danger); }
-  .provider-recovery { display: flex; grid-column: 2; align-items: center; justify-content: space-between; gap: var(--space-4); border: 1px solid var(--warning-border); border-radius: var(--radius-md); background: var(--warning-soft); padding: 10px 12px; }
-  .provider-recovery > div:first-child { display: grid; gap: 3px; }
-  .provider-recovery strong { font-size: var(--text-sm); }
-  .provider-recovery span { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.4; }
-  .provider-actions { display: flex; flex: 0 0 auto; gap: 7px; }
-  .decision-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-column: 2; gap: 7px; }
-  .decision-prompt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 10px; background: var(--surface-sunken); color: var(--text-primary); cursor: pointer; text-align: left; transition: border-color var(--transition-fast), background var(--transition-fast); }
-  .decision-prompt:hover:not(:disabled) { border-color: var(--accent-border); background: var(--accent-soft); }
-  .decision-prompt:disabled { cursor: not-allowed; opacity: .55; }
-  .decision-prompt span { grid-column: 1; overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-  .decision-prompt strong { grid-column: 1; overflow: hidden; font-size: var(--text-xs); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-  .decision-prompt b { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--accent); font-size: var(--text-base); }
-  .conversation { display: grid; gap: 10px; max-height: clamp(320px, 60vh, 720px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 3px; }
-  .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-column: 2; align-items: end; gap: 8px; }
-  .has-conversation .composer { grid-column: 1; }
-  .composer textarea { min-height: 40px; resize: none; }
-  .has-conversation .composer textarea { min-height: 76px; resize: vertical; }
-  .composer .btn { min-height: 40px; padding-inline: 16px; }
-  @media (max-width: 1100px) {
-    .team-ask-panel { grid-template-columns: 1fr; }
-    .assistant-header { grid-column: 1; grid-row: auto; }
-    .decision-grid, .composer { grid-column: 1; }
-    .provider-recovery { grid-column: 1; }
-  }
-  @media (max-width: 760px) {
-    .composer { grid-template-columns: 1fr; }
-    .decision-grid { grid-template-columns: 1fr; }
-    .composer .btn { width: 100%; }
+  /* DOM order stays thread, composer so the composer never remounts and focus survives the thread opening. */
+  .team-assistant { min-width: 0; }
+  .thread-open { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; }
+  .conversation { display: grid; gap: 10px; height: clamp(240px, 42vh, 460px); align-content: start; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: var(--space-4) var(--space-5); }
+  .copy-note { padding: 0 var(--space-5) 10px; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.45; }
+  .thread-open .command-bar { border-top: 1px solid var(--border); padding: var(--space-3); }
+
+  .composer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; min-height: 44px; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--surface-sunken); padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3); }
+  .composer:focus-within { border-color: var(--accent-border); box-shadow: 0 0 0 1px var(--accent-border); }
+  textarea { flex: 1 1 200px; min-width: 0; max-height: 96px; border: 0; outline: 0; background: transparent; padding: var(--space-1) 0; color: var(--text-primary); field-sizing: content; font-size: var(--text-base); resize: none; }
+  textarea::placeholder { color: var(--text-muted); }
+  /* The composer around it draws the focus ring. */
+  .composer textarea:focus-visible { outline: 0; box-shadow: none; }
+  .composer-send { min-width: 52px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-raised); padding: 6px 10px; color: var(--text-primary); cursor: pointer; font-size: var(--text-sm); font-weight: 600; }
+  .composer-send.idle { display: none; }
+  .composer-send:hover { background: var(--surface-hover); }
+  .composer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-left: auto; }
+  .quick-questions { display: flex; align-items: center; gap: var(--space-1); }
+  .quick { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; padding: 0 var(--space-2); color: var(--text-secondary); cursor: pointer; font-size: var(--text-sm); font-weight: 500; }
+  .quick:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-primary); }
+  .quick:disabled { cursor: not-allowed; color: var(--text-muted); }
+  .quick[aria-expanded="true"] > :global(.icon) { transform: rotate(90deg); }
+
+  .provider-recovery { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); border: 1px solid var(--warning-border); border-radius: var(--radius-md); background: var(--warning-soft); padding: var(--space-3); }
+  .provider-recovery > div:first-child { display: grid; gap: 2px; min-width: 0; }
+  .provider-recovery strong { font-size: var(--text-md); font-weight: 600; }
+  .provider-recovery span { color: var(--text-secondary); font-size: var(--text-sm); }
+  .provider-actions { display: flex; flex: 0 0 auto; gap: var(--space-2); }
+  .provider-actions .btn { min-height: 32px; padding: var(--space-1) var(--space-3); font-size: var(--text-sm); }
+
+  @media (max-width: 520px) {
+    .conversation { padding: var(--space-4); }
+    .composer-actions { margin-left: 0; }
     .provider-recovery { align-items: stretch; flex-direction: column; }
     .provider-actions .btn { flex: 1; }
   }
