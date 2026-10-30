@@ -232,15 +232,13 @@ test("draft answers contain wide Markdown tables inside the chat bubble", async 
 });
 
 test("a keyboard-activated suggestion chip hands focus to the draft composer", async ({ page }) => {
-  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, async route => {
-    const response = await route.fetch();
-    await route.fulfill({ json: { ...await response.json(), answer: "Synthetic answer.", strategyProposal: null } });
-  });
+  await page.route(/\/api\/drafts\/[^/]+\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer.", strategyProposal: null } }));
   await page.getByRole("button", { name: "Ask about this draft", exact: true }).click();
   await page.getByLabel("Suggested questions").getByRole("button").first().focus();
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Suggested questions")).toHaveCount(0);
   expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Ask about your draft");
+  await expect(page.getByText("Synthetic answer.")).toBeVisible();
 });
 
 for (const [label, title] of [["unbroken", longUnbrokenTitle], ["wrapping", longWrappingTitle]]) {
