@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 
 import type { SeasonValueRankingImportSummary } from "../types";
@@ -18,6 +18,18 @@ const fallbackSummary: SeasonValueRankingImportSummary = {
 };
 
 describe("season value ranking controls", () => {
+  it("names the chosen file so the import button has visible context", async () => {
+    renderPanel("regular", 1);
+    expect(screen.getByText("No file selected")).toBeTruthy();
+
+    await fireEvent.change(screen.getByLabelText("Choose CSV"), {
+      target: { files: [{ name: "synthetic-ros.csv", text: async () => "RK,PLAYER NAME" }] },
+    });
+
+    expect(await screen.findByText("synthetic-ros.csv")).toBeTruthy();
+    expect(screen.queryByText("No file selected")).toBeNull();
+  });
+
   it("labels connected draft ECR without an early replacement warning", () => {
     renderPanel("preseason", 0);
 

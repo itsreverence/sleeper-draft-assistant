@@ -212,10 +212,24 @@ describe("App draft lifecycle", () => {
 
     await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
 
-    const teamStatus = view.container.querySelector('[title^="Your team:"]');
+    const teamStatus = await findTeamStatus(view.container);
     expect(teamStatus?.textContent).toContain("Your Team");
     expect(teamStatus?.textContent).toContain("Slot 3");
     expect(teamStatus?.textContent).not.toContain("Roster 3");
+  });
+
+  it("gives draft preparation one primary action and no Setup strip", async () => {
+    apiMock.settings = { ...apiMock.settings, aiSetupAcknowledged: false };
+    apiMock.aiStatus = createDisabledAiStatus();
+    const draftLoad = apiMock.deferDraftState({ draftId: "draft-1", userRosterId: null, userIdentifier: null });
+    const view = render(App);
+
+    await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
+
+    expect(screen.getByRole("heading", { name: /Ground the Assistant/ })).toBeTruthy();
+    expect(screen.queryByLabelText("Setup progress")).toBeNull();
+    const live = view.container.querySelectorAll(".btn-primary:not(:disabled, .is-disabled)");
+    expect([...live].map((element) => element.textContent?.trim())).toEqual(["Confirm Codex settings"]);
   });
 
   it("keeps Team Manager on Sleeper's active week across refreshes", async () => {
@@ -376,7 +390,7 @@ describe("App draft lifecycle", () => {
     draftLoad.resolve(payload);
 
     expect(await screen.findByText("Sleeper Alpha Draft")).toBeTruthy();
-    const teamStatus = view.container.querySelector('[title^="Your team:"]');
+    const teamStatus = await findTeamStatus(view.container);
     expect(teamStatus?.textContent).toContain("Draft slot 3");
     expect(teamStatus?.textContent).not.toContain("Your Team");
   });
@@ -1184,6 +1198,14 @@ async function closeDraftSwitcher() {
 
 function getDirectDraftForm(): HTMLFormElement {
   return screen.getByPlaceholderText("Paste a draft ID").closest("form") as HTMLFormElement;
+}
+
+function findTeamStatus(container: HTMLElement) {
+  return waitFor(() => {
+    const element = container.querySelector('[title^="Your team:"]');
+    expect(element).toBeTruthy();
+    return element;
+  });
 }
 
 async function openAndResolveDraft(

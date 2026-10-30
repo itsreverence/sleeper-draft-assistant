@@ -2,10 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { expect, it, vi } from "vitest";
 import RankingsImportPanel from "./RankingsImportPanel.svelte";
 
-function setup() {
+function setup(primaryStep: "rankings" | "projections" | "adp" | "assistant" | null = null) {
   const onImportSeasonProjections = vi.fn();
   const { container } = render(RankingsImportPanel, {
-    hasDraft: true, scoring: "PPR", season: "2026", expanded: true,
+    hasDraft: true, scoring: "PPR", season: "2026", expanded: true, primaryStep,
     rankingImportSummary: null, seasonProjectionImportSummary: null, adpImportSummary: null,
     rankingImportError: "", seasonProjectionImportError: "", adpImportError: "",
     isImportingRankings: false, isClearingRankings: false,
@@ -19,6 +19,18 @@ function setup() {
   if (!(input instanceof HTMLInputElement)) throw new Error("Season projection picker is missing");
   return { input, container, onImportSeasonProjections };
 }
+
+it.each([
+  ["rankings", ["Upload CSV for ECR rankings"]],
+  ["projections", ["Upload files for season projections"]],
+  ["adp", ["Upload CSV for Sleeper ADP"]],
+  ["assistant", []],
+  [null, []],
+] as const)("marks only the %s upload as the primary action", (step, primaries) => {
+  const { container } = setup(step);
+  const primary = [...container.querySelectorAll("label.btn-primary input")].map((input) => input.getAttribute("aria-label"));
+  expect(primary).toEqual(primaries);
+});
 
 const exports = [
   ["QB", "Player,Team,BYE,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS"],

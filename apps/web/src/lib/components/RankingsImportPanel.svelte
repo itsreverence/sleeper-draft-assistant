@@ -1,8 +1,10 @@
 <script lang="ts">
   import type { AdpImportSummary, Position, RankingImportSummary, SeasonProjectionImportSummary } from "../types";
+  import type { DraftPreparationStep } from "../draft-preparation";
   import { inferFantasyProsProjectionPosition } from "../fantasypros-projection-file";
   import { formatImportDate } from "../format";
   import { getImportFreshness } from "../freshness";
+  import FileInput from "./FileInput.svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -31,6 +33,7 @@
     onOpenSeasonProjections,
     onOpenAdp,
     expanded = $bindable(false),
+    primaryStep = null,
   }: {
     hasDraft: boolean;
     scoring: string;
@@ -57,6 +60,7 @@
     onOpenSeasonProjections: () => void;
     onOpenAdp: () => void;
     expanded?: boolean;
+    primaryStep?: DraftPreparationStep | null;
   } = $props();
 
   let projectionFiles: Array<{ position: Position; csvText: string; name: string }> = $state([]);
@@ -70,6 +74,10 @@
   const summaryText = $derived(
     hasDraft ? `${loadedCount}/3 sources loaded` : "Available after draft selection",
   );
+
+  const rankingsAction = $derived(isImportingRankings ? "Importing" : rankingImportSummary ? "Replace CSV" : "Upload CSV");
+  const projectionsAction = $derived(isImportingSeasonProjections ? "Importing" : seasonProjectionImportSummary ? "Replace files" : "Upload files");
+  const adpAction = $derived(isImportingAdp ? "Importing" : adpImportSummary ? "Replace CSV" : "Upload CSV");
 
   async function readSingleFile(event: Event, target: "rankings" | "adp") {
     const input = event.currentTarget as HTMLInputElement;
@@ -161,10 +169,13 @@
         {#if rankingImportSummary}
           <button class="text-link" type="button" disabled={isClearingRankings} onclick={onClearRankings}>Clear</button>
         {/if}
-        <label class="btn btn-primary upload-button">
-          {isImportingRankings ? "Importing" : rankingImportSummary ? "Replace CSV" : "Upload CSV"}
-          <input type="file" accept=".csv,text/csv" disabled={isImportingRankings || isClearingRankings} onchange={(event) => readSingleFile(event, "rankings")} />
-        </label>
+        <FileInput
+          label={rankingsAction}
+          ariaLabel={`${rankingsAction} for ECR rankings`}
+          primary={primaryStep === "rankings"}
+          disabled={isImportingRankings || isClearingRankings}
+          onchange={(event) => readSingleFile(event, "rankings")}
+        />
       </div>
       {#if rankingImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(rankingImportSummary.appliedAt, 14).stale}>
@@ -185,7 +196,7 @@
           <span>League-scored points and replacement value</span>
         </div>
         <span class="source-status" class:ready={Boolean(seasonProjectionImportSummary)}>
-          {seasonProjectionImportSummary ? `${seasonProjectionImportSummary.matched} matched` : "Recommended"}
+          {seasonProjectionImportSummary ? `${seasonProjectionImportSummary.matched} matched` : "Required"}
         </span>
       </div>
       <div class="source-actions">
@@ -193,10 +204,14 @@
         {#if seasonProjectionImportSummary}
           <button class="text-link" type="button" disabled={isClearingSeasonProjections} onclick={onClearSeasonProjections}>Clear</button>
         {/if}
-        <label class="btn btn-primary upload-button">
-          {isImportingSeasonProjections ? "Importing" : seasonProjectionImportSummary ? "Replace files" : "Upload files"}
-          <input type="file" multiple accept=".csv,text/csv" disabled={isImportingSeasonProjections || isClearingSeasonProjections} onchange={readProjectionFiles} />
-        </label>
+        <FileInput
+          label={projectionsAction}
+          ariaLabel={`${projectionsAction} for season projections`}
+          primary={primaryStep === "projections"}
+          multiple
+          disabled={isImportingSeasonProjections || isClearingSeasonProjections}
+          onchange={readProjectionFiles}
+        />
       </div>
       {#if projectionFiles.length > 0}
         <div class="position-list">
@@ -226,7 +241,7 @@
           <span>Sleeper and Real-Time market evidence</span>
         </div>
         <span class="source-status" class:ready={Boolean(adpImportSummary)}>
-          {adpImportSummary ? `${adpImportSummary.matched} matched` : "Recommended"}
+          {adpImportSummary ? `${adpImportSummary.matched} matched` : "Required"}
         </span>
       </div>
       <div class="source-actions">
@@ -234,10 +249,13 @@
         {#if adpImportSummary}
           <button class="text-link" type="button" disabled={isClearingAdp} onclick={onClearAdp}>Clear</button>
         {/if}
-        <label class="btn btn-primary upload-button">
-          {isImportingAdp ? "Importing" : adpImportSummary ? "Replace CSV" : "Upload CSV"}
-          <input type="file" accept=".csv,text/csv" disabled={isImportingAdp || isClearingAdp} onchange={(event) => readSingleFile(event, "adp")} />
-        </label>
+        <FileInput
+          label={adpAction}
+          ariaLabel={`${adpAction} for Sleeper ADP`}
+          primary={primaryStep === "adp"}
+          disabled={isImportingAdp || isClearingAdp}
+          onchange={(event) => readSingleFile(event, "adp")}
+        />
       </div>
       {#if adpImportSummary}
         <span class="source-meta" class:stale={getImportFreshness(adpImportSummary.appliedAt, 14).stale}>
@@ -373,8 +391,7 @@
     flex-wrap: wrap;
   }
 
-  .source-actions .btn {
-    min-height: 34px;
+  .source-actions :global(.file-input) {
     margin-left: auto;
   }
 
@@ -397,20 +414,6 @@
   .text-link:disabled {
     cursor: not-allowed;
     opacity: 0.6;
-  }
-
-  .upload-button {
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-  }
-
-  .upload-button input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
   }
 
   .position-list {
@@ -446,12 +449,8 @@
       align-items: flex-start;
     }
 
-    .source-actions {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .source-actions .btn {
+    .source-actions :global(.file-input),
+    .source-actions :global(.file-button) {
       width: 100%;
     }
   }

@@ -338,6 +338,13 @@
     .status-panel {
       min-width: 0;
     }
+  }
 
+  @media (max-width: 520px) {
+    .brand:has(.brand-mark) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-2);
+    }
   }
 </style>

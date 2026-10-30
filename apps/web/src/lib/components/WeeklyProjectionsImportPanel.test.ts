@@ -60,6 +60,7 @@ it("pasting replaces selected files and clears the previous error", async () => 
   await select("FantasyPros_TE.csv");
   await screen.findByRole("button", { name: "Import TE" });
   await fireEvent.input(screen.getByLabelText("CSV for the selected position"), { target: { value: "replacement CSV" } });
+  expect(screen.getByText("Using pasted CSV")).toBeTruthy();
   await waitFor(() => expect(screen.queryByText("Unsupported projection header.")).toBeNull());
   await fireEvent.click(screen.getByRole("button", { name: "Import QB" }));
   expect(onImport.mock.calls[0]?.[0].files).toEqual([{ position: "QB", csvText: "replacement CSV" }]);

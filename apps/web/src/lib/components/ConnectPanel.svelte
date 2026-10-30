@@ -316,18 +316,9 @@
 
   .mini-links {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 18px;
-  }
-
-  .mini-links .text-link {
-    font-size: var(--text-xs);
-    text-decoration: none;
-    color: var(--text-muted);
-  }
-
-  .mini-links .text-link:hover {
-    color: var(--text-primary);
+    gap: var(--space-1) var(--space-4);
   }
 
   .mini-form {

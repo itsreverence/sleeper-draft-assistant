@@ -203,7 +203,7 @@ The uppercase label style is reserved for section eyebrows and table column head
 
 ## Layout
 
-The application uses a centered responsive shell with a constrained content column. Connected workflows are top-anchored so the board and working panels remain immediately available. The pre-connect state may use a narrower centered column to keep the entry task deliberate.
+The application uses a centered responsive shell with a constrained content column. Connected workflows are top-anchored so the board and working panels remain immediately available. The pre-connect state may use a narrower centered column to keep the entry task deliberate. The Setup strip appears only while choosing a league and draft, and the logo stacks above the title at the 520px phone breakpoint. Draft preparation carries readiness in its own header.
 
 The draft room leads with the decision. A pick strip sits under the top bar, then the Assistant call (7/12) beside recent picks and the roster summary (5/12), then a two-round live board, then the Ask Assistant command bar. Emergency board-only mode and a completed draft put the board directly under their note instead, with recent picks and the roster below it. At 1100px and below the room is one column in the same order. The board scrolls horizontally when team count exceeds the viewport, and it keeps the round column and team header legible.
 
@@ -238,6 +238,8 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 - **Secondary:** Raised charcoal surface with a strong neutral border.
 - **Ghost / text:** Transparent, muted text for disclosures, alternate paths, and low-frequency actions.
 - **Hover / Focus:** Small surface or border shift; use the shared green focus ring and preserve keyboard visibility.
+- **Disabled primary:** Raised surface, subtle border, and muted text at 5.8:1, never faded green. A disabled primary does not count as a screen's one primary action.
+- **One primary:** A screen or panel shows at most one live primary. Draft preparation gives it to the next unmet step in page order, then to Enter draft room; every other upload stays secondary.
 
 ### Chips
 
@@ -263,6 +265,7 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 
 - **Style:** Sunken surface, 1px input border (`--border-input`), 10px radius, 10px 12px padding.
 - **Focus:** Green border and a restrained green focus ring.
+- **File inputs:** `FileInput.svelte` keeps the native input visually hidden, focusable, and named by its label, and draws the label as a button. Focus shows the shared ring on the button; Enter or Space opens the system chooser. The selected file name or "No file selected" sits beside it.
 - **Error / Disabled:** Semantic red or amber callout for errors; disabled controls retain layout and use reduced opacity without losing their label.
 
 ### Navigation

@@ -139,7 +139,6 @@ a {
 
 .input,
 input[type="text"],
-input[type="file"],
 textarea {
   width: 100%;
   border: 1px solid var(--border-input);
@@ -191,7 +190,8 @@ textarea {
   transform: translateY(1px);
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn.is-disabled {
   cursor: not-allowed;
   opacity: 0.55;
   transform: none;
@@ -203,8 +203,18 @@ textarea {
   box-shadow: 0 8px 20px -10px var(--accent-border);
 }
 
-.btn-primary:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled, .is-disabled) {
   background: var(--accent-strong);
+}
+
+/* Neutral rather than faded green: text keeps AA contrast and only a live primary reads as the next action. */
+.btn-primary:disabled,
+.btn-primary.is-disabled {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  box-shadow: none;
+  opacity: 1;
 }
 
 .btn-secondary {
@@ -213,7 +223,7 @@ textarea {
   color: var(--text-primary);
 }
 
-.btn-secondary:hover:not(:disabled) {
+.btn-secondary:hover:not(:disabled, .is-disabled) {
   background: var(--surface-hover);
   border-color: var(--border-strong);
 }

@@ -2,6 +2,7 @@
   import type { DraftScoringFormat, SeasonValueRankingImportSummary, TeamManagerState } from "../types";
   import { formatImportDate } from "../format";
   import { getImportFreshness } from "../freshness";
+  import FileInput from "./FileInput.svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -40,6 +41,7 @@
 
   let season = $state("");
   let csvText = $state("");
+  let csvName = $state("");
 
   $effect(() => {
     if (!season && defaultSeason) season = defaultSeason;
@@ -54,7 +56,9 @@
 
   async function readFile(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
-    if (file) csvText = await file.text();
+    if (!file) return;
+    csvText = await file.text();
+    csvName = file.name;
   }
 </script>
 
@@ -105,16 +109,19 @@
     <button class="btn btn-secondary" type="button" disabled={!hasTeam} onclick={onOpenDraftFallback}>
       Open Draft ECR <Icon name="external" size={13} />
     </button>
-    <label class="btn btn-secondary file-button">
-      Choose CSV
-      <input type="file" accept=".csv,text/csv" disabled={!hasTeam || isImporting || isClearing} onchange={readFile} />
-    </label>
     {#if summary && summary.rankingOrigin !== "draft-import"}
-      <button class="btn btn-quiet" type="button" disabled={isClearing || isImporting} onclick={() => onClear({ season: summary.season, scoring: summary.scoring })}>
+      <button class="btn btn-ghost" type="button" disabled={isClearing || isImporting} onclick={() => onClear({ season: summary.season, scoring: summary.scoring })}>
         {isClearing ? "Clearing" : "Clear"}
       </button>
     {/if}
   </div>
+
+  <FileInput
+    label="Choose CSV"
+    selection={csvName || "No file selected"}
+    disabled={!hasTeam || isImporting || isClearing}
+    onchange={readFile}
+  />
 
   <button
     class="btn btn-primary btn-block"
@@ -176,15 +183,10 @@
     display: flex;
     align-items: center;
   }
-  .file-button {
-    position: relative;
-    overflow: hidden;
-  }
-  .file-button input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   @media (max-width: 760px) {
     .control-grid {
