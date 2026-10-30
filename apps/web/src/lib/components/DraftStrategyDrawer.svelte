@@ -39,7 +39,7 @@
   icon="clipboard"
   subtitle={strategy
     ? `Updated at pick ${strategy.decision.plan.updatedAtPick}`
-    : "Add guidance now. The next Assistant evaluation will use it with the current board and roster."}
+    : "No plan yet. The Assistant writes one near your turn. Guidance you add now shapes it."}
   {onClose}
 >
   {#if strategy}
