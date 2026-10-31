@@ -121,3 +121,12 @@ test("a remembered Team Manager falls back to the board when team data fails", a
   await page.reload();
   await expect(page.getByRole("region", { name: "Draft board" })).toBeVisible();
 });
+
+test("Manage draft data from Settings keeps focus in the app", async ({ page }) => {
+  await loadDraft(page, "browser-board-pre");
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: /Manage draft data/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
+});

@@ -1643,11 +1643,13 @@
     draftPreparationOpen = true;
   }
 
-  function manageDraftDataFromSettings() {
+  async function manageDraftDataFromSettings() {
     settingsOpen = false;
     workspaceMode = "draft";
     reviewingDraftResults = true;
     draftPreparationOpen = true;
+    await tick();
+    if (document.activeElement === document.body) focusAfterLostOpener();
   }
 
   function openSettings() {
