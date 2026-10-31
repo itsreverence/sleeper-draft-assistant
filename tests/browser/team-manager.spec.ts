@@ -206,6 +206,30 @@ test("a pending retry keeps the failed-refresh note until new data arrives", asy
   await expect(page.getByText("Lineup looks set").first()).toBeVisible();
 });
 
+test("switching drafts keeps the failed-refresh note until the new team arrives", async ({ page }) => {
+  await open(page, "all-clear");
+  const teamRoute = /\/api\/leagues\/[^/]+\/team(?:\?|$)/;
+  const note = page.locator(".attention.note").filter({ hasText: "Nothing flagged, but the last refresh failed." });
+  await page.unroute(teamRoute);
+  await page.route(teamRoute, route => route.fulfill({ status: 503, json: { error: "Synthetic outage." } }));
+  await page.getByRole("button", { name: "Refresh team data" }).click();
+  await expect(note).toBeVisible();
+
+  let requested = () => {};
+  const arrived = new Promise<void>(resolve => { requested = resolve; });
+  await page.route(/\/api\/drafts\/[^/]+\/state(?:\?|$)/, () => { requested(); });
+  await page.getByTitle("Switch league or draft", { exact: true }).click();
+  const switcher = page.getByRole("dialog", { name: "Switch league or draft" });
+  await switcher.getByText("Paste a draft ID", { exact: true }).click();
+  await switcher.getByPlaceholder("Paste a draft ID").fill(`browser-${randomUUID()}`);
+  await switcher.getByRole("button", { name: "Load draft", exact: true }).click();
+  await arrived;
+  await page.keyboard.press("Escape");
+  await expect(switcher).toBeHidden();
+  await expect(page.getByText("Lineup looks set")).toHaveCount(0);
+  await expect(note).toBeVisible();
+});
+
 test("every part of Team Manager fits and works at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await open(page, "needs-look", true);

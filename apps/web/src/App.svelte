@@ -853,7 +853,7 @@
     userIdentifier: string | null = null,
   ): Promise<boolean> {
     const requestId = ++loadDraftRequestId;
-    resetTeamRefreshTracking();
+    teamSession.reset();
     isLoading = true;
     loadError = "";
     resetDraftImportState();
@@ -875,7 +875,7 @@
 
       const { payload, resolvedLeagueId } = activation;
       if (teamManagerState?.league.id !== resolvedLeagueId) {
-        resetTeamRefreshTracking();
+        teamSession.reset();
         teamProjectionSeason = "";
         teamProjectionWeek = 0;
         weeklyProjectionSummary = null;
@@ -911,6 +911,7 @@
       draftSession.clear();
       decisionSnapshots = [];
       decisionHistoryError = "";
+      teamRefreshError = "";
       teamManagerState = null;
       teamDataReadiness = null;
       teamWeekContext = null;
