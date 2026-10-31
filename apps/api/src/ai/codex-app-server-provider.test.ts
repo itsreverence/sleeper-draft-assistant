@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { createMockDraftState } from "@sleeper-draft-assistant/engine";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildDraftQuestionContext } from "./context";
+import { buildDraftStrategyContext, buildDraftQuestionContext } from "./context";
 import { newsDomains } from "./player-news";
 import type { AiTool } from "./types";
 import { CodexAppServerProvider, attachCodexAppServerProcess, executeDynamicToolCall, parseAiDraftDecision, parseDraftQuestionAnswer, findCodexLaunchOnWindows, resolveCodexLaunch, toDynamicToolDefinitions, type CodexAppServerClient, type CodexTurnOptions } from "./codex-app-server-provider";
@@ -943,4 +943,46 @@ describe("request scheduling", () => {
     else { expect(await queued).toMatchObject({ answer: "Grounded answer." }); expect(calls).toBe(2); }
     provider.close();
   });
+});
+
+it("skips automatic news promptly but keeps Retry and questions researching on the same thread", async () => {
+  const main = new FakeCodexClient();
+  const state = createMockDraftState(8);
+  const context = buildDraftStrategyContext(state);
+  const phases: string[] = [];
+  let automatic = true;
+  const factory = vi.fn(async () => {
+    if (factory.mock.calls.length === 1) return main;
+    const research = new FakeCodexClient();
+    research.runTurn = async () => JSON.stringify({ summary: "Report", sources: [{ title: "Report", url: "https://www.nfl.com/news/report", reportedAt: new Date().toISOString().slice(0, 10) }] });
+    return research;
+  });
+  const threads: string[] = [];
+  main.runTurn = async (thread, prompt, tools = [], options) => {
+    threads.push(thread);
+    const news = tools.find(tool => tool.definition.name === "check_player_news")!;
+    if (automatic) {
+      expect(prompt).toContain("Do not call check_player_news");
+      expect(options?.toolWaitMs).toBe(0);
+      for (let i = 0; i < 3; i++) expect(await news.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" })).toMatchObject({ status: "unavailable" });
+    } else {
+      for (let i = 0; i < 2; i++) expect(await news.execute({ playerId: context.playerEvidence[0]!.playerId, topic: "injury" })).toMatchObject({ status: "available" });
+    }
+    return JSON.stringify({ basedOnPick: state.currentPick, recommendedPlayerId: "fixture", alternativePlayerIds: [], verdict: "strong", confidence: "high", headline: "Fixture", summary: "Fixture", reasons: ["Fixture"], risks: [], plan: { updatedAtPick: state.currentPick, approach: "Fixture", currentPickFocus: ["RB"], nextTurnPriorities: ["WR"], positionsThatCanWait: ["QB"], rosterGoals: ["Fixture"], watchItems: [], changeSummary: "Fixture" } });
+  };
+  const provider = new CodexAppServerProvider({ clientFactory: factory });
+  try {
+    await provider.strategizeDraft(context, [], { automatic: true, onPhase: phase => phases.push(phase) });
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(phases).toEqual(["thinking"]);
+    expect(provider.newsDiagnostics()).toEqual([]);
+    expect(provider.timingDiagnostics()[0]).toMatchObject({ toolMs: 0, newsMs: 0 });
+    automatic = false;
+    await provider.strategizeDraft(context, [], { automatic: false });
+    await provider.answerDraftQuestion(buildDraftQuestionContext(state, "Check injury news"));
+    expect(provider.newsDiagnostics()).toHaveLength(4);
+    expect(threads).toEqual(["thread-1", "thread-1", "thread-1"]);
+    expect(main.threadStartCalls).toBe(1);
+    expect(main.threadStartParams[0]?.dynamicTools).toEqual(expect.arrayContaining([expect.objectContaining({ name: "check_player_news" })]));
+  } finally { provider.close(); }
 });

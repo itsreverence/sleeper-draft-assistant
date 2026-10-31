@@ -82,3 +82,18 @@ it("handles empty dialogs, updated callbacks, and already-consumed Escape", asyn
   expect(updated).toHaveBeenCalledOnce();
   expect(view.onClose).not.toHaveBeenCalled();
 });
+
+it.each(["removed", "hidden", "disabled"])("uses fallback when the opener is %s", async (state) => {
+  const opener = document.createElement("button");
+  const fallback = document.createElement("textarea");
+  document.body.append(opener, fallback);
+  opener.focus();
+  const view = mount("<button>Close</button>");
+  view.action.update({ onClose: view.onClose, fallbackFocus: () => fallback.focus() });
+  await Promise.resolve();
+  if (state === "removed") opener.remove();
+  if (state === "hidden") opener.hidden = true;
+  if (state === "disabled") opener.disabled = true;
+  view.destroy();
+  expect(document.activeElement).toBe(fallback);
+});

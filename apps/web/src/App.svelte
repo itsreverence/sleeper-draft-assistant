@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AiRequestProgress } from "./lib/api";
-  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { onDestroy, onMount, tick, untrack, setContext } from "svelte";
   import { draftStateRevision } from "@sleeper-draft-assistant/shared";
 
   import TopBar from "./lib/components/TopBar.svelte";
@@ -12,6 +12,7 @@
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
   import PickStrip from "./lib/components/PickStrip.svelte";
+  import { modalFallbackFocus } from "./lib/modal";
   import DraftTeamDrawer from "./lib/components/DraftTeamDrawer.svelte";
   import PlayerSearchDialog from "./lib/components/PlayerSearchDialog.svelte";
   import ShortlistPanel from "./lib/components/ShortlistPanel.svelte";
@@ -183,6 +184,10 @@
   let draftActivityOpen = $state(false);
   let draftBoardOpen = $state(false);
   let askPanel: AskManagerPanel | undefined = $state();
+  setContext(modalFallbackFocus, () => {
+    if (workspaceMode === "draft") askPanel?.focusComposer?.();
+    else manageDataButton?.focus();
+  });
   let draftRoomElement: HTMLElement | undefined = $state();
   let selectedDraftTeamId: string | null = $state(null);
   let playerSearchOpen = $state(false);
