@@ -273,7 +273,7 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 ### Navigation
 
 - **Style:** Compact top bar with the product mark and active league/draft name. Settings is a quiet icon control. Draft switching is a disclosure menu attached to the active league name.
-- **Workspace controls:** Use segmented tabs for view ranges such as live rounds versus full board, and keep them visually distinct from connection or sync status.
+- **Workspace controls:** Use one labelled toggle for view ranges such as live rounds versus full board, and keep it visually distinct from connection or sync status.
 - **Mobile:** Stack controls when necessary; preserve the active state and keep overflow intentional rather than clipping text.
 
 ### Pick Strip
