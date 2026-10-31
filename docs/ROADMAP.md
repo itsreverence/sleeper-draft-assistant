@@ -2,7 +2,7 @@
 
 This is a direction document, not a promise or release schedule.
 
-## Current release (0.1.2)
+## Current release (0.1.3)
 
 - Sleeper account, league, and draft discovery
 - live/completed draft-state views
