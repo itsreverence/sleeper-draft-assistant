@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { modal } from "../modal";
+  import { getContext } from "svelte";
+  import { modal, modalFallbackFocus } from "../modal";
   import type { DraftState, PlayerPreferenceLevel, PlayerPreferences, Position } from "../types";
   import { searchDraftPlayers } from "../player-search";
   import Icon from "./Icon.svelte";
@@ -22,6 +23,7 @@
   } = $props();
 
   const positions: Array<Position | null> = [null, "QB", "RB", "WR", "TE", "K", "DEF"];
+  const fallbackFocus = getContext<(() => void) | undefined>(modalFallbackFocus);
   let query = $state("");
   let position: Position | null = $state(null);
   let searchInput = $state<HTMLInputElement>();
@@ -42,7 +44,7 @@
 </script>
 
 <button class="dialog-backdrop" type="button" aria-label="Close player search" onclick={onClose}></button>
-<div class="player-dialog" use:modal={{ onClose: () => onClose(), initialFocus: 'input[type="search"]' }} role="dialog" aria-modal="true" aria-labelledby="player-search-title">
+<div class="player-dialog" use:modal={{ onClose: () => onClose(), initialFocus: 'input[type="search"]', fallbackFocus }} role="dialog" aria-modal="true" aria-labelledby="player-search-title">
   <header>
     <div>
       <span class="eyebrow">Draft preferences</span>

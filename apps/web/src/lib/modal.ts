@@ -1,4 +1,5 @@
-type ModalOptions = { onClose: () => void; initialFocus?: string };
+export const modalFallbackFocus = Symbol("modalFallbackFocus");
+type ModalOptions = { onClose: () => void; initialFocus?: string; fallbackFocus?: () => void };
 const stack: HTMLElement[] = [];
 let previousOverflow = "";
 
@@ -71,8 +72,18 @@ export function modal(node: HTMLElement, options: ModalOptions) {
       if (previousTabindex === null) node.removeAttribute("tabindex");
       else node.setAttribute("tabindex", previousTabindex);
       if (!stack.length) document.body.style.overflow = previousOverflow;
-      if (wasTop && opener?.isConnected && (!stack.length || stack.at(-1)!.contains(opener))) {
-        opener.focus({ preventScroll: true });
+      if (wasTop) {
+        const parent = stack.at(-1);
+        let usable = opener?.isConnected && opener !== document.body && !opener.matches(":disabled") && !opener.closest("[hidden], [inert]");
+        for (let element = opener; usable && element; element = element.parentElement) {
+          const style = getComputedStyle(element);
+          if (style.display === "none" || style.visibility === "hidden") usable = false;
+        }
+        if (usable && opener && (!parent || parent.contains(opener))) opener.focus({ preventScroll: true });
+        if (!usable || document.activeElement !== opener) {
+          if (parent) parent.focus({ preventScroll: true });
+          else options.fallbackFocus?.();
+        }
       }
     },
   };

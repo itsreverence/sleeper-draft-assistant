@@ -1,8 +1,10 @@
 <script lang="ts">
-  import type { ComponentProps, Snippet } from "svelte";
+  import { getContext, type ComponentProps, type Snippet } from "svelte";
   import { focusableWhenScrollable } from "../focusable-when-scrollable";
-  import { modal } from "../modal";
+  import { modal, modalFallbackFocus } from "../modal";
   import Icon from "./Icon.svelte";
+
+  const fallbackFocus = getContext<(() => void) | undefined>(modalFallbackFocus);
 
   let {
     label,
@@ -30,7 +32,7 @@
 </script>
 
 <button class="drawer-backdrop" type="button" aria-label={closeLabel} onclick={onClose}></button>
-<div class="drawer" use:modal={{ onClose: () => onClose(), initialFocus }} role="dialog" aria-modal="true" aria-label={label}>
+<div class="drawer" use:modal={{ onClose: () => onClose(), initialFocus, fallbackFocus }} role="dialog" aria-modal="true" aria-label={label}>
   <header class="drawer-header">
     <div class="drawer-heading">
       {#if eyebrow}<p class="eyebrow">{eyebrow}</p>{/if}

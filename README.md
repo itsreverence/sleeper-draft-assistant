@@ -49,6 +49,8 @@ Sleeper is currently the only supported fantasy platform. Sleeper search rank is
 
 Roster slots, team count, rounds, and supported scoring settings come from Sleeper. FantasyPros draft and ROS ECR imports must match the league scoring format. Weekly `FPTS` are provider-scored, so users must export FantasyPros projections using the same scoring format as their Sleeper league.
 
+Automatic draft Assistant calls skip live news to stay inside a pick clock, using supplied Sleeper status metadata. Typed questions and **Retry** still check news when material and Web search is enabled. Model response time can still exceed a short pick clock.
+
 ## Try the demo in about a minute
 
 Requires Node.js 22.12 or later and npm.
@@ -60,7 +62,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`, then choose **Try a demo draft**. The demo uses synthetic data and requires no Sleeper account or AI provider.
+Open `http://127.0.0.1:5173`, then choose **Try a demo draft**. The demo uses synthetic data and requires no Sleeper account or AI provider. Other teams pick every 4.5 seconds; it holds on your pick for 45 seconds before making the scripted selection.
 
 ## Use your Sleeper league
 

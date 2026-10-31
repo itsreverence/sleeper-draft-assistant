@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AiRequestProgress } from "./lib/api";
-  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { onDestroy, onMount, tick, untrack, setContext } from "svelte";
   import { draftStateRevision } from "@sleeper-draft-assistant/shared";
 
   import TopBar from "./lib/components/TopBar.svelte";
@@ -12,6 +12,7 @@
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
   import DraftSyncStatus from "./lib/components/DraftSyncStatus.svelte";
   import PickStrip from "./lib/components/PickStrip.svelte";
+  import { modalFallbackFocus } from "./lib/modal";
   import DraftTeamDrawer from "./lib/components/DraftTeamDrawer.svelte";
   import PlayerSearchDialog from "./lib/components/PlayerSearchDialog.svelte";
   import ShortlistPanel from "./lib/components/ShortlistPanel.svelte";
@@ -183,6 +184,18 @@
   let draftActivityOpen = $state(false);
   let draftBoardOpen = $state(false);
   let askPanel: AskManagerPanel | undefined = $state();
+  let mainElement: HTMLElement | undefined = $state();
+  function focusAfterLostOpener() {
+    if (workspaceMode === "draft") askPanel?.focusComposer?.();
+    else manageDataButton?.focus();
+    // The composer and Manage data are not always rendered or enabled. A lasting tabindex would make clicks on page content restart the Tab order.
+    if (document.activeElement !== document.body || !mainElement || mainElement.inert) return;
+    const main = mainElement;
+    main.tabIndex = -1;
+    main.addEventListener("blur", () => main.removeAttribute("tabindex"), { once: true });
+    main.focus({ preventScroll: true });
+  }
+  setContext(modalFallbackFocus, focusAfterLostOpener);
   let draftRoomElement: HTMLElement | undefined = $state();
   let selectedDraftTeamId: string | null = $state(null);
   let playerSearchOpen = $state(false);
@@ -1630,11 +1643,13 @@
     draftPreparationOpen = true;
   }
 
-  function manageDraftDataFromSettings() {
+  async function manageDraftDataFromSettings() {
     settingsOpen = false;
     workspaceMode = "draft";
     reviewingDraftResults = true;
     draftPreparationOpen = true;
+    await tick();
+    if (document.activeElement === document.body) focusAfterLostOpener();
   }
 
   function openSettings() {
@@ -1649,6 +1664,8 @@
     if (returnFocus?.isConnected) {
       returnFocus.focus();
     }
+    // The drawer's own fallback ran while the page behind it was still inert.
+    if (document.activeElement === document.body) focusAfterLostOpener();
   }
 
   function toggleSettings() {
@@ -2040,6 +2057,7 @@
 {/snippet}
 
 <main
+  bind:this={mainElement}
   class="app-shell"
   class:preconnect-shell={isPreconnect || switchingDraft}
   class:preconnect-landing={(isPreconnect || switchingDraft) && !settingsOpen}

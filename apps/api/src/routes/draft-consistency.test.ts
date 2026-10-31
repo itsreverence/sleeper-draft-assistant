@@ -343,3 +343,50 @@ describe("draft request consistency", () => {
     expect(f.createGuidance).not.toHaveBeenCalled();
   });
 });
+
+it("demo holds the user's turn for 45 seconds and cancels its timer", async () => {
+  vi.useFakeTimers();
+  const f = fixture();
+  const reader = (await f.app.request("/drafts/mock-draft/events")).body!.getReader();
+  const read = async () => JSON.parse(new TextDecoder().decode((await reader.read()).value).split("data: ")[1]!);
+  let event = await read();
+  expect(event.state.currentPick).toBe(9);
+  // Picks 9 and 10, then snake picks 11 through 17 belong to other teams.
+  for (let pick = 9; pick < 18; pick++) {
+    await vi.advanceTimersByTimeAsync(4500);
+    event = await read();
+    expect(event.state.currentPick).toBe(pick + 1);
+  }
+  expect(event.state.userTeamId).toBe("team-3");
+  await vi.advanceTimersByTimeAsync(44999);
+  const next = vi.fn();
+  const pending = reader.read().then(value => { next(); return value; });
+  await Promise.resolve();
+  expect(next).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(new TextDecoder().decode((await pending).value)).toContain('"currentPick":19');
+  await reader.cancel();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("demo closes its old stream on reset and retains completion heartbeats", async () => {
+  vi.useFakeTimers();
+  const f = fixture();
+  const old = (await f.app.request("/drafts/mock-draft/events")).body!.getReader();
+  await old.read();
+  f.reset.reset();
+  await vi.advanceTimersByTimeAsync(4500);
+  expect((await old.read()).done).toBe(true);
+  const reader = (await f.app.request("/drafts/mock-draft/events")).body!.getReader();
+  const read = async () => new TextDecoder().decode((await reader.read()).value);
+  let event = await read();
+  for (let i = 0; !event.includes('"status":"complete"') && i < 200; i++) {
+    await vi.advanceTimersToNextTimerAsync();
+    event = await read();
+  }
+  expect(event).toContain('"status":"complete"');
+  await vi.advanceTimersByTimeAsync(4500);
+  expect(await read()).toContain("event: heartbeat");
+  await reader.cancel();
+  expect(vi.getTimerCount()).toBe(0);
+});

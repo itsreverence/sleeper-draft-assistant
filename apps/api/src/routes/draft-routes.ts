@@ -1,3 +1,4 @@
+import { remainingTeamPicks } from "@sleeper-draft-assistant/shared/draft-timing";
 import { aiRequestOptions } from "../ai/request-progress";
 import {
   advanceMockDraftState,
@@ -686,7 +687,12 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     const channel = createEventStreamChannel();
     const generation = localDataReset.captureGeneration();
     let localState: DraftState = applyDraftData("mock-draft", mockState);
-    let interval: ReturnType<typeof setInterval> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function schedule() {
+      const userOnClock = remainingTeamPicks(localState, localState.userTeamId)[0] === localState.currentPick;
+      timer = setTimeout(advance, userOnClock ? 45000 : 4500);
+    }
+    let advance: () => void;
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -695,9 +701,9 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
           ...toDraftPayload(localState, "mock-draft"),
         });
 
-        interval = setInterval(() => {
+        advance = () => {
           if (!localDataReset.isCurrent(generation)) {
-            clearInterval(interval);
+            clearTimeout(timer);
             channel.close();
             controller.close();
             return;
@@ -707,6 +713,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
               type: "heartbeat",
               at: new Date().toISOString(),
             });
+            schedule();
             return;
           }
 
@@ -720,12 +727,14 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
             pick,
             ...toDraftPayload(localState, "mock-draft"),
           });
-        }, 4500);
+          schedule();
+        };
+        schedule();
       },
       cancel() {
         channel.close();
-        if (interval) {
-          clearInterval(interval);
+        if (timer) {
+          clearTimeout(timer);
         }
       },
     });

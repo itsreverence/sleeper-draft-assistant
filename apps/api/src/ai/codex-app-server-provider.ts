@@ -243,6 +243,7 @@ export class CodexAppServerProvider implements AiProvider {
         this.recentNewsLookups.push(diagnostic);
         if (this.recentNewsLookups.length > 20) this.recentNewsLookups.shift();
       });
+      const skipNews = kind === "draft_strategy" && options.automatic === true;
       let activeTools = 0;
       let activeNews = 0;
       let toolStart = 0;
@@ -251,6 +252,10 @@ export class CodexAppServerProvider implements AiProvider {
         ...tool,
         execute: async (args: unknown) => {
           const isNews = tool.definition.name === "check_player_news";
+          if (isNews && skipNews) return {
+            status: "unavailable",
+            reason: "Automatic strategy skips live news. Use supplied Sleeper status metadata; disclose unchecked current news only when material.",
+          };
           if (activeTools++ === 0) toolStart = performance.now();
           if (isNews && activeNews++ === 0) { newsStart = performance.now(); options.onPhase?.("news"); }
           try { return await tool.execute(args); }
@@ -283,11 +288,13 @@ export class CodexAppServerProvider implements AiProvider {
           this.threadIds.set(scope, threadId);
         }
 
-        const searchPolicy = this.webSearch
+        const searchPolicy = skipNews
+          ? "Automatic strategy must finish within a pick clock. Do not call check_player_news. Rely on supplied Sleeper status metadata, not prior news as current evidence. Disclose that current news was not checked only when material."
+          : this.webSearch
           ? "Prior news is historical; recheck time-sensitive claims."
           : "Web search is disabled. Do not request news tools or use prior conversation or plan news as current evidence. Use only the supplied roster and imported evidence; disclose missing news when material.";
         const text = await client.runTurn(threadId, `Current time: ${new Date().toISOString()}. ${searchPolicy}\n${buildPrompt(reusedThread)}`, turnTools, {
-          toolWaitMs: this.webSearch ? PLAYER_NEWS_LOOKUP_LIMIT * this.newsLookupBudgetMs : 0,
+          toolWaitMs: this.webSearch && !skipNews ? PLAYER_NEWS_LOOKUP_LIMIT * this.newsLookupBudgetMs : 0,
         });
         return { text, sources: news.sources };
       } catch (error) {
