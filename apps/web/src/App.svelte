@@ -130,6 +130,8 @@
   let rosRankingSummary: SeasonValueRankingImportSummary | null = $state(null);
   let teamProjectionSeason = $state("");
   let teamProjectionWeek = $state(0);
+  // teamProjectionWeek is the week requested; this is the week the displayed roster was loaded for.
+  let teamPayloadWeek = $state(0);
   let weeklyProjectionError = $state("");
   let rosRankingError = $state("");
   const teamSession = createTeamSession();
@@ -979,7 +981,6 @@
         accept: (payload) => {
           applyTeamPayload(payload);
           teamManagerError = "";
-          teamRefreshError = "";
         },
         reject: (error) => {
           const message = error instanceof Error ? error.message : "Could not load team roster.";
@@ -1042,6 +1043,8 @@
     weeklyProjectionSummary = payload.weeklyProjectionSummary;
     teamProjectionSeason = projectionOverride.season;
     teamProjectionWeek = projectionOverride.week;
+    teamPayloadWeek = projectionOverride.week;
+    teamRefreshError = "";
   }
 
   function applyDraftPayload(payload: DraftPayload, refreshPreferences = false) {
@@ -2351,7 +2354,7 @@
             state={teamManagerState}
             readiness={teamDataReadiness}
             weekContext={teamWeekContext}
-            selectedWeek={teamProjectionWeek || null}
+            selectedWeek={teamPayloadWeek || null}
             weeklySummary={weeklyProjectionSummary}
             error={teamManagerError}
             isLoading={isLoadingTeamManager || teamDataPending}

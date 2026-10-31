@@ -230,6 +230,84 @@ test("switching drafts keeps the failed-refresh note until the new team arrives"
   await expect(note).toBeVisible();
 });
 
+test.describe("a week change keeps the verdict tied to the roster on screen", () => {
+  const weeklyPanel = (page: Page) => page.getByRole("dialog", { name: "Manage team data" }).locator("article")
+    .filter({ has: page.getByRole("heading", { name: "Weekly projections", exact: true }) });
+  const week7Note = (page: Page) => page.locator(".attention.note").filter({ hasText: "Nothing flagged for Week 7." });
+  const lineupLive = (page: Page) => page.locator('.team-workspace p[aria-live="polite"]');
+
+  async function pinWeek7(page: Page) {
+    await open(page, "all-clear");
+    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await weeklyPanel(page).getByLabel("Week", { exact: true }).fill("7");
+    await weeklyPanel(page).getByRole("button", { name: "Load selected week" }).click();
+    await page.getByRole("dialog", { name: "Manage team data" }).getByRole("button", { name: "Close team data" }).click();
+    await expect(week7Note(page)).toBeVisible();
+    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await weeklyPanel(page).getByLabel("Week", { exact: true }).fill("8");
+  }
+
+  async function startWeek8Import(page: Page) {
+    await weeklyPanel(page).getByText("Paste CSV instead", { exact: true }).click();
+    await weeklyPanel(page).getByLabel("CSV for the selected position")
+      .fill("Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,15");
+    await weeklyPanel(page).getByRole("button", { name: "Import QB", exact: true }).click();
+  }
+
+  test("a pending import doesn't claim all clear for the new week", async ({ page }) => {
+    await pinWeek7(page);
+    let requested = () => {};
+    const arrived = new Promise<void>(resolve => { requested = resolve; });
+    await page.route("**/projections/weekly/import?*", () => { requested(); });
+    await startWeek8Import(page);
+    await arrived;
+    await page.getByRole("dialog", { name: "Manage team data" }).getByRole("button", { name: "Close team data" }).click();
+    await expect(page.getByText("Lineup looks set")).toHaveCount(0);
+    await expect(week7Note(page)).toBeVisible();
+  });
+
+  test("a failed import keeps describing the earlier week", async ({ page }) => {
+    await pinWeek7(page);
+    await page.route("**/projections/weekly/import?*", route => route.fulfill({ status: 500, json: { error: "Synthetic import failure." } }));
+    await startWeek8Import(page);
+    await expect(weeklyPanel(page).getByText("Synthetic import failure.")).toBeVisible();
+    await page.getByRole("dialog", { name: "Manage team data" }).getByRole("button", { name: "Close team data" }).click();
+    await expect(page.getByText("Lineup looks set")).toHaveCount(0);
+    await expect(week7Note(page)).toBeVisible();
+  });
+
+  test("a pending week load doesn't announce all clear", async ({ page }) => {
+    await pinWeek7(page);
+    let requested = () => {};
+    const arrived = new Promise<void>(resolve => { requested = resolve; });
+    await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, () => { requested(); });
+    await weeklyPanel(page).getByRole("button", { name: "Load selected week" }).click();
+    await arrived;
+    await expect(lineupLive(page)).not.toHaveText("Lineup looks set.");
+  });
+});
+
+test("an accepted import clears the failed-refresh note", async ({ page }) => {
+  await open(page, "all-clear");
+  const teamRoute = /\/api\/leagues\/[^/]+\/team(?:\?|$)/;
+  await page.unroute(teamRoute);
+  await page.route(teamRoute, route => route.fulfill({ status: 503, json: { error: "Synthetic outage." } }));
+  await page.getByRole("button", { name: "Refresh team data" }).click();
+  const note = page.locator(".attention.note").filter({ hasText: "the last refresh failed" });
+  await expect(note).toBeVisible();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  const drawer = page.getByRole("dialog", { name: "Manage team data" });
+  const weekly = drawer.locator("article").filter({ has: page.getByRole("heading", { name: "Weekly projections", exact: true }) });
+  await weekly.getByText("Paste CSV instead", { exact: true }).click();
+  await weekly.getByLabel("CSV for the selected position")
+    .fill("Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,15");
+  const imported = page.waitForResponse(r => r.url().includes("/projections/weekly/import") && r.ok());
+  await weekly.getByRole("button", { name: "Import QB", exact: true }).click();
+  await imported;
+  await drawer.getByRole("button", { name: "Close team data" }).click();
+  await expect(note).toHaveCount(0);
+});
+
 test("every part of Team Manager fits and works at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await open(page, "needs-look", true);
