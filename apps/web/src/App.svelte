@@ -184,9 +184,12 @@
   let draftActivityOpen = $state(false);
   let draftBoardOpen = $state(false);
   let askPanel: AskManagerPanel | undefined = $state();
+  let mainElement: HTMLElement | undefined = $state();
   setContext(modalFallbackFocus, () => {
     if (workspaceMode === "draft") askPanel?.focusComposer?.();
     else manageDataButton?.focus();
+    // The composer and Manage data are not always rendered or enabled.
+    if (document.activeElement === document.body) mainElement?.focus({ preventScroll: true });
   });
   let draftRoomElement: HTMLElement | undefined = $state();
   let selectedDraftTeamId: string | null = $state(null);
@@ -2045,6 +2048,8 @@
 {/snippet}
 
 <main
+  bind:this={mainElement}
+  tabindex="-1"
   class="app-shell"
   class:preconnect-shell={isPreconnect || switchingDraft}
   class:preconnect-landing={(isPreconnect || switchingDraft) && !settingsOpen}

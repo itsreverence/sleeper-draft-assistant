@@ -85,6 +85,10 @@ a {
   border-radius: var(--radius-sm);
 }
 
+.app-shell:focus-visible {
+  outline: none;
+}
+
 /* Shared primitives, reused across components */
 
 .eyebrow {
