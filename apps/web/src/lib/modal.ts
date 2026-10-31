@@ -33,7 +33,8 @@ export function modal(node: HTMLElement, options: ModalOptions) {
   function focusStart() {
     const elements = focusable();
     const preferred = options.initialFocus ? node.querySelector<HTMLElement>(options.initialFocus) : null;
-    (preferred && elements.includes(preferred) ? preferred : elements[0] ?? node).focus({ preventScroll: true });
+    if (preferred && elements.includes(preferred)) preferred.focus();
+    else (elements[0] ?? node).focus({ preventScroll: true });
   }
 
   function keydown(event: KeyboardEvent) {

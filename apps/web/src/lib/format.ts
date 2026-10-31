@@ -63,10 +63,9 @@ export function formatPlayerSchedule(player: Player): string | null {
 }
 
 export function formatWeeklyProjection(player: Player | null | undefined) {
-  if (player?.schedule?.onBye === true) return "0 pts";
-  return player?.weeklyProjectedPoints === null || player?.weeklyProjectedPoints === undefined
+  return player?.weeklyProjectedPoints === null || player?.weeklyProjectedPoints === undefined || player.schedule?.onBye === true
     ? null
-    : `${player.weeklyProjectedPoints.toFixed(1)} pts`;
+    : player.weeklyProjectedPoints.toFixed(1);
 }
 
 export function formatMissingProjection(player: Player, weeklySummary: WeeklyProjectionImportSummary | null) {
@@ -99,17 +98,18 @@ export function effectiveTeamWeek(state: TeamManagerState | null, weekContext: T
 
 export function formatTeamContext(state: TeamManagerState, weekContext: TeamWeekContext | null, selectedWeek: number | null) {
   const week = effectiveTeamWeek(state, weekContext, selectedWeek);
+  const team = state.userTeam.name;
   const period = state.seasonPhase === "preseason"
-    ? ["Preseason"]
+    ? ["Preseason", team]
     : state.seasonPhase === "postseason"
-      ? ["Postseason"]
+      ? ["Postseason", team]
       : week
         ? [
             `Week ${week}`,
-            ...(weekContext?.opponentTeamName ? [`vs ${weekContext.opponentTeamName}`] : []),
+            weekContext?.opponentTeamName ? `${team} vs ${weekContext.opponentTeamName}` : team,
             ...(selectedWeek && state.week && selectedWeek !== state.week ? [`Active Week ${state.week}`] : []),
           ]
-        : ["Season"];
+        : ["Season", team];
   return [...period, state.league.scoring.toUpperCase()].join(" · ");
 }
 

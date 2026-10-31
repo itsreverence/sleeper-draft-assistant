@@ -1,8 +1,10 @@
 <script lang="ts">
+  import LiveAnnouncer from "./LiveAnnouncer.svelte";
   import PositionChip from "./PositionChip.svelte";
+  import Icon from "./Icon.svelte";
+  import TeamAttention from "./TeamAttention.svelte";
   import type {
     Player,
-    SeasonValueRankingImportSummary,
     TeamDataReadiness,
     TeamManagerState,
     TeamWeekContext,
@@ -10,110 +12,100 @@
   } from "../types";
   import {
     effectiveTeamWeek,
-    formatConfidence,
     formatMissingProjection,
     formatPlayerSchedule,
     formatRosterSlot,
-    formatSleeperStatusSummary,
     formatSleeperStatusTitle,
     formatWeeklyProjection,
     rosterStatus,
     rosterSlotTitle,
+    type RosterStatus,
   } from "../format";
-  import Icon from "./Icon.svelte";
+  import { lineupAnnouncement, lineupCheck, starterAttention, starterRowId, type StarterAttention, type TeamDataSection } from "../team-attention";
 
   let {
-    state,
+    state: team,
     readiness = null,
     weekContext = null,
     selectedWeek = null,
-    rosSummary = null,
     weeklySummary = null,
     error = "",
     isLoading = false,
+    refreshFailed = false,
+    canAsk = false,
     onManageData,
+    onAsk,
   }: {
     state: TeamManagerState | null;
     readiness?: TeamDataReadiness | null;
     weekContext?: TeamWeekContext | null;
     selectedWeek?: number | null;
-    rosSummary?: SeasonValueRankingImportSummary | null;
     weeklySummary?: WeeklyProjectionImportSummary | null;
     error?: string;
     isLoading?: boolean;
-    onManageData?: () => void;
+    refreshFailed?: boolean;
+    canAsk?: boolean;
+    onManageData?: (section: TeamDataSection) => void;
+    onAsk?: (question: string) => void;
   } = $props();
 
-  const reserveGroups = $derived(state ? [
-    { label: "Bench", slot: "BN", players: state.roster.bench },
-    { label: "Injured reserve", slot: "IR", players: state.roster.injuredReserve ?? [] },
-    { label: "Taxi", slot: "TAXI", players: state.roster.taxi ?? [] },
-  ] : []);
-  const rosterPlayers = $derived(state ? [
-    ...state.roster.starters.map((slot) => slot.player).filter((player) => player !== null),
-    ...state.roster.bench,
-    ...(state.roster.injuredReserve ?? []),
-    ...(state.roster.taxi ?? []),
-  ] : []);
-  const flaggedCount = $derived(rosterPlayers.filter((player) => Boolean(formatSleeperStatusSummary(player))).length);
-  const startersOnBye = $derived(state?.roster.starters.filter((slot) => slot.player?.schedule?.onBye === true).length ?? 0);
+  let reservesOpen = $state(false);
+
+  const check = $derived(team ? lineupCheck({ state: team, weekContext, selectedWeek, weeklySummary, refreshFailed }) : null);
+  const flags = $derived(starterAttention(check));
+  const reserveGroups = $derived(team ? [
+    { id: "team-reserve-bench", label: "Bench", slot: "BN", players: team.roster.bench },
+    { id: "team-reserve-ir", label: "Injured reserve", slot: "IR", players: team.roster.injuredReserve ?? [] },
+    { id: "team-reserve-taxi", label: "Taxi", slot: "TAXI", players: team.roster.taxi ?? [] },
+  ].filter((group) => group.players.length > 0) : []);
+  const reserveSummary = $derived(reserveGroups.map((group) => `${group.label} (${group.players.length})`).join(" · "));
   const showProjections = $derived(readiness
     ? readiness.projectedRosterPlayers > 0
-    : rosterPlayers.some((player) => player.projectionSource === "weekly_projection"));
-  const sourceCount = $derived(Number(Boolean(rosSummary)) + Number(Boolean(weeklySummary)));
-  const isPreseason = $derived(state?.seasonPhase === "preseason");
+    : Boolean(team && [
+        ...team.roster.starters.map((slot) => slot.player),
+        ...team.roster.bench,
+        ...(team.roster.injuredReserve ?? []),
+        ...(team.roster.taxi ?? []),
+      ].some((player) => player?.projectionSource === "weekly_projection")));
+  const columnCount = $derived(showProjections ? 5 : 4);
   const weekHeading = $derived(
-    state?.seasonPhase === "preseason" || state?.seasonPhase === "postseason"
+    team?.seasonPhase === "preseason" || team?.seasonPhase === "postseason"
       ? "Week"
-      : `Week ${effectiveTeamWeek(state, weekContext, selectedWeek) ?? ""}`.trim(),
+      : `Week ${effectiveTeamWeek(team, weekContext, selectedWeek) ?? ""}`.trim(),
   );
-  const rosterSummary = $derived([
-    `${rosterPlayers.length} player${rosterPlayers.length === 1 ? "" : "s"}`,
-    ...(startersOnBye > 0 ? [`${startersOnBye} starter${startersOnBye === 1 ? "" : "s"} on bye`] : []),
-    ...(flaggedCount > 0 ? [`${flaggedCount} flagged`] : []),
-  ].join(" · "));
-  const weeklyDataTitle = $derived(
-    !weeklySummary ? "Weekly missing" : readiness?.status === "ready" ? "Weekly ready" : "Weekly needs review",
-  );
-  const seasonValueTitle = $derived(
-    !rosSummary
-      ? "Season value missing"
-      : rosSummary.rankingType === "ros-ecr"
-        ? "ROS ready"
-        : state?.seasonPhase === "regular" && (state.week ?? 0) >= 2
-          ? "Draft ECR fallback · ROS update recommended"
-          : "Draft ECR fallback",
-  );
-  const dataTitle = $derived(`${sourceCount}/2 sources · ${seasonValueTitle} · ${weeklyDataTitle}`);
-  const coverage = $derived(readiness && !isPreseason ? Math.round(readiness.rosterProjectionCoverage * 100) : null);
-  const coverageDetail = $derived(readiness ? [
-    ...(readiness.loadedPositions.length > 0 ? [`${positionList(readiness.loadedPositions)} loaded`] : []),
-    ...readiness.missingPositions.map((position) => {
-      const result = weeklySummary?.positionResults.find((item) => item.position === position);
-      return `${positionList([position])}: ${result?.matched === 0 ? result.rowsParsed === 0 ? "no rows" : "no matches" : "missing"}`;
-    }),
-  ].join(" · ") : "");
-  const scheduleUnavailable = $derived(state?.scheduleStatus?.available === false);
-
-  function positionList(positions: string[]) {
-    return positions.map((position) => (position === "DEF" ? "DST" : position)).join(", ");
-  }
+  const announcementScope = $derived(team ? `${team.league.id}:${team.userTeam.rosterId}` : "");
 </script>
 
-{#snippet byeChip(player: Player)}
-  <span class="bye-chip" role="img" aria-label={`On bye in Week ${player.schedule?.week}`}>BYE</span>
+{#snippet slotCell(slot: string)}
+  <td class="slot-label" title={rosterSlotTitle(slot)} aria-label={rosterSlotTitle(slot)}>{formatRosterSlot(slot)}</td>
 {/snippet}
 
-{#snippet playerRow(slot: string, player: Player)}
+{#snippet askControl(flag: StarterAttention, subject: string)}
+  <button class="row-ask" type="button" aria-label={`Ask about ${subject}`} onclick={() => onAsk?.(flag.question)}>
+    Ask<Icon name="chevron-right" size={12} />
+  </button>
+{/snippet}
+
+{#snippet statusContent(status: RosterStatus | null, flag: StarterAttention | undefined, subject: string)}
+  {#if status}<span class={`status-text tone-${status.tone}`} aria-hidden={status.injury ? undefined : "true"}>{status.label}</span>{/if}
+  {#if flag && canAsk}{@render askControl(flag, subject)}{/if}
+{/snippet}
+
+{#snippet playerRow(slot: string, player: Player, rowId?: string)}
   {@const status = rosterStatus(player)}
-  <tr class="slot-row">
-    <td class="slot-label" title={rosterSlotTitle(slot)} aria-label={rosterSlotTitle(slot)}>{formatRosterSlot(slot)}</td>
+  {@const flag = rowId ? flags.get(rowId) : undefined}
+  {@const projection = formatWeeklyProjection(player)}
+  <tr class={`slot-row ${flag ? `flagged flag-${flag.tone}` : ""}`} id={rowId} tabindex={rowId ? -1 : undefined}>
+    {@render slotCell(slot)}
     <th scope="row">
       <div class="player-name">
         <PositionChip position={player.position} />
         <div class="player-identity">
           <strong>{player.name}</strong>
-          <small class:danger={status?.tone === "danger"} data-status={status?.injury ? status.label : undefined}>{player.team}</small>
+          <small>{player.team}</small>
+          {#if status || flag}
+            <div class="compact-status">{@render statusContent(status, flag, player.name)}</div>
+          {/if}
           {#if status?.injury && formatSleeperStatusTitle(player)}
             <details class="status-details">
               <summary>Status details<span class="sr-only"> for {player.name}</span></summary>
@@ -125,49 +117,40 @@
     </th>
     <td class="week-cell">
       {#if player.schedule?.onBye}
-        {@render byeChip(player)}
+        <span class="bye-chip" role="img" aria-label={`On bye in Week ${player.schedule.week}`}>BYE</span>
       {:else}
-        {formatPlayerSchedule(player) ?? "—"}
+        {formatPlayerSchedule(player) ?? "–"}
       {/if}
     </td>
     {#if showProjections}
-      <td class="projection" class:muted={player.schedule?.onBye || !formatWeeklyProjection(player)}>{formatWeeklyProjection(player) ?? formatMissingProjection(player, weeklySummary)}</td>
+      <td class="projection" class:muted={!projection}>
+        {#if projection}
+          {projection}
+        {:else if player.schedule?.onBye}
+          <span aria-hidden="true">–</span>
+        {:else}
+          {@const reason = formatMissingProjection(player, weeklySummary)}
+          <span aria-hidden="true" title={reason}>–</span><span class="sr-only">{reason}</span>
+        {/if}
+      </td>
     {/if}
-    <td class={`player-status ${status ? `tone-${status.tone}` : ""}`} title={status ? formatSleeperStatusTitle(player) : undefined}>
-      {#if status}<span aria-hidden={status.injury ? undefined : "true"}>{status.label}</span>{/if}
+    <td class="player-status" title={status ? formatSleeperStatusTitle(player) : undefined}>
+      <div class="status-line">{@render statusContent(status, flag, player.name)}</div>
     </td>
   </tr>
 {/snippet}
 
-<article class="panel roster-panel">
-  <header class="roster-heading">
-    <div>
-      <h2>{state?.userTeam.name ?? "My Team"}</h2>
-      {#if state}<p>{rosterSummary}</p>{/if}
-    </div>
-    {#if state}
-      <div class="roster-signals">
-        {#if isPreseason}
-          {#if readiness}<span class="pill pill-neutral">Data: {sourceCount}/2 sources</span>{/if}
-        {:else if readiness}
-          <span
-            class="pill"
-            class:pill-ready={readiness.confidence === "high"}
-            class:pill-warning={readiness.confidence === "medium"}
-            class:pill-neutral={readiness.confidence === "low"}
-          >{formatConfidence(readiness.confidence)} · {readiness.projectedRosterPlayers}/{readiness.eligibleRosterPlayers} projected</span>
-        {/if}
-        <button class="pill pill-neutral manage-data" type="button" title={dataTitle} disabled={!onManageData} onclick={() => onManageData?.()}>Manage team data<Icon name="chevron-right" size={13} /></button>
-      </div>
-    {/if}
-  </header>
+<LiveAnnouncer scope={announcementScope} message={lineupAnnouncement(check)} />
 
-  {#if isLoading}
-    <p class="empty">Loading Sleeper roster...</p>
-  {:else if error}
-    <p class="empty warning-copy">{error}</p>
-  {:else if state}
-    <table class="roster-table" aria-label="Starting lineup and reserves">
+{#if isLoading}
+  <div class="lineup-frame"><p class="empty">Loading Sleeper roster...</p></div>
+{:else if error}
+  <div class="lineup-frame"><p class="empty warning-copy">{error}</p></div>
+{:else if team && check}
+  <TeamAttention {check} {onManageData} />
+
+  <div class="lineup-frame">
+    <table class="lineup" aria-label="Starting lineup and reserves">
       <thead>
         <tr>
           <th class="slot-label" scope="col">Slot</th>
@@ -178,134 +161,141 @@
         </tr>
       </thead>
       <tbody>
-        {#each state.roster.starters as slot, index}
+        {#each team.roster.starters as slot, index}
+          {@const rowId = starterRowId(index)}
           {#if slot.player}
-            {@render playerRow(slot.slot, slot.player)}
+            {@render playerRow(slot.slot, slot.player, rowId)}
           {:else}
-            <tr class="slot-row">
-              <td class="slot-label" title={rosterSlotTitle(slot.slot)} aria-label={rosterSlotTitle(slot.slot)}>{formatRosterSlot(slot.slot)}</td>
+            {@const flag = flags.get(rowId)}
+            {@const status: RosterStatus = { label: "Open", tone: "warning", injury: true }}
+            {@const subject = `the open ${formatRosterSlot(slot.slot)} slot`}
+            <tr class={`slot-row ${flag ? `flagged flag-${flag.tone}` : ""}`} id={rowId} tabindex="-1">
+              {@render slotCell(slot.slot)}
               <th class="open-slot" scope="row">
-                <span class="player-identity"><strong>Open starter slot {index + 1}</strong><small>{slot.eligiblePositions.join("/")}</small></span>
+                <span class="player-identity">
+                  <strong>Open slot</strong>
+                  <small>{slot.eligiblePositions.join("/")}</small>
+                  <div class="compact-status">{@render statusContent(status, flag, subject)}</div>
+                </span>
               </th>
-              <td class="week-cell">—</td>
-              {#if showProjections}<td class="projection muted">—</td>{/if}
-              <td class="player-status tone-warning">Open</td>
+              <td class="week-cell">–</td>
+              {#if showProjections}<td class="projection muted">–</td>{/if}
+              <td class="player-status"><div class="status-line">{@render statusContent(status, flag, subject)}</div></td>
             </tr>
           {/if}
         {/each}
       </tbody>
-      {#each reserveGroups as group}
-        {#if group.players.length > 0}
-          <tbody>
-            <tr class="group-row"><th colspan={showProjections ? 5 : 4} scope="rowgroup">{group.label}</th></tr>
-            {#each group.players as player}
-              {@render playerRow(group.slot, player)}
-            {/each}
-          </tbody>
+      {#if reserveGroups.length > 0}
+        <tbody>
+          <tr class="reserve-toggle">
+            <td colspan={columnCount}>
+              <button
+                type="button"
+                aria-expanded={reservesOpen}
+                aria-controls={reservesOpen ? reserveGroups.map((group) => group.id).join(" ") : undefined}
+                onclick={() => (reservesOpen = !reservesOpen)}
+              >
+                {reserveSummary}<Icon name="chevron-right" size={12} />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+        {#if reservesOpen}
+          {#each reserveGroups as group (group.id)}
+            <tbody id={group.id}>
+              {#if reserveGroups.length > 1}
+                <tr class="group-row"><th colspan={columnCount} scope="rowgroup">{group.label}</th></tr>
+              {/if}
+              {#each group.players as player (player.id)}
+                {@render playerRow(group.slot, player)}
+              {/each}
+            </tbody>
+          {/each}
         {/if}
-      {/each}
+      {/if}
     </table>
-
-    {#if coverage !== null || scheduleUnavailable}
-      <footer class="readiness-footer">
-        {#if coverage !== null && readiness}
-          <div class="coverage">
-            <div class="coverage-track" class:ready={readiness.status === "ready"} role="meter" aria-label="Roster projection coverage" aria-valuemin={0} aria-valuemax={100} aria-valuenow={coverage}>
-              <span style={`width:${coverage}%`}></span>
-            </div>
-            <p><strong>{coverage}% roster coverage</strong>{coverageDetail ? ` · ${coverageDetail}` : ""}</p>
-            {#if readiness.status !== "ready" && onManageData}
-              <button class="btn btn-ghost" type="button" onclick={() => onManageData?.()}>Import weekly projections</button>
-            {/if}
-          </div>
-        {/if}
-        {#if scheduleUnavailable}
-          <p class="schedule-note"><Icon name="alert" size={14} />NFL schedule unavailable. Byes from your draft imports still show; other byes are unknown. Refresh to try again.</p>
-        {/if}
-      </footer>
-    {/if}
-  {:else}
-    <p class="empty">Open a Sleeper league to load team-manager context.</p>
-  {/if}
-</article>
+  </div>
+{:else}
+  <div class="lineup-frame"><p class="empty">Open a Sleeper league to load team-manager context.</p></div>
+{/if}
 
 <style>
-  .roster-panel { overflow: hidden; padding: 0; }
-  .roster-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: flex-start; padding: var(--space-4); }
-  .roster-heading h2 { font-size: var(--text-xl); }
-  .roster-heading p { margin-top: 2px; color: var(--text-muted); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
-  .roster-signals { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
-  .roster-signals .pill { flex-shrink: 1; font-variant-numeric: tabular-nums; white-space: normal; }
-  .manage-data { gap: 2px; cursor: pointer; font-family: inherit; }
-  .manage-data:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-primary); }
-  .manage-data:disabled { cursor: default; }
+  .lineup-frame { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; }
 
-  .roster-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--text-base); }
-  .roster-table th { font-weight: 400; text-align: left; }
-  .roster-table thead th { height: 32px; padding: 0 var(--space-2); background: var(--surface-sunken); color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; line-height: 1.3; text-transform: uppercase; }
-  .roster-table tr { border-top: 1px solid var(--border); }
+  .lineup { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: var(--text-base); }
+  .lineup th { font-weight: 400; text-align: left; }
+  .lineup thead th { height: 32px; padding: 0 var(--space-2); color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; line-height: 1.3; text-transform: uppercase; }
   .slot-row td,
-  .slot-row th { height: 44px; padding: var(--space-1) var(--space-2); vertical-align: middle; }
-  .roster-table tr > :first-child { padding-left: var(--space-4); }
-  .roster-table tr > :last-child { padding-right: var(--space-4); }
-  thead .slot-label { width: 68px; }
-  thead .week-cell { width: 104px; }
-  thead .projection { width: 104px; }
-  thead .player-status { width: 28%; }
+  .slot-row th { height: 44px; border-top: 1px solid var(--border); padding: var(--space-1) var(--space-2); vertical-align: middle; }
+  .lineup tr > :first-child { padding-left: var(--space-4); }
+  .lineup tr > :last-child { padding-right: var(--space-4); }
+  thead .slot-label { width: 72px; }
+  thead .week-cell { width: 88px; }
+  thead .projection { width: 64px; }
+  thead .player-status { width: 248px; }
+
+  .slot-row:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .flagged td,
+  .flagged th { background: var(--warning-soft); }
+  .flag-warning > :first-child { box-shadow: inset 3px 0 0 var(--warning); }
+  .flag-danger > :first-child { box-shadow: inset 3px 0 0 var(--danger); }
 
   .slot-label { overflow-wrap: anywhere; color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .status-details { display: none; flex-basis: 100%; min-width: 0; font-size: var(--text-sm); color: var(--text-muted); overflow-wrap: anywhere; }
-  .status-details summary { cursor: pointer; }
-  .player-name { display: flex; gap: var(--space-2); align-items: center; min-width: 0; }
+  .player-name { display: flex; gap: var(--space-3); align-items: center; min-width: 0; }
   .player-identity { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); align-items: baseline; min-width: 0; }
   .player-identity strong { min-width: 0; color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }
   .player-identity small { color: var(--text-muted); font-size: var(--text-sm); }
   .open-slot strong { color: var(--text-secondary); font-weight: 500; }
 
-
   .week-cell { color: var(--text-secondary); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
   .bye-chip { display: inline-block; border: 1px solid var(--warning-border); border-radius: var(--radius-sm); background: var(--warning-soft); color: var(--warning); font-size: var(--text-sm); font-weight: 600; line-height: 1.4; padding: 0 var(--space-2); }
 
-  .roster-table .projection { color: var(--text-primary); font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
-  .roster-table thead .projection { color: var(--text-muted); }
-  .roster-table .projection.muted { color: var(--text-muted); font-size: var(--text-sm); font-weight: 400; }
+  .lineup .projection { color: var(--text-primary); font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+  .lineup thead .projection { color: var(--text-muted); }
+  .lineup .projection.muted { color: var(--text-muted); font-weight: 400; }
 
-  .roster-table .player-status { text-align: right; }
-  tbody .player-status { font-size: var(--text-md); }
-  .roster-table .player-status.tone-warning { color: var(--warning); font-weight: 600; }
-  .roster-table .player-status.tone-danger { color: var(--danger); font-weight: 600; }
+  .lineup .player-status { padding-left: var(--space-4); }
+  .status-line,
+  .compact-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); min-width: 0; }
+  .status-text { font-size: var(--text-md); font-weight: 600; overflow-wrap: anywhere; }
+  .tone-warning { color: var(--warning); }
+  .tone-danger { color: var(--danger); }
+  .row-ask { display: inline-flex; align-items: center; gap: 2px; min-height: 24px; border: 0; border-radius: var(--radius-sm); background: transparent; padding: 0 var(--space-1); color: var(--text-primary); cursor: pointer; font-size: var(--text-sm); font-weight: 500; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+  .row-ask:hover { background: var(--surface-hover); }
 
-  .group-row th { height: 32px; padding: 0 var(--space-4); background: var(--surface-sunken); color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; line-height: 1.3; text-transform: uppercase; }
+  .compact-status,
+  .status-details { display: none; }
+  .status-details { flex-basis: 100%; min-width: 0; color: var(--text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+  .status-details summary { cursor: pointer; }
 
-  .readiness-footer { display: grid; gap: var(--space-2); border-top: 1px solid var(--border); padding: var(--space-2) var(--space-4); background: var(--surface-sunken); color: var(--text-muted); font-size: var(--text-sm); }
-  .coverage { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: center; min-height: 36px; }
-  .coverage p { flex: 1 1 200px; min-width: 0; }
-  .coverage strong { color: var(--text-secondary); font-weight: 600; font-variant-numeric: tabular-nums; }
-  .coverage .btn { min-height: 32px; padding: 0 var(--space-3); font-size: var(--text-sm); }
-  .coverage-track { flex: 0 0 120px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
-  .coverage-track span { display: block; height: 100%; border-radius: inherit; background: var(--warning); }
-  .coverage-track.ready span { background: var(--accent); }
-  .schedule-note { display: flex; gap: var(--space-2); align-items: flex-start; color: var(--warning); line-height: 1.4; }
-  .schedule-note :global(svg) { flex-shrink: 0; margin-top: 1px; }
+  .reserve-toggle td { border-top: 1px solid var(--border); }
+  .lineup .reserve-toggle td:first-child { padding: 0; }
+  .reserve-toggle button { display: flex; align-items: center; gap: var(--space-1); width: 100%; min-height: 44px; border: 0; background: transparent; padding: var(--space-1) var(--space-4); color: var(--text-secondary); cursor: pointer; font-size: var(--text-md); font-variant-numeric: tabular-nums; text-align: left; }
+  .reserve-toggle button:hover { background: var(--surface-raised); color: var(--text-primary); }
+  .reserve-toggle button:focus-visible { outline-offset: -2px; }
+  .reserve-toggle button > :global(.icon) { flex-shrink: 0; transition: transform var(--transition-fast); }
+  .reserve-toggle button[aria-expanded="true"] > :global(.icon) { transform: rotate(90deg); }
+  .group-row th { height: 32px; border-top: 1px solid var(--border); padding: 0 var(--space-4); color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; line-height: 1.3; text-transform: uppercase; }
 
-  .empty { padding: 16px; }
+  .empty { padding: var(--space-4); }
   .warning-copy { color: var(--warning); }
 
-  @media (max-width: 760px) {
-    /* The Status column and its hover details are hidden at this width. */
+  @media (max-width: 520px) {
+    /* Auto layout keeps the colspan's implied Status column at zero width once it is hidden. */
+    .lineup { table-layout: auto; }
+    .lineup thead th { white-space: nowrap; }
+    .lineup .player-status { display: none; }
+    .lineup tr > :first-child { padding-right: var(--space-1); padding-left: var(--space-3); }
+    .lineup tr > :nth-last-child(2) { padding-right: var(--space-3); }
+    .reserve-toggle button { padding-inline: var(--space-3); }
+    thead .slot-label { width: 48px; }
+    thead .week-cell { width: 60px; }
+    thead .projection { width: 52px; }
+    /* The chip sits beside the name while there is room and above it at the narrowest widths. */
+    .player-name { flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+    .player-identity { flex: 1 1 88px; flex-direction: column; flex-wrap: nowrap; }
+    .compact-status { display: flex; }
     .status-details { display: block; }
-
-    /* Auto layout keeps the colspan's implied columns for the hidden Proj and Status at zero width. */
-    .roster-table { table-layout: auto; }
-    .roster-table .projection,
-    .roster-table .player-status { display: none; }
-    thead .slot-label { width: 60px; }
-    thead .week-cell { width: 84px; }
-    .roster-table .week-cell { text-align: right; }
-    .player-identity { flex-direction: column; flex-wrap: nowrap; gap: 0; }
-    /* The Status column is hidden here, so an injury flag rides on the team line. Bye stays on the Week chip. */
-    .player-identity small[data-status]::after { content: " · " attr(data-status); color: var(--warning); font-weight: 600; }
-    .player-identity small.danger[data-status]::after { color: var(--danger); }
   }
 </style>

@@ -13,7 +13,7 @@ async function connect(page: Page, league = `browser-${randomUUID()}`) {
   await page.getByText("Paste a draft ID", { exact: true }).click();
   await page.getByPlaceholder("Paste a draft ID").fill(league);
   await page.getByRole("button", { name: "Load draft", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Manage team data" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage data", exact: true })).toBeVisible();
   return league;
 }
 
@@ -30,7 +30,7 @@ const weeklyCsv = (points: number) => `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,
 test("pasting weekly CSV clears the native file selection and allows reselecting the same file", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const { weekly } = panels(page);
   const picker = weekly.getByLabel("Projection CSV", { exact: true });
   const file = { name: "synthetic-QB.csv", mimeType: "text/csv", buffer: Buffer.from(weeklyCsv(15)) };
@@ -55,7 +55,7 @@ test("pasting weekly CSV clears the native file selection and allows reselecting
 test("the styled file control opens the native chooser from the keyboard and shows focus", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const { drawer, weekly } = panels(page);
   const picker = weekly.getByLabel("Projection CSV", { exact: true });
   const control = weekly.locator("label.file-button");
@@ -84,7 +84,7 @@ test("the styled file control opens the native chooser from the keyboard and sho
 test("a delayed import response cannot resurrect reset data or replace a newly connected team", async ({ page }) => {
   await page.goto("/");
   const oldLeague = await connect(page);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const { drawer, weekly } = panels(page);
   let release!: () => void;
   let imported!: () => void;
@@ -110,7 +110,7 @@ test("a delayed import response cannot resurrect reset data or replace a newly c
     await page.getByRole("button", { name: "Delete and reset" }).click();
     await expect(page.getByLabel("Sleeper username")).toBeVisible();
     const newLeague = await connect(page);
-    await expect(page.getByRole("heading", { name: `Team ${newLeague}`, exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Draft status" })).toContainText(`Team ${newLeague}`);
     const delivered = page.waitForEvent("requestfinished", {
       predicate: request => request.url().includes("/projections/weekly/import"),
     });
@@ -118,15 +118,15 @@ test("a delayed import response cannot resurrect reset data or replace a newly c
     await delivered;
     // Allow fetch continuation and Svelte's render to settle after delivery.
     await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    await expect(page.getByRole("heading", { name: `Team ${newLeague}`, exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Manage team data" }).click();
+    await expect(page.getByRole("region", { name: "Draft status" })).toContainText(`Team ${newLeague}`);
+    await page.getByRole("button", { name: "Manage data", exact: true }).click();
     await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
     // Reconnect the original league after a reload: the reset removed its saved
     // import too, not merely the currently displayed summary.
     await page.goto("/");
     await page.getByTitle("Switch league or draft").click();
     await connect(page, oldLeague);
-    await page.getByRole("button", { name: "Manage team data" }).click();
+    await page.getByRole("button", { name: "Manage data", exact: true }).click();
     await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
   } finally {
     release();
@@ -138,7 +138,7 @@ test("ROS file import survives reload, replaces, and clears through the real API
   const league = `browser-${randomUUID()}`;
   await page.goto("/");
   await connect(page, league);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
   const ros = drawer.locator("article").filter({ has: page.getByRole("heading", { name: "Season value rankings" }) });
   await ros.getByLabel("Choose CSV").setInputFiles({
@@ -152,7 +152,7 @@ test("ROS file import survives reload, replaces, and clears through the real API
   await ros.getByRole("button", { name: "Import season value rankings", exact: true }).click();
   await expect(ros.getByText("ROS ECR · 1 matched · 2026 PPR")).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   await expect(ros.getByText("ROS ECR · 1 matched · 2026 PPR")).toBeVisible();
   await ros.getByLabel("Choose CSV").setInputFiles({ name: "synthetic-ros.csv", mimeType: "text/csv", buffer: Buffer.from(csv(2)) });
   const replaced = page.waitForResponse(r => r.url().includes("/rankings/ros/import") && r.request().method() === "POST");
@@ -162,27 +162,23 @@ test("ROS file import survives reload, replaces, and clears through the real API
   await ros.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(ros.getByText("Long-term waiver and roster value")).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   await expect(ros.getByText("Long-term waiver and roster value")).toBeVisible();
 });
 
-test("weekly uploads replace only the selected week and clearing survives reload", async ({ page }, testInfo) => {
+test("weekly uploads replace only the selected week and clearing survives reload", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const { drawer, weekly } = panels(page);
   async function checkRoster(points: number | null) {
     await drawer.getByRole("button", { name: "Close team data" }).click();
     if (points === null) {
-      await expect(page.getByText("24.5 pts", { exact: true })).toHaveCount(0);
+      await expect(page.getByText("24.5", { exact: true })).toHaveCount(0);
     } else {
-      const projection = page.getByText(`${points} pts`, { exact: true });
-      // Compact layout intentionally hides the projection column, but its
-      // rendered value must still track the selected payload.
-      await expect(projection).toBeAttached();
-      if (testInfo.project.name === "desktop") await expect(projection).toBeVisible();
+      await expect(page.getByText(`${points}`, { exact: true })).toBeVisible();
     }
-    await page.getByRole("button", { name: "Manage team data" }).click();
+    await page.getByRole("button", { name: "Manage data", exact: true }).click();
   }
   await expect(weekly.getByLabel("Season", { exact: true })).toHaveValue("2026");
   await expect(weekly.getByLabel("Week", { exact: true })).toHaveValue("2");
@@ -213,7 +209,7 @@ test("weekly uploads replace only the selected week and clearing survives reload
   await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
   await checkRoster(null);
   await page.reload();
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
   await weekly.getByLabel("Week", { exact: true }).fill("1");
   const retained = page.waitForResponse(r => r.url().includes("/team?") && r.url().includes("week=1"));
@@ -226,7 +222,7 @@ test("weekly uploads replace only the selected week and clearing survives reload
 test("team data is keyboard accessible and collapsed imports stay outside the tab order", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  const opener = page.getByRole("button", { name: "Manage team data" });
+  const opener = page.getByRole("button", { name: "Manage data", exact: true });
   await opener.focus();
   await page.keyboard.press("Enter");
   const { drawer, weekly } = panels(page);
@@ -257,7 +253,7 @@ test("connection, Team Manager, and import controls meet automated accessibility
   await connect(page);
   await expectAccessible(page);
   await expectNamesContainVisibleText(page);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   await expect(panels(page).drawer).toBeVisible();
   await expectAccessible(page);
   await expectNamesContainVisibleText(page);
@@ -267,7 +263,7 @@ test("connection, Team Manager, and import controls meet automated accessibility
 test("bye markers announce the selected week and remain visible at every viewport", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage team data" }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const { drawer, weekly } = panels(page);
   await weekly.getByLabel("Week", { exact: true }).fill("9");
   await weekly.getByRole("button", { name: "Load selected week" }).click();
@@ -301,18 +297,19 @@ test("the roster table keeps its Player column usable and the page unscrolled at
   await connect(page);
   const table = page.getByRole("table", { name: "Starting lineup and reserves" });
   await expect(table).toBeVisible();
+  await table.getByRole("button", { name: /^Bench \(2\)/ }).click();
   for (const width of [1440, 800, 480, 320]) {
     await page.setViewportSize({ width, height: 800 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     const tableBox = await table.boundingBox();
-    const panelBox = await table.locator("xpath=ancestor::article").boundingBox();
+    const panelBox = await table.locator("xpath=parent::div").boundingBox();
     expect(tableBox!.width).toBeLessThanOrEqual(panelBox!.width);
     const playerHeader = await table.getByRole("columnheader", { name: "Player", exact: true }).boundingBox();
     expect(playerHeader!.width).toBeGreaterThan(120);
     const slot = table.getByRole("cell", { name: "IDP_FLEX", exact: true });
     expect(await slot.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     const details = table.getByText("Status details", { exact: false }).first();
-    if (width > 760) {
+    if (width > 520) {
       await expect(details).toBeHidden();
       continue;
     }
@@ -338,16 +335,16 @@ test("Team Manager answers contain wide Markdown tables inside the chat bubble",
   await expectResponseTable(page);
 });
 
-test("a keyboard-activated starter prompt hands focus to the team composer", async ({ page }) => {
+test("a keyboard-activated quick question keeps focus in the team composer", async ({ page }) => {
   await page.route("**/api/ai/status", route => route.fulfill({ json: {
     id: "codex-app-server", label: "Synthetic provider", configured: true, availability: "available",
   } }));
   await page.route(/\/api\/leagues\/[^/]+\/team\/ask(?:\?|$)/, route => route.fulfill({ json: { answer: "Synthetic answer." } }));
   await page.goto("/");
   await connect(page);
-  await page.getByLabel("Ask Assistant starters").getByRole("button").first().focus();
+  await page.getByRole("group", { name: "Quick questions" }).getByRole("button").first().focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Ask Assistant starters")).toHaveCount(0);
+  await expect(page.getByRole("log", { name: "Team conversation" })).toBeVisible();
   expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Ask Assistant about your team");
 });
 

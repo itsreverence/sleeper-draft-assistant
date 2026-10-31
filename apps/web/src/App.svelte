@@ -70,6 +70,7 @@
     TEAM_REFRESH_INTERVAL_MS,
   } from "./lib/team-refresh";
   import { createTeamSession } from "./lib/team-session.svelte";
+  import type { TeamDataSection } from "./lib/team-attention";
   import { buildCandidateDiscussionQuestion, buildPlayerDiscussionQuestion, shouldRequestAiDraftStrategy } from "./lib/ai-panel";
   import { currentPickAnnouncement } from "./lib/draft-board";
   import { callAnnouncement, callUpdateLabel, draftRoomMode, isShortlistMode, shortlistView } from "./lib/draft-room";
@@ -79,7 +80,7 @@
   import { getImportFreshness } from "./lib/freshness";
   import { nextDraftPreparationStep, shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
-  import { conversationalAiProviderStatus, isAiProviderAvailable } from "./lib/types";
+  import { conversationalAiProviderStatus, isAiProviderAvailable, isAssistantReady } from "./lib/types";
   import type {
     ConnectDraft,
     ConnectLeague,
@@ -129,6 +130,8 @@
   let rosRankingSummary: SeasonValueRankingImportSummary | null = $state(null);
   let teamProjectionSeason = $state("");
   let teamProjectionWeek = $state(0);
+  // teamProjectionWeek is the week requested; this is the week the displayed roster was loaded for.
+  let teamPayloadWeek = $state(0);
   let weeklyProjectionError = $state("");
   let rosRankingError = $state("");
   const teamSession = createTeamSession();
@@ -164,6 +167,9 @@
   let settingsReturnFocus: HTMLElement | null = $state(null);
   let draftSwitcherOpen = $state(false);
   let teamDataOpen = $state(false);
+  let teamDataSection: TeamDataSection = $state("readiness");
+  let teamAskPanel = $state<TeamAskPanel>();
+  let manageDataButton = $state<HTMLButtonElement>();
   let appSettings: AppSettings | null = $state(null);
   let aiProviderStatus: AiProviderStatus | null = $state(null);
   let settingsError = $state("");
@@ -849,7 +855,7 @@
     userIdentifier: string | null = null,
   ): Promise<boolean> {
     const requestId = ++loadDraftRequestId;
-    resetTeamRefreshTracking();
+    teamSession.reset();
     isLoading = true;
     loadError = "";
     resetDraftImportState();
@@ -871,7 +877,7 @@
 
       const { payload, resolvedLeagueId } = activation;
       if (teamManagerState?.league.id !== resolvedLeagueId) {
-        resetTeamRefreshTracking();
+        teamSession.reset();
         teamProjectionSeason = "";
         teamProjectionWeek = 0;
         weeklyProjectionSummary = null;
@@ -907,6 +913,7 @@
       draftSession.clear();
       decisionSnapshots = [];
       decisionHistoryError = "";
+      teamRefreshError = "";
       teamManagerState = null;
       teamDataReadiness = null;
       teamWeekContext = null;
@@ -963,7 +970,6 @@
     if (!isBackgroundRefresh) {
       teamManagerError = "";
     }
-    teamRefreshError = "";
 
     await teamSession.run(isBackgroundRefresh ? "refresh" : "load", () => fetchTeamManagerState(
         leagueId,
@@ -988,6 +994,7 @@
             weeklyProjectionSummary = null;
             rosRankingSummary = null;
             teamManagerError = message;
+            teamRefreshError = "";
           }
         },
       });
@@ -1036,6 +1043,8 @@
     weeklyProjectionSummary = payload.weeklyProjectionSummary;
     teamProjectionSeason = projectionOverride.season;
     teamProjectionWeek = projectionOverride.week;
+    teamPayloadWeek = projectionOverride.week;
+    teamRefreshError = "";
   }
 
   function applyDraftPayload(payload: DraftPayload, refreshPreferences = false) {
@@ -1533,6 +1542,18 @@
     teamQuestionRequest = { id: ++teamQuestionRequestId, question };
   }
 
+  function openTeamData(section: TeamDataSection = "readiness") {
+    teamDataSection = section;
+    teamDataOpen = true;
+  }
+
+  // An import can resolve the attention item that opened the drawer, which leaves the modal no opener to return to.
+  async function closeTeamData() {
+    teamDataOpen = false;
+    await tick();
+    if (document.activeElement === document.body) manageDataButton?.focus();
+  }
+
   function acknowledgeTeamQuestionRequest(requestId: number) {
     if (teamQuestionRequest?.id === requestId) {
       teamQuestionRequest = null;
@@ -2005,14 +2026,17 @@
   />
 {/snippet}
 
-{#snippet teamRefreshStatus()}
-  <TeamRefreshStatus
-    lastCheckedAt={teamLastCheckedAt}
-    lastChangedAt={teamLastChangedAt}
-    isRefreshing={isRefreshingTeamManager}
-    error={teamRefreshError}
-    onRefresh={() => refreshTeamManagerIfEligible(true)}
-  />
+{#snippet teamWorkspaceMeta()}
+  <div class="team-meta">
+    <TeamRefreshStatus
+      lastCheckedAt={teamLastCheckedAt}
+      lastChangedAt={teamLastChangedAt}
+      isRefreshing={isRefreshingTeamManager}
+      error={teamRefreshError}
+      onRefresh={() => refreshTeamManagerIfEligible(true)}
+    />
+    <button bind:this={manageDataButton} class="btn btn-secondary manage-data" type="button" aria-haspopup="dialog" disabled={!teamManagerState} onclick={() => openTeamData()}>Manage data</button>
+  </div>
 {/snippet}
 
 <main
@@ -2022,7 +2046,7 @@
   inert={settingsOpen}
 >
   <TopBar
-    title={draftState?.name ?? (switchingDraft ? "Choose another draft" : "Connect your Sleeper draft")}
+    title={showTeamWorkspace && teamManagerState ? teamManagerState.league.name : draftState?.name ?? (switchingDraft ? "Choose another draft" : "Connect your Sleeper draft")}
     {status}
     {lastEvent}
     connected={Boolean(draftState)}
@@ -2030,12 +2054,13 @@
     showChangeDraft={Boolean(draftState)}
     centered={isPreconnect || switchingDraft}
     compact={showDraftRoom || workspaceMode === "manage"}
+    measure={showTeamWorkspace}
     subtitle={showTeamWorkspace && teamManagerState ? formatTeamContext(teamManagerState, teamWeekContext, teamProjectionWeek || null) : null}
     draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
     onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
     onOpenSettings={toggleSettings}
-    meta={showTeamWorkspace ? teamRefreshStatus : showDraftRoom ? draftSyncStatus : undefined}
+    meta={showTeamWorkspace ? teamWorkspaceMeta : showDraftRoom ? draftSyncStatus : undefined}
   />
 
   {#if draftSwitcherOpen && draftState}
@@ -2325,13 +2350,26 @@
         {/if}
       {:else}
         <section class="team-workspace">
+          <MyTeamPanel
+            state={teamManagerState}
+            readiness={teamDataReadiness}
+            weekContext={teamWeekContext}
+            selectedWeek={teamPayloadWeek || null}
+            weeklySummary={weeklyProjectionSummary}
+            error={teamManagerError}
+            isLoading={isLoadingTeamManager || teamDataPending}
+            refreshFailed={Boolean(teamRefreshError)}
+            canAsk={isAssistantReady(conversationalProviderStatus)}
+            onManageData={openTeamData}
+            onAsk={(question) => teamAskPanel?.composeQuestion(question)}
+          />
           <TeamAskPanel
+            bind:this={teamAskPanel}
             contextKey={String(appSettings?.codexWebSearch)}
             teamState={teamManagerState}
             selectedSeason={teamProjectionSeason || null}
             selectedWeek={teamProjectionWeek || null}
             weekContext={teamWeekContext}
-            activitySummary={teamActivitySummary}
             onAsk={askTeamManager}
             providerStatus={conversationalProviderStatus}
             promptRequest={teamQuestionRequest}
@@ -2339,21 +2377,11 @@
             onOpenSettings={openSettings}
             onRetryProvider={retryAiProvider}
           />
-          <MyTeamPanel
-            state={teamManagerState}
-            readiness={teamDataReadiness}
-            weekContext={teamWeekContext}
-            selectedWeek={teamProjectionWeek || null}
-            rosSummary={rosRankingSummary}
-            weeklySummary={weeklyProjectionSummary}
-            error={teamManagerError}
-            isLoading={isLoadingTeamManager || teamDataPending}
-            onManageData={() => (teamDataOpen = true)}
-          />
-          <TeamActivityPanel activitySummary={teamActivitySummary} isLoading={isLoadingTeamManager} onAsk={askAboutTeamActivity} />
+          <TeamActivityPanel activitySummary={teamActivitySummary} onAsk={askAboutTeamActivity} />
         </section>
         {#if teamDataOpen}
           <TeamDataDrawer
+            section={teamDataSection}
             teamState={teamManagerState}
             readiness={teamDataReadiness}
             rosSummary={rosRankingSummary}
@@ -2376,7 +2404,7 @@
             onLoadWeek={loadWeeklyProjectionContext}
             onClearWeekly={clearWeeklyProjections}
             onOpenWeekly={openFantasyProsWeeklyProjections}
-            onClose={() => (teamDataOpen = false)}
+            onClose={closeTeamData}
           />
         {/if}
       {/if}
@@ -2412,11 +2440,27 @@
     min-width: 0;
   }
 
+  /* Same readable measure as the focused draft room: a lineup row stretched across a wide window is hard to scan. */
   .team-workspace {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 880px);
+    justify-content: center;
     gap: var(--space-3);
     margin-top: var(--space-2);
+  }
+
+  .team-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .manage-data {
+    min-height: 32px;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-sm);
   }
 
   .connect-editor {
@@ -2505,6 +2549,10 @@
   @media (max-width: 760px) {
     .side-column.row {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .team-meta {
+      justify-content: space-between;
     }
   }
 </style>

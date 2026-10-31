@@ -30,7 +30,7 @@ describe("App draft lifecycle", () => {
     const draftPayload = createDraftPayloadFixture({ draftId: "draft-1", name: "Completed Draft", leagueId: DEFAULT_LEAGUE_ID });
     draftPayload.state.status = "complete";
     draftLoad.resolve(draftPayload);
-    await fireEvent.click(await screen.findByRole("button", { name: "Manage team data" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Manage data" }));
     const drawer = screen.getByRole("dialog", { name: "Manage team data" });
     await fireEvent.click(within(drawer).getByText("Paste CSV instead"));
     await fireEvent.input(within(drawer).getByLabelText("CSV for the selected position"), { target: { value: "test CSV" } });
@@ -55,7 +55,7 @@ describe("App draft lifecycle", () => {
     const nextPayload = createDraftPayloadFixture({ draftId: "draft-2", name: "Next completed draft", leagueId: DEFAULT_LEAGUE_ID });
     nextPayload.state.status = "complete";
     nextDraft.resolve(nextPayload);
-    expect(await screen.findByRole("heading", { name: "Newly connected team" })).toBeTruthy();
+    expect(await screen.findByText(/Newly connected team/)).toBeTruthy();
     pendingImport.resolve({
       ...oldPayload,
       summary: {
@@ -65,7 +65,7 @@ describe("App draft lifecycle", () => {
     });
     await pendingImport.promise;
     await tick();
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Newly connected team" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Newly connected team/)).toBeTruthy());
   });
 
   it("does not replace a refreshed roster with a delayed team answer snapshot", async () => {
@@ -89,10 +89,10 @@ describe("App draft lifecycle", () => {
       state: { ...apiMock.teamPayload.state, userTeam: { ...apiMock.teamPayload.state.userTeam, name: "Refreshed roster" } },
     };
     await fireEvent.click(screen.getByRole("button", { name: "Refresh team data" }));
-    expect(await screen.findByRole("heading", { name: "Refreshed roster" })).toBeTruthy();
+    expect(await screen.findByText(/Refreshed roster/)).toBeTruthy();
     answer.resolve({ ...oldPayload, answer: "Roster review complete" });
     expect(await screen.findByText("Roster review complete")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Refreshed roster" })).toBeTruthy();
+    expect(screen.getByText(/Refreshed roster/)).toBeTruthy();
   });
 
   beforeAll(() => {
@@ -296,7 +296,7 @@ describe("App draft lifecycle", () => {
     draftLoad.resolve(draftPayload);
 
     await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(1));
-    await fireEvent.click(await screen.findByRole("button", { name: "Manage team data" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Manage data" }));
     const drawer = screen.getByRole("dialog", { name: "Manage team data" });
     await fireEvent.input(within(drawer).getByLabelText("Week"), { target: { value: "1" } });
     apiMock.teamPayload = {
@@ -322,7 +322,7 @@ describe("App draft lifecycle", () => {
 
     await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(2));
     expect(apiMock.fetchTeamManagerState.mock.calls[1]?.slice(3)).toEqual(["2026", 1]);
-    expect(await screen.findByText("Week 1 · vs Week One Opponent · Active Week 2 · PPR")).toBeTruthy();
+    expect(await screen.findByText(/^Week 1 · .* vs Week One Opponent · Active Week 2 · PPR$/)).toBeTruthy();
   });
 
   it("does not replay a handled market question after Team Manager remounts", async () => {
@@ -350,6 +350,10 @@ describe("App draft lifecycle", () => {
     draftPayload.state.status = "complete";
     draftLoad.resolve(draftPayload);
 
+    apiMock.teamPayload = {
+      ...apiMock.teamPayload,
+      activitySummary: { ...apiMock.teamPayload.activitySummary, trendingAdds: [{ player: apiMock.teamPayload.state.roster.starters[0]!.player!, count: 3, direction: "add" }] },
+    };
     const marketDisclosure = await screen.findByRole("button", { name: /Market activity/ });
     await fireEvent.click(marketDisclosure);
     const marketPanel = marketDisclosure.closest("article");

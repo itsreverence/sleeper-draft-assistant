@@ -28,7 +28,7 @@ describe("Team activity panel", () => {
 
     render(TeamActivityPanel, { activitySummary });
 
-    expect(screen.getByText(`Top add: ${starter.name} · 1 recent league transaction`)).toBeTruthy();
+    expect(screen.getByText(`My Team added Team Quarterback. · Top add: ${starter.name}`)).toBeTruthy();
     const disclosure = screen.getByRole("button", { name: /Market activity/ });
     expect(disclosure.getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByText("View details")).toBeTruthy();
@@ -46,12 +46,21 @@ describe("Team activity panel", () => {
 
   it("routes market questions to the shared Assistant conversation", async () => {
     const payload = createTeamPayloadFixture();
+    const starter = payload.state.roster.starters[0]!.player!;
     const onAsk = vi.fn();
-    render(TeamActivityPanel, { activitySummary: payload.activitySummary, onAsk });
+    render(TeamActivityPanel, { activitySummary: { ...payload.activitySummary, trendingAdds: [{ player: starter, count: 10, direction: "add" }] }, onAsk });
 
     await fireEvent.click(screen.getByRole("button", { name: /Market activity/ }));
     await fireEvent.click(screen.getByRole("button", { name: "Ask Assistant about market activity" }));
 
     expect(onAsk).toHaveBeenCalledWith("What does recent Sleeper activity say about my roster moves?");
+  });
+
+  it("renders nothing without real activity", () => {
+    const payload = createTeamPayloadFixture();
+    const { container, rerender } = render(TeamActivityPanel, { activitySummary: { ...payload.activitySummary, recentTransactions: [], trendingAdds: [], trendingDrops: [] } });
+    expect(container.querySelector("article")).toBeNull();
+    void rerender({ activitySummary: null });
+    expect(container.querySelector("article")).toBeNull();
   });
 });
