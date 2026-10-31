@@ -45,3 +45,23 @@ test("team roster keeps focus in the app when the draft completes underneath it"
   await expect(page.locator("body")).not.toBeFocused();
   expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
 });
+
+test("clicking page content keeps the keyboard's place in the Tab order", async ({ page }) => {
+  await openLiveRoom(page, { mode: "on-clock" });
+  await page.getByText("Best value at a need").first().click();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: /Why this call/ })).toBeFocused();
+});
+
+test("settings keeps focus in the app when its opener is gone", async ({ page }) => {
+  await openLiveRoom(page, { mode: "on-clock" });
+  const opener = page.getByRole("button", { name: "Open settings" });
+  const removable = await opener.elementHandle();
+  await opener.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await removable!.evaluate(el => el.remove());
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Ask about your draft" })).toBeFocused();
+  await expect(page.locator("main")).not.toHaveAttribute("tabindex");
+});

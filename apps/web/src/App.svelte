@@ -185,12 +185,17 @@
   let draftBoardOpen = $state(false);
   let askPanel: AskManagerPanel | undefined = $state();
   let mainElement: HTMLElement | undefined = $state();
-  setContext(modalFallbackFocus, () => {
+  function focusAfterLostOpener() {
     if (workspaceMode === "draft") askPanel?.focusComposer?.();
     else manageDataButton?.focus();
-    // The composer and Manage data are not always rendered or enabled.
-    if (document.activeElement === document.body) mainElement?.focus({ preventScroll: true });
-  });
+    // The composer and Manage data are not always rendered or enabled. A lasting tabindex would make clicks on page content restart the Tab order.
+    if (document.activeElement !== document.body || !mainElement || mainElement.inert) return;
+    const main = mainElement;
+    main.tabIndex = -1;
+    main.addEventListener("blur", () => main.removeAttribute("tabindex"), { once: true });
+    main.focus({ preventScroll: true });
+  }
+  setContext(modalFallbackFocus, focusAfterLostOpener);
   let draftRoomElement: HTMLElement | undefined = $state();
   let selectedDraftTeamId: string | null = $state(null);
   let playerSearchOpen = $state(false);
@@ -1657,6 +1662,8 @@
     if (returnFocus?.isConnected) {
       returnFocus.focus();
     }
+    // The drawer's own fallback ran while the page behind it was still inert.
+    if (document.activeElement === document.body) focusAfterLostOpener();
   }
 
   function toggleSettings() {
@@ -2049,7 +2056,6 @@
 
 <main
   bind:this={mainElement}
-  tabindex="-1"
   class="app-shell"
   class:preconnect-shell={isPreconnect || switchingDraft}
   class:preconnect-landing={(isPreconnect || switchingDraft) && !settingsOpen}
