@@ -98,7 +98,7 @@ const STARTER_RULES: StarterRule[] = [
   },
 ];
 
-const positionLabel = (position: Position) => (position === "DEF" ? "DST" : position);
+export const positionLabel = (position: Position) => (position === "DEF" ? "DST" : position);
 
 function unprojectedStarters({ state }: CheckContext): Player[] {
   return state.roster.starters.flatMap(({ player }) =>
@@ -138,7 +138,7 @@ const LINEUP_RULES: LineupRule[] = [
   },
 ];
 
-function checkedWeek({ state, weekContext = null, selectedWeek = null }: LineupCheckInput): number | null {
+export function checkedWeek({ state, weekContext = null, selectedWeek = null }: Pick<LineupCheckInput, "state" | "weekContext" | "selectedWeek">): number | null {
   if (state.seasonPhase === "regular") return effectiveTeamWeek(state, weekContext, selectedWeek);
   return selectedWeek;
 }

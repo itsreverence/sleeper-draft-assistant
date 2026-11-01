@@ -18,6 +18,7 @@ export {
   buildTeamDataReadiness,
   isWeeklyProjectionSummaryFresh,
   WEEKLY_PROJECTION_STALE_AFTER_DAYS,
+  WEEKLY_SCORING_REMINDER,
 } from "./team-data-readiness";
 
 const DRAFT_POSITIONS: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];

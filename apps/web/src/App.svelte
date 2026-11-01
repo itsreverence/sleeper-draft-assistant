@@ -131,6 +131,7 @@
   let teamProjectionWeek = $state(0);
   // teamProjectionWeek is the week requested; this is the week the displayed roster was loaded for.
   let teamPayloadWeek = $state(0);
+  let teamPayloadSeason = $state("");
   let weeklyProjectionError = $state("");
   let rosRankingError = $state("");
   const teamSession = createTeamSession();
@@ -166,7 +167,7 @@
   let settingsReturnFocus: HTMLElement | null = $state(null);
   let draftSwitcherOpen = $state(false);
   let teamDataOpen = $state(false);
-  let teamDataSection: TeamDataSection = $state("readiness");
+  let teamDataSection: TeamDataSection | null = $state(null);
   let teamAskPanel = $state<TeamAskPanel>();
   let manageDataButton = $state<HTMLButtonElement>();
   let appSettings: AppSettings | null = $state(null);
@@ -1058,6 +1059,7 @@
     teamProjectionSeason = projectionOverride.season;
     teamProjectionWeek = projectionOverride.week;
     teamPayloadWeek = projectionOverride.week;
+    teamPayloadSeason = projectionOverride.season;
     teamRefreshError = "";
   }
 
@@ -1555,7 +1557,7 @@
     teamQuestionRequest = { id: ++teamQuestionRequestId, question };
   }
 
-  function openTeamData(section: TeamDataSection = "readiness") {
+  function openTeamData(section: TeamDataSection | null = null) {
     teamDataSection = section;
     teamDataOpen = true;
   }
@@ -2389,6 +2391,10 @@
             section={teamDataSection}
             teamState={teamManagerState}
             readiness={teamDataReadiness}
+            weekContext={teamWeekContext}
+            selectedWeek={teamPayloadWeek || null}
+            selectedSeason={teamPayloadSeason || null}
+            refreshFailed={Boolean(teamRefreshError)}
             rosSummary={rosRankingSummary}
             weeklySummary={weeklyProjectionSummary}
             defaultSeason={weeklyProjectionDefaultSeason}

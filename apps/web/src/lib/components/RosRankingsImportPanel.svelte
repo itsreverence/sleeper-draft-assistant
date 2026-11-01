@@ -2,6 +2,7 @@
   import type { DraftScoringFormat, SeasonValueRankingImportSummary, TeamManagerState } from "../types";
   import { formatImportDate } from "../format";
   import { getImportFreshness } from "../freshness";
+  import DataLine from "./DataLine.svelte";
   import FileInput from "./FileInput.svelte";
   import Icon from "./Icon.svelte";
 
@@ -13,10 +14,10 @@
     currentWeek,
     scoring,
     summary,
-    weeklyLoaded,
     error,
     isImporting,
     isClearing,
+    open = $bindable(false),
     onImport,
     onClear,
     onOpenFantasyPros,
@@ -29,10 +30,10 @@
     currentWeek: number;
     scoring: DraftScoringFormat;
     summary: SeasonValueRankingImportSummary | null;
-    weeklyLoaded: boolean;
     error: string;
     isImporting: boolean;
     isClearing: boolean;
+    open?: boolean;
     onImport: (input: { season: string; scoring: DraftScoringFormat; csvText: string }) => void;
     onClear: (input: { season: string; scoring: DraftScoringFormat }) => void;
     onOpenFantasyPros: () => void;
@@ -47,12 +48,17 @@
     if (!season && defaultSeason) season = defaultSeason;
   });
 
-  const sourceCount = $derived(Number(Boolean(summary)) + Number(weeklyLoaded));
   const mismatch = $derived(Boolean(summary && leagueSeason && summary.season !== leagueSeason));
   const freshness = $derived(summary ? getImportFreshness(summary.appliedAt, 7) : null);
   const isFallback = $derived(summary?.rankingType === "draft-ecr-fallback");
   const needsRosUpdate = $derived(Boolean(isFallback && seasonPhase === "regular" && currentWeek >= 2));
   const sourceLabel = $derived(summary?.rankingType === "ros-ecr" ? "ROS ECR" : "Draft ECR fallback");
+  const lineSummary = $derived.by(() => {
+    if (!summary) return hasTeam ? "Not imported · long-term waiver and roster value" : "Available after team load";
+    if (mismatch) return `Saved for ${summary.season} · not used by advice`;
+    if (needsRosUpdate) return `${sourceLabel} · ${summary.matched} matched · ROS update recommended`;
+    return `${sourceLabel} · ${summary.matched} matched · ${summary.season} ${summary.scoring}`;
+  });
 
   async function readFile(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -62,20 +68,7 @@
   }
 </script>
 
-<article class="panel ros-import-panel" class:disabled-panel={!hasTeam}>
-  <div class="panel-heading compact">
-    <div>
-      <p class="eyebrow">Team data</p>
-      <h2><Icon name="upload" size={17} /> Season value rankings</h2>
-      <span class="collapsed-summary">
-        {summary ? `${sourceLabel} · ${summary.matched} matched · ${summary.season} ${summary.scoring}` : "Long-term waiver and roster value"}
-      </span>
-    </div>
-    <span class="pill" class:pill-ready={sourceCount === 2} class:pill-warning={hasTeam && sourceCount < 2}>
-      {hasTeam ? `${sourceCount}/2 sources` : "After team load"}
-    </span>
-  </div>
-
+<DataLine name="season-value" title="Season value rankings" summary={lineSummary} warn={mismatch || needsRosUpdate || Boolean(!isFallback && freshness?.stale) || Boolean(error)} bind:open>
   <p class="source-purpose">
     Weekly projections answer who helps now. ROS ECR is preferred; draft ECR is a fallback through Week 1.
   </p>
@@ -145,26 +138,13 @@
   {#if error}
     <p class="callout callout-danger"><Icon name="alert" size={15} />{error}</p>
   {/if}
-</article>
+</DataLine>
 
 <style>
-  .ros-import-panel {
-    display: grid;
-    gap: 10px;
-  }
-  .disabled-panel {
-    opacity: 0.85;
-  }
-  .collapsed-summary,
   .import-status,
   .source-purpose {
-    color: var(--text-muted);
+    color: var(--text-secondary);
     font-size: var(--text-xs);
-  }
-  .collapsed-summary {
-    display: block;
-    margin-top: 4px;
-    font-weight: 700;
   }
   .source-purpose,
   .import-status {

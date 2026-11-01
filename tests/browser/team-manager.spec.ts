@@ -37,9 +37,9 @@ test("attention items state their count and each moves focus to the right place"
   await dataItem.focus();
   await page.keyboard.press("Enter");
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
-  const picker = drawer.getByLabel("Projection CSV", { exact: true });
+  const picker = drawer.getByLabel("Choose WR file", { exact: true });
   await expect(picker).toBeFocused();
-  await expect(drawer.locator("label.file-button").last()).toBeInViewport();
+  await expect(drawer.locator(".lead label.file-button")).toBeInViewport();
   await expectAccessible(page);
   await page.keyboard.press("Escape");
   await expect(dataItem).toBeFocused();
@@ -49,6 +49,7 @@ test("closing the drawer after an import resolves its item returns focus to Mana
   await open(page, "needs-look");
   await page.getByRole("button", { name: "WR projections missing" }).click();
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
+  await drawer.getByRole("button", { name: /^Weekly projections/ }).click();
   await drawer.getByText("Paste CSV instead", { exact: true }).click();
   await drawer.getByLabel("CSV for the selected position").fill("Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,15");
   await drawer.getByRole("button", { name: "Import QB", exact: true }).click();
@@ -231,19 +232,22 @@ test("switching drafts keeps the failed-refresh note until the new team arrives"
 });
 
 test.describe("a week change keeps the verdict tied to the roster on screen", () => {
-  const weeklyPanel = (page: Page) => page.getByRole("dialog", { name: "Manage team data" }).locator("article")
-    .filter({ has: page.getByRole("heading", { name: "Weekly projections", exact: true }) });
+  const weeklyPanel = (page: Page) => page.getByRole("dialog", { name: "Manage team data" }).getByRole("region", { name: "Weekly projections", exact: true });
+  const openWeekly = async (page: Page) => {
+    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await weeklyPanel(page).getByRole("button", { name: /^Weekly projections/ }).click();
+  };
   const week7Note = (page: Page) => page.locator(".attention.note").filter({ hasText: "Nothing flagged for Week 7." });
   const lineupLive = (page: Page) => page.locator('.team-workspace p[aria-live="polite"]');
 
   async function pinWeek7(page: Page) {
     await open(page, "all-clear");
-    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await openWeekly(page);
     await weeklyPanel(page).getByLabel("Week", { exact: true }).fill("7");
     await weeklyPanel(page).getByRole("button", { name: "Load selected week" }).click();
     await page.getByRole("dialog", { name: "Manage team data" }).getByRole("button", { name: "Close team data" }).click();
     await expect(week7Note(page)).toBeVisible();
-    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await openWeekly(page);
     await weeklyPanel(page).getByLabel("Week", { exact: true }).fill("8");
   }
 
@@ -297,7 +301,8 @@ test("an accepted import clears the failed-refresh note", async ({ page }) => {
   await expect(note).toBeVisible();
   await page.getByRole("button", { name: "Manage data", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
-  const weekly = drawer.locator("article").filter({ has: page.getByRole("heading", { name: "Weekly projections", exact: true }) });
+  const weekly = drawer.getByRole("region", { name: "Weekly projections", exact: true });
+  await weekly.getByRole("button", { name: /^Weekly projections/ }).click();
   await weekly.getByText("Paste CSV instead", { exact: true }).click();
   await weekly.getByLabel("CSV for the selected position")
     .fill("Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,15");

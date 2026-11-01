@@ -32,6 +32,7 @@ describe("App draft lifecycle", () => {
     draftLoad.resolve(draftPayload);
     await fireEvent.click(await screen.findByRole("button", { name: "Manage data" }));
     const drawer = screen.getByRole("dialog", { name: "Manage team data" });
+    await fireEvent.click(within(drawer).getByRole("button", { name: /^Weekly projections/ }));
     await fireEvent.click(within(drawer).getByText("Paste CSV instead"));
     await fireEvent.input(within(drawer).getByLabelText("CSV for the selected position"), { target: { value: "test CSV" } });
     await fireEvent.click(within(drawer).getByRole("button", { name: "Import QB" }));
@@ -298,6 +299,7 @@ describe("App draft lifecycle", () => {
     await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(1));
     await fireEvent.click(await screen.findByRole("button", { name: "Manage data" }));
     const drawer = screen.getByRole("dialog", { name: "Manage team data" });
+    await fireEvent.click(within(drawer).getByRole("button", { name: /^Weekly projections/ }));
     await fireEvent.input(within(drawer).getByLabelText("Week"), { target: { value: "1" } });
     apiMock.teamPayload = {
       ...apiMock.teamPayload,

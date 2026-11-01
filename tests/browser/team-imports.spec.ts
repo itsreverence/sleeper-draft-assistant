@@ -21,8 +21,13 @@ function panels(page: Page) {
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
   return {
     drawer,
-    weekly: drawer.locator("article").filter({ has: page.getByRole("heading", { name: "Weekly projections", exact: true }) }),
+    weekly: drawer.getByRole("region", { name: "Weekly projections", exact: true }),
   };
+}
+
+async function openLine(page: Page, name = "Weekly projections") {
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await page.getByRole("dialog", { name: "Manage team data" }).getByRole("region", { name, exact: true }).getByRole("button", { name: new RegExp(`^${name}`) }).click();
 }
 
 const weeklyCsv = (points: number) => `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,TDS,FL,FPTS\nTest Quarterback,BUF,30,20,250,2,0,3,15,0,0,${points}`;
@@ -30,7 +35,7 @@ const weeklyCsv = (points: number) => `Player,Team,ATT,CMP,YDS,TDS,INTS,ATT,YDS,
 test("pasting weekly CSV clears the native file selection and allows reselecting the same file", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page);
   const { weekly } = panels(page);
   const picker = weekly.getByLabel("Projection CSV", { exact: true });
   const file = { name: "synthetic-QB.csv", mimeType: "text/csv", buffer: Buffer.from(weeklyCsv(15)) };
@@ -43,7 +48,7 @@ test("pasting weekly CSV clears the native file selection and allows reselecting
   const pasted = page.waitForResponse(r => r.url().includes("/projections/weekly/import") && r.request().method() === "POST");
   await weekly.getByRole("button", { name: "Import QB", exact: true }).click();
   expect((await (await pasted).json()).state.roster.starters[0].player.weeklyProjectedPoints).toBe(17);
-  await expect(weekly.getByText("1 matched for 2026 Week 2")).toBeVisible();
+  await expect(weekly.getByText(/^1 of \d files · Week 2 ·/)).toBeVisible();
   await expect(picker).toHaveValue("");
   await picker.setInputFiles(file);
   await expect(weekly.getByText("synthetic-QB.csv")).toBeVisible();
@@ -55,7 +60,7 @@ test("pasting weekly CSV clears the native file selection and allows reselecting
 test("the styled file control opens the native chooser from the keyboard and shows focus", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page);
   const { drawer, weekly } = panels(page);
   const picker = weekly.getByLabel("Projection CSV", { exact: true });
   const control = weekly.locator("label.file-button");
@@ -84,7 +89,7 @@ test("the styled file control opens the native chooser from the keyboard and sho
 test("a delayed import response cannot resurrect reset data or replace a newly connected team", async ({ page }) => {
   await page.goto("/");
   const oldLeague = await connect(page);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page);
   const { drawer, weekly } = panels(page);
   let release!: () => void;
   let imported!: () => void;
@@ -119,14 +124,14 @@ test("a delayed import response cannot resurrect reset data or replace a newly c
     // Allow fetch continuation and Svelte's render to settle after delivery.
     await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await expect(page.getByRole("region", { name: "Draft status" })).toContainText(`Team ${newLeague}`);
-    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await openLine(page);
     await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
     // Reconnect the original league after a reload: the reset removed its saved
     // import too, not merely the currently displayed summary.
     await page.goto("/");
     await page.getByTitle("Switch league or draft").click();
     await connect(page, oldLeague);
-    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await openLine(page);
     await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
   } finally {
     release();
@@ -138,9 +143,9 @@ test("ROS file import survives reload, replaces, and clears through the real API
   const league = `browser-${randomUUID()}`;
   await page.goto("/");
   await connect(page, league);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page, "Season value rankings");
   const drawer = page.getByRole("dialog", { name: "Manage team data" });
-  const ros = drawer.locator("article").filter({ has: page.getByRole("heading", { name: "Season value rankings" }) });
+  const ros = drawer.getByRole("region", { name: "Season value rankings", exact: true });
   await ros.getByLabel("Choose CSV").setInputFiles({
     name: "synthetic-adp.csv", mimeType: "text/csv",
     buffer: Buffer.from('"Rank","Player","Team","Bye","POS","Sleeper","RTSports","AVG","Real-Time (?)"'),
@@ -152,7 +157,7 @@ test("ROS file import survives reload, replaces, and clears through the real API
   await ros.getByRole("button", { name: "Import season value rankings", exact: true }).click();
   await expect(ros.getByText("ROS ECR · 1 matched · 2026 PPR")).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page, "Season value rankings");
   await expect(ros.getByText("ROS ECR · 1 matched · 2026 PPR")).toBeVisible();
   await ros.getByLabel("Choose CSV").setInputFiles({ name: "synthetic-ros.csv", mimeType: "text/csv", buffer: Buffer.from(csv(2)) });
   const replaced = page.waitForResponse(r => r.url().includes("/rankings/ros/import") && r.request().method() === "POST");
@@ -160,16 +165,16 @@ test("ROS file import survives reload, replaces, and clears through the real API
   const payload = await (await replaced).json();
   expect(payload.state.roster.starters[0].player.rosRank).toBe(2);
   await ros.getByRole("button", { name: "Clear", exact: true }).click();
-  await expect(ros.getByText("Long-term waiver and roster value")).toBeVisible();
+  await expect(ros.getByText("Not imported · long-term waiver and roster value")).toBeVisible();
   await page.reload();
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
-  await expect(ros.getByText("Long-term waiver and roster value")).toBeVisible();
+  await openLine(page, "Season value rankings");
+  await expect(ros.getByText("Not imported · long-term waiver and roster value")).toBeVisible();
 });
 
 test("weekly uploads replace only the selected week and clearing survives reload", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page);
   const { drawer, weekly } = panels(page);
   async function checkRoster(points: number | null) {
     await drawer.getByRole("button", { name: "Close team data" }).click();
@@ -178,7 +183,7 @@ test("weekly uploads replace only the selected week and clearing survives reload
     } else {
       await expect(page.getByText(`${points}`, { exact: true })).toBeVisible();
     }
-    await page.getByRole("button", { name: "Manage data", exact: true }).click();
+    await openLine(page);
   }
   await expect(weekly.getByLabel("Season", { exact: true })).toHaveValue("2026");
   await expect(weekly.getByLabel("Week", { exact: true })).toHaveValue("2");
@@ -191,7 +196,7 @@ test("weekly uploads replace only the selected week and clearing survives reload
     const result = await (await response).json();
     expect(result.error).toBeUndefined();
     expect(result.state.roster.starters[0].player.weeklyProjectedPoints).toBe(points);
-    await expect(weekly.getByText(/1 matched for 2026 Week/)).toBeVisible();
+    await expect(weekly.getByText(/^1 of \d files · Week \d ·/)).toBeVisible();
     await checkRoster(points);
   }
   await upload(21.5);
@@ -209,13 +214,13 @@ test("weekly uploads replace only the selected week and clearing survives reload
   await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
   await checkRoster(null);
   await page.reload();
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page);
   await expect(weekly.getByRole("button", { name: "Clear week" })).toHaveCount(0);
   await weekly.getByLabel("Week", { exact: true }).fill("1");
   const retained = page.waitForResponse(r => r.url().includes("/team?") && r.url().includes("week=1"));
   await weekly.getByRole("button", { name: "Load selected week" }).click();
   expect((await (await retained).json()).state.roster.starters[0].player.weeklyProjectedPoints).toBe(10.5);
-  await expect(weekly.getByText("1 matched for 2026 Week 1")).toBeVisible();
+  await expect(weekly.getByText(/^1 of \d files · Week 1 ·/)).toBeVisible();
   await checkRoster(10.5);
 });
 
@@ -232,6 +237,17 @@ test("team data is keyboard accessible and collapsed imports stay outside the ta
   await expect.poll(() => drawer.evaluate(node => node.contains(document.activeElement))).toBe(true);
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
+  const line = weekly.getByRole("button", { name: /^Weekly projections/ });
+  await expect(weekly.getByLabel("Week", { exact: true })).toBeHidden();
+  await line.focus();
+  await expect(line).toHaveCSS("outline-style", "solid");
+  await page.keyboard.press("Tab");
+  await expect(weekly.getByLabel("Season", { exact: true })).not.toBeFocused();
+  await line.focus();
+  await page.keyboard.press("Enter");
+  await expect(line).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Tab");
+  await expect(weekly.getByLabel("Season", { exact: true })).toBeFocused();
   const disclosure = weekly.getByText("Paste CSV instead", { exact: true });
   await disclosure.focus();
   await page.keyboard.press("Enter");
@@ -253,8 +269,8 @@ test("connection, Team Manager, and import controls meet automated accessibility
   await connect(page);
   await expectAccessible(page);
   await expectNamesContainVisibleText(page);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
-  await expect(panels(page).drawer).toBeVisible();
+  await openLine(page);
+  await expect(panels(page).weekly.getByLabel("Week", { exact: true })).toBeVisible();
   await expectAccessible(page);
   await expectNamesContainVisibleText(page);
 });
@@ -263,7 +279,7 @@ test("connection, Team Manager, and import controls meet automated accessibility
 test("bye markers announce the selected week and remain visible at every viewport", async ({ page }) => {
   await page.goto("/");
   await connect(page);
-  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  await openLine(page);
   const { drawer, weekly } = panels(page);
   await weekly.getByLabel("Week", { exact: true }).fill("9");
   await weekly.getByRole("button", { name: "Load selected week" }).click();

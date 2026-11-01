@@ -99,7 +99,8 @@ Toggle **Web search** off in Assistant settings and save during a lookup. Verify
 - **No separate Real-Time ADP download:** the Overall ADP export already contains both `Sleeper` and `Real-Time` columns.
 - **Season projection import skips FLX:** import QB, RB, WR, TE, K, and DST; FLX duplicates the individual skill-position exports.
 - **Team Manager needs two evidence categories:** use scoring-specific season value rankings for long-term value, then the six weekly projection files for current-week points. ROS ECR is preferred; matching draft ECR is a labeled fallback through Week 1 and prompts for replacement beginning in Week 2.
-- **Team Manager imports:** use **Manage data** in the top bar, or a data item in the attention box to land on the relevant control. Closing the drawer returns focus to what opened it and keeps the lineup and Assistant in place.
+- **Team Manager imports:** use **Manage data** in the top bar, or a data item in the attention box to land on the relevant control. The drawer leads with what the selected week is missing and one action to fix it. **Weekly projections**, **Season value rankings**, and **Coverage** are one line each and open on demand. Closing the drawer returns focus to what opened it and keeps the lineup and Assistant in place.
+- **Manage data lead:** verify the lead for nothing loaded, partly loaded, all loaded, files 3 or more days old, a pinned week, preseason, another season, and a failed import. Only all loaded on Sleeper's active week shows the green dot, and only states that need files show a primary button. It must never say a week is loaded during a load, after a failed refresh, or after a failed import.
 - **Team Manager attention box:** verify a starter on bye, a starter with a Sleeper status, and an empty slot each raise one item, that a bench player's status raises none, and that **Lineup looks set** never appears in preseason, in postseason, with an unknown week, on a pinned other week, or after a failed refresh.
 - **Weekly position mismatch:** keep the original FantasyPros filenames when selecting several files, or select the matching position when importing one file. The importer rejects a filename/position label that disagrees with the CSV headers and rejects unsupported column orders.
 - **Preseason Team Manager:** verify the roster loads, the page says **Preseason**, the attention box shows its one Preseason note, and no regular-season matchup or weekly-readiness warning is presented as current.
@@ -110,7 +111,7 @@ Toggle **Web search** off in Assistant settings and save during a lookup. Verify
 - **Sleeper draft refresh is degraded:** the last successful draft remains visible while the app retries automatically with bounded backoff. Use the reconnect control only when an immediate retry is useful.
 - **Imported data is marked old:** replace the export with a current FantasyPros download before relying on time-sensitive draft, waiver, or lineup advice.
 - **Weekly projections are three days old:** Team Manager keeps the stored import visible for replacement but excludes it from roster, available-player, readiness, and Codex evidence until fresh files are imported.
-- **Team Manager is on the wrong week:** the default view follows Sleeper automatically. Loading a different week in Manage data intentionally pins that historical or future context; load the active week to resume following Sleeper.
+- **Team Manager is on the wrong week:** the default view follows Sleeper automatically. Loading a different week in Manage data intentionally pins that historical or future context; choose **Back to Week N** in the lead, or load the active week, to resume following Sleeper.
 
 ## AI queue and progress verification
 

@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Position } from "../types";
 
-  let { position, size = "sm" }: { position: Position; size?: "sm" | "lg" } = $props();
+  let { position, label = position, size = "sm" }: { position: Position; label?: string; size?: "sm" | "lg" } = $props();
 </script>
 
-<span class={`pos-chip position-${position.toLowerCase()} ${size}`}>{position}</span>
+<span class={`pos-chip position-${position.toLowerCase()} ${size}`}>{label}</span>
 
 <style>
   .pos-chip {

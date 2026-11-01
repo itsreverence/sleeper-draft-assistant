@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import { WEEKLY_SCORING_REMINDER } from "@sleeper-draft-assistant/engine";
+  import DataLine from "./DataLine.svelte";
   import FileInput from "./FileInput.svelte";
   import Icon from "./Icon.svelte";
+  import SelectedProjectionFiles from "./SelectedProjectionFiles.svelte";
   import type { Position, WeeklyProjectionImportSummary } from "../types";
-  import { inferFantasyProsProjectionPosition } from "../fantasypros-projection-file";
   import { formatImportDate } from "../format";
   import { getImportFreshness, getOldestImportAppliedAt } from "../freshness";
+  import { importLabel, WeeklyFileSelection } from "../weekly-file-selection.svelte";
 
   const positionOptions: Array<{ value: Position; label: string }> = [
     { value: "QB", label: "QB" },
@@ -21,13 +24,15 @@
     hasTeam,
     defaultSeason,
     defaultWeek,
+    shownWeek = null,
     leagueSeason,
-    currentWeek,
+    loadedFiles,
+    neededFiles,
     summary,
-    rosLoaded,
     error = $bindable(""),
     isImporting,
     isClearing,
+    open = $bindable(false),
     onImport,
     onLoadContext,
     onClear,
@@ -36,166 +41,87 @@
     hasTeam: boolean;
     defaultSeason: string;
     defaultWeek: number;
+    shownWeek?: number | null;
     leagueSeason: string;
-    currentWeek: number;
+    loadedFiles: number;
+    neededFiles: number;
     summary: WeeklyProjectionImportSummary | null;
-    rosLoaded: boolean;
     error: string;
     isImporting: boolean;
     isClearing: boolean;
+    open?: boolean;
     onImport: (input: { files: Array<{ position: Position; csvText: string }>; season: string; week: number }) => void;
     onLoadContext: (input: { season: string; week: number }) => void;
     onClear: (input: { season: string; week: number }) => void;
     onOpenFantasyPros: (position: Position, week: number) => void;
   } = $props();
 
+  const selection = new WeeklyFileSelection();
   let csvText = $state("");
   let fileInput: HTMLInputElement | undefined = $state();
-  let selectedFiles: Array<{ name: string; position: Position; csvText: string }> = $state([]);
-  let ignoredFiles: string[] = $state([]);
-  let unknownFiles: string[] = $state([]);
-  let fileReadVersion = 0;
   let position: Position = $state("QB");
   let season = $state("");
   let week = $state(0);
 
-  onDestroy(() => { fileReadVersion++; });
+  onDestroy(() => selection.clear());
 
+  // These follow the view when it moves (Back to Week, an accepted load) without overwriting a value typed since.
   $effect(() => {
-    if (!season && defaultSeason) {
-      season = defaultSeason;
-    }
+    if (defaultSeason) season = defaultSeason;
   });
 
   $effect(() => {
-    if (!week) {
-      week = defaultWeek || 1;
-    }
+    week = defaultWeek || 1;
   });
 
-  const statusText = $derived(
-    summary
-      ? `${summary.matched} matched for ${summary.season} Week ${summary.week}`
-      : hasTeam
-        ? "Not imported yet"
-        : "Available after team load",
-  );
-  const sourceCount = $derived(Number(Boolean(summary)) + Number(rosLoaded));
-  const hasImportMismatch = $derived(Boolean(summary && leagueSeason && summary.season !== leagueSeason));
-  const viewingDifferentWeek = $derived(Boolean(currentWeek && week !== currentWeek));
-  const totalUnmatched = $derived(summary?.positionResults.reduce((total, result) => total + result.unmatched, 0) ?? 0);
-  const totalAmbiguous = $derived(summary?.positionResults.reduce((total, result) => total + result.ambiguous, 0) ?? 0);
   const freshness = $derived(summary
     ? getImportFreshness(
         getOldestImportAppliedAt(summary.positionResults.map((result) => result.appliedAt), summary.appliedAt),
         3,
       )
     : null);
+  const otherSeason = $derived(Boolean(summary && leagueSeason && summary.season !== leagueSeason));
+  const lineSummary = $derived.by(() => {
+    if (!summary) return hasTeam ? "Not imported yet" : "Available after team load";
+    if (otherSeason) return `Saved for ${summary.season} · not used by advice`;
+    const saved = new Date(summary.appliedAt).toLocaleDateString([], { month: "short", day: "numeric" });
+    return `${loadedFiles} of ${neededFiles} files · Week ${summary.week} · saved ${saved} (${freshness?.label})`;
+  });
+  const targetsOtherWeek = $derived(Boolean(hasTeam && shownWeek && week && week !== shownWeek));
+  const totalUnmatched = $derived(summary?.positionResults.reduce((total, result) => total + result.unmatched, 0) ?? 0);
+  const totalAmbiguous = $derived(summary?.positionResults.reduce((total, result) => total + result.ambiguous, 0) ?? 0);
 
   async function readProjectionFiles(event: Event) {
-    const input = event.currentTarget as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
+    const files = Array.from((event.currentTarget as HTMLInputElement).files ?? []);
     if (files.length === 0) {
       return;
     }
 
-    const version = ++fileReadVersion;
-    const selectedPosition = position;
     error = "";
-    selectedFiles = [];
-    ignoredFiles = [];
-    unknownFiles = [];
     csvText = "";
-    try {
-      const parsedFiles = await Promise.all(files.map(async (file) => {
-        const csvText = await file.text();
-        return {
-          name: file.name,
-          position: inferFantasyProsProjectionPosition({ name: file.name, csv: csvText }),
-          csvText,
-        };
-      }));
-      if (version !== fileReadVersion) return;
-      ignoredFiles = parsedFiles.filter((file) => isFlexFilename(file.name)).map((file) => file.name);
-      unknownFiles = files.length > 1
-        ? parsedFiles.filter((file) => !file.position && !isFlexFilename(file.name)).map((file) => file.name)
-        : [];
-      const byPosition = new Map<Position, { name: string; position: Position; csvText: string }>();
-      for (const file of parsedFiles) {
-        if (isFlexFilename(file.name)) continue;
-        const resolvedPosition = file.position ?? (files.length === 1 ? selectedPosition : null);
-        if (resolvedPosition) {
-          byPosition.set(resolvedPosition, { ...file, position: resolvedPosition });
-        }
-      }
-      selectedFiles = Array.from(byPosition.values());
-    } catch {
-      if (version === fileReadVersion) error = "Could not read the selected files. Select them again or paste the CSV.";
+    if (!(await selection.read(files, position))) {
+      error = "Could not read the selected files. Select them again or paste the CSV.";
     }
   }
 
   function usePastedCsv() {
-    fileReadVersion++;
     if (fileInput) fileInput.value = "";
-    selectedFiles = [];
-    ignoredFiles = [];
-    unknownFiles = [];
+    selection.clear();
     error = "";
   }
 
-  function isFlexFilename(filename: string) {
-    return /(?:^|[_\s-])(?:FLEX|FLX)(?=[_.\s(-]|$)/i.test(filename);
-  }
-
   function submitImport() {
-    const files = selectedFiles.length > 0
-      ? selectedFiles.map((file) => ({ position: file.position, csvText: file.csvText }))
+    const files = selection.files.length > 0
+      ? selection.files.map((file) => ({ position: file.position, csvText: file.csvText }))
       : csvText.trim()
         ? [{ position, csvText: csvText.trim() }]
         : [];
     onImport({ files, season: season.trim(), week: Number(week) });
   }
-
-  function clearImport() {
-    onClear({ season: season.trim(), week: Number(week) });
-  }
-
 </script>
 
-<article class="panel weekly-import-panel" class:disabled-panel={!hasTeam}>
-  <div class="panel-heading compact">
-    <div>
-      <p class="eyebrow">FantasyPros</p>
-      <h2><Icon name="upload" size={17} /> Weekly projections</h2>
-      <span class="collapsed-summary">{statusText}</span>
-    </div>
-    <span class="pill" class:pill-ready={sourceCount === 2} class:pill-warning={hasTeam && sourceCount < 2}>
-      {hasTeam ? `${sourceCount}/2 sources` : "After team load"}
-    </span>
-  </div>
-
-  <div class="weekly-instructions">
-    <strong>Select all six position files together</strong>
-    <p>
-      Download FantasyPros weekly projections for QB, RB, WR, TE, K, and DST, then select them together. You can still
-      import or replace one position at a time. The FLEX export is redundant.
-    </p>
-  </div>
-
-  {#if hasImportMismatch && summary}
-    <p class="callout callout-warning">
-      <Icon name="alert" size={15} />
-      Imported data is for {summary.season} Week {summary.week}, but this team view is
-      connected to a {leagueSeason} Sleeper league. It is saved for reference but is not used by lineup, waiver, or Assistant advice.
-    </p>
-  {/if}
-
-  {#if viewingDifferentWeek}
-    <p class="callout callout-warning">
-      <Icon name="alert" size={15} />
-      Viewing Week {week}; Sleeper currently reports Week {currentWeek}. Advice will use the selected week's saved projections.
-    </p>
-  {/if}
+<DataLine name="weekly" title="Weekly projections" summary={lineSummary} warn={otherSeason || Boolean(freshness?.stale) || Boolean(error)} bind:open>
+  <p class="instructions">Select all six position files together, or one to replace a position. The FLEX export is redundant.</p>
 
   <div class="control-grid">
     <label class="field">
@@ -216,6 +142,10 @@
     </label>
   </div>
 
+  {#if targetsOtherWeek}
+    <p class="target-note">Week {shownWeek} is on screen. Load selected week to switch, or import files into Week {week}.</p>
+  {/if}
+
   <div class="action-row">
     <button class="btn btn-secondary" type="button" disabled={!hasTeam || isImporting || isClearing} onclick={() => onLoadContext({ season: season.trim(), week: Number(week) })}>
       Load selected week
@@ -225,7 +155,7 @@
       <Icon name="external" size={13} />
     </button>
     {#if summary}
-      <button class="btn btn-secondary" type="button" disabled={isClearing || isImporting} onclick={clearImport}>
+      <button class="btn btn-ghost" type="button" disabled={isClearing || isImporting} onclick={() => onClear({ season: summary.season, week: summary.week })}>
         {isClearing ? "Clearing" : "Clear week"}
       </button>
     {/if}
@@ -234,27 +164,13 @@
   <FileInput
     bind:input={fileInput}
     caption="Projection CSV"
-    label="Choose CSV files"
-    selection={selectedFiles.length > 0 ? undefined : csvText.trim() ? "Using pasted CSV" : "No files selected"}
+    label={summary ? "Replace files" : "Choose CSV files"}
+    selection={selection.files.length > 0 ? undefined : csvText.trim() ? "Using pasted CSV" : "No files selected"}
     multiple
     disabled={!hasTeam || isImporting || isClearing}
     onchange={readProjectionFiles}
   />
-  {#if selectedFiles.length > 0}
-    <div class="selected-files">
-      {#each selectedFiles as file}
-        <span><strong>{file.position === "DEF" ? "DST" : file.position}</strong>{file.name}</span>
-      {/each}
-    </div>
-  {/if}
-  {#if ignoredFiles.length > 0}
-    <p class="muted-file-note">
-      Ignored {ignoredFiles.join(", ")}. FLEX is redundant when RB, WR, and TE files are included.
-    </p>
-  {/if}
-  {#if unknownFiles.length > 0}
-    <p class="muted-file-note">Could not identify a position for {unknownFiles.join(", ")}. Import each file separately with its position selected, or keep the original FantasyPros filenames.</p>
-  {/if}
+  <SelectedProjectionFiles {selection} />
   <details class="disclosure">
     <summary>Paste CSV instead</summary>
     <label class="field">
@@ -270,9 +186,9 @@
     </label>
   </details>
 
-  <button class="btn btn-primary btn-block" type="button" disabled={!hasTeam || isImporting || isClearing || (selectedFiles.length === 0 && !csvText.trim())} onclick={submitImport}>
+  <button class="btn btn-primary btn-block" type="button" disabled={!hasTeam || isImporting || isClearing || (selection.files.length === 0 && !csvText.trim())} onclick={submitImport}>
     {#if isImporting}<span class="spinner"></span>{/if}
-    {isImporting ? "Importing" : selectedFiles.length > 1 ? `Import ${selectedFiles.length} files` : `Import ${selectedFiles[0]?.position === "DEF" || (!selectedFiles[0] && position === "DEF") ? "DST" : selectedFiles[0]?.position ?? position}`}
+    {isImporting ? "Importing" : importLabel(selection.files, position)}
   </button>
 
   {#if summary}
@@ -280,7 +196,7 @@
       Active import: FantasyPros {summary.position ?? "multi-position"} projections for {summary.season} Week {summary.week},
       saved {formatImportDate(summary)} ({freshness?.label}).
     </p>
-    <div class="position-status" aria-label="Weekly projection position import status">
+    <div class="position-status" aria-label="Weekly projection position import status" role="group">
       {#each requiredPositions as requiredPosition}
         {@const result = summary.positionResults.find((item) => item.position === requiredPosition)}
         <span class:loaded={Boolean(result?.matched)}>
@@ -333,49 +249,32 @@
         {/if}
       </div>
     {/if}
+
+    <p class="instructions">{WEEKLY_SCORING_REMINDER}</p>
   {/if}
 
   {#if error}
     <p class="callout callout-danger"><Icon name="alert" size={15} />{error}</p>
   {/if}
-</article>
+</DataLine>
 
 <style>
-  .weekly-import-panel {
-    display: grid;
-    gap: 10px;
-  }
-
-  .disabled-panel {
-    opacity: 0.85;
-  }
-
-  .collapsed-summary {
-    display: block;
-    margin-top: 4px;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: 700;
-  }
-
-  .weekly-instructions,
-  .import-summary,
-  .position-status,
-  .selected-files {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-  }
-
-  .weekly-instructions {
-    padding: 9px 10px;
-  }
-
-  .weekly-instructions p {
-    margin: 4px 0 0;
+  .instructions,
+  .target-note {
     color: var(--text-secondary);
     font-size: var(--text-xs);
     line-height: 1.45;
+  }
+
+  .target-note {
+    color: var(--warning);
+  }
+
+  .import-summary,
+  .position-status {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
   }
 
   .control-grid {
@@ -406,33 +305,6 @@
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     overflow: hidden;
-  }
-
-  .selected-files {
-    display: grid;
-    gap: 5px;
-    padding: 8px;
-  }
-
-  .selected-files span {
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
-    gap: 7px;
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    overflow-wrap: anywhere;
-  }
-
-  .selected-files strong {
-    color: var(--accent);
-  }
-
-  .muted-file-note {
-    margin: 0;
-    overflow-wrap: anywhere;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    line-height: 1.4;
   }
 
   .position-status > span {
