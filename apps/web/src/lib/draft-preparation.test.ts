@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextDraftPreparationStep, shouldOpenDraftPreparation } from "./draft-preparation";
+import { draftPreparationHeading, nextDraftPreparationStep, remainingDraftPreparationSteps, shouldOpenDraftPreparation } from "./draft-preparation";
 
 describe("next draft preparation step", () => {
   const ready = { hasRankings: true, rankingsStale: false, hasProjections: true, hasAdp: true, aiConfigured: true };
@@ -15,6 +15,34 @@ describe("next draft preparation step", () => {
 
   it("sends stale rankings back to the rankings import", () => {
     expect(nextDraftPreparationStep({ ...ready, rankingsStale: true })).toBe("rankings");
+  });
+});
+
+describe("draft preparation heading", () => {
+  const view = { draftComplete: false, assistantChecking: false, remaining: 0 };
+
+  it.each([
+    [4, "Four steps before the draft room"],
+    [3, "Three steps before the draft room"],
+    [2, "Two steps before the draft room"],
+    [1, "One step before the draft room"],
+    [0, "Ready for the draft room"],
+  ])("counts %i steps left", (remaining, heading) => {
+    expect(draftPreparationHeading({ ...view, remaining })).toBe(heading);
+  });
+
+  it("does not count steps while the Assistant's state is unknown", () => {
+    expect(draftPreparationHeading({ ...view, assistantChecking: true, remaining: 1 })).toBe("Checking the Assistant");
+  });
+
+  it("does not promise a draft room ahead of a completed draft", () => {
+    expect(draftPreparationHeading({ ...view, draftComplete: true, remaining: 3 })).toBe("Draft is over");
+    expect(draftPreparationHeading({ ...view, draftComplete: true, assistantChecking: true })).toBe("Draft is over");
+  });
+
+  it("counts stale rankings as a step left", () => {
+    const remaining = remainingDraftPreparationSteps({ hasRankings: true, rankingsStale: true, hasProjections: true, hasAdp: true, aiConfigured: true });
+    expect(remaining).toEqual(["rankings"]);
   });
 });
 

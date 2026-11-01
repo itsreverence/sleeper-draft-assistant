@@ -21,7 +21,7 @@ The product is AI-first rather than a rankings-only draft board. The AI owns str
 ## Operating Context
 
 - Users connect by Sleeper username, league URL/ID, or draft ID and can use a synthetic demo draft for testing.
-- Draft preparation asks the user to choose an AI path and import scoring-matched FantasyPros ECR, season projections, and ADP before entering the main workspace.
+- Draft preparation is a short checklist: import scoring-matched FantasyPros ECR, season projections, and ADP, then confirm the Assistant, before entering the main workspace.
 - During a live draft, the board refreshes from Sleeper, surfaces the current pick and team context, and keeps the AI conversation grounded in the latest board snapshot.
 - The user can search the complete available-player pool, prioritize, deprioritize, or exclude players, provide strategy guidance, inspect other rosters, and ask the AI to compare or explain options.
 - Team Manager is the post-draft workspace for weekly lineups, waivers, roster needs, activity, and season context. It uses user-provided rest-of-season rankings and weekly projections when available.
