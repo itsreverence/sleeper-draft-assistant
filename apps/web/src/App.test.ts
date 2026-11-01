@@ -228,10 +228,10 @@ describe("App draft lifecycle", () => {
 
     await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
 
-    expect(screen.getByRole("heading", { name: /Ground the Assistant/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "One step before the draft room" })).toBeTruthy();
     expect(screen.queryByLabelText("Setup progress")).toBeNull();
     const live = view.container.querySelectorAll(".btn-primary:not(:disabled, .is-disabled)");
-    expect([...live].map((element) => element.textContent?.trim())).toEqual(["Confirm Codex settings"]);
+    expect([...live].map((element) => element.textContent?.trim())).toEqual(["Confirm Assistant settings"]);
   });
 
   it("keeps Team Manager on Sleeper's active week across refreshes", async () => {
@@ -413,12 +413,13 @@ describe("App draft lifecycle", () => {
     render(App);
     await openAndResolveDraft(draftLoad, "draft-1", "Sleeper Alpha Draft");
 
-    expect((screen.getByRole("button", { name: "Enter draft room" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Enter draft room" })).toBeNull();
     expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Open emergency board only" }));
 
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Emergency board-only mode")).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Emergency board-only mode" })));
     expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
     expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
     expect(screen.queryByRole("button", { name: "Find player" })).toBeNull();
@@ -457,7 +458,7 @@ describe("App draft lifecycle", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Open emergency board only" })).toBeTruthy();
-      expect((screen.getByRole("button", { name: "Enter draft room" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.queryByRole("button", { name: "Enter draft room" })).toBeNull();
       expect(screen.queryByTestId("ask-manager-recommendation")).toBeNull();
       expect(screen.queryByTestId("ask-manager-answer")).toBeNull();
     });
@@ -1008,6 +1009,7 @@ describe("App draft lifecycle", () => {
     const view = render(App);
 
     await openAndResolveDraft(firstDraft, "draft-1", "Sleeper Alpha Draft");
+    await fireEvent.click(screen.getByRole("button", { name: /^PPR ECR/ }));
     await uploadDraftDataCsv(view.container, 0, "rankings.csv", "name,team\nPlayer,ABC");
 
     await fireEvent.click(screen.getByTitle("Switch league or draft"));
@@ -1077,13 +1079,14 @@ describe("App draft lifecycle", () => {
     await waitFor(() => {
       expect(view.container.querySelectorAll('input[type="file"]').length).toBeGreaterThan(0);
     });
+    await fireEvent.click(screen.getByRole("button", { name: /^PPR ECR/ }));
     await uploadDraftDataCsv(view.container, 0, "rankings.csv", "name,team\nPlayer,ABC");
 
     await waitFor(() => {
       expect(apiMock.importRankingsRequest).toHaveBeenCalledTimes(1);
     });
 
-    await fireEvent.click(screen.getAllByRole("button", { name: "Clear" })[0]!);
+    await fireEvent.click(screen.getByRole("button", { name: "Clear PPR ECR" }));
 
     const clearedPayload = createDraftPayloadFixture({
       draftId: "draft-1",
@@ -1098,9 +1101,9 @@ describe("App draft lifecycle", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("Upload CSV").length).toBeGreaterThan(0);
+      expect(screen.getByText("Upload PPR ECR CSV")).toBeTruthy();
       expect(screen.queryAllByText("Importing")).toHaveLength(0);
-      expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Clear PPR ECR" })).toBeNull();
     });
 
     const staleImportPayload = createDraftPayloadFixture({
@@ -1114,9 +1117,9 @@ describe("App draft lifecycle", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("Upload CSV").length).toBeGreaterThan(0);
+      expect(screen.getByText("Upload PPR ECR CSV")).toBeTruthy();
       expect(screen.queryAllByText("Importing")).toHaveLength(0);
-      expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Clear PPR ECR" })).toBeNull();
     });
   });
 

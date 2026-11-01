@@ -11,6 +11,7 @@
     submitLabel = "Save Assistant settings",
     requireCodex = false,
     primary = true,
+    externalSubmitId,
     onSave,
   }: {
     settings: AppSettings | null;
@@ -20,6 +21,7 @@
     submitLabel?: string;
     requireCodex?: boolean;
     primary?: boolean;
+    externalSubmitId?: string;
     onSave: (settings: AppSettings) => void;
   } = $props();
 
@@ -58,7 +60,7 @@
   }
 </script>
 
-<form class="provider-form" onsubmit={submit}>
+<form class="provider-form" id={externalSubmitId} onsubmit={submit}>
   <label class="field">
     <span>Provider</span>
     <select class="input" bind:value={aiProvider}>
@@ -100,7 +102,7 @@
       <input bind:checked={webSearch} type="checkbox" aria-label="Web search" />
       <span>
         <strong>Web search</strong>
-        <small>Let Codex check recent player news when useful. May increase response time and usage. Saving a change starts fresh conversations.</small>
+        <small>Let the Assistant check recent player news when useful. May increase response time and usage. Saving a change starts fresh conversations.</small>
       </span>
     </label>
     <p class="form-note">Terra is the balanced default. Luna uses fewer resources; Sol offers the most capability.</p>
@@ -117,9 +119,11 @@
     <p class="callout callout-danger">{error}</p>
   {/if}
 
-  <button class="btn {primary ? 'btn-primary' : 'btn-secondary'}" type="submit" disabled={isSaving || !settings}>
-    {isSaving ? "Saving" : submitLabel}
-  </button>
+  {#if !externalSubmitId}
+    <button class="btn {primary ? 'btn-primary' : 'btn-secondary'}" type="submit" disabled={isSaving || !settings}>
+      {isSaving ? "Saving" : submitLabel}
+    </button>
+  {/if}
 </form>
 
 <style>

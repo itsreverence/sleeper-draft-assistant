@@ -6,7 +6,6 @@
   import TopBar from "./lib/components/TopBar.svelte";
   import SetupChecklist from "./lib/components/SetupChecklist.svelte";
   import ConnectPanel from "./lib/components/ConnectPanel.svelte";
-  import RankingsImportPanel from "./lib/components/RankingsImportPanel.svelte";
   import SettingsDrawer from "./lib/components/SettingsDrawer.svelte";
   import DraftSwitcherDrawer from "./lib/components/DraftSwitcherDrawer.svelte";
   import DraftRoomPanel from "./lib/components/DraftRoomPanel.svelte";
@@ -30,8 +29,7 @@
   import PickFeedPanel from "./lib/components/PickFeedPanel.svelte";
   import Icon from "./lib/components/Icon.svelte";
   import AskManagerPanel from "./lib/components/AskManagerPanel.svelte";
-  import DraftPreparationHeader from "./lib/components/DraftPreparationHeader.svelte";
-  import DraftAiSetupPanel from "./lib/components/DraftAiSetupPanel.svelte";
+  import DraftPreparationChecklist from "./lib/components/DraftPreparationChecklist.svelte";
   import DraftDataStatus from "./lib/components/DraftDataStatus.svelte";
 
   import {
@@ -185,8 +183,11 @@
   let draftBoardOpen = $state(false);
   let askPanel: AskManagerPanel | undefined = $state();
   let mainElement: HTMLElement | undefined = $state();
+  let preparationChecklist = $state<DraftPreparationChecklist>();
+  let emergencyHeading = $state<HTMLElement>();
   function focusAfterLostOpener() {
-    if (workspaceMode === "draft") askPanel?.focusComposer?.();
+    if (preparationChecklist) preparationChecklist.focusNextAction();
+    else if (workspaceMode === "draft") askPanel?.focusComposer?.();
     else manageDataButton?.focus();
     // The composer and Manage data are not always rendered or enabled. A lasting tabindex would make clicks on page content restart the Tab order.
     if (document.activeElement !== document.body || !mainElement || mainElement.inert) return;
@@ -1168,7 +1169,6 @@
         return;
       }
       applyDraftPayload(payload, true);
-      draftPreparationOpen = draftState?.status !== "complete";
       emergencyBoardMode = false;
       if (requestTeamLeagueId) {
         void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
@@ -1619,15 +1619,17 @@
     };
   }
 
-  function enterDraftRoom() {
-    if (!draftAssistantReady) {
+  async function enterDraftRoom() {
+    if (!draftAssistantReady && draftPhase !== "complete") {
       return;
     }
     emergencyBoardMode = false;
     draftPreparationOpen = false;
+    await tick();
+    if (document.activeElement === document.body) focusAfterLostOpener();
   }
 
-  function openEmergencyBoard() {
+  async function openEmergencyBoard() {
     if (draftState?.status !== "drafting" || draftAssistantReady) {
       return;
     }
@@ -1637,10 +1639,14 @@
     if (!confirmed) return;
     emergencyBoardMode = true;
     draftPreparationOpen = false;
+    await tick();
+    emergencyHeading?.focus();
   }
 
-  function openDraftPreparation() {
+  async function openDraftPreparation() {
     draftPreparationOpen = true;
+    await tick();
+    if (document.activeElement === document.body) focusAfterLostOpener();
   }
 
   async function manageDraftDataFromSettings() {
@@ -1759,13 +1765,13 @@
   });
   const hasSeasonProjections = $derived(Boolean(seasonProjectionImportSummary));
   const hasImportedAdp = $derived(Boolean(adpImportSummary));
-  const preparationStep = $derived(nextDraftPreparationStep({
+  const preparationReadiness = $derived({
     hasRankings: hasImportedRankings,
     rankingsStale,
     hasProjections: hasSeasonProjections,
     hasAdp: hasImportedAdp,
     aiConfigured: codexProviderReady,
-  }));
+  });
   const draftDataSignalCount = $derived(
     Number(hasImportedRankings) + Number(hasSeasonProjections) + Number(hasImportedAdp),
   );
@@ -1773,13 +1779,7 @@
     isRealDraftActive
     && (!hasImportedRankings || rankingsStale || !hasSeasonProjections || !hasImportedAdp),
   );
-  const draftAssistantReady = $derived(
-    hasImportedRankings
-    && !rankingsStale
-    && hasSeasonProjections
-    && hasImportedAdp
-    && codexProviderReady,
-  );
+  const draftAssistantReady = $derived(nextDraftPreparationStep(preparationReadiness) === null);
   const selectedLeague = $derived.by(() => {
     const payload = connectPayload;
     return payload?.leagues.find((league) => league.leagueId === selectedLeagueId) ?? null;
@@ -2145,39 +2145,33 @@
   {#if draftState}
     {#key activeDraftId}
       {#if draftPreparationOpen && workspaceMode === "draft"}
-        <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
         <div class="preparation-flow">
-          <DraftPreparationHeader
-            draftName={draftState.name}
+          <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
+          <DraftPreparationChecklist
+            bind:this={preparationChecklist}
             statusLabel={formatStatus(draftState.status)}
             scoring={normalizeDraftScoring(draftState.settings.scoring)}
             season={draftDataDefaultSeason}
             teamLabel={yourTeamLabel}
-            hasRankings={hasImportedRankings}
-            {rankingsStale}
-            hasProjections={hasSeasonProjections}
-            hasAdp={hasImportedAdp}
-            aiConfigured={codexProviderReady}
+            readiness={preparationReadiness}
             liveDraft={draftPhase === "drafting"}
-            onContinue={enterDraftRoom}
-            onOpenEmergency={openEmergencyBoard}
-          />
-          <RankingsImportPanel
-            hasDraft={true}
-            scoring={normalizeDraftScoring(draftState.settings.scoring)}
-            season={draftDataDefaultSeason}
-            {isImportingRankings}
-            {isClearingRankings}
-            {isImportingSeasonProjections}
-            {isClearingSeasonProjections}
-            {isImportingAdp}
-            {isClearingAdp}
+            draftComplete={draftPhase === "complete"}
             {rankingImportSummary}
             {seasonProjectionImportSummary}
             {adpImportSummary}
             {rankingImportError}
             {seasonProjectionImportError}
             {adpImportError}
+            {isImportingRankings}
+            {isClearingRankings}
+            {isImportingSeasonProjections}
+            {isClearingSeasonProjections}
+            {isImportingAdp}
+            {isClearingAdp}
+            settings={appSettings}
+            providerStatus={aiProviderStatus}
+            {isSavingSettings}
+            {settingsError}
             onImportRankings={importRankings}
             onImportSeasonProjections={importSeasonProjections}
             onImportAdp={importAdp}
@@ -2187,16 +2181,9 @@
             onOpenRankings={openFantasyProsRankings}
             onOpenSeasonProjections={openFantasyProsSeasonProjections}
             onOpenAdp={openFantasyProsAdp}
-            expanded={true}
-            primaryStep={preparationStep}
-          />
-          <DraftAiSetupPanel
-            settings={appSettings}
-            providerStatus={aiProviderStatus}
-            isSaving={isSavingSettings}
-            error={settingsError}
-            primary={preparationStep === "assistant"}
-            onSave={saveSettings}
+            onSaveSettings={saveSettings}
+            onContinue={enterDraftRoom}
+            onOpenEmergency={openEmergencyBoard}
           />
         </div>
       {:else}
@@ -2260,7 +2247,7 @@
             {@render draftSidePanels(draftState)}
           {:else if roomMode === "emergency"}
             <article class="panel phase-note">
-              <h2>Emergency board-only mode</h2>
+              <h2 bind:this={emergencyHeading} tabindex="-1">Emergency board-only mode</h2>
               <p>Live pick tracking remains available. Assistant recommendations and draft questions stay disabled until all required data and the Assistant are ready.</p>
               <button class="btn btn-secondary" type="button" onclick={openDraftPreparation}>
                 Finish draft setup
@@ -2494,8 +2481,10 @@
 
   .preparation-flow {
     display: grid;
-    gap: var(--space-5);
-    margin-top: var(--space-5);
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 720px;
+    margin: var(--space-5) auto 0;
   }
 
   .draft-room-layout {

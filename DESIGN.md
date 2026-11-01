@@ -203,7 +203,7 @@ The uppercase label style is reserved for section eyebrows and table column head
 
 ## Layout
 
-The application uses a centered responsive shell with a constrained content column. Connected workflows are top-anchored so the board and working panels remain immediately available. The pre-connect state may use a narrower centered column to keep the entry task deliberate. The Setup strip appears only while choosing a league and draft, and the logo stacks above the title at the 520px phone breakpoint. Draft preparation carries readiness in its own header.
+The application uses a centered responsive shell with a constrained content column. Connected workflows are top-anchored so the board and working panels remain immediately available. The pre-connect state may use a narrower centered column to keep the entry task deliberate. The Setup strip appears only while choosing a league and draft, and the logo stacks above the title at the 520px phone breakpoint. Draft preparation carries readiness in its own checklist.
 
 The draft room has one derived mode, `draftRoomMode` in `apps/web/src/lib/draft-room.ts`: on the clock, approaching (one or two picks away, the same threshold as automatic analysis, and also before the draft starts), waiting (everything else while drafting, including unknown pick timing), complete, and emergency.
 
@@ -241,7 +241,7 @@ The form language is restrained rounded rectangles with 6px controls, 10px field
 - **Ghost / text:** Transparent, muted text for disclosures, alternate paths, and low-frequency actions.
 - **Hover / Focus:** Small surface or border shift; use the shared green focus ring and preserve keyboard visibility.
 - **Disabled primary:** Raised surface, subtle border, and muted text at 5.8:1, never faded green. A disabled primary does not count as a screen's one primary action.
-- **One primary:** A screen or panel shows at most one live primary. Draft preparation gives it to the next unmet step in page order, then to Enter draft room; every other upload stays secondary.
+- **One primary:** A screen or panel shows at most one live primary. Draft preparation is one list that gives it to the next unmet step in page order, then to Enter draft room; every other upload stays secondary and done rows collapse to one line of facts.
 
 ### Chips
 

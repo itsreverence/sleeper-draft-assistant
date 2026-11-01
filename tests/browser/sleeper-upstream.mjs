@@ -10,6 +10,8 @@ const boardDrafts = {
   "browser-board-linear": { type: "linear", status: "drafting", picks: 6 },
   "browser-board-reversal": { type: "snake", status: "drafting", picks: 8, settings: { reversal_round: 3 } },
   "browser-board-pre": { type: "snake", status: "pre_draft", picks: 0 },
+  "browser-board-prep-desktop": { type: "snake", status: "pre_draft", picks: 0 },
+  "browser-board-prep-compact": { type: "snake", status: "pre_draft", picks: 0 },
 };
 const boardSlot = (draft, pickNo) => {
   const round = Math.ceil(pickNo / 4);
