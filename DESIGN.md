@@ -296,6 +296,12 @@ One 880px column, the same measure as the focused draft room, and the top bar al
 
 **Market activity.** One quiet line, only when there is real activity, with View details opening the existing market signals. With none it renders nothing.
 
+### Manage data
+
+A drawer with one lead block and one line each below it. A pure model in `apps/web/src/lib/team-data-lead.ts` builds the lead from a table of rules over the readiness payload. The lead states what the selected week is missing in one sentence, with position chips (a loaded chip is colored, a missing one is dashed), at most one primary action, and FantasyPros source links. Amber means something needs doing. A green dot means the week's files are loaded on Sleeper's active week and nothing has failed, and it comes with no primary button. A neutral lead makes no claim: preseason, postseason, a load in progress, or a pinned week, which also shows a callout with Back to Week N. The lead's file control imports into the week it names, not a week typed below it, and an accepted import or week change retires the chosen files.
+
+**Lines.** Weekly projections, Season value rankings, and Coverage, in that order; preseason puts Season value rankings first and has no Coverage line. Each is `DataLine.svelte`: a heading button with a title and a one-line summary that turns amber when it needs attention, over a body that stays mounted while `hidden`, so typed values and chosen files survive closing it and its controls leave the tab order. Each attention item opens the line holding its control. The weekly-files item lands on the lead's file control when the lead has one.
+
 ### AI Guidance
 
 Call the strategist "Assistant" in copy. Say "Codex" only for the external program the user installs, signs in to, or configures. Separate metadata with " · ", show statuses as sentence-case labels rather than API values, and write errors as what happened, then what to do next.

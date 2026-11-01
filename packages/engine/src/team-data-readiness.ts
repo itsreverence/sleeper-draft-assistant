@@ -4,6 +4,7 @@ const teamPositions: Position[] = ["QB", "RB", "WR", "TE", "K", "DEF"];
 const millisecondsPerDay = 86_400_000;
 
 export const WEEKLY_PROJECTION_STALE_AFTER_DAYS = 3;
+export const WEEKLY_SCORING_REMINDER = "Weekly FPTS are provider-scored; confirm the FantasyPros export uses this league's scoring format.";
 
 export function isWeeklyProjectionSummaryFresh(
   summary: WeeklyProjectionImportSummary,
@@ -58,7 +59,7 @@ export function buildTeamDataReadiness(
     warnings.push("No weekly projection import is loaded for this team view.");
   } else {
     facts.push(`FantasyPros ${weeklyProjectionSummary.season} Week ${weeklyProjectionSummary.week} was imported ${weeklyProjectionSummary.appliedAt}.`);
-    warnings.push("Weekly FPTS are provider-scored; confirm the FantasyPros export uses this league's scoring format.");
+    warnings.push(WEEKLY_SCORING_REMINDER);
     if (state.league.season && weeklyProjectionSummary.season !== state.league.season) {
       warnings.push(`Imported projections are for ${weeklyProjectionSummary.season}, but this league is ${state.league.season}.`);
     }

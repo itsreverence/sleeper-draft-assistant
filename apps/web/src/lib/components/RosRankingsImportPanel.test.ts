@@ -62,13 +62,13 @@ describe("season value ranking controls", () => {
 function renderPanel(seasonPhase: "preseason" | "regular", currentWeek: number) {
   return render(RosRankingsImportPanel, {
     hasTeam: true,
+    open: true,
     defaultSeason: "2026",
     leagueSeason: "2026",
     seasonPhase,
     currentWeek,
     scoring: "PPR",
     summary: fallbackSummary,
-    weeklyLoaded: true,
     error: "",
     isImporting: false,
     isClearing: false,

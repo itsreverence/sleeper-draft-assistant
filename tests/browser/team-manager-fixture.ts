@@ -1,3 +1,4 @@
+import { buildTeamDataReadiness } from "@sleeper-draft-assistant/engine";
 import type { Page } from "@playwright/test";
 import type { Player, Position, TeamPayload } from "../../apps/web/src/lib/types";
 
@@ -72,18 +73,20 @@ export function lineupPayload(payload: TeamPayload, scenario: LineupScenario, ac
     id, type: "waiver", status: "complete", createdAt: null, rosterIds: ["2"], addedPlayers: [], droppedPlayers: [], waiverBid: null, description,
   });
 
+  const state = {
+    ...payload.state,
+    seasonPhase: scenario === "preseason" ? "preseason" : scenario === "unknown-week" ? "unknown" : "regular",
+    week: scenario === "needs-look" || scenario === "all-clear" ? 8 : null,
+    scheduleStatus: { available: true, week: scenario === "needs-look" || scenario === "all-clear" ? 8 : null },
+    league: { ...payload.state.league, name: "Gridiron Gang" },
+    userTeam: { ...payload.state.userTeam, name: "Synthetic Sluggers" },
+    roster: { ...payload.state.roster, starters, bench, injuredReserve: [rosterPlayer("WR", "Ian Prescott", "DAL", "NYG", null, 0)], taxi: [] },
+  } as TeamPayload["state"];
+
   return {
     ...payload,
-    state: {
-      ...payload.state,
-      seasonPhase: scenario === "preseason" ? "preseason" : scenario === "unknown-week" ? "unknown" : "regular",
-      week: scenario === "needs-look" || scenario === "all-clear" ? 8 : null,
-      scheduleStatus: { available: true, week: scenario === "needs-look" || scenario === "all-clear" ? 8 : null },
-      league: { ...payload.state.league, name: "Gridiron Gang" },
-      userTeam: { ...payload.state.userTeam, name: "Synthetic Sluggers" },
-      roster: { ...payload.state.roster, starters, bench, injuredReserve: [rosterPlayer("WR", "Ian Prescott", "DAL", "NYG", null, 0)], taxi: [] },
-    },
-    dataReadiness: { ...payload.dataReadiness, projectedRosterPlayers: 11, eligibleRosterPlayers: 15 },
+    state,
+    dataReadiness: buildTeamDataReadiness(state, weeklyProjectionSummary),
     weekContext: scenario === "needs-look" || scenario === "all-clear" ? { ...(payload.weekContext ?? {}), week: 8, opponentTeamName: "Other Team" } as TeamPayload["weekContext"] : null,
     weeklyProjectionSummary,
     activitySummary: activity ? {
@@ -98,5 +101,20 @@ export async function routeLineup(page: Page, scenario: LineupScenario, activity
   await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, async (route) => {
     const response = await route.fetch();
     await route.fulfill({ response, json: lineupPayload(await response.json() as TeamPayload, scenario, activity) });
+  });
+}
+
+// Applies a change to the lineup payload and recomputes readiness with the real engine, so the drawer sees a coherent payload.
+export function dataPayload(payload: TeamPayload, scenario: LineupScenario, change: (draft: TeamPayload) => void = () => undefined): TeamPayload {
+  const draft = lineupPayload(payload, scenario);
+  change(draft);
+  return { ...draft, dataReadiness: buildTeamDataReadiness(draft.state, draft.weeklyProjectionSummary) };
+}
+
+export async function routeData(page: Page, scenario: LineupScenario, change?: (draft: TeamPayload, url: URL) => void) {
+  await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, async (route) => {
+    const response = await route.fetch();
+    const url = new URL(route.request().url());
+    await route.fulfill({ response, json: dataPayload(await response.json() as TeamPayload, scenario, (draft) => change?.(draft, url)) });
   });
 }

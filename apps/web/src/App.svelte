@@ -131,7 +131,13 @@
   let teamProjectionWeek = $state(0);
   // teamProjectionWeek is the week requested; this is the week the displayed roster was loaded for.
   let teamPayloadWeek = $state(0);
+  let teamPayloadSeason = $state("");
   let weeklyProjectionError = $state("");
+  let failedWeeklyImports: Array<{ leagueId: string; season: string; week: number }> = $state([]);
+  function settleWeeklyImport(leagueId: string, season: string, week: number, failed: boolean) {
+    const others = failedWeeklyImports.filter((entry) => entry.leagueId !== leagueId || entry.season !== season || entry.week !== week);
+    failedWeeklyImports = failed ? [...others, { leagueId, season, week }] : others;
+  }
   let rosRankingError = $state("");
   const teamSession = createTeamSession();
   const isImportingWeeklyProjections = $derived(teamSession.activity === "import-weekly");
@@ -166,7 +172,7 @@
   let settingsReturnFocus: HTMLElement | null = $state(null);
   let draftSwitcherOpen = $state(false);
   let teamDataOpen = $state(false);
-  let teamDataSection: TeamDataSection = $state("readiness");
+  let teamDataSection: TeamDataSection | null = $state(null);
   let teamAskPanel = $state<TeamAskPanel>();
   let manageDataButton = $state<HTMLButtonElement>();
   let appSettings: AppSettings | null = $state(null);
@@ -1058,6 +1064,7 @@
     teamProjectionSeason = projectionOverride.season;
     teamProjectionWeek = projectionOverride.week;
     teamPayloadWeek = projectionOverride.week;
+    teamPayloadSeason = projectionOverride.season;
     teamRefreshError = "";
   }
 
@@ -1483,11 +1490,15 @@
       }), {
         accept: (payload) => {
           applyTeamPayload(payload);
+          settleWeeklyImport(leagueId, input.season, input.week, false);
           status = "FantasyPros weekly projections imported";
           lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
         },
         reject: (error) => {
-          weeklyProjectionError = error instanceof Error ? error.message : errorCopy.weeklyImport;
+          settleWeeklyImport(leagueId, input.season, input.week, true);
+          const message = error instanceof Error ? error.message : errorCopy.weeklyImport;
+          const shownWeek = teamPayloadWeek || teamManagerState?.week;
+          weeklyProjectionError = input.week === shownWeek ? message : `Week ${input.week} didn't update: ${message}`;
         },
       });
   }
@@ -1523,6 +1534,7 @@
     const leagueId = teamManagerState.league.id;
     await teamSession.run("clear-weekly", () => clearWeeklyProjectionsRequest(leagueId, input.season, input.week), {
       accept: async () => {
+        settleWeeklyImport(leagueId, input.season, input.week, false);
         status = "FantasyPros weekly projections cleared";
         lastEvent = `Cleared Week ${input.week} projection import`;
         await loadTeamManager(leagueId, activeUserRosterId, input.season, input.week);
@@ -1555,7 +1567,7 @@
     teamQuestionRequest = { id: ++teamQuestionRequestId, question };
   }
 
-  function openTeamData(section: TeamDataSection = "readiness") {
+  function openTeamData(section: TeamDataSection | null = null) {
     teamDataSection = section;
     teamDataOpen = true;
   }
@@ -2389,6 +2401,10 @@
             section={teamDataSection}
             teamState={teamManagerState}
             readiness={teamDataReadiness}
+            weekContext={teamWeekContext}
+            selectedWeek={teamPayloadWeek || null}
+            selectedSeason={teamPayloadSeason || null}
+            refreshFailed={Boolean(teamRefreshError)}
             rosSummary={rosRankingSummary}
             weeklySummary={weeklyProjectionSummary}
             defaultSeason={weeklyProjectionDefaultSeason}
@@ -2396,6 +2412,7 @@
             scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
             rosError={rosRankingError}
             bind:weeklyError={weeklyProjectionError}
+            failedWeeklyImports={failedWeeklyImports.filter((entry) => entry.leagueId === teamManagerState?.league.id)}
             isLoading={isLoadingTeamManager}
             isImportingRos={isImportingRosRankings}
             isClearingRos={isClearingRosRankings}

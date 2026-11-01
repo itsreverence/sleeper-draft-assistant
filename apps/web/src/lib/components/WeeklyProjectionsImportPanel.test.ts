@@ -5,8 +5,8 @@ import WeeklyProjectionsImportPanel from "./WeeklyProjectionsImportPanel.svelte"
 function setup(error = "") {
   const onImport = vi.fn();
   render(WeeklyProjectionsImportPanel, {
-    hasTeam: true, defaultSeason: "2026", defaultWeek: 2, leagueSeason: "2026", currentWeek: 2,
-    summary: null, rosLoaded: false, error, isImporting: false, isClearing: false,
+    hasTeam: true, open: true, defaultSeason: "2026", defaultWeek: 2, shownWeek: 2, leagueSeason: "2026", loadedFiles: 0, neededFiles: 6,
+    summary: null, error, isImporting: false, isClearing: false,
     onImport, onLoadContext: vi.fn(), onClear: vi.fn(), onOpenFantasyPros: vi.fn(),
   });
   return onImport;
@@ -112,7 +112,7 @@ it.each([
 
 it("styles only positions with matched players as loaded", () => {
   const { container } = render(WeeklyProjectionsImportPanel, {
-    hasTeam: true, defaultSeason: "2026", defaultWeek: 2, leagueSeason: "2026", currentWeek: 2,
+    hasTeam: true, open: true, defaultSeason: "2026", defaultWeek: 2, shownWeek: 2, leagueSeason: "2026", loadedFiles: 1, neededFiles: 6,
     summary: {
       season: "2026", week: 2, position: "QB", positions: ["QB", "K"], importedAt: "2026-09-01T00:00:00.000Z",
       rowsParsed: 8, matched: 7, unmatched: 1, ambiguous: 0, conflicts: 0, unmatchedSample: [],
@@ -121,10 +121,28 @@ it("styles only positions with matched players as loaded", () => {
         { position: "K", rowsParsed: 1, matched: 0, unmatched: 1, ambiguous: 0 },
       ],
     } as never,
-    rosLoaded: false, error: "", isImporting: false, isClearing: false,
+    error: "", isImporting: false, isClearing: false,
     onImport: vi.fn(), onLoadContext: vi.fn(), onClear: vi.fn(), onOpenFantasyPros: vi.fn(),
   });
   const chip = (label: string) => Array.from(container.querySelectorAll(".position-status > span")).find((node) => node.textContent?.trim().startsWith(label));
   expect(chip("QB")?.classList.contains("loaded")).toBe(true);
   expect(chip("K")?.classList.contains("loaded")).toBe(false);
+});
+
+it("clears the week it reports, even when a different week is typed", async () => {
+  const onClear = vi.fn();
+  render(WeeklyProjectionsImportPanel, {
+    hasTeam: true, open: true, defaultSeason: "2026", defaultWeek: 7, shownWeek: 7, leagueSeason: "2026", loadedFiles: 1, neededFiles: 6,
+    summary: {
+      source: "fantasypros", season: "2026", week: 7, position: "QB", positions: ["QB"], rowsParsed: 1, matched: 1,
+      positionResults: [{ position: "QB", rowsParsed: 1, matched: 1, unmatched: 0, ambiguous: 0, appliedAt: new Date().toISOString() }],
+      unmatched: [], ambiguous: [], appliedAt: new Date().toISOString(),
+    },
+    error: "", isImporting: false, isClearing: false,
+    onImport: vi.fn(), onLoadContext: vi.fn(), onClear, onOpenFantasyPros: vi.fn(),
+  });
+  await fireEvent.input(screen.getByLabelText("Week"), { target: { value: "8" } });
+  expect(screen.getByText("Week 7 is on screen. Load selected week to switch, or import files into Week 8.")).toBeTruthy();
+  await fireEvent.click(screen.getByRole("button", { name: "Clear week" }));
+  expect(onClear).toHaveBeenCalledWith({ season: "2026", week: 7 });
 });

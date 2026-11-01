@@ -1,46 +1,35 @@
 <script lang="ts">
+  import { WEEKLY_SCORING_REMINDER } from "@sleeper-draft-assistant/engine";
   import { formatConfidence } from "../format";
-  import type { TeamDataReadiness, TeamManagerState, WeeklyProjectionImportSummary } from "../types";
+  import { positionLabel } from "../team-attention";
+  import type { TeamDataReadiness, WeeklyProjectionImportSummary } from "../types";
+  import DataLine from "./DataLine.svelte";
   import Icon from "./Icon.svelte";
 
   let {
     readiness,
     weeklySummary = null,
-    seasonPhase = "unknown",
     isLoading = false,
+    open = $bindable(false),
   }: {
-    readiness: TeamDataReadiness | null;
+    readiness: TeamDataReadiness;
     weeklySummary?: WeeklyProjectionImportSummary | null;
-    seasonPhase?: TeamManagerState["seasonPhase"];
     isLoading?: boolean;
+    open?: boolean;
   } = $props();
 
-  const rosterCoverage = $derived(Math.round((readiness?.rosterProjectionCoverage ?? 0) * 100));
-  const matchRate = $derived(readiness?.importMatchRate === null || readiness?.importMatchRate === undefined
-    ? null
-    : Math.round(readiness.importMatchRate * 100));
+  const rosterCoverage = $derived(Math.round(readiness.rosterProjectionCoverage * 100));
+  const matchRate = $derived(readiness.importMatchRate === null ? null : Math.round(readiness.importMatchRate * 100));
+  // The scoring reminder always applies to a loaded import, so it lives in Weekly projections and doesn't mark this line.
+  const warnings = $derived(readiness.warnings.filter((warning) => warning !== WEEKLY_SCORING_REMINDER));
+  const summary = $derived(isLoading
+    ? "Checking weekly data..."
+    : `${readiness.projectedRosterPlayers}/${readiness.eligibleRosterPlayers} roster players · ${matchRate === null ? "import not loaded" : `${matchRate}% matched`} · ${formatConfidence(readiness.confidence)}`);
 </script>
 
-<article class="panel readiness-panel">
-  <div class="panel-heading compact">
-    <div>
-      <p class="eyebrow">Decision data</p>
-      <h2><Icon name="checklist" size={17} /> {seasonPhase === "preseason" ? "Season readiness" : "Weekly readiness"}</h2>
-    </div>
-    {#if readiness && seasonPhase !== "preseason"}
-      <span class="pill" class:pill-ready={readiness.status === "ready"} class:pill-warning={readiness.status !== "ready"}>
-        {formatConfidence(readiness.confidence)}
-      </span>
-    {/if}
-  </div>
-
+<DataLine name="coverage" title="Coverage" {summary} warn={!isLoading && warnings.length > 0} bind:open>
   {#if isLoading}
-    <p class="muted">Checking weekly data...</p>
-  {:else if seasonPhase === "preseason"}
-    <p class="headline">Regular-season weekly advice is not active yet.</p>
-    <p class="context">Your roster is available for structure and depth review. Matchups and weekly readiness begin with Week 1.</p>
-  {:else if !readiness}
-    <p class="muted">Open a Sleeper team to evaluate weekly data readiness.</p>
+    <p class="context">Checking weekly data...</p>
   {:else}
     <p class="headline">{readiness.headline}</p>
 
@@ -59,11 +48,11 @@
       <span style={`width:${rosterCoverage}%`}></span>
     </div>
 
-    <div class="position-list" aria-label="Projection position coverage">
+    <div class="position-list" aria-label="Projection position coverage details" role="group">
       {#each readiness.relevantPositions as position}
         {@const result = weeklySummary?.positionResults.find((item) => item.position === position)}
         <span class:loaded={readiness.loadedPositions.includes(position)}>
-          {position === "DEF" ? "DST" : position}
+          {positionLabel(position)}
           <small>{readiness.loadedPositions.includes(position) ? "Loaded" : result?.matched === 0 ? result.rowsParsed === 0 ? "No rows" : "No matches" : "Missing"}</small>
         </span>
       {/each}
@@ -71,34 +60,30 @@
 
     <p class="context">{readiness.projectedRosterPlayers}/{readiness.eligibleRosterPlayers} active roster players projected{readiness.activeSeason && readiness.activeWeek ? ` for ${readiness.activeSeason} Week ${readiness.activeWeek}` : ""}.</p>
 
-    {#if readiness.warnings.length > 0}
+    {#if warnings.length > 0}
       <div class="warning-list">
-        {#each readiness.warnings.slice(0, 3) as warning}
+        {#each warnings as warning}
           <p><Icon name="alert" size={14} />{warning}</p>
         {/each}
       </div>
     {/if}
   {/if}
-</article>
+</DataLine>
 
 <style>
-  .readiness-panel {
-    display: grid;
-    gap: 10px;
-  }
-
-  .muted,
   .headline,
   .context {
-    margin: 0;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.45;
   }
 
   .headline {
-    color: var(--text-secondary);
-    font-weight: 700;
+    font-weight: 600;
+  }
+
+  .context {
+    font-size: var(--text-xs);
   }
 
   .coverage-row {
@@ -111,7 +96,7 @@
   }
 
   .coverage-row div {
-    padding: 9px 10px;
+    padding: var(--space-2) var(--space-3);
   }
 
   .coverage-row div + div {
@@ -162,8 +147,8 @@
   .position-list span {
     display: grid;
     gap: 2px;
-    padding: 7px 4px;
     border-right: 1px solid var(--border);
+    padding: var(--space-2) var(--space-1);
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: 600;
@@ -175,8 +160,8 @@
   }
 
   .position-list span.loaded {
-    color: var(--accent);
     background: var(--accent-soft);
+    color: var(--accent);
   }
 
   .position-list small {
@@ -184,20 +169,15 @@
     font-size: var(--text-xs);
   }
 
-  .context {
-    font-size: var(--text-xs);
-  }
-
   .warning-list {
     display: grid;
-    gap: 6px;
+    gap: var(--space-2);
   }
 
   .warning-list p {
     display: flex;
-    gap: 7px;
     align-items: flex-start;
-    margin: 0;
+    gap: var(--space-2);
     color: var(--warning);
     font-size: var(--text-xs);
     line-height: 1.4;
