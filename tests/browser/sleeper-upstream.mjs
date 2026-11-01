@@ -21,7 +21,7 @@ const boardSlot = (draft, pickNo) => {
   return forward ? inRound + 1 : 4 - inRound;
 };
 
-const player = { player_id: "fixture-qb", full_name: "Test Quarterback", first_name: "Test", last_name: "Quarterback", team: "BUF", position: "QB", fantasy_positions: ["QB"], active: true, status: "Active" };
+const player = { sport: "nfl", search_rank: 1, player_id: "fixture-qb", full_name: "Test Quarterback", first_name: "Test", last_name: "Quarterback", team: "BUF", position: "QB", fantasy_positions: ["QB"], active: true, status: "Active" };
 globalThis.fetch = async (input) => {
   const url = new URL(typeof input === "string" ? input : input.url ?? input);
   if (url.origin !== "https://api.sleeper.app") throw new Error("Unexpected external request in browser fixture");

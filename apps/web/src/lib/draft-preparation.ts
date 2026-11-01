@@ -61,3 +61,7 @@ export function shouldOpenDraftPreparation(
     || !readiness.hasAdp
     || !readiness.aiReady;
 }
+
+export function hasMatchedImport(summary: { matched: number } | null): boolean {
+  return Boolean(summary && summary.matched > 0);
+}

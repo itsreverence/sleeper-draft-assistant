@@ -70,7 +70,7 @@ test("the pre-draft board puts no pick on the clock", async ({ page }) => {
   await page.route(/\/api\/drafts\/[^/]+\/state(?:\?|$)/, async route => {
     const appliedAt = new Date().toISOString();
     const payload = await (await route.fetch()).json();
-    const summary = { source: "synthetic", season: "2026", scoring: "PPR", rowCount: 1, matchedCount: 1, unmatchedCount: 0, positions: [], unmatchedNames: [], unmatchedPlayers: [], warnings: [], appliedAt };
+    const summary = { source: "synthetic", season: "2026", scoring: "PPR", rowsParsed: 1, matched: 1, positions: [], unmatched: [], ambiguous: [], warnings: [], appliedAt };
     await route.fulfill({ json: { ...payload, rankingImportSummary: summary, seasonProjectionImportSummary: summary, adpImportSummary: summary } });
   });
   await loadDraft(page, "browser-board-pre");

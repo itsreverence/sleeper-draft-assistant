@@ -33,10 +33,10 @@ function props(overrides: Record<string, unknown> = {}) {
   return {
     statusLabel: "Pre-draft", scoring: "PPR", season: "2026", teamLabel: "Fixture Team · Slot 3",
     readiness: {
-      hasRankings: Boolean(base.rankingImportSummary),
+      hasRankings: Boolean(base.rankingImportSummary && base.rankingImportSummary.matched > 0),
       rankingsStale: staleRankings,
-      hasProjections: Boolean(base.seasonProjectionImportSummary),
-      hasAdp: Boolean(base.adpImportSummary),
+      hasProjections: Boolean(base.seasonProjectionImportSummary && base.seasonProjectionImportSummary.matched > 0),
+      hasAdp: Boolean(base.adpImportSummary && base.adpImportSummary.matched > 0),
       aiConfigured: base.providerStatus?.availability === "available" && base.providerStatus.id === "codex-app-server",
     },
     rankingImportError: "", seasonProjectionImportError: "", adpImportError: "",
@@ -81,6 +81,17 @@ describe("DraftPreparationChecklist", () => {
     const { container } = render(DraftPreparationChecklist, props(overrides));
     expect(livePrimaries(container)).toEqual([primary]);
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(heading);
+  });
+
+  it.each([
+    ["rankingImportSummary", rankings, "PPR ECR"],
+    ["seasonProjectionImportSummary", projections, "2026 season projections"],
+    ["adpImportSummary", adp, "Sleeper ADP"],
+  ])("explains a zero-match %s and offers replacement and clear", (key, summary, title) => {
+    render(DraftPreparationChecklist, props({ ...ready, [key]: { ...summary, matched: 0 } }));
+    expect(screen.getByText(/No players matched/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: `Clear ${title}` })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Enter draft room" })).toBeNull();
   });
 
   it("shows the facts line under the heading", () => {

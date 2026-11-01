@@ -118,6 +118,25 @@ describe("App draft lifecycle", () => {
     };
   });
 
+  it.each(["rankingImportSummary", "seasonProjectionImportSummary", "adpImportSummary"] as const)(
+    "keeps preparation blocked by a zero-match %s",
+    async (key) => {
+      const draftLoad = apiMock.deferDraftState({ draftId: "draft-1", userRosterId: null, userIdentifier: null });
+      render(App);
+      await openDirectDraftForm();
+      await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), { target: { value: "draft-1" } });
+      await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+      const payload = createDraftPayloadFixture({ draftId: "draft-1", name: "Draft", leagueId: DEFAULT_LEAGUE_ID });
+      for (const summary of [payload.rankingImportSummary, payload.seasonProjectionImportSummary, payload.adpImportSummary]) {
+        if (summary) summary.appliedAt = new Date().toISOString();
+      }
+      payload[key]!.matched = 0;
+      draftLoad.resolve(payload);
+      expect(await screen.findByText(/No players matched/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Enter draft room" })).toBeNull();
+    },
+  );
+
   it("keeps keyboard focus inside Settings and restores the opener when closed", async () => {
     render(App);
 
@@ -325,6 +344,47 @@ describe("App draft lifecycle", () => {
     await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(2));
     expect(apiMock.fetchTeamManagerState.mock.calls[1]?.slice(3)).toEqual(["2026", 1]);
     expect(await screen.findByText(/^Week 1 · .* vs Week One Opponent · Active Week 2 · PPR$/)).toBeTruthy();
+  });
+
+  it("keeps the accepted team and week in the drawer when another week fails", async () => {
+    const draftLoad = apiMock.deferDraftState({
+      draftId: "draft-1",
+      userRosterId: null,
+      userIdentifier: null,
+    });
+    apiMock.teamPayload = {
+      ...apiMock.teamPayload,
+      state: { ...apiMock.teamPayload.state, week: 2 },
+    };
+    render(App);
+
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), {
+      target: { value: "draft-1" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const draftPayload = createDraftPayloadFixture({
+      draftId: "draft-1",
+      name: "Completed Draft",
+      leagueId: DEFAULT_LEAGUE_ID,
+    });
+    draftPayload.state.status = "complete";
+    draftLoad.resolve(draftPayload);
+
+    await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(1));
+    await fireEvent.click(await screen.findByRole("button", { name: "Manage data" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage team data" });
+    await fireEvent.click(within(drawer).getByRole("button", { name: /^Weekly projections/ }));
+    await fireEvent.input(within(drawer).getByLabelText("Week"), { target: { value: "1" } });
+    apiMock.fetchTeamManagerState.mockRejectedValueOnce(new Error("Week unavailable"));
+    await fireEvent.click(within(drawer).getByRole("button", { name: "Load selected week" }));
+
+    await waitFor(() => expect(apiMock.fetchTeamManagerState).toHaveBeenCalledTimes(2));
+    expect(apiMock.fetchTeamManagerState.mock.calls[1]?.slice(3)).toEqual(["2026", 1]);
+    expect((await within(drawer).findAllByText(/Week 1 didn't update: Week unavailable/)).length).toBeGreaterThan(0);
+    expect(screen.getByRole("dialog", { name: "Manage team data" })).toBeTruthy();
+    expect(screen.getByRole("table", { name: "Starting lineup and reserves" })).toBeTruthy();
+    expect(screen.queryByText(/^Week 1 ·/)).toBeNull();
   });
 
   it("does not replay a handled market question after Team Manager remounts", async () => {
