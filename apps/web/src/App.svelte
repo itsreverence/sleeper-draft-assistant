@@ -133,7 +133,11 @@
   let teamPayloadWeek = $state(0);
   let teamPayloadSeason = $state("");
   let weeklyProjectionError = $state("");
-  let failedWeeklyImport: { leagueId: string; season: string; week: number } | null = $state(null);
+  let failedWeeklyImports: Array<{ leagueId: string; season: string; week: number }> = $state([]);
+  function settleWeeklyImport(leagueId: string, season: string, week: number, failed: boolean) {
+    const others = failedWeeklyImports.filter((entry) => entry.leagueId !== leagueId || entry.season !== season || entry.week !== week);
+    failedWeeklyImports = failed ? [...others, { leagueId, season, week }] : others;
+  }
   let rosRankingError = $state("");
   const teamSession = createTeamSession();
   const isImportingWeeklyProjections = $derived(teamSession.activity === "import-weekly");
@@ -1486,13 +1490,15 @@
       }), {
         accept: (payload) => {
           applyTeamPayload(payload);
-          failedWeeklyImport = null;
+          settleWeeklyImport(leagueId, input.season, input.week, false);
           status = "FantasyPros weekly projections imported";
           lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
         },
         reject: (error) => {
-          failedWeeklyImport = { leagueId, season: input.season, week: input.week };
-          weeklyProjectionError = error instanceof Error ? error.message : errorCopy.weeklyImport;
+          settleWeeklyImport(leagueId, input.season, input.week, true);
+          const message = error instanceof Error ? error.message : errorCopy.weeklyImport;
+          const shownWeek = teamPayloadWeek || teamManagerState?.week;
+          weeklyProjectionError = input.week === shownWeek ? message : `Week ${input.week} didn't update: ${message}`;
         },
       });
   }
@@ -1528,7 +1534,7 @@
     const leagueId = teamManagerState.league.id;
     await teamSession.run("clear-weekly", () => clearWeeklyProjectionsRequest(leagueId, input.season, input.week), {
       accept: async () => {
-        failedWeeklyImport = null;
+        settleWeeklyImport(leagueId, input.season, input.week, false);
         status = "FantasyPros weekly projections cleared";
         lastEvent = `Cleared Week ${input.week} projection import`;
         await loadTeamManager(leagueId, activeUserRosterId, input.season, input.week);
@@ -2406,7 +2412,7 @@
             scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
             rosError={rosRankingError}
             bind:weeklyError={weeklyProjectionError}
-            failedWeeklyImport={failedWeeklyImport?.leagueId === teamManagerState?.league.id ? failedWeeklyImport : null}
+            failedWeeklyImports={failedWeeklyImports.filter((entry) => entry.leagueId === teamManagerState?.league.id)}
             isLoading={isLoadingTeamManager}
             isImportingRos={isImportingRosRankings}
             isClearingRos={isClearingRosRankings}

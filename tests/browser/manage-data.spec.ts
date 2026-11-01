@@ -151,6 +151,36 @@ test("repairing a failed import over complete files stays actionable until a rep
   await expect(lead.getByRole("alert")).toHaveText("Synthetic import failure.");
 });
 
+test("a failure stays with its own week, and a typed week's failure doesn't blame the week on screen", async ({ page }) => {
+  const drawer = await openDrawer(page, "all-clear", (draft, url) => {
+    const week = Number(url.searchParams.get("week")) || 8;
+    draft.weeklyProjectionSummary = { ...draft.weeklyProjectionSummary!, week };
+    for (const player of [...draft.state.roster.starters.map(slot => slot.player!), ...draft.state.roster.bench]) player.weeklyProjectionWeek = week;
+  });
+  await page.route("**/projections/weekly/import?*", route => route.fulfill({ status: 500, json: { error: "Synthetic import failure." } }));
+  await drawer.getByRole("button", { name: /^Weekly projections/ }).click();
+  await drawer.getByText("Paste CSV instead", { exact: true }).click();
+  const weekField = drawer.locator("[data-line='weekly'] input[type='number']");
+  const failFor = async () => {
+    await drawer.getByLabel("CSV for the selected position").fill("bad");
+    await drawer.getByRole("button", { name: "Import QB", exact: true }).click();
+  };
+  await weekField.fill("6");
+  await failFor();
+  await expect(drawer.getByText("Week 6 didn't update: Synthetic import failure.").first()).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Week 8 projections are loaded" })).toBeVisible();
+  await weekField.fill("8");
+  await failFor();
+  await expect(drawer.getByRole("heading", { name: "Weekly projections didn't update" })).toBeVisible();
+  await weekField.fill("6");
+  await drawer.getByRole("button", { name: "Load selected week" }).click();
+  await expect(drawer.getByRole("heading", { name: "Weekly projections didn't update" })).toBeVisible();
+  await weekField.fill("8");
+  await drawer.getByRole("button", { name: "Load selected week" }).click();
+  await expect(drawer.getByRole("heading", { name: "Weekly projections didn't update" })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: /projections are loaded/ })).toHaveCount(0);
+});
+
 test("the week shown is the accepted payload's: a pending load claims nothing and a pinned week offers the way back", async ({ page }) => {
   const drawer = await openDrawer(page, "all-clear", (draft, url) => {
     const week = Number(url.searchParams.get("week")) || 8;

@@ -32,7 +32,7 @@
     scoring,
     rosError,
     weeklyError = $bindable(""),
-    failedWeeklyImport = null,
+    failedWeeklyImports = [],
     isLoading = false,
     isImportingRos,
     isClearingRos,
@@ -62,7 +62,7 @@
     scoring: DraftScoringFormat;
     rosError: string;
     weeklyError: string;
-    failedWeeklyImport?: { season: string; week: number } | null;
+    failedWeeklyImports?: Array<{ season: string; week: number }>;
     isLoading?: boolean;
     isImportingRos: boolean;
     isClearingRos: boolean;
@@ -87,8 +87,7 @@
     selectedWeek,
     selectedSeason,
     isLoading,
-    weeklyError,
-    failedWeeklyImport,
+    failedWeeklyImports,
     rosError,
     refreshFailed,
   }));

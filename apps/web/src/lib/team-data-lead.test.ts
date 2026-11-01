@@ -168,7 +168,7 @@ describe("Manage data lead", () => {
   });
 
   it("a failed import never reads as loaded, and offers files again", () => {
-    const result = lead(summaryOf(ALL), { weeklyError: "Synthetic failure." });
+    const result = lead(summaryOf(ALL), { failedWeeklyImports: [{ season: "2026", week: 9 }] });
     expect(result).toMatchObject({ tone: "warn", title: "Weekly projections didn't update", action: { kind: "choose-files" } });
     expect(result.detail).toBe("Week 9 still uses the files saved earlier.");
   });
@@ -186,8 +186,8 @@ describe("Manage data lead", () => {
   });
 
   it("a failed import outlives its cleared error text, for that week only", () => {
-    expect(lead(summaryOf(ALL), { failedWeeklyImport: { season: "2026", week: 9 } })).toMatchObject({ tone: "warn", title: "Weekly projections didn't update", action: { kind: "choose-files" } });
-    expect(lead(summaryOf(ALL), { failedWeeklyImport: { season: "2026", week: 10 } }).title).toBe("Week 9 projections are loaded");
+    expect(lead(summaryOf(ALL), { failedWeeklyImports: [{ season: "2026", week: 10 }, { season: "2026", week: 9 }] })).toMatchObject({ tone: "warn", title: "Weekly projections didn't update", action: { kind: "choose-files" } });
+    expect(lead(summaryOf(ALL), { failedWeeklyImports: [{ season: "2026", week: 10 }] }).title).toBe("Week 9 projections are loaded");
   });
 
   it("a load in progress or a missing team claims nothing", () => {
