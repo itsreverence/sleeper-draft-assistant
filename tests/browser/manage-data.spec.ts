@@ -181,6 +181,19 @@ test("a failure stays with its own week, and a typed week's failure doesn't blam
   await expect(drawer.getByRole("heading", { name: /projections are loaded/ })).toHaveCount(0);
 });
 
+test("an action that fails before reaching an import drops the all-clear dot", async ({ page }) => {
+  const drawer = await openDrawer(page, "all-clear");
+  const lead = drawer.getByRole("region", { name: "Week 8 projections are loaded", exact: true });
+  await expect(lead.locator(".dot")).toHaveCount(1);
+  await drawer.getByRole("button", { name: /^Weekly projections/ }).click();
+  await drawer.getByText("Paste CSV instead", { exact: true }).click();
+  await drawer.getByLabel("CSV for the selected position").fill("x");
+  await drawer.locator("[data-line='weekly'] input").filter({ hasNot: page.locator("[type='file']") }).first().fill("");
+  await drawer.getByRole("button", { name: "Import QB", exact: true }).click();
+  await expect(lead.getByRole("alert")).toBeVisible();
+  await expect(lead.locator(".dot")).toHaveCount(0);
+});
+
 test("the week shown is the accepted payload's: a pending load claims nothing and a pinned week offers the way back", async ({ page }) => {
   const drawer = await openDrawer(page, "all-clear", (draft, url) => {
     const week = Number(url.searchParams.get("week")) || 8;

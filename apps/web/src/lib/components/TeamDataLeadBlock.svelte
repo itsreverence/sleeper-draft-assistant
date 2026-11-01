@@ -37,6 +37,8 @@
   let fileInput: HTMLInputElement | undefined = $state();
   let title: HTMLElement | undefined = $state();
   const busy = $derived(isImporting || isClearing);
+  // The saved files can still be loaded, but an all-clear doesn't belong beside an action that just failed.
+  const tone = $derived(error && lead.tone === "clear" ? "note" : lead.tone);
 
   export function focusTitle() {
     title?.focus({ preventScroll: true });
@@ -70,11 +72,11 @@
   }
 </script>
 
-<section class={`lead ${lead.tone}`} aria-labelledby="team-data-lead-title">
+<section class={`lead ${tone}`} aria-labelledby="team-data-lead-title">
   <div class="lead-top">
     <div class="lead-text" aria-live="polite">
       <h3 id="team-data-lead-title" bind:this={title} tabindex="-1">
-        {#if lead.tone === "clear"}<span class="dot" aria-hidden="true"></span>{/if}{lead.title}
+        {#if tone === "clear"}<span class="dot" aria-hidden="true"></span>{/if}{lead.title}
       </h3>
       <p>{lead.detail}</p>
     </div>
