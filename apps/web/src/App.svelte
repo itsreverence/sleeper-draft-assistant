@@ -2153,7 +2153,7 @@
   {#if connectExpanded}
     <div class="connect-editor" class:preconnect={isPreconnect || switchingDraft}>
       {#if isPreconnect && !switchingDraft}
-        <p class="home-line">Draft and lineup help for Sleeper. Your data is saved only on this device.</p>
+        <p class="home-line">Draft and lineup help for Sleeper. The app stores its data on this device; Assistant requests go through your Codex account.</p>
       {/if}
       <ConnectPanel
         bind:usernameInput

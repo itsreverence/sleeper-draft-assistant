@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("home says what the app does and keeps every way in at every width", async ({ page }) => {
-  await expect(page.getByText("Draft and lineup help for Sleeper. Your data is saved only on this device.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Draft and lineup help for Sleeper. The app stores its data on this device; Assistant requests go through your Codex account.", { exact: true })).toBeVisible();
   for (const name of ["Find leagues", "Paste a league URL", "Paste a draft ID", "Try a demo draft"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
@@ -39,7 +39,7 @@ test("the home line leaves once a draft is open, and the draft opens at its top"
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await demo.click();
   await expect(page.getByLabel("Sleeper username")).toBeHidden();
-  await expect(page.getByText(/saved only on this device/)).toHaveCount(0);
+  await expect(page.getByText(/stores its data on this device/)).toHaveCount(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 

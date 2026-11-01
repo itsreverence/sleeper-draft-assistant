@@ -168,7 +168,7 @@ describe("App draft lifecycle", () => {
   });
 
   it("says what the app does on home, and leaves that line behind once a draft opens", async () => {
-    const line = "Draft and lineup help for Sleeper. Your data is saved only on this device.";
+    const line = "Draft and lineup help for Sleeper. The app stores its data on this device; Assistant requests go through your Codex account.";
     render(App);
     expect(await screen.findByText(line)).toBeTruthy();
     await openDirectDraftForm();
