@@ -32,6 +32,8 @@ export type TeamDataLeadInput = {
   selectedSeason?: string | null;
   isLoading?: boolean;
   weeklyError?: string;
+  // Outlives the error text, which clears as soon as the user picks files or retries. Only an accepted import or clear ends it.
+  failedWeeklyImport?: { season: string; week: number } | null;
   rosError?: string;
   refreshFailed?: boolean;
   now?: number;
@@ -170,7 +172,7 @@ function positionsFor({ readiness, summary, week, season }: WeekFacts) {
 function loadedLead(input: TeamDataLeadInput, facts: WeekFacts, shared: Pick<TeamDataLead, "positions" | "view">): TeamDataLead {
   const { week, readiness, state } = facts;
   const replace = chooseAction(facts, { positions: readiness.relevantPositions });
-  if (input.weeklyError) {
+  if (input.weeklyError || (input.failedWeeklyImport?.week === week && input.failedWeeklyImport.season === facts.season)) {
     return {
       ...quiet({ title: "Weekly projections didn't update", detail: `Week ${week} still uses the files saved earlier.` }),
       ...shared,

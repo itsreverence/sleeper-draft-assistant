@@ -133,6 +133,7 @@
   let teamPayloadWeek = $state(0);
   let teamPayloadSeason = $state("");
   let weeklyProjectionError = $state("");
+  let failedWeeklyImport: { leagueId: string; season: string; week: number } | null = $state(null);
   let rosRankingError = $state("");
   const teamSession = createTeamSession();
   const isImportingWeeklyProjections = $derived(teamSession.activity === "import-weekly");
@@ -1485,10 +1486,12 @@
       }), {
         accept: (payload) => {
           applyTeamPayload(payload);
+          failedWeeklyImport = null;
           status = "FantasyPros weekly projections imported";
           lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
         },
         reject: (error) => {
+          failedWeeklyImport = { leagueId, season: input.season, week: input.week };
           weeklyProjectionError = error instanceof Error ? error.message : errorCopy.weeklyImport;
         },
       });
@@ -1525,6 +1528,7 @@
     const leagueId = teamManagerState.league.id;
     await teamSession.run("clear-weekly", () => clearWeeklyProjectionsRequest(leagueId, input.season, input.week), {
       accept: async () => {
+        failedWeeklyImport = null;
         status = "FantasyPros weekly projections cleared";
         lastEvent = `Cleared Week ${input.week} projection import`;
         await loadTeamManager(leagueId, activeUserRosterId, input.season, input.week);
@@ -2402,6 +2406,7 @@
             scoring={normalizeDraftScoring(teamManagerState?.league.scoring)}
             rosError={rosRankingError}
             bind:weeklyError={weeklyProjectionError}
+            failedWeeklyImport={failedWeeklyImport?.leagueId === teamManagerState?.league.id ? failedWeeklyImport : null}
             isLoading={isLoadingTeamManager}
             isImportingRos={isImportingRosRankings}
             isClearingRos={isClearingRosRankings}

@@ -185,6 +185,11 @@ describe("Manage data lead", () => {
     expect(lead(summaryOf(ALL), { state })).toMatchObject({ tone: "note", action: null });
   });
 
+  it("a failed import outlives its cleared error text, for that week only", () => {
+    expect(lead(summaryOf(ALL), { failedWeeklyImport: { season: "2026", week: 9 } })).toMatchObject({ tone: "warn", title: "Weekly projections didn't update", action: { kind: "choose-files" } });
+    expect(lead(summaryOf(ALL), { failedWeeklyImport: { season: "2026", week: 10 } }).title).toBe("Week 9 projections are loaded");
+  });
+
   it("a load in progress or a missing team claims nothing", () => {
     expect(lead(summaryOf(ALL), { isLoading: true })).toMatchObject({ tone: "note", title: "Checking weekly data", action: null, positions: [] });
     expect(teamDataLead({ state: null, readiness: null, weeklySummary: null })).toMatchObject({ tone: "note", action: null });

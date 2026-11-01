@@ -125,6 +125,32 @@ test("a failed import over complete files can't read as loaded, and closing reop
   await expect(drawer.getByRole("region", { name: "Weekly projections didn't update", exact: true })).toBeVisible();
 });
 
+test("repairing a failed import over complete files stays actionable until a replacement is accepted", async ({ page }) => {
+  const drawer = await openDrawer(page, "all-clear");
+  await drawer.getByRole("button", { name: /^Weekly projections/ }).click();
+  await drawer.getByText("Paste CSV instead", { exact: true }).click();
+  await drawer.getByLabel("CSV for the selected position").fill("bad");
+  await page.route("**/projections/weekly/import?*", route => route.fulfill({ status: 500, json: { error: "Synthetic import failure." } }));
+  await drawer.getByRole("button", { name: "Import QB", exact: true }).click();
+  const lead = drawer.getByRole("region", { name: "Weekly projections didn't update", exact: true });
+  await lead.getByLabel("Choose CSV files", { exact: true }).setInputFiles({ name: "FantasyPros_Fantasy_Football_Projections_QB.csv", mimeType: "text/csv", buffer: Buffer.from("repair") });
+  await expect(lead.getByText("FantasyPros_Fantasy_Football_Projections_QB.csv")).toBeVisible();
+  await expect(lead.locator(".btn-primary")).toHaveCount(1);
+  await expect(drawer.getByRole("heading", { name: /projections are loaded/ })).toHaveCount(0);
+  let release = () => {};
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.unroute("**/projections/weekly/import?*");
+  await page.route("**/projections/weekly/import?*", async route => {
+    await held;
+    await route.fulfill({ status: 500, json: { error: "Synthetic import failure." } });
+  });
+  await lead.locator(".btn-primary").click();
+  await expect(drawer.getByRole("heading", { name: "Weekly projections didn't update" })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: /projections are loaded/ })).toHaveCount(0);
+  release();
+  await expect(lead.getByRole("alert")).toHaveText("Synthetic import failure.");
+});
+
 test("the week shown is the accepted payload's: a pending load claims nothing and a pinned week offers the way back", async ({ page }) => {
   const drawer = await openDrawer(page, "all-clear", (draft, url) => {
     const week = Number(url.searchParams.get("week")) || 8;
