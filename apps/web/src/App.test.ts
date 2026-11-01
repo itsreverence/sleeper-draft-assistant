@@ -39,6 +39,7 @@ describe("App draft lifecycle", () => {
     await waitFor(() => expect(apiMock.importWeeklyProjectionFilesRequest).toHaveBeenCalledOnce());
     await fireEvent.click(within(drawer).getByRole("button", { name: "Close team data" }));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: /^Local data/ }));
     await fireEvent.click(await screen.findByRole("button", { name: "Delete all local app data" }));
     await fireEvent.input(screen.getByLabelText("Type DELETE to confirm"), { target: { value: "DELETE" } });
     await fireEvent.click(screen.getByRole("button", { name: "Delete and reset" }));
@@ -150,7 +151,7 @@ describe("App draft lifecycle", () => {
 
     const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-    ));
+    )).filter((element) => !element.closest("[hidden]"));
     const first = focusable[0];
     const last = focusable.at(-1);
     expect(first).toBeTruthy();
@@ -166,6 +167,19 @@ describe("App draft lifecycle", () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it("says what the app does on home, and leaves that line behind once a draft opens", async () => {
+    const line = "Draft and lineup help for Sleeper. Your data is saved only on this device.";
+    render(App);
+    expect(await screen.findByText(line)).toBeTruthy();
+    await openDirectDraftForm();
+    expect(screen.getByText(line)).toBeTruthy();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), { target: { value: "draft-1" } });
+    const draftLoad = apiMock.deferDraftState({ draftId: "draft-1", userRosterId: null, userIdentifier: null });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    draftLoad.resolve(createDraftPayloadFixture({ draftId: "draft-1", name: "Sleeper Alpha Draft", leagueId: DEFAULT_LEAGUE_ID }));
+    await waitFor(() => expect(screen.queryByText(line)).toBeNull());
+  });
+
   it("returns to the connection screen after deleting local data without reloading the page", async () => {
     window.localStorage.setItem("sleeperUsername", "remembered-user");
     window.localStorage.setItem("workspaceMode:league-1", "manage");
@@ -175,6 +189,7 @@ describe("App draft lifecycle", () => {
     await waitFor(() => expect((username as HTMLInputElement).value).toBe("remembered-user"));
 
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: /^Local data/ }));
     await fireEvent.click(await screen.findByRole("button", { name: "Delete all local app data" }));
     await fireEvent.input(screen.getByLabelText("Type DELETE to confirm"), {
       target: { value: "DELETE" },

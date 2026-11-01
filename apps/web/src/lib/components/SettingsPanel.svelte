@@ -39,19 +39,17 @@
     aiProviderAvailability(providerStatus) === "disabled"
       ? "Assistant off"
       : isAiProviderAvailable(providerStatus)
-        ? "Codex ready"
-        : "Codex needs attention",
+        ? "Assistant ready"
+        : "Assistant needs attention",
   );
 
 </script>
 
 <section class="panel settings-panel" class:embedded aria-label="Application settings">
   <div class="panel-heading">
-    <div>
-      <h2>Assistant</h2>
-    </div>
+    <h3>Assistant</h3>
     {#if providerStatus}
-      <span class="pill" class:pill-ready={isAiProviderAvailable(providerStatus)} class:pill-warning={!isAiProviderAvailable(providerStatus)}>
+      <span class="pill" class:pill-ready={isAiProviderAvailable(providerStatus)} class:pill-warning={aiProviderAvailability(providerStatus) === "unavailable"}>
         {providerSummary}
       </span>
     {/if}
@@ -108,6 +106,16 @@
     background: transparent;
     box-shadow: none;
     padding: 0;
+  }
+
+  .settings-panel > .panel-heading {
+    align-items: center;
+    margin-bottom: 0;
+  }
+
+  .settings-panel h3 {
+    font-size: var(--text-lg);
+    font-weight: 600;
   }
 
   .settings-actions {
@@ -174,12 +182,5 @@
   .maintenance-action small {
     color: var(--text-muted);
     font-size: var(--text-xs);
-  }
-
-  @media (max-width: 520px) {
-    .settings-panel > .panel-heading {
-      align-items: flex-start;
-      flex-direction: column;
-    }
   }
 </style>

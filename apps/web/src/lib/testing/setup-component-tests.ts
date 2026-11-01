@@ -21,6 +21,8 @@ beforeEach(() => {
     Element.prototype.scrollTo = () => undefined;
   }
 
+  window.scrollTo = () => undefined;
+
   if (!HTMLElement.prototype.showPopover) {
     HTMLElement.prototype.showPopover = function showPopover() {
       this.setAttribute("data-popover-open", "true");

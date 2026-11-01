@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AiProviderStatus, AppSettings } from "../types";
+  import { aiProviderAvailability } from "../types";
 
   const defaultCodexModel = "gpt-5.6-terra";
 
@@ -61,6 +62,11 @@
 </script>
 
 <form class="provider-form" id={externalSubmitId} onsubmit={submit}>
+  <!-- "Disabled" is already the status pill and the note under the select. -->
+  {#if providerStatus?.detail && aiProviderAvailability(providerStatus) !== "disabled"}
+    <p class="form-note">{providerStatus.detail}</p>
+  {/if}
+
   <label class="field">
     <span>Provider</span>
     <select class="input" bind:value={aiProvider}>
@@ -72,6 +78,7 @@
   </label>
 
   {#if aiProvider === "codex-app-server"}
+    <p class="form-note">The Assistant runs on your local Codex CLI. Codex must be installed and signed in on this computer. The app keeps one local Codex session running and reuses conversations until you close it.</p>
     <div class="provider-fields">
       <label class="field">
         <span>Codex command or path</span>
@@ -91,6 +98,7 @@
         <input class="input" bind:value={codexTimeoutMs} type="number" min="5000" max="300000" step="1000" />
       </label>
     </div>
+    <p class="form-note">Terra is the balanced default. Luna uses fewer resources; Sol offers the most capability.</p>
     <label class="fast-mode-control">
       <input bind:checked={fastResponses} type="checkbox" aria-label="Fast responses" />
       <span>
@@ -105,14 +113,8 @@
         <small>Let the Assistant check recent player news when useful. May increase response time and usage. Saving a change starts fresh conversations.</small>
       </span>
     </label>
-    <p class="form-note">Terra is the balanced default. Luna uses fewer resources; Sol offers the most capability.</p>
-    <p class="form-note">The Assistant runs on your local Codex CLI. Codex must be installed and signed in on this computer. The app keeps one local Codex session running and reuses conversations until you close it.</p>
   {:else}
     <p class="form-note">Assistant recommendations and questions are disabled.</p>
-  {/if}
-
-  {#if providerStatus?.detail}
-    <p class="form-note">{providerStatus.detail}</p>
   {/if}
 
   {#if error}

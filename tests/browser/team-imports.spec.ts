@@ -110,6 +110,7 @@ test("a delayed import response cannot resurrect reset data or replace a newly c
     await stored;
     await drawer.getByRole("button", { name: "Close team data" }).click();
     await page.getByTitle("Open settings", { exact: true }).click();
+    await page.getByRole("button", { name: /^Local data/ }).click();
     await page.getByRole("button", { name: "Delete all local app data" }).click();
     await page.getByLabel("Type DELETE to confirm").fill("DELETE");
     await page.getByRole("button", { name: "Delete and reset" }).click();
