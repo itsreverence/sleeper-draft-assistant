@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { draftPreparationHeading, nextDraftPreparationStep, remainingDraftPreparationSteps, shouldOpenDraftPreparation } from "./draft-preparation";
+import { hasMatchedImport, draftPreparationHeading, nextDraftPreparationStep, remainingDraftPreparationSteps, shouldOpenDraftPreparation } from "./draft-preparation";
 
 describe("next draft preparation step", () => {
   const ready = { hasRankings: true, rankingsStale: false, hasProjections: true, hasAdp: true, aiConfigured: true };
@@ -69,5 +69,13 @@ describe("draft preparation", () => {
     expect(shouldOpenDraftPreparation("draft-1", "pre_draft", ready, now)).toBe(false);
     expect(shouldOpenDraftPreparation("mock-draft", "pre_draft", { ...ready, rankingsAppliedAt: null }, now)).toBe(false);
     expect(shouldOpenDraftPreparation("draft-1", "complete", { ...ready, aiReady: false }, now)).toBe(false);
+  });
+});
+
+describe("matched draft import readiness", () => {
+  it("requires at least one match, while allowing partial projections", () => {
+    expect(hasMatchedImport(null)).toBe(false);
+    expect(hasMatchedImport({ matched: 0 })).toBe(false);
+    expect(hasMatchedImport({ matched: 1 })).toBe(true);
   });
 });

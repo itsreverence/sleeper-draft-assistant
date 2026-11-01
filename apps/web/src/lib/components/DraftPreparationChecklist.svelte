@@ -172,6 +172,8 @@
     const warningCount = input.warnings?.length ?? 0;
     const facts = !summary
       ? draftComplete ? "Not imported" : ""
+      : summary.matched === 0
+        ? "No players matched · Replace or clear this import"
       : blockedStale
         ? `Out of date · ${importDay(summary.appliedAt)}`
         : [
@@ -185,7 +187,7 @@
       purpose: input.purpose,
       facts,
       factsWarn: Boolean(summary) && (Boolean(freshness?.stale) || warningCount > 0 || summary?.matched === 0),
-      done: input.hasData && !blockedStale,
+      done: input.hasData && Boolean(summary && summary.matched > 0) && !blockedStale,
       stale: blockedStale,
       busyLabel: input.importing ? "Importing" : input.clearing ? "Clearing" : "",
       pinned: step === next || input.importing || input.clearing || input.errors.length > 0,
@@ -194,7 +196,7 @@
       fileLabel: input.importing ? "Importing" : `${summary ? "Replace" : "Upload"} ${input.fileNoun}`,
       primaryLabel: input.importing ? "Importing" : input.primaryUpload,
       multiple: input.multiple ?? false,
-      hasData: input.hasData,
+      hasData: Boolean(summary),
       importing: input.importing,
       clearing: input.clearing,
       errors: input.errors,
@@ -236,7 +238,7 @@
       detailPrefix: "",
       warnings: seasonProjectionImportSummary?.warnings,
       fileNoun: "files",
-      primaryUpload: `Upload ${season} projection files`,
+      primaryUpload: `${seasonProjectionImportSummary?.matched === 0 ? "Replace" : "Upload"} ${season} projection files`,
       multiple: true,
       importing: isImportingSeasonProjections,
       clearing: isClearingSeasonProjections,
@@ -256,7 +258,7 @@
       summary: adpImportSummary,
       detailPrefix: `Sleeper${adpImportSummary?.includesRealTime ? " + Real-Time" : ""} · `,
       fileNoun: "CSV",
-      primaryUpload: "Upload Sleeper ADP CSV",
+      primaryUpload: `${adpImportSummary?.matched === 0 ? "Replace" : "Upload"} Sleeper ADP CSV`,
       importing: isImportingAdp,
       clearing: isClearingAdp,
       errors: adpImportError ? [adpImportError] : [],

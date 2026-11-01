@@ -330,3 +330,40 @@ test("every part of Team Manager fits and works at 320px", async ({ page }) => {
   await expectAccessible(page);
   await expectNamesContainVisibleText(page);
 });
+
+test("Settings close preserves Team Manager scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 400 });
+  await open(page, "needs-look");
+  await page.getByRole("button", { name: "Open settings" }).focus();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const scroll = await page.evaluate(() => window.scrollY);
+  expect(scroll).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Open settings" }).evaluate((el: HTMLButtonElement) => el.click());
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scroll);
+});
+
+test("saving Settings keeps focus inside the open drawer", async ({ page }) => {
+  await open(page, "needs-look");
+  await page.getByRole("button", { name: "Open settings" }).click();
+  const drawer = page.getByRole("dialog", { name: "Application settings" });
+  await drawer.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect(drawer.getByRole("button", { name: "Save settings", exact: true })).toBeEnabled();
+  await expect.poll(() => drawer.evaluate(el => el.contains(document.activeElement))).toBe(true);
+});
+
+test("main fallback does not change Tab order after clicking page text", async ({ page }) => {
+  await open(page, "needs-look");
+  const opener = await page.getByRole("button", { name: "Open settings" }).elementHandle();
+  const manage = await page.getByRole("button", { name: "Manage data", exact: true }).elementHandle();
+  await opener!.click();
+  await opener!.evaluate(el => el.remove());
+  await manage!.evaluate(el => el.remove());
+  await page.keyboard.press("Escape");
+  await expect(page.locator("main")).toBeFocused();
+  await page.getByText("3 things need a look", { exact: true }).click();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Marlon Ashby is on bye" })).toBeFocused();
+});

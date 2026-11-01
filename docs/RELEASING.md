@@ -70,15 +70,28 @@ Get-Content windows-candidate/SHA256SUMS.txt | ForEach-Object {
 }
 ```
 
-Use a real desktop session and a clean Windows user profile. Install this candidate and keep a closed-app backup of any data you add. CI covers both the clean first run and the separate previous-release upgrade. This desktop pass checks the clean first run and the interactive flows below.
+A person must perform two separate checks in a real Windows desktop session,
+using this same verified candidate **before tagging**:
 
-1. Launch the installed candidate and confirm the connection screen is usable.
-2. Connect to live Sleeper and open your league or draft.
-3. Import a user-owned FantasyPros file through the native file picker.
-4. Configure the local Codex CLI and ask one question. Check the response and its loading/error presentation.
-5. Record SmartScreen and unsigned-download behavior for the downloaded candidate, including whether a warning appeared.
+1. **Short clean-profile first run:** create a temporary local Windows account and
+   sign in to it. Install and launch the candidate without copying an existing app
+   profile or setting up Codex. Confirm the connection screen is usable and record
+   what the app says when Codex is not installed or signed in, including its setup
+   or recovery guidance. Close the app. An upgrade launch in the usual account
+   does not satisfy this check; CI's clean-profile check does not replace it.
+2. **Full interactive upgrade smoke:** in the usual Windows account, keep a
+   closed-app backup of the existing real-data profile, then install the candidate
+   over the installed version. Confirm the saved data remains usable. Connect to
+   live Sleeper and open the league or draft; import a user-owned FantasyPros file
+   through the native file picker; use the configured local Codex CLI to ask one
+   question and check the response and its loading/error presentation. Record
+   SmartScreen and unsigned-download behavior, including whether a warning
+   appeared.
 
-Do not claim Windows readiness based only on Linux packaging or CI. A real clean-profile Windows launch remains the final distribution gate.
+Record the exact candidate commit and artifact identity, Windows version, account
+type, and outcomes for both steps. Do not claim Windows readiness based only on
+Linux packaging, CI, or the upgrade-profile interactive smoke. The separate human
+clean-profile first run remains required.
 
 A maintainer may explicitly authorize a beta testing candidate before manual Windows sign-off so testers can download it. Such a candidate must remain a prerelease, pass the automated gates, and state in its release notes which manual checks are pending. This exception does not apply to stable releases.
 

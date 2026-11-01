@@ -77,7 +77,7 @@
   import { createDraftSession, type DraftSessionGuard } from "./lib/draft-session.svelte";
   import { buildFantasyProsWeeklyProjectionUrl } from "./lib/fantasypros";
   import { getImportFreshness } from "./lib/freshness";
-  import { nextDraftPreparationStep, shouldOpenDraftPreparation } from "./lib/draft-preparation";
+  import { hasMatchedImport, nextDraftPreparationStep, shouldOpenDraftPreparation } from "./lib/draft-preparation";
   import type { WorkspaceMode } from "./lib/format";
   import { conversationalAiProviderStatus, isAiProviderAvailable, isAssistantReady } from "./lib/types";
   import type {
@@ -194,12 +194,18 @@
   function focusAfterLostOpener() {
     if (preparationChecklist) preparationChecklist.focusNextAction();
     else if (workspaceMode === "draft") askPanel?.focusComposer?.();
-    else manageDataButton?.focus();
+    else manageDataButton?.focus({ preventScroll: true });
     // The composer and Manage data are not always rendered or enabled. A lasting tabindex would make clicks on page content restart the Tab order.
     if (document.activeElement !== document.body || !mainElement || mainElement.inert) return;
     const main = mainElement;
     main.tabIndex = -1;
-    main.addEventListener("blur", () => main.removeAttribute("tabindex"), { once: true });
+    function clearFallbackTabindex() {
+      main.removeAttribute("tabindex");
+      main.removeEventListener("pointerdown", clearFallbackTabindex, true);
+      main.removeEventListener("blur", clearFallbackTabindex);
+    }
+    main.addEventListener("pointerdown", clearFallbackTabindex, { capture: true, once: true });
+    main.addEventListener("blur", clearFallbackTabindex, { once: true });
     main.focus({ preventScroll: true });
   }
   setContext(modalFallbackFocus, focusAfterLostOpener);
@@ -494,6 +500,7 @@
   }
 
   async function saveSettings(settings: AppSettings): Promise<boolean> {
+    const saveControl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     isSavingSettings = true;
     settingsError = "";
     try {
@@ -519,6 +526,10 @@
       return false;
     } finally {
       isSavingSettings = false;
+      await tick();
+      if (settingsOpen && document.activeElement === document.body && saveControl?.isConnected) {
+        saveControl.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -915,9 +926,9 @@
         draftId,
         payload.state.status,
         {
-          rankingsAppliedAt: payload.rankingImportSummary?.appliedAt ?? null,
-          hasProjections: Boolean(payload.seasonProjectionImportSummary),
-          hasAdp: Boolean(payload.adpImportSummary),
+          rankingsAppliedAt: hasMatchedImport(payload.rankingImportSummary) ? (payload.rankingImportSummary?.appliedAt ?? null) : null,
+          hasProjections: hasMatchedImport(payload.seasonProjectionImportSummary),
+          hasAdp: hasMatchedImport(payload.adpImportSummary),
           aiReady: aiProviderStatus?.id === "codex-app-server" && isAiProviderAvailable(aiProviderStatus),
         },
       );
@@ -986,7 +997,11 @@
       return;
     }
 
-    const isBackgroundRefresh = background && Boolean(teamManagerState);
+    const hadTeam = Boolean(teamManagerState);
+    const isBackgroundRefresh = background && hadTeam;
+    // A failed switch must not leave the previous team on screen as if it were the requested one.
+    const keepsTeamOnFailure = teamManagerState?.league.id === leagueId
+      && (userRosterId === null || String(teamManagerState.userTeam.rosterId) === String(userRosterId));
     if (!isBackgroundRefresh) {
       teamManagerError = "";
     }
@@ -1004,8 +1019,15 @@
         },
         reject: (error) => {
           const message = error instanceof Error ? error.message : "Could not load team roster.";
-          if (isBackgroundRefresh) {
+          if (keepsTeamOnFailure || isBackgroundRefresh) {
             teamRefreshError = message;
+            if (!isBackgroundRefresh) {
+              weeklyProjectionError = projectionWeek
+                ? `Week ${projectionWeek} didn't update: ${message}`
+                : message;
+              teamProjectionSeason = teamPayloadSeason;
+              teamProjectionWeek = teamPayloadWeek;
+            }
           } else {
             teamManagerState = null;
             teamDataReadiness = null;
@@ -1680,7 +1702,7 @@
     settingsOpen = false;
     await tick();
     if (returnFocus?.isConnected) {
-      returnFocus.focus();
+      returnFocus.focus({ preventScroll: true });
     }
     // The drawer's own fallback ran while the page behind it was still inert.
     if (document.activeElement === document.body) focusAfterLostOpener();
@@ -1770,13 +1792,13 @@
   const activeSourceLabel = $derived(draftState ? (isMockDraft(activeDraftId) ? "Demo draft" : "Sleeper draft") : "No draft loaded");
   const isDemoDraftActive = $derived(Boolean(draftState && isMockDraft(activeDraftId)));
   const isRealDraftActive = $derived(Boolean(draftState && !isMockDraft(activeDraftId)));
-  const hasImportedRankings = $derived(Boolean(rankingImportSummary));
+  const hasImportedRankings = $derived(hasMatchedImport(rankingImportSummary));
   const rankingsStale = $derived.by(() => {
     const summary = rankingImportSummary as RankingImportSummary | null;
     return summary ? getImportFreshness(summary.appliedAt, 14).stale : false;
   });
-  const hasSeasonProjections = $derived(Boolean(seasonProjectionImportSummary));
-  const hasImportedAdp = $derived(Boolean(adpImportSummary));
+  const hasSeasonProjections = $derived(hasMatchedImport(seasonProjectionImportSummary));
+  const hasImportedAdp = $derived(hasMatchedImport(adpImportSummary));
   const preparationReadiness = $derived({
     hasRankings: hasImportedRankings,
     rankingsStale,
