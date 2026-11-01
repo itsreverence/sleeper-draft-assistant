@@ -30,7 +30,9 @@ Failures retain screenshots and traces under ignored `test-results/`; the HTML r
 | --- | --- | --- |
 | Demo | Connection screen → Try a demo draft | Browser suite loads the renderer through the real API |
 | Long titles | Draft or league with a long name | Browser suite checks no page overflow and no settings-button overlap at 1280, 480, and 320 |
-| Settings | Open settings button | Browser keyboard dismissal/focus; `App.test.ts` owns application wiring and modal unit tests own action edge cases |
+| Settings | Open settings button | Browser keyboard dismissal/focus; `settings-home.spec.ts` checks Local data stays out of the tab order until opened and that its row confirmation and reset form fit at every width; `App.test.ts` owns application wiring and modal unit tests own action edge cases |
+| Home | Connection screen | `settings-home.spec.ts` checks the home line, every way in, fit at every width and that a draft opened from a scrolled page starts at its top |
+| Draft preparation | Open a real draft that is not ready | `draft-preparation.test.ts` and `DraftPreparationChecklist.test.ts` own the step order, heading and zero-match rules; `draft-preparation.spec.ts` walks the checklist by keyboard through real API imports, and covers a rejected file, emergency board focus, completed-draft review and 320px |
 | Player search | Demo → Find player | Browser checks actual overflow, reachable last row, fixed header/search and page scroll lock at desktop/compact sizes |
 | Search matching | Search input and position filters | `player-search.test.ts` owns ordering and matching; browser tests do not replay its tables |
 | Preference popover | Search result → Preference | Component regression owns callback routing; browser suite exercises native popover Escape handling and focus restoration, not the jsdom shim |
