@@ -999,6 +999,9 @@
 
     const hadTeam = Boolean(teamManagerState);
     const isBackgroundRefresh = background && hadTeam;
+    // A failed switch must not leave the previous team on screen as if it were the requested one.
+    const keepsTeamOnFailure = teamManagerState?.league.id === leagueId
+      && (userRosterId === null || String(teamManagerState.userTeam.rosterId) === String(userRosterId));
     if (!isBackgroundRefresh) {
       teamManagerError = "";
     }
@@ -1016,7 +1019,7 @@
         },
         reject: (error) => {
           const message = error instanceof Error ? error.message : "Could not load team roster.";
-          if (hadTeam) {
+          if (keepsTeamOnFailure || isBackgroundRefresh) {
             teamRefreshError = message;
             if (!isBackgroundRefresh) {
               weeklyProjectionError = projectionWeek

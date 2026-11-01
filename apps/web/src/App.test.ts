@@ -387,6 +387,32 @@ describe("App draft lifecycle", () => {
     expect(screen.queryByText(/^Week 1 ·/)).toBeNull();
   });
 
+  it("does not keep the previous team on screen when switching to another league fails", async () => {
+    const firstDraft = apiMock.deferDraftState({ draftId: "draft-1", userRosterId: null, userIdentifier: null });
+    render(App);
+    await openDirectDraftForm();
+    await fireEvent.input(screen.getByPlaceholderText("Paste a draft ID"), { target: { value: "draft-1" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Load draft" }));
+    const firstPayload = createDraftPayloadFixture({ draftId: "draft-1", name: "Completed Draft", leagueId: DEFAULT_LEAGUE_ID });
+    firstPayload.state.status = "complete";
+    firstDraft.resolve(firstPayload);
+    expect(await screen.findByRole("table", { name: "Starting lineup and reserves" })).toBeTruthy();
+
+    const secondDraft = apiMock.deferDraftState({ draftId: "draft-2", userRosterId: null, userIdentifier: null });
+    apiMock.fetchTeamManagerState.mockRejectedValueOnce(new Error("League unavailable"));
+    await fireEvent.click(screen.getByTitle("Switch league or draft"));
+    await fireEvent.click(screen.getAllByText("Paste a draft ID")[0]!);
+    await fireEvent.input(screen.getAllByPlaceholderText("Paste a draft ID")[0]!, { target: { value: "draft-2" } });
+    await fireEvent.click(screen.getAllByRole("button", { name: "Load draft" })[0]!);
+    const secondPayload = createDraftPayloadFixture({ draftId: "draft-2", name: "Other League Draft", leagueId: "league-b" });
+    secondPayload.state.status = "complete";
+    secondDraft.resolve(secondPayload);
+
+    await waitFor(() => expect(apiMock.fetchTeamManagerState.mock.calls.at(-1)?.[0]).toBe("league-b"));
+    await waitFor(() => expect(screen.queryByRole("table", { name: "Starting lineup and reserves" })).toBeNull());
+    expect(screen.queryByRole("button", { name: "Manage data" })).toBeNull();
+  });
+
   it("does not replay a handled market question after Team Manager remounts", async () => {
     const draftLoad = apiMock.deferDraftState({
       draftId: "draft-1",
