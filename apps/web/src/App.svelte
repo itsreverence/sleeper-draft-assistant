@@ -920,6 +920,8 @@
       if (hasPlayerPreferences()) {
         void refreshRecommendationWithPreferences();
       }
+      // The workspace should open at its top, not at however far down the taller home page was scrolled.
+      if (connectExpanded) window.scrollTo({ top: 0 });
       connectExpanded = false;
       switchingDraft = false;
       draftPreparationOpen = shouldOpenDraftPreparation(
@@ -2150,6 +2152,9 @@
 
   {#if connectExpanded}
     <div class="connect-editor" class:preconnect={isPreconnect || switchingDraft}>
+      {#if isPreconnect && !switchingDraft}
+        <p class="home-line">Draft and lineup help for Sleeper. The app stores its data on this device; Assistant requests go through your Codex account.</p>
+      {/if}
       <ConnectPanel
         bind:usernameInput
         bind:seasonInput
@@ -2516,6 +2521,14 @@
   .connect-editor.preconnect {
     align-content: center;
     margin-bottom: 0;
+  }
+
+  .home-line {
+    margin-bottom: var(--space-4);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    text-align: center;
+    text-wrap: balance;
   }
 
   .preparation-flow {

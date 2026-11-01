@@ -3,6 +3,7 @@
 
   import { clearLocalDataCategory, fetchStorageInventory, fetchSupportReport, resetLocalData } from "../api";
   import type { AppSettings, LocalDataCategory, StorageInventory } from "../types";
+  import DataLine from "./DataLine.svelte";
   import Icon from "./Icon.svelte";
 
   let { onResetComplete }: { onResetComplete: (settings: AppSettings) => void | Promise<void> } = $props();
@@ -25,6 +26,15 @@
     { category: "draft-plans", label: "Assistant draft plans", description: "Latest Assistant strategy remembered for each draft team.", count: "draftPlans" },
     { category: "strategy-instructions", label: "Draft instructions", description: "User-approved strategy guidance saved by draft team.", count: "strategyInstructions" },
   ];
+
+  const savedRecords = $derived(inventory ? rows.reduce((total, row) => total + Number(inventory?.[row.count]), 0) : 0);
+  const summary = $derived(
+    inventory
+      ? `${savedRecords.toLocaleString()} saved record${savedRecords === 1 ? "" : "s"} on this device`
+      : error
+        ? "Could not load the saved record counts"
+        : "Checking saved records",
+  );
 
   onMount(() => {
     void loadInventory();
@@ -94,12 +104,9 @@
   }
 </script>
 
-<section class="data-section" aria-labelledby="local-data-heading">
+<DataLine name="local-data" title="Local data" {summary} warn={!inventory && Boolean(error)}>
   <div class="section-heading">
-    <div>
-      <h2 id="local-data-heading"><Icon name="database" size={17} /> Local data</h2>
-      <p>Stored only on this device in {inventory?.location === "application-data" ? "the app data directory" : "the development data directory"}.</p>
-    </div>
+    <p>Stored only on this device in {inventory?.location === "application-data" ? "the app data directory" : "the development data directory"}.</p>
     <button class="btn btn-secondary" type="button" title="Download redacted diagnostics and decision metadata" disabled={busyAction !== ""} onclick={downloadSupportReport}>
       <Icon name="download" size={14} />
       {busyAction === "support-report" ? "Preparing" : "Support report"}
@@ -174,28 +181,14 @@
   {#if status}
     <p class="settings-status" aria-live="polite">{status}</p>
   {/if}
-</section>
+</DataLine>
 
 <style>
-  .data-section {
-    display: grid;
-    gap: var(--space-4);
-    border-top: 1px solid var(--border);
-    padding-top: var(--space-5);
-  }
-
   .section-heading {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-4);
-  }
-
-  .section-heading h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--text-lg);
   }
 
   .section-heading p,
@@ -205,10 +198,6 @@
     color: var(--text-secondary);
     font-size: var(--text-sm);
     line-height: 1.5;
-  }
-
-  .section-heading p {
-    margin-top: 4px;
   }
 
   .data-list {
