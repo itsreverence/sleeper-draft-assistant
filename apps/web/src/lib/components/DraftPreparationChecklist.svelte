@@ -353,22 +353,37 @@
 
   // A running upload disables its input and a finished row drops it, either of which leaves focus on the page.
   let busyBefore: DraftPreparationStep[] = [];
+  let clearingBefore: DraftPreparationStep[] = [];
   let nextWhenBusyStarted: DraftPreparationStep | null = null;
   $effect(() => {
     const busy = busySteps;
+    const clearing = sourceRows.filter((row) => row.clearing).map((row) => row.step);
     const finished = busyBefore.find((step) => !busy.includes(step));
+    const wasClear = finished !== undefined && clearingBefore.includes(finished);
     if (busyBefore.length === 0 && busy.length > 0) nextWhenBusyStarted = untrack(() => next);
     busyBefore = busy;
-    if (finished) untrack(() => restoreFocus(finished));
+    clearingBefore = clearing;
+    if (finished) untrack(() => restoreFocus(finished, wasClear));
   });
 
-  function restoreFocus(finished: DraftPreparationStep) {
-    if (document.activeElement && document.activeElement !== document.body) return;
-    if (next !== nextWhenBusyStarted) {
+  function stepFailed(step: DraftPreparationStep): boolean {
+    if (step === "assistant") return Boolean(settingsError);
+    return (sourceRows.find((row) => row.step === step)?.errors.length ?? 0) > 0;
+  }
+
+  // A successful import moves on even when focus is still in its row, such as on a replaced file's input.
+  function restoreFocus(finished: DraftPreparationStep, wasClear: boolean) {
+    const row = list?.querySelector(`[data-step="${finished}"]`);
+    const active = document.activeElement;
+    const lost = !active || active === document.body;
+    const movesOn = wasClear
+      ? lost && next !== nextWhenBusyStarted
+      : !draftComplete && !stepFailed(finished) && (lost || Boolean(row?.contains(active)));
+    if (movesOn) {
       focusNextAction();
       return;
     }
-    const row = list?.querySelector(`[data-step="${finished}"]`);
+    if (!lost) return;
     const control = row?.querySelector<HTMLElement>('.row-body :is(input[type="file"], button):not(:disabled)')
       ?? row?.querySelector<HTMLElement>("button.row-head");
     control?.focus();

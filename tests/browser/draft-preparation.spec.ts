@@ -105,6 +105,20 @@ test("the keyboard walks the checklist from the first upload into the draft room
   await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
 });
 
+test("replacing a finished file out of order hands focus to the next step", async ({ page }, testInfo) => {
+  await loadDraft(page, `browser-board-prep-kept-${testInfo.project.name}`);
+  await page.getByLabel("Upload PPR ECR CSV").setInputFiles(csvFile("ecr.csv", rankingsCsv));
+  const projections = page.getByLabel("Upload 2026 projection files");
+  await expect(projections).toBeFocused();
+
+  await page.locator('[data-step="rankings"] button.row-head').click();
+  const replace = page.getByLabel("Replace CSV for PPR ECR");
+  await replace.focus();
+  await replace.setInputFiles(csvFile("ecr.csv", rankingsCsv));
+  await expect(projections).toBeFocused();
+  await expect(heading(page)).toHaveText("Three steps before the draft room");
+});
+
 test("a rejected file stays in its row with the upload still focused", async ({ page }) => {
   await page.route(/\/rankings\/import/, route => route.fulfill({ status: 400, json: { error: "Synthetic rejected export." } }));
   await loadDraft(page, "browser-board-pre");

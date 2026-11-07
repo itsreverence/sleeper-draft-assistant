@@ -12,6 +12,8 @@ const boardDrafts = {
   "browser-board-pre": { type: "snake", status: "pre_draft", picks: 0 },
   "browser-board-prep-desktop": { type: "snake", status: "pre_draft", picks: 0 },
   "browser-board-prep-compact": { type: "snake", status: "pre_draft", picks: 0 },
+  "browser-board-prep-kept-desktop": { type: "snake", status: "pre_draft", picks: 0 },
+  "browser-board-prep-kept-compact": { type: "snake", status: "pre_draft", picks: 0 },
 };
 const boardSlot = (draft, pickNo) => {
   const round = Math.ceil(pickNo / 4);
