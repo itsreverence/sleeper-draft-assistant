@@ -278,6 +278,15 @@ test.describe("a week change keeps the verdict tied to the roster on screen", ()
     await page.getByRole("dialog", { name: "Manage team data" }).getByRole("button", { name: "Close team data" }).click();
     await expect(page.getByText("Lineup looks set")).toHaveCount(0);
     await expect(week7Note(page)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Draft status" })).toContainText("Week 7");
+    let body: unknown;
+    await page.route("**/team/ask*", async route => {
+      body = { week: Number(new URL(route.request().url()).searchParams.get("week")) };
+      await route.fulfill({ json: { answer: "Synthetic answer" } });
+    });
+    await page.getByRole("textbox", { name: "Ask Assistant about your team" }).fill("Review this week");
+    await page.getByRole("button", { name: "Ask Assistant", exact: true }).click();
+    await expect.poll(() => body).toMatchObject({ week: 7 });
   });
 
   test("a pending week load doesn't announce all clear", async ({ page }) => {

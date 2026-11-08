@@ -269,3 +269,53 @@ test("a schedule outage item opens Coverage with its warning, then returns focus
   await page.keyboard.press("Escape");
   await expect(item).toBeFocused();
 });
+
+test("a failed team load is visible after switching drafts and offers a focused retry", async ({ page }) => {
+  const drawer = await openDrawer(page, "all-clear");
+  await drawer.getByRole("button", { name: "Close team data" }).click();
+  await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, route => route.fulfill({ status: 503, json: { error: "Synthetic team outage." } }));
+  await page.getByTitle("Switch league or draft", { exact: true }).click();
+  const switcher = page.getByRole("dialog", { name: "Switch league or draft" });
+  await switcher.getByText("Paste a draft ID", { exact: true }).click();
+  await switcher.getByPlaceholder("Paste a draft ID").fill(`browser-${randomUUID()}`);
+  await switcher.getByRole("button", { name: "Load draft", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Synthetic team outage." })).toBeVisible();
+  const retry = page.getByRole("button", { name: "Retry team load", exact: true });
+  await expect(retry).toBeFocused();
+  await page.unroute(/\/api\/leagues\/[^/]+\/team(?:\?|$)/);
+  await routeData(page, "all-clear");
+  await retry.click();
+  await expect(page.getByRole("table", { name: "Starting lineup and reserves" })).toBeVisible();
+});
+
+test("a typed slot keeps the resolved team when another week fails to load", async ({ page }) => {
+  await routeData(page, "all-clear");
+  await page.goto("/");
+  await page.getByText("Paste a draft ID", { exact: true }).click();
+  await page.getByPlaceholder("Paste a draft ID").fill(`browser-${randomUUID()}`);
+  await page.getByLabel(/Your roster ID or slot/).fill("slot-2");
+  await page.getByRole("button", { name: "Load draft", exact: true }).click();
+  await page.getByRole("button", { name: "Manage data", exact: true }).click();
+  const drawer = page.getByRole("dialog", { name: "Manage team data" });
+  await drawer.getByRole("button", { name: "Change week" }).click();
+  await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, route => route.fulfill({ status: 503, json: { error: "Synthetic week outage." } }));
+  await drawer.getByLabel("Week", { exact: true }).fill("6");
+  await drawer.getByRole("button", { name: "Load selected week" }).click();
+  await expect(drawer.getByText("Week 6 didn't update: Synthetic week outage.").first()).toBeVisible();
+  await expect(drawer.getByLabel("Week", { exact: true })).toHaveValue("8");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("table", { name: "Starting lineup and reserves" })).toBeVisible();
+});
+
+test("a successful weekly clear survives a failed refresh without blaming a week load", async ({ page }) => {
+  const drawer = await openDrawer(page, "all-clear");
+  await drawer.getByRole("button", { name: /^Weekly projections/ }).click();
+  await page.route("**/projections/weekly?*", route => route.fulfill({ json: { deleted: true } }));
+  await page.route(/\/api\/leagues\/[^/]+\/team(?:\?|$)/, route => route.fulfill({ status: 503, json: { error: "Synthetic refresh outage." } }));
+  await drawer.getByRole("button", { name: "Clear week", exact: true }).click();
+  await expect(drawer.getByRole("button", { name: "Clear week", exact: true })).toHaveCount(0);
+  await expect(drawer.getByText(/didn't update/)).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("Team refresh failed. Showing earlier Sleeper data.")).toBeAttached();
+  await expect(page.getByText("21.4", { exact: true })).toHaveCount(0);
+});

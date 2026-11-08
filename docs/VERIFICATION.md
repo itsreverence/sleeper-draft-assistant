@@ -28,7 +28,7 @@ Failures retain screenshots and traces under ignored `test-results/`; the HTML r
 
 | Surface | User entry | Primary evidence |
 | --- | --- | --- |
-| Demo | Connection screen → Try a demo draft | Browser suite loads the renderer through the real API |
+| Demo | Connection screen → Try a demo draft | Browser suite loads the renderer through the real API; restarting after a completed demo issues a fresh reset, while the API timer regression proves a completed board resets and older streams stop |
 | Long titles | Draft or league with a long name | Browser suite checks no page overflow and no settings-button overlap at 1280, 480, and 320 |
 | Settings | Open settings button | Browser keyboard dismissal/focus; `settings-home.spec.ts` checks Local data stays out of the tab order until opened and that its row confirmation and reset form fit at every width; `App.test.ts` owns application wiring and modal unit tests own action edge cases |
 | Home | Connection screen | `settings-home.spec.ts` checks the home line, every way in, fit at every width and that a draft opened from a scrolled page starts at its top |
@@ -44,7 +44,7 @@ Failures retain screenshots and traces under ignored `test-results/`; the HTML r
 | Conversation thread | Draft questions and Team Manager composer | Component tests own the follow-newest rule, the cancel state and the discarded late answer; browser tests check real scroll geometry: each new answer starts at the thread's top, the thread stays put when the reader scrolled up, Cancel returns the composer to idle with the DELETE sent and no late answer, under axe at desktop/compact sizes and with the composer reachable at 320px. Both panels also exercise native click/Enter focus retention, cancellation, retry and completed-pair history in actual HTTP bodies; Team Manager has its own newest-message geometry check |
 | Board pick order | Paste a draft ID → emergency board | Synthetic upstream through real normalization: browser suite covers traded, linear, third-round-reversal and pre-draft boards, the semantic table under axe, and the sticky round column. `draft-board.test.ts` and `sleeper.test.ts` own the order rules; `DraftRoomPanel.test.ts` owns the pick announcement |
 | Draft room modes | Demo with a synthetic local event stream | Browser suite covers each mode's layout, a taken target and promotion driven through a real `EventSource`, the all-gone state, tools with no strategy, stale answers, the top row staying put through a refresh, 320px and axe. `draft-room.test.ts` owns mode, shortlist and reason rules, `draft-strategy-session.test.ts` owns request ordering, and `draft-consistency.test.ts` owns the API returning an overtaken answer without persisting it |
-| Startup workspace | Reload a completed draft | Browser holds team data across reload and verifies Team Manager opens without the board, and that failed team data falls back to it; `format.test.ts` owns the mode rule |
+| Startup workspace | Reload a completed draft | Browser holds team data across reload and verifies Team Manager opens without the board, and that failed team data exposes a focused retry; `format.test.ts` owns the mode rule |
 | Packaged app | Windows executable | Windows packaged smoke and manual lifecycle gates in RELEASING.md; Chromium is not Electron/installer proof |
 
 ## Test authoring and focused audit

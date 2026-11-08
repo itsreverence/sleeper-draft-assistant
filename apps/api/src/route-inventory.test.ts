@@ -28,6 +28,7 @@ const expectedRoutes = [
   "GET /leagues/:leagueId/projections/weekly",
   "POST /leagues/:leagueId/projections/weekly/import",
   "DELETE /leagues/:leagueId/projections/weekly",
+  "POST /drafts/mock/reset",
   "GET /drafts/:draftId/state",
   "POST /drafts/:draftId/rankings/import",
   "POST /drafts/:draftId/projections/season/import",

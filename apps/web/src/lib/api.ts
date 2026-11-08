@@ -618,3 +618,8 @@ async function aiFetch(input: RequestInfo | URL, init: RequestInit, progress: Ai
     progress.signal?.removeEventListener("abort", cancel);
   }
 }
+
+export async function resetDemoDraft(): Promise<void> {
+  const response = await apiFetch(`${apiBase}/drafts/mock/reset`, { method: "POST" });
+  if (!response.ok) throw new Error(await readErrorMessage(response, "Could not start a fresh demo. Try again."));
+}

@@ -113,13 +113,15 @@ test("a remembered Team Manager opens without flashing the completed board", asy
   await expect(page.getByRole("region", { name: "Draft board" })).toHaveCount(0);
 });
 
-test("a remembered Team Manager falls back to the board when team data fails", async ({ page }) => {
+test("a remembered Team Manager exposes a focused retry when team data fails", async ({ page }) => {
   const league = `browser-${randomUUID()}`;
   await loadDraft(page, league);
   await expect(page.getByRole("button", { name: "Manage data", exact: true })).toBeVisible();
   await page.route(/\/api\/leagues\/[^/]+\/team/, route => route.fulfill({ status: 500, json: { error: "Synthetic team failure." } }));
   await page.reload();
   await expect(page.getByRole("region", { name: "Draft board" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Synthetic team failure." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry team load", exact: true })).toBeFocused();
 });
 
 test("Manage draft data from Settings keeps focus in the app", async ({ page }) => {

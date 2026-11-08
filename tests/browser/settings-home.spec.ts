@@ -89,3 +89,54 @@ test("open settings, a row's confirmation and the reset form fit at every width"
     expect(await body.evaluate(element => element.scrollWidth <= element.clientWidth), `settings fit at ${width}px`).toBe(true);
   }
 });
+
+test("local-data clear, cancel, and confirm keep keyboard focus in the row", async ({ page }) => {
+  const counts = { rankingImports: 0, seasonProjectionImports: 0, adpImports: 0, rosRankingImports: 0, weeklyProjectionImports: 0, decisionSnapshots: 0, draftPlans: 0, strategyInstructions: 0 };
+  await page.route(/\/api\/data(?:\?|$)/, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), ...counts, rankingImports: 3 } });
+  });
+  await page.route("**/api/data/rankings", async route => {
+    const response = await route.fetch();
+    const result = await response.json();
+    await route.fulfill({ response, json: { ...result, inventory: { ...result.inventory, ...counts } } });
+  });
+  const dialog = await openSettings(page);
+  await dialog.getByRole("button", { name: /^Local data/ }).click();
+  const clear = dialog.getByRole("button", { name: "Clear all draft rankings", exact: true });
+  await clear.click();
+  const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(clear).toBeFocused();
+  await clear.click();
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(dialog.getByText(/No saved records were found|Cleared \d+ saved records?/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /^Local data/ })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: "Close settings" })).not.toBeFocused();
+});
+
+test("Try a demo draft starts again after a completed demo", async ({ page }) => {
+  let resets = 0;
+  let loadedStatus = "";
+  await page.route("**/api/drafts/mock/reset", async route => {
+    resets += 1;
+    await route.continue();
+  });
+  await page.route("**/api/drafts/mock-draft/events?*", route => route.abort());
+  await page.route("**/api/drafts/mock-draft/state", async route => {
+    const response = await route.fetch();
+    const payload = await response.json();
+    if (resets === 1) payload.state.status = "complete";
+    loadedStatus = payload.state.status;
+    await route.fulfill({ response, json: payload });
+  });
+  await page.getByRole("button", { name: "Try a demo draft", exact: true }).click();
+  await expect.poll(() => loadedStatus).toBe("complete");
+  await page.reload();
+  await expect(page.getByLabel("Sleeper username")).toBeVisible();
+  await page.getByRole("button", { name: "Try a demo draft", exact: true }).click();
+  await expect.poll(() => resets).toBe(2);
+  await expect.poll(() => loadedStatus).toBe("drafting");
+});

@@ -53,6 +53,7 @@
     fetchSettings,
     fetchSleeperConnect,
     fetchTeamManagerState,
+    resetDemoDraft,
     importWeeklyProjectionFilesRequest,
     importAdpRequest,
     importRankingsRequest,
@@ -837,9 +838,21 @@
   }
 
   async function loadMockDraft() {
-    draftInput = "";
-    userRosterIdInput = "";
-    await loadDraft("mock-draft", null, "");
+    const requestId = ++loadDraftRequestId;
+    isLoading = true;
+    loadError = "";
+    try {
+      await resetDemoDraft();
+      if (!isCurrentLoadDraftRequest(requestId)) return;
+      draftInput = "";
+      userRosterIdInput = "";
+      await loadDraft("mock-draft", null, "");
+    } catch (error) {
+      if (!isCurrentLoadDraftRequest(requestId)) return;
+      loadError = error instanceof Error ? error.message : "Could not start a fresh demo. Try again.";
+    } finally {
+      if (isCurrentLoadDraftRequest(requestId)) isLoading = false;
+    }
   }
 
   function clearActiveDraft() {
@@ -916,7 +929,7 @@
         weeklyProjectionError = "";
         rosRankingError = "";
       }
-      void loadTeamManager(resolvedLeagueId, userRosterId);
+      void loadTeamManager(resolvedLeagueId, activeUserRosterId);
       if (hasPlayerPreferences()) {
         void refreshRecommendationWithPreferences();
       }
@@ -1003,7 +1016,7 @@
     const isBackgroundRefresh = background && hadTeam;
     // A failed switch must not leave the previous team on screen as if it were the requested one.
     const keepsTeamOnFailure = teamManagerState?.league.id === leagueId
-      && (userRosterId === null || String(teamManagerState.userTeam.rosterId) === String(userRosterId));
+      && (userRosterId === null || draftState?.userTeamId === `roster-${teamManagerState.userTeam.rosterId}`);
     if (!isBackgroundRefresh) {
       teamManagerError = "";
     }
@@ -1016,7 +1029,7 @@
         projectionWeek,
       ), {
         accept: (payload) => {
-          applyTeamPayload(payload);
+          applyTeamPayload(payload, projectionSeason, projectionWeek);
           teamManagerError = "";
         },
         reject: (error) => {
@@ -1039,6 +1052,7 @@
             rosRankingSummary = null;
             teamManagerError = message;
             teamRefreshError = "";
+            void tick().then(() => document.getElementById("retry-team-load")?.focus());
           }
         },
       });
@@ -1072,10 +1086,14 @@
     teamRefreshError = "";
   }
 
-  function applyTeamPayload(payload: TeamPayload) {
+  function applyTeamPayload(
+    payload: TeamPayload,
+    season: string | null = teamProjectionSeason || null,
+    week: number | null = teamProjectionWeek || null,
+  ) {
     const projectionOverride = normalizeTeamProjectionOverride({
-      season: teamProjectionSeason,
-      week: teamProjectionWeek,
+      season: season ?? "",
+      week: week ?? 0,
       activeSeason: payload.state.league.season,
       activeWeek: payload.state.week,
     });
@@ -1158,7 +1176,7 @@
       }
       applyDraftPayload(payload, true);
       if (requestTeamLeagueId) {
-        void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
+        void loadTeamManager(requestTeamLeagueId, requestUserRosterId, teamProjectionSeason || null, teamProjectionWeek || null, true);
       }
       status = "FantasyPros rankings imported";
       lastEvent = `${payload.summary.matched} matched from ${payload.summary.rowsParsed} rows`;
@@ -1201,8 +1219,9 @@
       }
       applyDraftPayload(payload, true);
       emergencyBoardMode = false;
+      if (rosRankingSummary?.rankingOrigin === "draft-import") clearTeamValueEvidence();
       if (requestTeamLeagueId) {
-        void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
+        void loadTeamManager(requestTeamLeagueId, requestUserRosterId, teamProjectionSeason || null, teamProjectionWeek || null, true);
       }
       status = "FantasyPros rankings cleared";
       lastEvent = seasonProjectionImportSummary
@@ -1252,7 +1271,7 @@
       }
       applyDraftPayload(payload, true);
       if (requestTeamLeagueId) {
-        void loadTeamManager(requestTeamLeagueId, requestUserRosterId);
+        void loadTeamManager(requestTeamLeagueId, requestUserRosterId, teamProjectionSeason || null, teamProjectionWeek || null, true);
       }
       status = "FantasyPros season projections imported";
       lastEvent = `${payload.summary.matched} projection rows matched`;
@@ -1455,6 +1474,24 @@
       });
   }
 
+  function clearTeamValueEvidence() {
+    rosRankingSummary = null;
+    teamDataReadiness = null;
+    if (!teamManagerState) return;
+    const state = structuredClone($state.snapshot(teamManagerState));
+    for (const player of [...state.roster.starters.flatMap(slot => slot.player ? [slot.player] : []), ...state.roster.bench, ...state.roster.injuredReserve, ...state.roster.taxi]) {
+      player.rosRank = null;
+      player.rosPositionRank = null;
+      player.rosBestRank = null;
+      player.rosWorstRank = null;
+      player.rosAverageRank = null;
+      player.rosStdDev = null;
+      player.rosSource = null;
+      player.rosSeason = null;
+    }
+    teamManagerState = state;
+  }
+
   async function clearRosRankings(input: { season: string; scoring: DraftScoringFormat }) {
     if (!teamManagerState) {
       return;
@@ -1463,12 +1500,14 @@
     const leagueId = teamManagerState.league.id;
     await teamSession.run("clear-ros", () => clearRosRankingsRequest(leagueId, input.season, input.scoring), {
       accept: async () => {
+        if (rosRankingSummary?.season === input.season && rosRankingSummary.scoring === input.scoring) clearTeamValueEvidence();
         status = "Season value rankings cleared";
         await loadTeamManager(
           leagueId,
           activeUserRosterId,
           teamProjectionSeason || null,
           teamProjectionWeek || null,
+          true,
         );
       },
       reject: (error) => {
@@ -1500,8 +1539,6 @@
     }
 
     weeklyProjectionError = "";
-    teamProjectionSeason = input.season;
-    teamProjectionWeek = input.week;
 
     const leagueId = teamManagerState.league.id;
     await teamSession.run("import-weekly", () => importWeeklyProjectionFilesRequest({
@@ -1513,7 +1550,7 @@
         draftId: activeDraftId,
       }), {
         accept: (payload) => {
-          applyTeamPayload(payload);
+          applyTeamPayload(payload, input.season, input.week);
           settleWeeklyImport(leagueId, input.season, input.week, false);
           status = "FantasyPros weekly projections imported";
           lastEvent = `${payload.summary.matched} matched across ${payload.summary.positions.length} position files for Week ${payload.summary.week}`;
@@ -1559,9 +1596,27 @@
     await teamSession.run("clear-weekly", () => clearWeeklyProjectionsRequest(leagueId, input.season, input.week), {
       accept: async () => {
         settleWeeklyImport(leagueId, input.season, input.week, false);
+        if (weeklyProjectionSummary?.season === input.season && weeklyProjectionSummary.week === input.week) {
+          weeklyProjectionSummary = null;
+          teamDataReadiness = null;
+          if (teamManagerState) {
+            const state = structuredClone($state.snapshot(teamManagerState));
+            for (const player of [...state.roster.starters.flatMap(slot => slot.player ? [slot.player] : []), ...state.roster.bench, ...state.roster.injuredReserve, ...state.roster.taxi]) {
+              player.weeklyProjectedPoints = null;
+              player.weeklyProjectionSource = null;
+              player.weeklyProjectionSeason = null;
+              player.weeklyProjectionWeek = null;
+              if (player.projectionSource === "weekly_projection") {
+                player.projectionSource = "sleeper_search_rank";
+                player.projectedPoints = 0;
+              }
+            }
+            teamManagerState = state;
+          }
+        }
         status = "FantasyPros weekly projections cleared";
         lastEvent = `Cleared Week ${input.week} projection import`;
-        await loadTeamManager(leagueId, activeUserRosterId, input.season, input.week);
+        await loadTeamManager(leagueId, activeUserRosterId, teamProjectionSeason || null, teamProjectionWeek || null, true);
       },
       reject: (error) => {
         weeklyProjectionError = error instanceof Error ? error.message : "Could not clear weekly projections.";
@@ -1580,8 +1635,8 @@
       activeDraftId,
       question,
       conversationHistory,
-      teamProjectionSeason || null,
-      teamProjectionWeek || null,
+      teamPayloadSeason || null,
+      teamPayloadWeek || null,
       progress,
     );
     return payload.answer;
@@ -2109,7 +2164,7 @@
     centered={isPreconnect || switchingDraft}
     compact={showDraftRoom || workspaceMode === "manage"}
     measure={showTeamWorkspace}
-    subtitle={showTeamWorkspace && teamManagerState ? formatTeamContext(teamManagerState, teamWeekContext, teamProjectionWeek || null) : null}
+    subtitle={showTeamWorkspace && teamManagerState ? formatTeamContext(teamManagerState, teamWeekContext, teamPayloadWeek || null) : null}
     draftSwitcherOpen={draftSwitcherOpen}
     {settingsOpen}
     onOpenDraftSwitcher={() => (draftSwitcherOpen = true)}
@@ -2183,6 +2238,13 @@
 
   {#if draftState}
     {#key activeDraftId}
+      {#if teamManagerError}
+        <div class="callout callout-danger" role="alert">
+          <span>Team couldn't load: {teamManagerError}</span>
+          <button id="retry-team-load" class="btn btn-secondary" type="button" disabled={isLoadingTeamManager}
+            onclick={() => loadTeamManager(draftState?.leagueId ?? "", activeUserRosterId)}>Retry team load</button>
+        </div>
+      {/if}
       {#if draftPreparationOpen && workspaceMode === "draft"}
         <div class="preparation-flow">
           <FormatCompatibilityNotice compatibility={draftState.settings.formatCompatibility} />
@@ -2411,8 +2473,8 @@
             bind:this={teamAskPanel}
             contextKey={String(appSettings?.codexWebSearch)}
             teamState={teamManagerState}
-            selectedSeason={teamProjectionSeason || null}
-            selectedWeek={teamProjectionWeek || null}
+            selectedSeason={teamPayloadSeason || null}
+            selectedWeek={teamPayloadWeek || null}
             weekContext={teamWeekContext}
             onAsk={askTeamManager}
             providerStatus={conversationalProviderStatus}
