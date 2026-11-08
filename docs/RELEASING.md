@@ -73,12 +73,15 @@ Get-Content windows-candidate/SHA256SUMS.txt | ForEach-Object {
 A person must perform two separate checks in a real Windows desktop session,
 using this same verified candidate **before tagging**:
 
-1. **Short clean-profile first run:** create a temporary local Windows account and
-   sign in to it. Install and launch the candidate without copying an existing app
-   profile or setting up Codex. Confirm the connection screen is usable and record
-   what the app says when Codex is not installed or signed in, including its setup
-   or recovery guidance. Close the app. An upgrade launch in the usual account
-   does not satisfy this check; CI's clean-profile check does not replace it.
+1. **Short clean-profile first run:** use Windows Sandbox, or a temporary local
+   Windows account. Map only the verified Setup into Sandbox, read-only, and check
+   its hash inside. Install and launch the candidate without copying an existing app
+   profile or setting up Codex. Confirm that `codex` is not on the path there.
+   Confirm the connection screen is usable and record what the app says when Codex
+   is not installed or signed in, including its setup or recovery guidance. Close
+   the app, then discard the Sandbox or delete the account. An upgrade launch in the
+   usual account does not satisfy this check; CI's clean-profile check does not
+   replace it.
 2. **Full interactive upgrade smoke:** in the usual Windows account, keep a
    closed-app backup of the existing real-data profile, then install the candidate
    over the installed version. Confirm the saved data remains usable. Connect to
@@ -88,8 +91,15 @@ using this same verified candidate **before tagging**:
    SmartScreen and unsigned-download behavior, including whether a warning
    appeared.
 
+When an agent such as the Codex desktop app assists, the person installs and
+launches the app from the Start menu and makes any app-data backup in File
+Explorer. Programs that the Codex desktop app launches can have AppData
+redirected into its package folder
+(`%LOCALAPPDATA%\Packages\OpenAI.Codex_*\LocalCache\Roaming`). There they read
+and write a different profile from the real one, which looks like data loss.
+
 Record the exact candidate commit and artifact identity, Windows version, account
-type, and outcomes for both steps. Do not claim Windows readiness based only on
+type (or Windows Sandbox), and outcomes for both steps. Do not claim Windows readiness based only on
 Linux packaging, CI, or the upgrade-profile interactive smoke. The separate human
 clean-profile first run remains required.
 
