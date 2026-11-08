@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
 
   import { clearLocalDataCategory, fetchStorageInventory, fetchSupportReport, resetLocalData } from "../api";
   import type { AppSettings, LocalDataCategory, StorageInventory } from "../types";
@@ -49,7 +49,32 @@
     }
   }
 
-  async function clearCategory(category: LocalDataCategory) {
+  async function changeConfirmation(category: LocalDataCategory | null, row: HTMLElement | null) {
+    if (!row) return;
+    pendingCategory = category;
+    await tick();
+    focusRow(row);
+  }
+
+  function focusRow(row: HTMLElement | null) {
+    if (!row) return;
+    const ownControl = row.querySelector<HTMLButtonElement>("button:not(:disabled)");
+    if (ownControl) {
+      ownControl.focus({ preventScroll: true });
+      return;
+    }
+    for (let next = row.nextElementSibling; next; next = next.nextElementSibling) {
+      const control = next.querySelector<HTMLButtonElement>("button:not(:disabled)");
+      if (control) {
+        control.focus({ preventScroll: true });
+        return;
+      }
+    }
+    row.closest("[data-line]")?.querySelector<HTMLButtonElement>(".line-head")?.focus({ preventScroll: true });
+  }
+
+  async function clearCategory(category: LocalDataCategory, row: HTMLElement | null) {
+    if (!row) return;
     busyAction = category;
     error = "";
     status = "";
@@ -62,6 +87,8 @@
       error = caught instanceof Error ? caught.message : "Could not clear the selected local data.";
     } finally {
       busyAction = "";
+      await tick();
+      if (row.contains(document.activeElement) || document.activeElement === document.body) focusRow(row);
     }
   }
 
@@ -126,8 +153,8 @@
           </div>
           {#if pendingCategory === row.category}
             <div class="confirm-actions" aria-label={`Confirm clearing ${row.label}`}>
-              <button class="btn btn-ghost" type="button" disabled={busyAction !== ""} onclick={() => (pendingCategory = null)}>Cancel</button>
-              <button class="btn btn-danger" type="button" disabled={busyAction !== ""} onclick={() => clearCategory(row.category)}>
+              <button class="btn btn-ghost" type="button" disabled={busyAction !== ""} onclick={(event) => changeConfirmation(null, event.currentTarget.closest<HTMLElement>(".data-row"))}>Cancel</button>
+              <button class="btn btn-danger" type="button" disabled={busyAction !== ""} onclick={(event) => clearCategory(row.category, event.currentTarget.closest<HTMLElement>(".data-row"))}>
                 {busyAction === row.category ? "Clearing" : "Confirm"}
               </button>
             </div>
@@ -138,7 +165,7 @@
               title={`Clear all ${row.label.toLowerCase()}`}
               aria-label={`Clear all ${row.label.toLowerCase()}`}
               disabled={busyAction !== "" || Number(inventory[row.count]) === 0}
-              onclick={() => (pendingCategory = row.category)}
+              onclick={(event) => changeConfirmation(row.category, event.currentTarget.closest<HTMLElement>(".data-row"))}
             >
               <Icon name="trash" size={15} />
             </button>

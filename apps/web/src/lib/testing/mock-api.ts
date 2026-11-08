@@ -360,3 +360,5 @@ export function createDraftPayloadForPreferences(
     recommendationPreferences,
   }).recommendation;
 }
+
+export const resetDemoDraft = vi.fn(async () => {});

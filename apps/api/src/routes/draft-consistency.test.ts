@@ -390,3 +390,25 @@ it("demo closes its old stream on reset and retains completion heartbeats", asyn
   await reader.cancel();
   expect(vi.getTimerCount()).toBe(0);
 });
+
+
+it("starting another demo replaces a completed board and invalidates its stream", async () => {
+  vi.useFakeTimers();
+  const f = fixture();
+  const old = (await f.app.request("/drafts/mock-draft/events")).body!.getReader();
+  let event = new TextDecoder().decode((await old.read()).value);
+  for (let i = 0; !event.includes('"status":"complete"') && i < 200; i++) {
+    await vi.advanceTimersToNextTimerAsync();
+    event = new TextDecoder().decode((await old.read()).value);
+  }
+  expect(event).toContain('"status":"complete"');
+  expect((await f.app.request("/drafts/mock/reset", { method: "POST" })).status).toBe(200);
+  const payload = await (await f.app.request("/drafts/mock-draft/state")).json();
+  expect(payload.state.status).toBe("drafting");
+  expect(payload.state.currentPick).toBe(9);
+  await vi.advanceTimersByTimeAsync(4500);
+  expect((await old.read()).done).toBe(true);
+  const reader = (await f.app.request("/drafts/mock-draft/events")).body!.getReader();
+  expect(new TextDecoder().decode((await reader.read()).value)).toContain('"currentPick":9');
+  await reader.cancel();
+});

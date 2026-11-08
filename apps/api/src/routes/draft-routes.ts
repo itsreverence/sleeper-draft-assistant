@@ -96,6 +96,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
     logRouteErrorMessage,
   } = dependencies;
   let mockState = createMockDraftState(8);
+  let mockGeneration = 0;
 
   return {
     registerGuidanceRoutes,
@@ -182,6 +183,11 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
   }
 
   function registerWorkspaceRoutes(app: Hono): void {
+    app.post("/drafts/mock/reset", (c) => {
+      mockGeneration += 1;
+      mockState = createMockDraftState(8);
+      return c.json({ reset: true });
+    });
     app.get("/drafts/:draftId/state", async (c) => {
       const generation = localDataReset.captureGeneration();
       try {
@@ -686,6 +692,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
   function streamMockDraftEvents(): Response {
     const channel = createEventStreamChannel();
     const generation = localDataReset.captureGeneration();
+    const demoGeneration = mockGeneration;
     let localState: DraftState = applyDraftData("mock-draft", mockState);
     let timer: ReturnType<typeof setTimeout> | undefined;
     function schedule() {
@@ -702,7 +709,7 @@ export function createDraftRoutes(dependencies: DraftRouteDependencies) {
         });
 
         advance = () => {
-          if (!localDataReset.isCurrent(generation)) {
+          if (!localDataReset.isCurrent(generation) || demoGeneration !== mockGeneration) {
             clearTimeout(timer);
             channel.close();
             controller.close();

@@ -368,7 +368,9 @@ export function createDraftSession({
 
     activeDraftId = input.draftId;
     activeDraftTeamRef = resolvedDraftTeamRef;
-    activeUserRosterId = input.userRosterId ?? null;
+    activeUserRosterId = payload.state.userTeamId.startsWith("roster-")
+      ? payload.state.userTeamId.slice("roster-".length)
+      : input.userRosterId ?? null;
     activeIdentity = draftIdentityKey(input.draftId, resolvedDraftTeamRef);
     pendingIdentity = activeIdentity;
     applyPayload(payload);
