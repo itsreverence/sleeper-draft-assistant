@@ -93,10 +93,11 @@ using this same verified candidate **before tagging**:
 
 When an agent such as the Codex desktop app assists, the person installs and
 launches the app from the Start menu and makes any app-data backup in File
-Explorer. Programs that the Codex desktop app launches can have AppData
-redirected into its package folder
-(`%LOCALAPPDATA%\Packages\OpenAI.Codex_*\LocalCache\Roaming`). There they read
-and write a different profile from the real one, which looks like data loss.
+Explorer. During the 0.1.4 checks, a second app profile appeared under the Codex
+package folder (`%LOCALAPPDATA%\Packages\OpenAI.Codex_*\LocalCache\Roaming`), and
+a launch through Codex showed defaults that looked like data loss. The likely,
+unconfirmed cause is that programs the Codex desktop app launches have AppData
+redirected there, so they read a different profile from the real one.
 
 Record the exact candidate commit and artifact identity, Windows version, account
 type (or Windows Sandbox), and outcomes for both steps. Do not claim Windows readiness based only on
